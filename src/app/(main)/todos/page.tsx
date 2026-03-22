@@ -29,17 +29,15 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { 
   Plus, 
   Trash2, 
   Calendar as CalendarIcon, 
-  Search,
   Check,
   ChevronsUpDown,
-  ChevronLeft,
-  ChevronRight
 } from 'lucide-react';
-import { format, isToday, isTomorrow, isYesterday, addDays, subDays, startOfDay } from 'date-fns';
+import { format, isToday, isTomorrow, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -65,6 +63,15 @@ const PRIORITY_CONFIG = {
   low: { label: '常规', color: 'bg-gray-100 text-gray-600 border-gray-200', order: 1 },
 };
 
+// 生成日期列表（前后各30天）
+const generateDateList = (centerDate: Date) => {
+  const dates: Date[] = [];
+  for (let i = -30; i <= 30; i++) {
+    dates.push(addDays(centerDate, i));
+  }
+  return dates;
+};
+
 export default function TodosPage() {
   const { session } = useAuth();
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -83,8 +90,10 @@ export default function TodosPage() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(startOfDay(new Date()));
+  const [dateList] = useState(() => generateDateList(new Date()));
   
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (session?.access_token) {
@@ -93,25 +102,33 @@ export default function TodosPage() {
     }
   }, [session, currentDate]);
 
+  // 滚动到当前日期
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (scrollRef.current) {
+        const todayElement = scrollRef.current.querySelector('[data-date="today"]');
+        if (todayElement) {
+          todayElement.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+        }
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   const fetchTodos = async () => {
     if (!session?.access_token) return;
     
     setLoading(true);
     try {
       const dateStr = format(currentDate, 'yyyy-MM-dd');
-      const response = await fetch(`/api/todos?status=pending&date=${dateStr}`, {
+      const response = await fetch(`/api/todos?status=all&date=${dateStr}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
       });
       const data = await response.json();
       if (response.ok) {
-        // 按优先级排序
-        const sorted = (data.data || []).sort((a: Todo, b: Todo) => {
-          const priorityOrder = { high: 3, medium: 2, low: 1 };
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
-        });
-        setTodos(sorted);
+        setTodos(data.data || []);
       }
     } catch (error) {
       console.error('获取待办列表失败:', error);
@@ -254,285 +271,392 @@ export default function TodosPage() {
   const formatDateDisplay = (date: Date) => {
     if (isToday(date)) return '今天';
     if (isTomorrow(date)) return '明天';
-    if (isYesterday(date)) return '昨天';
-    return format(date, 'M月d日', { locale: zhCN });
+    return format(date, 'M/d', { locale: zhCN });
   };
 
-  const handlePrevDay = () => {
-    setCurrentDate(subDays(currentDate, 1));
-  };
+  // 分离未完成和已完成的待办
+  const pendingTodos = todos
+    .filter(t => !t.completed)
+    .sort((a, b) => {
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      return priorityOrder[b.priority] - priorityOrder[a.priority];
+    });
 
-  const handleNextDay = () => {
-    setCurrentDate(addDays(currentDate, 1));
-  };
+  const completedTodos = todos.filter(t => t.completed);
 
   return (
     <div className="h-full p-6 overflow-auto">
       {/* 页面标题 */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">待办清单</h1>
         <p className="text-gray-500 mt-1">管理你的日常待办事项</p>
       </div>
 
-      {/* 日期导航 */}
-      <div className="flex items-center justify-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={handlePrevDay}>
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <div className="text-center min-w-[120px]">
-          <div className="text-lg font-semibold">
-            {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })}
-          </div>
-          <div className="text-sm text-gray-500">{format(currentDate, 'EEEE', { locale: zhCN })}</div>
-        </div>
-        <Button variant="ghost" size="icon" onClick={handleNextDay}>
-          <ChevronRight className="h-5 w-5" />
-        </Button>
-        {!isToday(currentDate) && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentDate(startOfDay(new Date()))}
-            className="ml-2"
+      {/* 日期横向滚轴 */}
+      <div className="mb-6">
+        <ScrollArea className="w-full whitespace-nowrap">
+          <div 
+            ref={scrollRef}
+            className="flex gap-1 px-4"
           >
-            回到今天
-          </Button>
-        )}
+            {dateList.map((date) => {
+              const isSelected = isSameDay(date, currentDate);
+              const isTodayDate = isToday(date);
+              return (
+                <button
+                  key={date.toISOString()}
+                  data-date={isTodayDate ? 'today' : undefined}
+                  onClick={() => setCurrentDate(startOfDay(date))}
+                  className={cn(
+                    "flex flex-col items-center justify-center px-4 py-2 rounded-lg transition-all min-w-[60px]",
+                    isSelected 
+                      ? "bg-blue-500 text-white shadow-md" 
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                    isTodayDate && !isSelected && "ring-2 ring-blue-300"
+                  )}
+                >
+                  <span className="text-xs font-medium">
+                    {format(date, 'EEE', { locale: zhCN })}
+                  </span>
+                  <span className="text-lg font-bold">
+                    {format(date, 'd')}
+                  </span>
+                  {isTodayDate && (
+                    <span className={cn(
+                      "text-xs",
+                      isSelected ? "text-blue-100" : "text-blue-500"
+                    )}>
+                      今天
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
       </div>
 
-      {/* 新增待办 */}
-      <Card className="mb-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">新增待办</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {/* 待办内容 */}
-            <Input
-              ref={inputRef}
-              placeholder="输入待办事项..."
-              value={newContent}
-              onChange={(e) => setNewContent(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newContent.trim()) {
-                  handleAddTodo();
-                }
-              }}
-              className="w-full"
-            />
-
-            {/* 选项行 */}
-            <div className="flex flex-wrap gap-3">
-              {/* 客户选择 */}
-              <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-[180px] justify-between">
-                    {selectedCustomer ? (
-                      <span className="truncate">{selectedCustomer.name}</span>
-                    ) : (
-                      <span className="text-gray-400">选择客户（可选）</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
-                    <CommandInput 
-                      placeholder="搜索客户..." 
-                      value={customerSearch}
-                      onValueChange={setCustomerSearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty>未找到客户</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="none"
-                          onSelect={() => {
-                            setNewCustomerId('');
-                            setCustomerPopoverOpen(false);
-                          }}
-                        >
-                          <Check className={cn(
-                            "mr-2 h-4 w-4",
-                            !newCustomerId ? "opacity-100" : "opacity-0"
-                          )} />
-                          不关联客户
-                        </CommandItem>
-                        {filteredCustomers.map((customer) => (
-                          <CommandItem
-                            key={customer.id}
-                            value={customer.name}
-                            onSelect={() => {
-                              setNewCustomerId(customer.id);
-                              setCustomerPopoverOpen(false);
-                            }}
-                          >
-                            <Check className={cn(
-                              "mr-2 h-4 w-4",
-                              newCustomerId === customer.id ? "opacity-100" : "opacity-0"
-                            )} />
-                            {customer.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-
-              {/* 日期选择 */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-[140px] justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDateDisplay(newDueDate)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={newDueDate}
-                    onSelect={(date) => date && setNewDueDate(date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-
-              {/* 优先级选择 */}
-              <Select value={newPriority} onValueChange={(v) => setNewPriority(v as 'high' | 'medium' | 'low')}>
-                <SelectTrigger className="w-[100px]" size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">
-                    <span className="text-red-600">重要</span>
-                  </SelectItem>
-                  <SelectItem value="medium">
-                    <span className="text-yellow-600">次要</span>
-                  </SelectItem>
-                  <SelectItem value="low">
-                    <span className="text-gray-500">常规</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* 添加按钮 */}
-              <Button 
-                size="sm" 
-                onClick={handleAddTodo}
-                disabled={!newContent.trim() || adding}
-              >
-                {adding ? (
-                  <span className="flex items-center gap-1">
-                    <span className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-white"></span>
-                    添加中...
-                  </span>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-1" />
-                    添加
-                  </>
+      {/* 左右布局：左边待办事项，右边新增待办 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 左边：待办事项列表 */}
+        <div className="lg:col-span-2">
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                待办事项
+                <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
+                {completedTodos.length > 0 && (
+                  <Badge variant="outline" className="font-normal text-green-600 border-green-300">
+                    已完成 {completedTodos.length}
+                  </Badge>
                 )}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 待办列表 */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            待办事项
-            <Badge variant="secondary" className="font-normal">{todos.length}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="py-8 text-center text-gray-500">加载中...</div>
-          ) : todos.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>暂无待办事项</EmptyTitle>
-                <EmptyDescription>添加一个新的待办开始吧</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <div className="space-y-2">
-              {todos.map((todo) => (
-                <div
-                  key={todo.id}
-                  className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border transition-all",
-                    todo.completed ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200 hover:border-gray-300",
-                    PRIORITY_CONFIG[todo.priority].color.replace('text-', 'border-l-4 border-l-')
-                  )}
-                  style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid' }}
-                >
-                  {/* 完成勾选 */}
-                  <Checkbox
-                    checked={todo.completed}
-                    onCheckedChange={() => handleToggleComplete(todo)}
-                    className="mt-0.5"
-                  />
-
-                  {/* 内容区域 */}
-                  <div className="flex-1 min-w-0">
-                    <div className={cn(
-                      "font-medium",
-                      todo.completed && "line-through text-gray-400"
-                    )}>
-                      {todo.content}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                      {todo.customer_id && (
-                        <Badge variant="outline" className="text-xs">
-                          {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
-                        </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="py-8 text-center text-gray-500">加载中...</div>
+              ) : todos.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyTitle>暂无待办事项</EmptyTitle>
+                    <EmptyDescription>在右侧添加一个新的待办开始吧</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="space-y-3">
+                  {/* 未完成待办 */}
+                  {pendingTodos.map((todo) => (
+                    <div
+                      key={todo.id}
+                      className={cn(
+                        "flex items-start gap-3 p-3 rounded-lg border transition-all bg-white border-gray-200 hover:border-gray-300",
                       )}
-                      <Badge variant="outline" className="text-xs">
-                        {PRIORITY_CONFIG[todo.priority].label}
-                      </Badge>
+                      style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af' }}
+                    >
+                      {/* 完成勾选 */}
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() => handleToggleComplete(todo)}
+                        className="mt-0.5"
+                      />
+
+                      {/* 内容区域 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">
+                          {todo.content}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                          {todo.customer_id && (
+                            <Badge variant="outline" className="text-xs">
+                              {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {PRIORITY_CONFIG[todo.priority].label}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* 操作区域 */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Select
+                          value={todo.priority}
+                          onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
+                        >
+                          <SelectTrigger className="w-[70px] h-7 text-xs" size="sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="high">重要</SelectItem>
+                            <SelectItem value="medium">次要</SelectItem>
+                            <SelectItem value="low">常规</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-400 hover:text-red-500"
+                          onClick={() => handleDelete(todo.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  ))}
 
-                  {/* 操作区域 */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {/* 优先级快捷调整 */}
-                    <Select
-                      value={todo.priority}
-                      onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
-                    >
-                      <SelectTrigger className="w-[70px] h-7 text-xs" size="sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="high">重要</SelectItem>
-                        <SelectItem value="medium">次要</SelectItem>
-                        <SelectItem value="low">常规</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  {/* 已完成待办 */}
+                  {completedTodos.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 py-2">
+                        <div className="flex-1 h-px bg-gray-200"></div>
+                        <span className="text-sm text-gray-400">已完成</span>
+                        <div className="flex-1 h-px bg-gray-200"></div>
+                      </div>
+                      {completedTodos.map((todo) => (
+                        <div
+                          key={todo.id}
+                          className="flex items-start gap-3 p-3 rounded-lg border transition-all bg-green-50 border-green-200"
+                          style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#22c55e' }}
+                        >
+                          {/* 完成勾选 */}
+                          <Checkbox
+                            checked={todo.completed}
+                            onCheckedChange={() => handleToggleComplete(todo)}
+                            className="mt-0.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                          />
 
-                    {/* 删除按钮 */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-gray-400 hover:text-red-500"
-                      onClick={() => handleDelete(todo.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                          {/* 内容区域 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium line-through text-gray-400">
+                              {todo.content}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
+                              {todo.customer_id && (
+                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                  {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                <Check className="h-3 w-3 mr-1" />
+                                已完成
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* 操作区域 */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-gray-400 hover:text-red-500"
+                              onClick={() => handleDelete(todo.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* 提示信息 */}
-      <div className="mt-4 text-sm text-gray-400 text-center">
-        未完成的待办将在第二天自动延期
+        {/* 右边：新增待办 */}
+        <div className="lg:col-span-1">
+          <Card className="sticky top-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">新增待办</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* 待办内容 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    待办内容
+                  </label>
+                  <Input
+                    ref={inputRef}
+                    placeholder="输入待办事项..."
+                    value={newContent}
+                    onChange={(e) => setNewContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newContent.trim()) {
+                        handleAddTodo();
+                      }
+                    }}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* 客户选择 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    关联客户
+                  </label>
+                  <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {selectedCustomer ? (
+                          <span className="truncate">{selectedCustomer.name}</span>
+                        ) : (
+                          <span className="text-gray-400">选择客户（可选）</span>
+                        )}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput 
+                          placeholder="搜索客户..." 
+                          value={customerSearch}
+                          onValueChange={setCustomerSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>未找到客户</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="none"
+                              onSelect={() => {
+                                setNewCustomerId('');
+                                setCustomerPopoverOpen(false);
+                              }}
+                            >
+                              <Check className={cn(
+                                "mr-2 h-4 w-4",
+                                !newCustomerId ? "opacity-100" : "opacity-0"
+                              )} />
+                              不关联客户
+                            </CommandItem>
+                            {filteredCustomers.map((customer) => (
+                              <CommandItem
+                                key={customer.id}
+                                value={customer.name}
+                                onSelect={() => {
+                                  setNewCustomerId(customer.id);
+                                  setCustomerPopoverOpen(false);
+                                }}
+                              >
+                                <Check className={cn(
+                                  "mr-2 h-4 w-4",
+                                  newCustomerId === customer.id ? "opacity-100" : "opacity-0"
+                                )} />
+                                {customer.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* 日期选择 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    截止日期
+                  </label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formatDateDisplay(newDueDate)}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={newDueDate}
+                        onSelect={(date) => date && setNewDueDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* 优先级选择 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    优先级
+                  </label>
+                  <Select value={newPriority} onValueChange={(v) => setNewPriority(v as 'high' | 'medium' | 'low')}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="high">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                          重要
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="medium">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                          次要
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="low">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                          常规
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 添加按钮 */}
+                <Button 
+                  className="w-full"
+                  onClick={handleAddTodo}
+                  disabled={!newContent.trim() || adding}
+                >
+                  {adding ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></span>
+                      添加中...
+                    </span>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      添加待办
+                    </>
+                  )}
+                </Button>
+
+                {/* 提示信息 */}
+                <div className="text-xs text-gray-400 text-center">
+                  未完成的待办将在第二天自动延期
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
