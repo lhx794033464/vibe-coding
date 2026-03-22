@@ -285,15 +285,15 @@ export default function TodosPage() {
   const completedTodos = todos.filter(t => t.completed);
 
   return (
-    <div className="h-full p-6 overflow-auto">
+    <div className="h-full flex flex-col p-6">
       {/* 页面标题 */}
-      <div className="mb-4">
+      <div className="shrink-0 mb-4">
         <h1 className="text-2xl font-bold text-gray-900">待办清单</h1>
         <p className="text-gray-500 mt-1">管理你的日常待办事项</p>
       </div>
 
       {/* 日期横向滚轴 */}
-      <div className="mb-6">
+      <div className="shrink-0 mb-6">
         <ScrollArea className="w-full whitespace-nowrap">
           <div 
             ref={scrollRef}
@@ -338,145 +338,147 @@ export default function TodosPage() {
       </div>
 
       {/* 左右布局：左边待办事项，右边新增待办 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex-1 flex gap-6 min-h-0">
         {/* 左边：待办事项列表 */}
-        <div className="lg:col-span-2">
-          <Card className="h-full">
-            <CardHeader className="pb-3">
+        <div className="flex-1 flex flex-col min-h-0">
+          <Card className="flex-1 flex flex-col min-h-0">
+            <CardHeader className="shrink-0 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 待办事项
                 <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="py-8 text-center text-gray-500">加载中...</div>
-              ) : todos.length === 0 ? (
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyTitle>暂无待办事项</EmptyTitle>
-                    <EmptyDescription>在右侧添加一个新的待办开始吧</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <div className="space-y-3">
-                  {/* 未完成待办 */}
-                  {pendingTodos.map((todo) => (
-                    <div
-                      key={todo.id}
-                      className={cn(
-                        "flex items-start gap-3 p-3 rounded-lg border transition-all bg-white border-gray-200 hover:border-gray-300",
-                      )}
-                      style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af' }}
-                    >
-                      {/* 完成勾选 */}
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() => handleToggleComplete(todo)}
-                        className="mt-0.5"
-                      />
+            <CardContent className="flex-1 min-h-0 p-0">
+              <ScrollArea className="h-full px-6 pb-6">
+                {loading ? (
+                  <div className="py-8 text-center text-gray-500">加载中...</div>
+                ) : todos.length === 0 ? (
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyTitle>暂无待办事项</EmptyTitle>
+                      <EmptyDescription>在右侧添加一个新的待办开始吧</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                ) : (
+                  <div className="space-y-3 pr-4">
+                    {/* 未完成待办 */}
+                    {pendingTodos.map((todo) => (
+                      <div
+                        key={todo.id}
+                        className={cn(
+                          "flex items-start gap-3 p-3 rounded-lg border transition-all bg-white border-gray-200 hover:border-gray-300",
+                        )}
+                        style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af' }}
+                      >
+                        {/* 完成勾选 */}
+                        <Checkbox
+                          checked={todo.completed}
+                          onCheckedChange={() => handleToggleComplete(todo)}
+                          className="mt-0.5"
+                        />
 
-                      {/* 内容区域 */}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">
-                          {todo.content}
-                        </div>
-                        <div className="mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* 操作区域 */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Select
-                          value={todo.priority}
-                          onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
-                        >
-                          <SelectTrigger className="w-[80px] h-7 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="high">重要</SelectItem>
-                            <SelectItem value="medium">次要</SelectItem>
-                            <SelectItem value="low">常规</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-gray-400 hover:text-red-500"
-                          onClick={() => handleDelete(todo.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* 已完成待办 */}
-                  {completedTodos.length > 0 && (
-                    <>
-                      <div className="flex items-center gap-2 py-2">
-                        <div className="flex-1 h-px bg-gray-200"></div>
-                        <span className="text-sm text-gray-400">已完成</span>
-                        <div className="flex-1 h-px bg-gray-200"></div>
-                      </div>
-                      {completedTodos.map((todo) => (
-                        <div
-                          key={todo.id}
-                          className="flex items-start gap-3 p-3 rounded-lg border transition-all bg-green-50 border-green-200"
-                          style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#22c55e' }}
-                        >
-                          {/* 完成勾选 */}
-                          <Checkbox
-                            checked={todo.completed}
-                            onCheckedChange={() => handleToggleComplete(todo)}
-                            className="mt-0.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                          />
-
-                          {/* 内容区域 */}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium line-through text-gray-400">
-                              {todo.content}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                              <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                                {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                                <Check className="h-3 w-3 mr-1" />
-                                已完成
-                              </Badge>
-                            </div>
+                        {/* 内容区域 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">
+                            {todo.content}
                           </div>
-
-                          {/* 操作区域 */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-gray-400 hover:text-red-500"
-                              onClick={() => handleDelete(todo.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                          <div className="mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                            </Badge>
                           </div>
                         </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
+
+                        {/* 操作区域 */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Select
+                            value={todo.priority}
+                            onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
+                          >
+                            <SelectTrigger className="w-[80px] h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high">重要</SelectItem>
+                              <SelectItem value="medium">次要</SelectItem>
+                              <SelectItem value="low">常规</SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-gray-400 hover:text-red-500"
+                            onClick={() => handleDelete(todo.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* 已完成待办 */}
+                    {completedTodos.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 py-2">
+                          <div className="flex-1 h-px bg-gray-200"></div>
+                          <span className="text-sm text-gray-400">已完成</span>
+                          <div className="flex-1 h-px bg-gray-200"></div>
+                        </div>
+                        {completedTodos.map((todo) => (
+                          <div
+                            key={todo.id}
+                            className="flex items-start gap-3 p-3 rounded-lg border transition-all bg-green-50 border-green-200"
+                            style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#22c55e' }}
+                          >
+                            {/* 完成勾选 */}
+                            <Checkbox
+                              checked={todo.completed}
+                              onCheckedChange={() => handleToggleComplete(todo)}
+                              className="mt-0.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                            />
+
+                            {/* 内容区域 */}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium line-through text-gray-400">
+                                {todo.content}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
+                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                  {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                  <Check className="h-3 w-3 mr-1" />
+                                  已完成
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {/* 操作区域 */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-gray-400 hover:text-red-500"
+                                onClick={() => handleDelete(todo.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </ScrollArea>
             </CardContent>
           </Card>
         </div>
 
         {/* 右边：新增待办 */}
-        <div className="lg:col-span-1">
-          <Card className="sticky top-0">
+        <div className="w-80 shrink-0">
+          <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">新增待办</CardTitle>
             </CardHeader>
