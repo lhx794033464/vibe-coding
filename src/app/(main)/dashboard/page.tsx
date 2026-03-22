@@ -7,9 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   Users, 
   CheckCircle, 
-  TrendingUp, 
-  Calendar,
-  Clock,
+  TrendingUp,
   BarChart3
 } from 'lucide-react';
 import { TimeRange, STATUS_CONFIG, CustomerStatus } from '@/types';
@@ -56,12 +54,19 @@ export default function DashboardPage() {
     }
   };
 
-  const getTimeRangeLabel = (range: TimeRange) => {
-    switch (range) {
-      case 'month': return '本月';
-      case 'quarter': return '本季度';
-      case 'year': return '本年';
-    }
+  // 将状态分布按数量降序排列
+  const getSortedStatusDistribution = () => {
+    if (!stats?.statusDistribution) return [];
+    
+    return Object.entries(stats.statusDistribution)
+      .sort(([, a], [, b]) => b - a)
+      .map(([status, count]) => ({
+        status: status as CustomerStatus,
+        count,
+        percentage: stats.totalCustomers > 0 
+          ? ((count / stats.totalCustomers) * 100).toFixed(1) 
+          : '0.0'
+      }));
   };
 
   if (loading) {
@@ -71,6 +76,8 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const sortedDistribution = getSortedStatusDistribution();
 
   return (
     <div className="h-full p-6 overflow-auto">
@@ -93,7 +100,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 核心指标卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">客户总数</CardTitle>
@@ -130,78 +137,38 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">{getTimeRangeLabel(timeRange)}新增</CardTitle>
-            <Calendar className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-purple-600">{stats?.newCustomersThisMonth || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">新增客户数</p>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* 第二行指标 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">{getTimeRangeLabel(timeRange)}实施人天</CardTitle>
-            <Clock className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600">{stats?.totalImplementationDays || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">累计实施人天</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">状态分布</CardTitle>
-            <BarChart3 className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {stats?.statusDistribution && Object.entries(stats.statusDistribution).map(([status, count]) => (
-                <div key={status} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${STATUS_CONFIG[status as CustomerStatus]?.bgColor}`}></span>
-                    <span className="text-sm text-gray-600">{STATUS_CONFIG[status as CustomerStatus]?.label}</span>
-                  </div>
-                  <span className="text-sm font-medium">{count}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 状态分布图表 */}
+      {/* 客户状态分布图表 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">客户状态分布</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-gray-400" />
+            客户状态分布
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {stats?.statusDistribution && Object.entries(stats.statusDistribution).map(([status, count]) => {
-              const total = stats.totalCustomers || 1;
-              const percentage = (count / total) * 100;
-              return (
-                <div key={status} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">{STATUS_CONFIG[status as CustomerStatus]?.label}</span>
-                    <span className="font-medium">{count} ({percentage.toFixed(1)}%)</span>
+          <div className="space-y-4">
+            {sortedDistribution.map(({ status, count, percentage }) => (
+              <div key={status} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${STATUS_CONFIG[status]?.bgColor}`}></span>
+                    <span className="text-sm font-medium text-gray-700">{STATUS_CONFIG[status]?.label}</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${STATUS_CONFIG[status as CustomerStatus]?.bgColor}`}
-                      style={{ width: `${percentage}%` }}
-                    ></div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-gray-900">{count}</span>
+                    <span className="text-sm text-gray-500 w-14 text-right">{percentage}%</span>
                   </div>
                 </div>
-              );
-            })}
+                <div className="w-full bg-gray-100 rounded-full h-2.5">
+                  <div
+                    className={`h-2.5 rounded-full transition-all duration-300 ${STATUS_CONFIG[status]?.bgColor}`}
+                    style={{ width: `${percentage}%` }}
+                  ></div>
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
