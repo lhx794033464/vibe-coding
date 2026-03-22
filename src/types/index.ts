@@ -103,7 +103,7 @@ export interface DashboardStats {
 }
 
 // 时间范围类型
-export type TimeRange = 'month' | 'quarter' | 'year';
+export type TimeRange = 'month' | 'year' | 'all';
 
 // 行业选项
 export const INDUSTRY_OPTIONS = [

@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const { session } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
 
   useEffect(() => {
     fetchStats();
@@ -114,10 +114,10 @@ export default function DashboardPage() {
           <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" side="bottom">
             <SelectItem value="month">本月</SelectItem>
-            <SelectItem value="quarter">本季度</SelectItem>
             <SelectItem value="year">本年</SelectItem>
+            <SelectItem value="all">全部</SelectItem>
           </SelectContent>
         </Select>
       </div>

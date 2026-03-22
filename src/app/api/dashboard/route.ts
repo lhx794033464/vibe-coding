@@ -16,13 +16,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    // 获取所有客户
-    const { data: customers, error: customersError } = await client
+    const searchParams = request.nextUrl.searchParams;
+    const timeRange = searchParams.get('timeRange') || 'all';
+
+    // 计算时间范围
+    const now = new Date();
+    let startDate: Date | null = null;
+    
+    switch (timeRange) {
+      case 'month':
+        // 本月：本月1日
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        // 本年：上年12月至本年11月
+        // 如果当前月份是1-11月，本年范围是去年12月1日
+        // 如果当前月份是12月，本年范围是今年12月1日
+        if (now.getMonth() === 11) {
+          // 12月，本年从今年12月开始
+          startDate = new Date(now.getFullYear(), 11, 1);
+        } else {
+          // 1-11月，本年从去年12月开始
+          startDate = new Date(now.getFullYear() - 1, 11, 1);
+        }
+        break;
+      case 'all':
+      default:
+        // 全部：不限制
+        startDate = null;
+        break;
+    }
+
+    // 获取客户
+    let query = client.from('customers').select('*');
+    
+    // 获取所有客户用于计算总数和变动
+    const { data: allCustomers, error: allCustomersError } = await client
       .from('customers')
       .select('*');
 
-    if (customersError) {
-      return NextResponse.json({ error: customersError.message }, { status: 500 });
+    if (allCustomersError) {
+      return NextResponse.json({ error: allCustomersError.message }, { status: 500 });
+    }
+
+    // 根据时间范围筛选客户
+    let customers = allCustomers;
+    if (startDate) {
+      customers = allCustomers?.filter(c => new Date(c.created_at) >= startDate) || [];
     }
 
     // 计算当前统计数据
@@ -40,11 +80,10 @@ export async function GET(request: NextRequest) {
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100) : 0;
 
     // 计算上月数据（上期）
-    const now = new Date();
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1); // 本月1日0点，即上月末
     
-    // 上月末的客户数
-    const lastMonthCustomers = customers?.filter(c => new Date(c.created_at) < lastMonthEnd) || [];
+    // 上月末的客户数（基于全部客户计算）
+    const lastMonthCustomers = allCustomers?.filter(c => new Date(c.created_at) < lastMonthEnd) || [];
     const lastMonthTotalCustomers = lastMonthCustomers.length;
     
     // 上月末的上线客户数和验收客户数
@@ -65,7 +104,7 @@ export async function GET(request: NextRequest) {
     const onlineRateChange = onlineRate - lastMonthOnlineRate;
     const acceptanceRateChange = acceptanceRate - lastMonthAcceptanceRate;
 
-    // 状态分布
+    // 状态分布（基于筛选后的客户）
     const statusDistribution: Record<string, number> = {
       not_online: 0,
       online_not_accepted: 0,
