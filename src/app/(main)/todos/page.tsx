@@ -386,16 +386,13 @@ export default function TodosPage() {
                         <div className="font-medium">
                           {todo.content}
                         </div>
-                        <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                          {todo.customer_id && (
+                        {todo.customer_id && (
+                          <div className="mt-1">
                             <Badge variant="outline" className="text-xs">
                               {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
                             </Badge>
-                          )}
-                          <Badge variant="outline" className="text-xs">
-                            {PRIORITY_CONFIG[todo.priority].label}
-                          </Badge>
-                        </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* 操作区域 */}
@@ -404,7 +401,7 @@ export default function TodosPage() {
                           value={todo.priority}
                           onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
                         >
-                          <SelectTrigger className="w-[70px] h-7 text-xs" size="sm">
+                          <SelectTrigger className="w-[80px] h-7 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
