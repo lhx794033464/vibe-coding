@@ -346,11 +346,6 @@ export default function TodosPage() {
               <CardTitle className="text-base flex items-center gap-2">
                 待办事项
                 <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
-                {completedTodos.length > 0 && (
-                  <Badge variant="outline" className="font-normal text-green-600 border-green-300">
-                    已完成 {completedTodos.length}
-                  </Badge>
-                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -386,13 +381,11 @@ export default function TodosPage() {
                         <div className="font-medium">
                           {todo.content}
                         </div>
-                        {todo.customer_id && (
-                          <div className="mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
-                            </Badge>
-                          </div>
-                        )}
+                        <div className="mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                          </Badge>
+                        </div>
                       </div>
 
                       {/* 操作区域 */}
@@ -450,11 +443,9 @@ export default function TodosPage() {
                               {todo.content}
                             </div>
                             <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                              {todo.customer_id && (
-                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                                  {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
-                                </Badge>
-                              )}
+                              <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                              </Badge>
                               <Badge variant="outline" className="text-xs border-green-200 text-green-600">
                                 <Check className="h-3 w-3 mr-1" />
                                 已完成
