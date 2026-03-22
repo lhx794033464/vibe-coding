@@ -10,7 +10,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, AlertCircle, Eye, Download, MessageSquare, Calendar, Loader2, ExternalLink } from 'lucide-react';
+import { Search, Plus, AlertCircle, Download, MessageSquare, Calendar, Loader2, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { formatDistanceToNow, format, addHours } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -273,7 +274,12 @@ export default function CustomersPage() {
                       <div className="flex-1">
                         {/* 第一行：客户名称 + 状态 */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-gray-900">{customer.name}</h3>
+                          <Link 
+                            href={`/customers/${customer.id}`}
+                            className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors"
+                          >
+                            {customer.name}
+                          </Link>
                           <Badge className={`${statusConfig?.bgColor} ${statusConfig?.color}`}>
                             {statusConfig?.label}
                           </Badge>
@@ -323,14 +329,6 @@ export default function CustomersPage() {
                     
                     {/* 操作按钮 */}
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/customers/${customer.id}`)}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        查看
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
