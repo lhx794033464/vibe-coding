@@ -217,3 +217,64 @@ export const updateUserProfileSchema = createCoercedInsertSchema(userProfiles)
 
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
+
+// 待办优先级枚举
+export type TodoPriority = 'high' | 'medium' | 'low';
+
+// 优先级配置
+export const PRIORITY_CONFIG: Record<TodoPriority, { label: string; color: string; order: number }> = {
+  high: { label: '重要', color: 'bg-red-100 text-red-700 border-red-200', order: 3 },
+  medium: { label: '次要', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', order: 2 },
+  low: { label: '常规', color: 'bg-gray-100 text-gray-600 border-gray-200', order: 1 },
+};
+
+// 待办事项表
+export const todos = pgTable(
+  "todos",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    content: text("content").notNull(),
+    customerId: varchar("customer_id", { length: 36 }),
+    dueDate: timestamp("due_date", { withTimezone: true, mode: 'string' }).notNull(),
+    priority: varchar("priority", { length: 20 }).notNull().default('low'),
+    completed: boolean("completed").default(false).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: 'string' }),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index("todos_user_id_idx").on(table.userId),
+    index("todos_due_date_idx").on(table.dueDate),
+    index("todos_completed_idx").on(table.completed),
+    index("todos_customer_id_idx").on(table.customerId),
+  ]
+);
+
+// 待办事项 Zod schemas
+export const insertTodoSchema = createCoercedInsertSchema(todos).pick({
+  content: true,
+  customerId: true,
+  dueDate: true,
+  priority: true,
+  userId: true,
+});
+
+export const updateTodoSchema = createCoercedInsertSchema(todos)
+  .pick({
+    content: true,
+    customerId: true,
+    dueDate: true,
+    priority: true,
+    completed: true,
+    completedAt: true,
+  })
+  .partial();
+
+export type Todo = typeof todos.$inferSelect;
+export type InsertTodo = z.infer<typeof insertTodoSchema>;
+export type UpdateTodo = z.infer<typeof updateTodoSchema>;
