@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, Eye, Trash2, Download } from 'lucide-react';
+import { Search, Plus, AlertCircle, Eye, Download, MessageSquare } from 'lucide-react';
 import { Customer, CustomerStatus, STATUS_CONFIG } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -48,25 +48,6 @@ export default function CustomersPage() {
       console.error('获取客户列表失败:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个客户吗？删除后将无法恢复。')) return;
-    
-    try {
-      const response = await fetch(`/api/customers/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-      });
-      
-      if (response.ok) {
-        fetchCustomers();
-      }
-    } catch (error) {
-      console.error('删除客户失败:', error);
     }
   };
 
@@ -175,11 +156,11 @@ export default function CustomersPage() {
             
             return (
               <Card key={customer.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-3 flex-1">
                       {/* 状态标识 */}
-                      <div className={`w-3 h-12 rounded-full ${statusConfig?.bgColor}`}></div>
+                      <div className={`w-2 h-8 rounded-full ${statusConfig?.bgColor}`}></div>
                       
                       {/* 客户信息 */}
                       <div className="flex-1">
@@ -195,15 +176,12 @@ export default function CustomersPage() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
                           {customer.industry && <span>行业: {customer.industry}</span>}
                           {customer.product_amount && <span>金额: ¥{customer.product_amount.toLocaleString()}</span>}
                           {customer.implementation_days && <span>人天: {customer.implementation_days}天</span>}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          创建于 {formatDistanceToNow(new Date(customer.created_at), { addSuffix: true, locale: zhCN })}
                           {customer.last_follow_up_at && (
-                            <span className="ml-4">
+                            <span className="text-xs">
                               最后跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
                             </span>
                           )}
@@ -224,10 +202,10 @@ export default function CustomersPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-red-600 hover:text-red-700"
-                        onClick={() => handleDelete(customer.id)}
+                        onClick={() => router.push(`/customers/${customer.id}`)}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <MessageSquare className="w-4 h-4 mr-1" />
+                        跟进
                       </Button>
                     </div>
                   </div>

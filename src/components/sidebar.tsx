@@ -17,7 +17,6 @@ interface SidebarProps {
 const navItems = [
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
-  { href: '/customers/new', label: '添加客户', icon: UserPlus },
 ];
 
 export function Sidebar({ onSignOut }: SidebarProps) {
