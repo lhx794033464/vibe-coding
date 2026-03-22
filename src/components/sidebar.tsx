@@ -38,7 +38,7 @@ export function Sidebar({ onSignOut }: SidebarProps) {
             />
           </div>
           <div>
-            <h1 className="font-bold text-gray-900">项目管理系统</h1>
+            <h1 className="font-bold text-gray-900">交付管理系统</h1>
             <p className="text-xs text-gray-500">金蝶云星辰</p>
           </div>
         </div>
