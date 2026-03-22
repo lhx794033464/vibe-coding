@@ -11,7 +11,8 @@ import {
   DollarSign,
   User,
   Camera,
-  Loader2
+  Loader2,
+  Home
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,6 +21,7 @@ interface SidebarProps {
 }
 
 const navItems = [
+  { href: '/home', label: '首页', icon: Home },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
   { href: '/commissions', label: '提成管理', icon: DollarSign },
