@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
@@ -19,18 +20,6 @@ const navItems = [
   { href: '/commissions', label: '提成管理', icon: DollarSign },
 ];
 
-// 金蝶Logo组件
-function KingdeeLogo() {
-  return (
-    <div className="w-10 h-10 grid grid-cols-2 gap-1 p-1">
-      <div className="w-4 h-4 rounded-full bg-[#1e3a8a]"></div>
-      <div className="w-4 h-4 rounded-full bg-[#38bdf8]"></div>
-      <div className="w-4 h-4 rounded-full bg-[#7c3aed]"></div>
-      <div className="w-4 h-4 rounded-full bg-[#34d399]"></div>
-    </div>
-  );
-}
-
 export function Sidebar({ onSignOut }: SidebarProps) {
   const pathname = usePathname();
 
@@ -39,11 +28,17 @@ export function Sidebar({ onSignOut }: SidebarProps) {
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-            <KingdeeLogo />
+          <div className="w-10 h-10 flex items-center justify-center">
+            <Image
+              src="/logo.png"
+              alt="金蝶Logo"
+              width={40}
+              height={40}
+              className="object-contain"
+            />
           </div>
           <div>
-            <h1 className="font-bold text-gray-900">交付之家</h1>
+            <h1 className="font-bold text-gray-900">项目管理系统</h1>
             <p className="text-xs text-gray-500">金蝶云星辰</p>
           </div>
         </div>

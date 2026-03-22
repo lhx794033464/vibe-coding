@@ -58,7 +58,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">交付之家</CardTitle>
+          <CardTitle className="text-2xl font-bold">项目管理系统</CardTitle>
           <CardDescription>金蝶云星辰实施顾问工作台</CardDescription>
         </CardHeader>
         <CardContent>
