@@ -11,7 +11,7 @@ export type CustomerStatus =
 export type ProductVersion = 'standard' | 'professional' | 'flagship';
 
 // 产品模块类型
-export type ProductModule = 'finance' | 'inventory' | 'production' | 'reimbursement' | 'tax' | 'invoicing' | 'ordering' | 'retail';
+export type ProductModule = 'finance' | 'inventory' | 'production' | 'reimbursement' | 'tax' | 'invoicing' | 'ordering' | 'retail' | 'outsourcing';
 
 // 状态配置
 export const STATUS_CONFIG: Record<CustomerStatus, { label: string; color: string; bgColor: string }> = {
@@ -40,6 +40,7 @@ export const MODULE_CONFIG: Record<ProductModule, { label: string }> = {
   invoicing: { label: '开票' },
   ordering: { label: '订货' },
   retail: { label: '零售' },
+  outsourcing: { label: '委外' },
 };
 
 // 模块选项列表（用于表单选择）
@@ -52,6 +53,7 @@ export const MODULE_OPTIONS: { value: ProductModule; label: string }[] = [
   { value: 'invoicing', label: '开票' },
   { value: 'ordering', label: '订货' },
   { value: 'retail', label: '零售' },
+  { value: 'outsourcing', label: '委外' },
 ];
 
 // 客户类型

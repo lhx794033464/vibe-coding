@@ -16,7 +16,7 @@ export type CustomerStatus = 'not_online' | 'online_not_accepted' | 'accepted' |
 export type ProductVersion = 'standard' | 'professional' | 'flagship';
 
 // 产品模块
-export type ProductModule = 'finance' | 'inventory' | 'production' | 'reimbursement' | 'tax' | 'invoicing' | 'ordering' | 'retail';
+export type ProductModule = 'finance' | 'inventory' | 'production' | 'reimbursement' | 'tax' | 'invoicing' | 'ordering' | 'retail' | 'outsourcing';
 
 // 版本配置
 export const VERSION_CONFIG: Record<ProductVersion, { label: string; color: string }> = {
@@ -35,6 +35,7 @@ export const MODULE_CONFIG: Record<ProductModule, { label: string }> = {
   invoicing: { label: '开票' },
   ordering: { label: '订货' },
   retail: { label: '零售' },
+  outsourcing: { label: '委外' },
 };
 
 // 客户表
