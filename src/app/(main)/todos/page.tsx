@@ -52,7 +52,6 @@ interface Todo {
   completed: boolean;
   completed_at: string | null;
   created_at: string;
-  customers: { name: string } | null;
 }
 
 interface Customer {
@@ -71,6 +70,7 @@ export default function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
   const [newContent, setNewContent] = useState('');
   const [newCustomerId, setNewCustomerId] = useState<string>('');
   const [newDueDate, setNewDueDate] = useState<Date>(() => {
@@ -141,6 +141,7 @@ export default function TodosPage() {
   const handleAddTodo = async () => {
     if (!session?.access_token || !newContent.trim()) return;
 
+    setAdding(true);
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
@@ -168,9 +169,14 @@ export default function TodosPage() {
         setNewDueDate(hour < 17 ? today : addDays(today, 1));
         fetchTodos();
         inputRef.current?.focus();
+      } else {
+        alert(data.error || '添加失败');
       }
     } catch (error) {
       console.error('创建待办失败:', error);
+      alert('创建待办失败，请重试');
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -414,10 +420,19 @@ export default function TodosPage() {
               <Button 
                 size="sm" 
                 onClick={handleAddTodo}
-                disabled={!newContent.trim()}
+                disabled={!newContent.trim() || adding}
               >
-                <Plus className="h-4 w-4 mr-1" />
-                添加
+                {adding ? (
+                  <span className="flex items-center gap-1">
+                    <span className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-white"></span>
+                    添加中...
+                  </span>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-1" />
+                    添加
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -470,9 +485,9 @@ export default function TodosPage() {
                       {todo.content}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                      {todo.customers && (
+                      {todo.customer_id && (
                         <Badge variant="outline" className="text-xs">
-                          {todo.customers.name}
+                          {customers.find(c => c.id === todo.customer_id)?.name || '未知客户'}
                         </Badge>
                       )}
                       <Badge variant="outline" className="text-xs">

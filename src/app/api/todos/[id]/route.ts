@@ -39,10 +39,7 @@ export async function PUT(
       .update(updateData)
       .eq('id', id)
       .eq('user_id', user.id)
-      .select(`
-        *,
-        customers(name)
-      `)
+      .select()
       .single();
 
     if (error) {

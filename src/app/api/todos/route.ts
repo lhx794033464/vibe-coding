@@ -36,10 +36,7 @@ export async function GET(request: NextRequest) {
 
     let query = client
       .from('todos')
-      .select(`
-        *,
-        customers(name)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('user_id', user.id);
 
     // 状态筛选
@@ -126,10 +123,7 @@ export async function POST(request: NextRequest) {
         priority: priority || 'low',
         user_id: user.id,
       })
-      .select(`
-        *,
-        customers(name)
-      `)
+      .select()
       .single();
 
     if (error) {
