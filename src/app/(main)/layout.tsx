@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useRouter } from 'next/navigation';
@@ -13,6 +14,7 @@ export default function MainLayout({
 }) {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -35,8 +37,14 @@ export default function MainLayout({
   return (
     <ChatProvider>
       <div className="h-screen flex bg-gray-50 overflow-hidden">
-        <Sidebar onSignOut={signOut} />
-        <main className="flex-1 ml-64 h-full overflow-auto">
+        <Sidebar 
+          onSignOut={signOut} 
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+        <main className={`flex-1 h-full overflow-auto transition-all duration-300 ${
+          sidebarCollapsed ? 'ml-16' : 'ml-64'
+        }`}>
           {children}
         </main>
       </div>

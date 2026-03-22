@@ -12,12 +12,16 @@ import {
   User,
   Camera,
   Loader2,
-  Home
+  Home,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   onSignOut: () => void;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 const navItems = [
@@ -27,7 +31,7 @@ const navItems = [
   { href: '/commissions', label: '提成管理', icon: DollarSign },
 ];
 
-export function Sidebar({ onSignOut }: SidebarProps) {
+export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
   const { user, session } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -115,16 +119,22 @@ export function Sidebar({ onSignOut }: SidebarProps) {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col">
+    <aside 
+      className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 group ${
+        collapsed ? 'w-16' : 'w-64'
+      }`}
+    >
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
+      <div className={`border-b border-gray-200 ${collapsed ? 'p-3' : 'p-6'}`}>
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
           {/* 用户头像 */}
           <button 
             onClick={handleAvatarClick}
             disabled={uploading}
-            className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden group cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
-            title="点击上传头像"
+            className={`relative rounded-full bg-gray-100 flex items-center justify-center overflow-hidden group/avatar cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all ${
+              collapsed ? 'w-10 h-10' : 'w-10 h-10'
+            }`}
+            title={collapsed ? "点击上传头像" : undefined}
           >
             {uploading ? (
               <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
@@ -137,14 +147,14 @@ export function Sidebar({ onSignOut }: SidebarProps) {
                   height={40}
                   className="object-cover w-full h-full"
                 />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
                   <Camera className="w-4 h-4 text-white" />
                 </div>
               </>
             ) : (
               <>
                 <User className="w-5 h-5 text-gray-400" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
                   <Camera className="w-4 h-4 text-white" />
                 </div>
               </>
@@ -157,15 +167,17 @@ export function Sidebar({ onSignOut }: SidebarProps) {
             onChange={handleFileChange}
             className="hidden"
           />
-          <div>
-            <h1 className="font-bold text-gray-900">交付管理系统</h1>
-            <p className="text-xs text-gray-500">{user?.email || '金蝶云星辰'}</p>
-          </div>
+          {!collapsed && (
+            <div>
+              <h1 className="font-bold text-gray-900">交付管理系统</h1>
+              <p className="text-xs text-gray-500">{user?.email || '金蝶云星辰'}</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'}`}>
         <ul className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -184,14 +196,17 @@ export function Sidebar({ onSignOut }: SidebarProps) {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 py-3 rounded-lg transition-colors ${
+                    collapsed ? 'justify-center px-0' : 'px-4'
+                  } ${
                     isActive
                       ? 'bg-blue-50 text-blue-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
+                  title={collapsed ? item.label : undefined}
                 >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && item.label}
                 </Link>
               </li>
             );
@@ -200,15 +215,31 @@ export function Sidebar({ onSignOut }: SidebarProps) {
       </nav>
 
       {/* Sign Out */}
-      <div className="p-4 border-t border-gray-200">
+      <div className={`border-t border-gray-200 ${collapsed ? 'p-2' : 'p-4'}`}>
         <button
           onClick={onSignOut}
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors"
+          className={`flex items-center gap-3 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors ${
+            collapsed ? 'justify-center px-0' : 'px-4'
+          }`}
+          title={collapsed ? "退出登录" : undefined}
         >
-          <LogOut className="w-5 h-5" />
-          退出登录
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && "退出登录"}
         </button>
       </div>
+
+      {/* 折叠按钮 - 悬停时显示 */}
+      <button
+        onClick={() => onCollapsedChange?.(!collapsed)}
+        className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 hover:bg-gray-50 hover:border-gray-300 transition-all z-10"
+        title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+      >
+        {collapsed ? (
+          <ChevronRight className="w-4 h-4 text-gray-500" />
+        ) : (
+          <ChevronLeft className="w-4 h-4 text-gray-500" />
+        )}
+      </button>
     </aside>
   );
 }
