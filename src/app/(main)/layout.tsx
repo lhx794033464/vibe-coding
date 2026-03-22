@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { ChatProvider } from '@/contexts/ChatContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Sidebar } from '@/components/sidebar';
@@ -32,11 +33,13 @@ export default function MainLayout({
   }
 
   return (
-    <div className="h-screen flex bg-gray-50 overflow-hidden">
-      <Sidebar onSignOut={signOut} />
-      <main className="flex-1 ml-64 h-full overflow-auto">
-        {children}
-      </main>
-    </div>
+    <ChatProvider>
+      <div className="h-screen flex bg-gray-50 overflow-hidden">
+        <Sidebar onSignOut={signOut} />
+        <main className="flex-1 ml-64 h-full overflow-auto">
+          {children}
+        </main>
+      </div>
+    </ChatProvider>
   );
 }

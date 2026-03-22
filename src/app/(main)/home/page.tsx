@@ -4,32 +4,28 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChat } from '@/contexts/ChatContext';
 
 // 根据时间获取温馨提示语
 function getGreeting(): string {
   const hour = new Date().getHours();
   
   if (hour < 9) {
-    return '又是元气满满的一天 ☀️';
+    return '又是元气满满的一天~ ☀️';
   } else if (hour < 13) {
-    return '你认真工作的样子真的很迷人 ✨';
+    return '你认真工作的样子真的很迷人~ ✨';
   } else if (hour < 17) {
-    return '来杯咖啡提提神 ☕';
+    return '来杯咖啡提提神~ ☕';
   } else if (hour < 19) {
-    return '再忍忍，马上就下班了 💪';
+    return '再忍忍，马上就下班了~ 💪';
   } else {
-    return '工作再忙也要注意身体 🌙';
+    return '工作再忙也要注意身体~ 🌙';
   }
-}
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
 }
 
 export default function HomePage() {
   const { session } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { messages, addMessage } = useChat();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,7 +51,7 @@ export default function HomePage() {
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    addMessage({ role: 'user', content: userMessage });
     setLoading(true);
 
     try {
@@ -93,25 +89,18 @@ export default function HomePage() {
           const chunk = decoder.decode(value);
           assistantMessage += chunk;
           
-          // 实时更新消息
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage?.role === 'assistant') {
-              lastMessage.content = assistantMessage;
-            } else {
-              newMessages.push({ role: 'assistant', content: assistantMessage });
-            }
-            return newMessages;
-          });
+          // 实时更新消息 - 使用局部状态临时存储
         }
+        
+        // 完成后添加到全局状态
+        addMessage({ role: 'assistant', content: assistantMessage });
       }
     } catch (error) {
       console.error('对话失败:', error);
-      setMessages(prev => [...prev, { 
+      addMessage({ 
         role: 'assistant', 
         content: '抱歉，我遇到了一些问题，请稍后再试。' 
-      }]);
+      });
     } finally {
       setLoading(false);
     }
@@ -126,9 +115,9 @@ export default function HomePage() {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-blue-50/50 to-white">
-      {/* 温馨提示语 */}
-      <div className="flex-shrink-0 pt-12 pb-8 text-center">
-        <h1 className="text-2xl font-medium text-gray-700 tracking-wide">
+      {/* 温馨提示语 - 左对齐 */}
+      <div className="flex-shrink-0 pt-8 pb-6 px-8">
+        <h1 className="text-xl font-medium text-gray-600 tracking-wide">
           {greeting}
         </h1>
       </div>
@@ -137,10 +126,10 @@ export default function HomePage() {
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-4">
         <div className="max-w-2xl mx-auto space-y-4">
           {messages.length === 0 && (
-            <div className="text-center text-gray-400 py-12">
-              <p className="text-lg">有什么想聊的吗？</p>
-              <p className="text-sm mt-2">我是你的AI助手，随时为你服务</p>
-              <p className="text-xs mt-4 text-gray-300">你可以问我：客户情况、上线率、验收率等</p>
+            <div className="h-full flex items-center justify-center min-h-[300px]">
+              <p className="text-2xl font-bold text-gray-700 text-center">
+                我是你的AI助手，随时为你服务
+              </p>
             </div>
           )}
           
@@ -161,7 +150,7 @@ export default function HomePage() {
             </div>
           ))}
           
-          {loading && messages[messages.length - 1]?.role !== 'assistant' && (
+          {loading && (
             <div className="flex justify-start">
               <div className="bg-white text-gray-700 shadow-sm border border-gray-100 px-4 py-3 rounded-2xl rounded-bl-md">
                 <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
