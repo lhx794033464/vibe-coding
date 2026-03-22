@@ -12,6 +12,31 @@ export const healthCheck = pgTable("health_check", {
 // 客户状态枚举
 export type CustomerStatus = 'not_online' | 'online_not_accepted' | 'accepted' | 'not_going_online' | 'delayed_online' | 'partially_online';
 
+// 产品版本枚举
+export type ProductVersion = 'standard' | 'professional' | 'flagship';
+
+// 产品模块
+export type ProductModule = 'finance' | 'inventory' | 'production' | 'reimbursement' | 'tax' | 'invoicing' | 'ordering' | 'retail';
+
+// 版本配置
+export const VERSION_CONFIG: Record<ProductVersion, { label: string; color: string }> = {
+  standard: { label: '标准版', color: 'bg-blue-100 text-blue-700' },
+  professional: { label: '专业版', color: 'bg-purple-100 text-purple-700' },
+  flagship: { label: '旗舰版', color: 'bg-amber-100 text-amber-700' },
+};
+
+// 模块配置
+export const MODULE_CONFIG: Record<ProductModule, { label: string }> = {
+  finance: { label: '财务' },
+  inventory: { label: '进销存' },
+  production: { label: '生产' },
+  reimbursement: { label: '报销' },
+  tax: { label: '纳税' },
+  invoicing: { label: '开票' },
+  ordering: { label: '订货' },
+  retail: { label: '零售' },
+};
+
 // 客户表
 export const customers = pgTable(
   "customers",
@@ -24,6 +49,8 @@ export const customers = pgTable(
     implementationOrderNo: varchar("implementation_order_no", { length: 100 }),
     productAmount: integer("product_amount"),
     implementationDays: numeric("implementation_days", { precision: 6, scale: 2 }),
+    version: varchar("version", { length: 50 }),
+    modules: text("modules").array(),
     industry: varchar("industry", { length: 100 }),
     specialRequirements: text("special_requirements"),
     status: varchar("status", { length: 50 }).notNull().default('not_online'),
@@ -79,6 +106,8 @@ export const insertCustomerSchema = createCoercedInsertSchema(customers).pick({
   implementationOrderNo: true,
   productAmount: true,
   implementationDays: true,
+  version: true,
+  modules: true,
   industry: true,
   specialRequirements: true,
   status: true,
@@ -92,6 +121,8 @@ export const updateCustomerSchema = createCoercedInsertSchema(customers)
     implementationOrderNo: true,
     productAmount: true,
     implementationDays: true,
+    version: true,
+    modules: true,
     industry: true,
     specialRequirements: true,
     status: true,

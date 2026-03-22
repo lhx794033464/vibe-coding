@@ -70,6 +70,8 @@ export async function PUT(
     if (body.implementation_order_no !== undefined) updateData.implementation_order_no = body.implementation_order_no;
     if (body.product_amount !== undefined) updateData.product_amount = body.product_amount;
     if (body.implementation_days !== undefined) updateData.implementation_days = body.implementation_days;
+    if (body.version !== undefined) updateData.version = body.version;
+    if (body.modules !== undefined) updateData.modules = body.modules;
     if (body.industry !== undefined) updateData.industry = body.industry;
     if (body.special_requirements !== undefined) updateData.special_requirements = body.special_requirements;
     if (body.status !== undefined) updateData.status = body.status;

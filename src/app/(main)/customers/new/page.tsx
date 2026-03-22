@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Upload, Download } from 'lucide-react';
-import { CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS } from '@/types';
+import { CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS } from '@/types';
 import * as XLSX from 'xlsx';
 
 export default function NewCustomerPage() {
@@ -26,6 +26,8 @@ export default function NewCustomerPage() {
     implementation_order_no: '',
     product_amount: '',
     implementation_days: '',
+    version: '' as ProductVersion | '',
+    modules: [] as ProductModule[],
     industry: '',
     special_requirements: '',
     status: 'not_online' as CustomerStatus,
@@ -52,6 +54,8 @@ export default function NewCustomerPage() {
           implementation_order_no: formData.implementation_order_no || null,
           product_amount: formData.product_amount ? parseInt(formData.product_amount) : null,
           implementation_days: formData.implementation_days ? parseFloat(formData.implementation_days) : null,
+          version: formData.version || null,
+          modules: formData.modules.length > 0 ? formData.modules : null,
           industry: formData.industry || null,
           special_requirements: formData.special_requirements || null,
           status: formData.status,
@@ -259,6 +263,53 @@ export default function NewCustomerPage() {
                       onChange={(e) => setFormData({ ...formData, implementation_days: e.target.value })}
                       placeholder="请输入实施人天"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="version">产品版本</Label>
+                    <Select
+                      value={formData.version}
+                      onValueChange={(v) => setFormData({ ...formData, version: v as ProductVersion })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="请选择版本" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(VERSION_CONFIG).map(([key, value]) => (
+                          <SelectItem key={key} value={key}>{value.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>产品模块</Label>
+                    <div className="flex flex-wrap gap-2 p-3 border rounded-md min-h-[42px]">
+                      {MODULE_OPTIONS.map((module) => (
+                        <label
+                          key={module.value}
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors ${
+                            formData.modules.includes(module.value)
+                              ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                              : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={formData.modules.includes(module.value)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, modules: [...formData.modules, module.value] });
+                              } else {
+                                setFormData({ ...formData, modules: formData.modules.filter(m => m !== module.value) });
+                              }
+                            }}
+                          />
+                          {module.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-2">

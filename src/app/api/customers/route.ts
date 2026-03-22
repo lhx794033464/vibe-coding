@@ -119,6 +119,8 @@ export async function POST(request: NextRequest) {
       implementation_order_no, 
       product_amount, 
       implementation_days, 
+      version,
+      modules,
       industry, 
       special_requirements, 
       status 
@@ -136,6 +138,8 @@ export async function POST(request: NextRequest) {
         implementation_order_no: implementation_order_no || null,
         product_amount: product_amount || null,
         implementation_days: implementation_days || null,
+        version: version || null,
+        modules: modules || null,
         industry: industry || null,
         special_requirements: special_requirements || null,
         status: status || 'not_online',

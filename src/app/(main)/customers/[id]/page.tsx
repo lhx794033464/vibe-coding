@@ -22,7 +22,7 @@ import {
   Clock,
   TrendingUp
 } from 'lucide-react';
-import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS } from '@/types';
+import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -50,6 +50,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
     implementation_order_no: '',
     product_amount: '',
     implementation_days: '',
+    version: '' as ProductVersion | '',
+    modules: [] as ProductModule[],
     industry: '',
     special_requirements: '',
     status: '' as CustomerStatus,
@@ -82,6 +84,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
           implementation_order_no: data.data.implementation_order_no || '',
           product_amount: data.data.product_amount || '',
           implementation_days: data.data.implementation_days || '',
+          version: data.data.version || '',
+          modules: data.data.modules || [],
           industry: data.data.industry || '',
           special_requirements: data.data.special_requirements || '',
           status: data.data.status,
@@ -126,6 +130,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
           implementation_order_no: editForm.implementation_order_no || null,
           product_amount: editForm.product_amount ? parseInt(editForm.product_amount) : null,
           implementation_days: editForm.implementation_days ? parseFloat(editForm.implementation_days) : null,
+          version: editForm.version || null,
+          modules: editForm.modules.length > 0 ? editForm.modules : null,
           industry: editForm.industry || null,
           special_requirements: editForm.special_requirements || null,
           status: editForm.status,
@@ -325,6 +331,48 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>产品版本</Label>
+                      <select
+                        className="w-full border rounded-md px-3 py-2"
+                        value={editForm.version}
+                        onChange={(e) => setEditForm({ ...editForm, version: e.target.value as ProductVersion })}
+                      >
+                        <option value="">请选择</option>
+                        {Object.entries(VERSION_CONFIG).map(([key, value]) => (
+                          <option key={key} value={key}>{value.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>产品模块</Label>
+                      <div className="flex flex-wrap gap-2 p-3 border rounded-md min-h-[42px]">
+                        {MODULE_OPTIONS.map((module) => (
+                          <label
+                            key={module.value}
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors ${
+                              editForm.modules.includes(module.value)
+                                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="hidden"
+                              checked={editForm.modules.includes(module.value)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditForm({ ...editForm, modules: [...editForm.modules, module.value] });
+                                } else {
+                                  setEditForm({ ...editForm, modules: editForm.modules.filter(m => m !== module.value) });
+                                }
+                              }}
+                            />
+                            {module.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
                       <Label>行业背景</Label>
                       <select
                         className="w-full border rounded-md px-3 py-2"
@@ -356,6 +404,31 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
                     <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${parseFloat(customer.implementation_days).toFixed(2)} 天` : null} />
                   </div>
+                  {/* 产品版本和模块 */}
+                  {(customer.version || (customer.modules && customer.modules.length > 0)) && (
+                    <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      {customer.version && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">产品版本:</span>
+                          <Badge className={VERSION_CONFIG[customer.version]?.color}>
+                            {VERSION_CONFIG[customer.version]?.label}
+                          </Badge>
+                        </div>
+                      )}
+                      {customer.modules && customer.modules.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">产品模块:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {customer.modules.map((module) => (
+                              <Badge key={module} variant="outline" className="text-xs">
+                                {MODULE_CONFIG[module]?.label}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <Separator />
                   {/* 人天统计 */}
                   <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Search, Plus, AlertCircle, Eye, Download, MessageSquare, Calendar, Loader2, ExternalLink } from 'lucide-react';
-import { Customer, CustomerStatus, STATUS_CONFIG } from '@/types';
+import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { formatDistanceToNow, format, addHours } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -270,11 +270,16 @@ export default function CustomersPage() {
                       
                       {/* 客户信息 */}
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-gray-900">{customer.name}</h3>
                           <Badge className={`${statusConfig?.bgColor} ${statusConfig?.color}`}>
                             {statusConfig?.label}
                           </Badge>
+                          {customer.version && (
+                            <Badge className={VERSION_CONFIG[customer.version as ProductVersion]?.color}>
+                              {VERSION_CONFIG[customer.version as ProductVersion]?.label}
+                            </Badge>
+                          )}
                           {isStale && customer.status !== 'accepted' && (
                             <Badge variant="outline" className="text-orange-600 border-orange-300">
                               <AlertCircle className="w-3 h-3 mr-1" />
@@ -282,12 +287,25 @@ export default function CustomersPage() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                           <span>
                             人天: 总{formatDays(customer.implementation_days)} / 
                             已耗{formatDays(customer.consumed_days)} / 
                             余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
                           </span>
+                          {customer.modules && customer.modules.length > 0 && (
+                            <span className="flex items-center gap-1">
+                              模块:
+                              {customer.modules.slice(0, 4).map((module) => (
+                                <Badge key={module} variant="outline" className="text-xs px-1.5 py-0">
+                                  {MODULE_CONFIG[module as ProductModule]?.label}
+                                </Badge>
+                              ))}
+                              {customer.modules.length > 4 && (
+                                <span className="text-xs text-gray-400">+{customer.modules.length - 4}</span>
+                              )}
+                            </span>
+                          )}
                           {customer.last_follow_up_at ? (
                             <span className="text-xs">
                               最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
