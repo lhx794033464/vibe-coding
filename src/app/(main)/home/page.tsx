@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 // 根据时间获取温馨提示语
 function getGreeting(): string {
@@ -27,6 +28,7 @@ interface Message {
 }
 
 export default function HomePage() {
+  const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,9 +59,18 @@ export default function HomePage() {
     setLoading(true);
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // 添加认证token
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ 
           messages: [...messages, { role: 'user', content: userMessage }] 
         }),
@@ -129,6 +140,7 @@ export default function HomePage() {
             <div className="text-center text-gray-400 py-12">
               <p className="text-lg">有什么想聊的吗？</p>
               <p className="text-sm mt-2">我是你的AI助手，随时为你服务</p>
+              <p className="text-xs mt-4 text-gray-300">你可以问我：客户情况、上线率、验收率等</p>
             </div>
           )}
           
