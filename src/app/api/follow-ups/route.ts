@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       follow_up_at, 
       content, 
       meeting_link, 
+      consumed_days,
       is_accepted, 
       signature_image_url 
     } = body;
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
         follow_up_at,
         content,
         meeting_link: meeting_link || null,
+        consumed_days: consumed_days || null,
         is_accepted: is_accepted || false,
         signature_image_url: signature_image_url || null,
         user_id: user.id,

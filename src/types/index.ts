@@ -41,6 +41,7 @@ export interface FollowUpRecord {
   follow_up_at: string;
   content: string;
   meeting_link: string | null;
+  consumed_days: number | null;
   is_accepted: boolean;
   signature_image_url: string | null;
   user_id: string;

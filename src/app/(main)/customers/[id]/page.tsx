@@ -19,7 +19,8 @@ import {
   User,
   Building,
   FileText,
-  Clock
+  Clock,
+  TrendingUp
 } from 'lucide-react';
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS } from '@/types';
 import { format } from 'date-fns';
@@ -40,6 +41,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     content: '',
     meeting_link: '',
+    consumed_days: '',
   });
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -157,6 +159,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           follow_up_at: followUpForm.follow_up_at,
           content: followUpForm.content,
           meeting_link: followUpForm.meeting_link || null,
+          consumed_days: followUpForm.consumed_days ? parseInt(followUpForm.consumed_days) : null,
           is_accepted: false,
         }),
       });
@@ -166,6 +169,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
           content: '',
           meeting_link: '',
+          consumed_days: '',
         });
         setShowFollowUpForm(false);
         fetchFollowUps(customer.id);
@@ -221,6 +225,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
   }
 
   const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
+
+  // 计算已消耗人天和剩余人天
+  const totalConsumedDays = followUps.reduce((sum, record) => sum + (record.consumed_days || 0), 0);
+  const remainingDays = (customer.implementation_days || 0) - totalConsumedDays;
 
   return (
     <div className="space-y-6">
@@ -347,6 +355,22 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${customer.implementation_days} 天` : null} />
                   </div>
                   <Separator />
+                  {/* 人天统计 */}
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="text-center">
+                      <p className="text-sm text-gray-500">总实施人天</p>
+                      <p className="text-xl font-bold text-gray-900">{customer.implementation_days || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-500">已消耗人天</p>
+                      <p className="text-xl font-bold text-orange-600">{totalConsumedDays}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-500">剩余人天</p>
+                      <p className={`text-xl font-bold ${remainingDays < 0 ? 'text-red-600' : 'text-green-600'}`}>{remainingDays}</p>
+                    </div>
+                  </div>
+                  <Separator />
                   <div>
                     <Label className="text-gray-500">产品金额</Label>
                     <p className="text-lg font-semibold mt-1">
@@ -401,6 +425,16 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label>消耗人天</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={followUpForm.consumed_days}
+                      onChange={(e) => setFollowUpForm({ ...followUpForm, consumed_days: e.target.value })}
+                      placeholder="本次跟进消耗的人天数"
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label>会议回放链接</Label>
                     <Input
                       value={followUpForm.meeting_link}
@@ -425,9 +459,16 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         <span className="text-sm text-gray-500">
                           {format(new Date(record.follow_up_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
                         </span>
-                        {record.is_accepted && (
-                          <Badge className="bg-green-100 text-green-700">已验收</Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {record.consumed_days && (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300">
+                              消耗 {record.consumed_days} 天
+                            </Badge>
+                          )}
+                          {record.is_accepted && (
+                            <Badge className="bg-green-100 text-green-700">已验收</Badge>
+                          )}
+                        </div>
                       </div>
                       <p className="mt-2 text-sm whitespace-pre-wrap">{record.content}</p>
                       {record.meeting_link && (

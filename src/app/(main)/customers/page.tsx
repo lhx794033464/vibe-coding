@@ -202,7 +202,7 @@ export default function CustomersPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.push(`/customers/${customer.id}`)}
+                        onClick={() => router.push(`/customers/${customer.id}/follow-up`)}
                       >
                         <MessageSquare className="w-4 h-4 mr-1" />
                         跟进
