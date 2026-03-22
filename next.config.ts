@@ -11,6 +11,16 @@ const nextConfig: NextConfig = {
         hostname: 'lf-coze-web-cdn.coze.cn',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'coze-coding-project.tos.coze.site',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.tos.coze.site',
+        pathname: '/**',
+      },
     ],
   },
 };
