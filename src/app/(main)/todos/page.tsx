@@ -92,6 +92,10 @@ export default function TodosPage() {
   const [currentDate, setCurrentDate] = useState(startOfDay(new Date()));
   const [dateList] = useState(() => generateDateList(new Date()));
   
+  // 动画状态
+  const [completingTodoId, setCompletingTodoId] = useState<string | null>(null);
+  const [uncompletingTodoId, setUncompletingTodoId] = useState<string | null>(null);
+  
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -197,27 +201,74 @@ export default function TodosPage() {
     }
   };
 
-  const handleToggleComplete = async (todo: Todo) => {
-    if (!session?.access_token) return;
+  // 完成待办（带动画）
+  const handleCompleteTodo = async (todo: Todo) => {
+    if (!session?.access_token || completingTodoId) return;
 
-    try {
-      const response = await fetch(`/api/todos/${todo.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          completed: !todo.completed,
-        }),
-      });
+    // 开始动画
+    setCompletingTodoId(todo.id);
 
-      if (response.ok) {
-        fetchTodos();
+    // 动画持续600ms后更新状态
+    setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/todos/${todo.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            completed: true,
+          }),
+        });
+
+        if (response.ok) {
+          // 更新本地状态
+          setTodos(prev => prev.map(t => 
+            t.id === todo.id ? { ...t, completed: true } : t
+          ));
+        }
+      } catch (error) {
+        console.error('更新待办失败:', error);
+      } finally {
+        setCompletingTodoId(null);
       }
-    } catch (error) {
-      console.error('更新待办失败:', error);
-    }
+    }, 600);
+  };
+
+  // 取消完成（带动画）
+  const handleUncompleteTodo = async (todo: Todo) => {
+    if (!session?.access_token || uncompletingTodoId) return;
+
+    // 开始动画
+    setUncompletingTodoId(todo.id);
+
+    // 动画持续600ms后更新状态
+    setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/todos/${todo.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            completed: false,
+          }),
+        });
+
+        if (response.ok) {
+          // 更新本地状态
+          setTodos(prev => prev.map(t => 
+            t.id === todo.id ? { ...t, completed: false } : t
+          ));
+        }
+      } catch (error) {
+        console.error('更新待办失败:', error);
+      } finally {
+        setUncompletingTodoId(null);
+      }
+    }, 600);
   };
 
   const handleDelete = async (id: string) => {
@@ -232,7 +283,7 @@ export default function TodosPage() {
       });
 
       if (response.ok) {
-        fetchTodos();
+        setTodos(prev => prev.filter(t => t.id !== id));
       }
     } catch (error) {
       console.error('删除待办失败:', error);
@@ -255,7 +306,9 @@ export default function TodosPage() {
       });
 
       if (response.ok) {
-        fetchTodos();
+        setTodos(prev => prev.map(t => 
+          t.id === todo.id ? { ...t, priority: newPriority } : t
+        ));
       }
     } catch (error) {
       console.error('更新优先级失败:', error);
@@ -366,24 +419,38 @@ export default function TodosPage() {
                       <div
                         key={todo.id}
                         className={cn(
-                          "flex items-start gap-3 p-3 rounded-lg border transition-all bg-white border-gray-200 hover:border-gray-300",
+                          "flex items-start gap-3 p-3 rounded-lg border transition-all duration-500 bg-white border-gray-200 hover:border-gray-300",
+                          completingTodoId === todo.id && "animate-complete-todo"
                         )}
-                        style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af' }}
+                        style={{ 
+                          borderLeftWidth: '4px', 
+                          borderLeftStyle: 'solid', 
+                          borderLeftColor: completingTodoId === todo.id ? '#22c55e' : todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af' 
+                        }}
                       >
                         {/* 完成勾选 */}
                         <Checkbox
-                          checked={todo.completed}
-                          onCheckedChange={() => handleToggleComplete(todo)}
-                          className="mt-0.5"
+                          checked={completingTodoId === todo.id}
+                          onCheckedChange={() => handleCompleteTodo(todo)}
+                          className={cn(
+                            "mt-0.5",
+                            completingTodoId === todo.id && "animate-checkmark"
+                          )}
                         />
 
                         {/* 内容区域 */}
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium">
+                          <div className={cn(
+                            "font-medium transition-all duration-500",
+                            completingTodoId === todo.id && "strikethrough-animate text-gray-400"
+                          )}>
                             {todo.content}
                           </div>
                           <div className="mt-1">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className={cn(
+                              "text-xs transition-all duration-300",
+                              completingTodoId === todo.id && "border-green-200 text-green-600"
+                            )}>
                               {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
                             </Badge>
                           </div>
@@ -394,6 +461,7 @@ export default function TodosPage() {
                           <Select
                             value={todo.priority}
                             onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
+                            disabled={completingTodoId === todo.id}
                           >
                             <SelectTrigger className="w-[80px] h-7 text-xs">
                               <SelectValue />
@@ -410,6 +478,7 @@ export default function TodosPage() {
                             size="icon"
                             className="h-7 w-7 text-gray-400 hover:text-red-500"
                             onClick={() => handleDelete(todo.id)}
+                            disabled={completingTodoId === todo.id}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -428,26 +497,43 @@ export default function TodosPage() {
                         {completedTodos.map((todo) => (
                           <div
                             key={todo.id}
-                            className="flex items-start gap-3 p-3 rounded-lg border transition-all bg-green-50 border-green-200"
-                            style={{ borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#22c55e' }}
+                            className={cn(
+                              "flex items-start gap-3 p-3 rounded-lg border transition-all duration-500 bg-green-50 border-green-200",
+                              uncompletingTodoId === todo.id && "animate-uncomplete-todo"
+                            )}
+                            style={{ 
+                              borderLeftWidth: '4px', 
+                              borderLeftStyle: 'solid', 
+                              borderLeftColor: uncompletingTodoId === todo.id ? '#9ca3af' : '#22c55e'
+                            }}
                           >
                             {/* 完成勾选 */}
                             <Checkbox
-                              checked={todo.completed}
-                              onCheckedChange={() => handleToggleComplete(todo)}
+                              checked={uncompletingTodoId !== todo.id}
+                              onCheckedChange={() => handleUncompleteTodo(todo)}
                               className="mt-0.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
                             />
 
                             {/* 内容区域 */}
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium line-through text-gray-400">
+                              <div className={cn(
+                                "font-medium transition-all duration-500",
+                                uncompletingTodoId !== todo.id && "line-through text-gray-400",
+                                uncompletingTodoId === todo.id && "text-gray-900"
+                              )}>
                                 {todo.content}
                               </div>
                               <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                <Badge variant="outline" className={cn(
+                                  "text-xs border-green-200 text-green-600 transition-all duration-300",
+                                  uncompletingTodoId === todo.id && "border-gray-200 text-gray-600"
+                                )}>
                                   {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
+                                <Badge variant="outline" className={cn(
+                                  "text-xs border-green-200 text-green-600 transition-all duration-300",
+                                  uncompletingTodoId === todo.id && "opacity-0"
+                                )}>
                                   <Check className="h-3 w-3 mr-1" />
                                   已完成
                                 </Badge>
@@ -461,6 +547,7 @@ export default function TodosPage() {
                                 size="icon"
                                 className="h-7 w-7 text-gray-400 hover:text-red-500"
                                 onClick={() => handleDelete(todo.id)}
+                                disabled={uncompletingTodoId === todo.id}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -648,6 +735,94 @@ export default function TodosPage() {
           </Card>
         </div>
       </div>
+
+      {/* CSS 动画样式 */}
+      <style jsx global>{`
+        @keyframes completeTodo {
+          0% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+            background-color: rgb(255 255 255);
+          }
+          15% {
+            transform: translateX(8px) scale(1.02);
+            background-color: rgb(255 255 255);
+          }
+          50% {
+            transform: translateX(0) scale(1);
+            background-color: rgb(220 252 231);
+            border-color: rgb(187 247 208);
+          }
+          100% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+            background-color: rgb(220 252 231);
+            border-color: rgb(187 247 208);
+          }
+        }
+
+        @keyframes uncompleteTodo {
+          0% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+            background-color: rgb(220 252 231);
+          }
+          15% {
+            transform: translateX(-8px) scale(1.02);
+            background-color: rgb(220 252 231);
+          }
+          50% {
+            transform: translateX(0) scale(1);
+            background-color: rgb(255 255 255);
+            border-color: rgb(229 231 235);
+          }
+          100% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+            background-color: rgb(255 255 255);
+            border-color: rgb(229 231 235);
+          }
+        }
+
+        @keyframes checkmark {
+          0% {
+            transform: scale(0);
+          }
+          50% {
+            transform: scale(1.3);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+
+        @keyframes strikethrough {
+          0% {
+            text-decoration-color: transparent;
+          }
+          100% {
+            text-decoration-color: rgb(156 163 175);
+          }
+        }
+
+        .animate-complete-todo {
+          animation: completeTodo 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .animate-uncomplete-todo {
+          animation: uncompleteTodo 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .animate-checkmark {
+          animation: checkmark 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .strikethrough-animate {
+          text-decoration: line-through;
+          text-decoration-thickness: 2px;
+          animation: strikethrough 0.4s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 }
