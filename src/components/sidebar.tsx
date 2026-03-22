@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -7,8 +8,12 @@ import {
   LayoutDashboard, 
   Users, 
   LogOut,
-  DollarSign
+  DollarSign,
+  User,
+  Camera,
+  Loader2
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   onSignOut: () => void;
@@ -22,24 +27,137 @@ const navItems = [
 
 export function Sidebar({ onSignOut }: SidebarProps) {
   const pathname = usePathname();
+  const { user, session } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 获取头像
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (!session?.access_token) return;
+      
+      try {
+        const response = await fetch('/api/avatar', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAvatarUrl(data.avatarUrl);
+        }
+      } catch (error) {
+        console.error('获取头像失败:', error);
+      }
+    };
+
+    fetchAvatar();
+  }, [session?.access_token]);
+
+  const handleAvatarClick = () => {
+    if (!uploading) {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !session?.access_token) return;
+
+    // 验证文件类型
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('仅支持 JPG、PNG、GIF、WebP 格式');
+      return;
+    }
+
+    // 验证文件大小
+    if (file.size > 2 * 1024 * 1024) {
+      alert('文件大小不能超过 2MB');
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/avatar', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAvatarUrl(data.avatarUrl);
+      } else {
+        const error = await response.json();
+        alert(error.error || '上传失败');
+      }
+    } catch (error) {
+      console.error('上传头像失败:', error);
+      alert('上传失败，请重试');
+    } finally {
+      setUploading(false);
+      // 清空input，允许重复选择同一文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center">
-            <Image
-              src="/logo.png"
-              alt="金蝶Logo"
-              width={40}
-              height={40}
-              className="object-contain"
-            />
-          </div>
+          {/* 用户头像 */}
+          <button 
+            onClick={handleAvatarClick}
+            disabled={uploading}
+            className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden group cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
+            title="点击上传头像"
+          >
+            {uploading ? (
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            ) : avatarUrl ? (
+              <>
+                <Image
+                  src={avatarUrl}
+                  alt="用户头像"
+                  width={40}
+                  height={40}
+                  className="object-cover w-full h-full"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera className="w-4 h-4 text-white" />
+                </div>
+              </>
+            ) : (
+              <>
+                <User className="w-5 h-5 text-gray-400" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera className="w-4 h-4 text-white" />
+                </div>
+              </>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={handleFileChange}
+            className="hidden"
+          />
           <div>
             <h1 className="font-bold text-gray-900">交付管理系统</h1>
-            <p className="text-xs text-gray-500">金蝶云星辰</p>
+            <p className="text-xs text-gray-500">{user?.email || '金蝶云星辰'}</p>
           </div>
         </div>
       </div>

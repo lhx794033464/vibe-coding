@@ -188,3 +188,32 @@ export const insertCommissionRecordSchema = createCoercedInsertSchema(commission
 
 export type CommissionRecord = typeof commissionRecords.$inferSelect;
 export type InsertCommissionRecord = z.infer<typeof insertCommissionRecordSchema>;
+
+// 用户配置表
+export const userProfiles = pgTable(
+  "user_profiles",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey(),
+    avatarUrl: varchar("avatar_url", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
+  }
+);
+
+// 用户配置 Zod schemas
+export const insertUserProfileSchema = createCoercedInsertSchema(userProfiles).pick({
+  id: true,
+  avatarUrl: true,
+});
+
+export const updateUserProfileSchema = createCoercedInsertSchema(userProfiles)
+  .pick({
+    avatarUrl: true,
+  })
+  .partial();
+
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
