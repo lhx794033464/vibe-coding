@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     const totalImplementationDays = customers?.reduce((sum, c) => {
       const createdAt = new Date(c.created_at);
       if (createdAt >= startDate) {
-        return sum + (c.implementation_days || 0);
+        return sum + parseFloat(c.implementation_days || '0');
       }
       return sum;
     }, 0) || 0;

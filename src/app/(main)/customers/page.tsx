@@ -13,10 +13,16 @@ import { Customer, CustomerStatus, STATUS_CONFIG } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
+// 扩展Customer类型，包含计算字段
+interface CustomerWithDays extends Customer {
+  consumed_days: number;
+  remaining_days: number;
+}
+
 export default function CustomersPage() {
   const { session } = useAuth();
   const router = useRouter();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<CustomerWithDays[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -81,12 +87,19 @@ export default function CustomersPage() {
   };
 
   // 检查是否长时间未跟进（超过7天）
-  const isStaleFollowUp = (customer: Customer) => {
+  const isStaleFollowUp = (customer: CustomerWithDays) => {
     if (!customer.last_follow_up_at) return true; // 从未跟进
     const lastFollowUp = new Date(customer.last_follow_up_at);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - lastFollowUp.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays > 7;
+  };
+
+  // 格式化人天数字
+  const formatDays = (days: number | string | null | undefined) => {
+    if (days === null || days === undefined) return '0';
+    const num = typeof days === 'string' ? parseFloat(days) : days;
+    return num.toFixed(2).replace(/\.?0+$/, '') || '0'; // 移除末尾的0
   };
 
   if (loading) {
@@ -177,13 +190,17 @@ export default function CustomersPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
-                          {customer.industry && <span>行业: {customer.industry}</span>}
-                          {customer.product_amount && <span>金额: ¥{customer.product_amount.toLocaleString()}</span>}
-                          {customer.implementation_days && <span>人天: {customer.implementation_days}天</span>}
-                          {customer.last_follow_up_at && (
+                          <span>
+                            人天: 总{formatDays(customer.implementation_days)} / 
+                            已耗{formatDays(customer.consumed_days)} / 
+                            余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
+                          </span>
+                          {customer.last_follow_up_at ? (
                             <span className="text-xs">
-                              最后跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
+                              最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
                             </span>
+                          ) : (
+                            <span className="text-xs text-orange-500">暂无跟进</span>
                           )}
                         </div>
                       </div>

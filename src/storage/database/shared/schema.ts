@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, varchar, text, integer, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, varchar, text, integer, boolean, numeric, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createSchemaFactory } from "drizzle-zod";
 import { z } from "zod";
@@ -23,7 +23,7 @@ export const customers = pgTable(
     salesOrderNo: varchar("sales_order_no", { length: 100 }),
     implementationOrderNo: varchar("implementation_order_no", { length: 100 }),
     productAmount: integer("product_amount"),
-    implementationDays: integer("implementation_days"),
+    implementationDays: numeric("implementation_days", { precision: 6, scale: 2 }),
     industry: varchar("industry", { length: 100 }),
     specialRequirements: text("special_requirements"),
     status: varchar("status", { length: 50 }).notNull().default('not_online'),
@@ -52,7 +52,7 @@ export const followUpRecords = pgTable(
     followUpAt: timestamp("follow_up_at", { withTimezone: true, mode: 'string' }).notNull(),
     content: text("content").notNull(),
     meetingLink: varchar("meeting_link", { length: 500 }),
-    consumedDays: integer("consumed_days"),
+    consumedDays: numeric("consumed_days", { precision: 6, scale: 2 }),
     isAccepted: boolean("is_accepted").default(false).notNull(),
     signatureImageUrl: varchar("signature_image_url", { length: 500 }),
     userId: varchar("user_id", { length: 36 }).notNull(),

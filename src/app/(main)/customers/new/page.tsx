@@ -51,7 +51,7 @@ export default function NewCustomerPage() {
           sales_order_no: formData.sales_order_no || null,
           implementation_order_no: formData.implementation_order_no || null,
           product_amount: formData.product_amount ? parseInt(formData.product_amount) : null,
-          implementation_days: formData.implementation_days ? parseInt(formData.implementation_days) : null,
+          implementation_days: formData.implementation_days ? parseFloat(formData.implementation_days) : null,
           industry: formData.industry || null,
           special_requirements: formData.special_requirements || null,
           status: formData.status,
@@ -253,6 +253,8 @@ export default function NewCustomerPage() {
                     <Input
                       id="implementation_days"
                       type="number"
+                      min="0"
+                      step="0.01"
                       value={formData.implementation_days}
                       onChange={(e) => setFormData({ ...formData, implementation_days: e.target.value })}
                       placeholder="请输入实施人天"

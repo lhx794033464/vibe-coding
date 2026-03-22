@@ -125,7 +125,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           sales_order_no: editForm.sales_order_no || null,
           implementation_order_no: editForm.implementation_order_no || null,
           product_amount: editForm.product_amount ? parseInt(editForm.product_amount) : null,
-          implementation_days: editForm.implementation_days ? parseInt(editForm.implementation_days) : null,
+          implementation_days: editForm.implementation_days ? parseFloat(editForm.implementation_days) : null,
           industry: editForm.industry || null,
           special_requirements: editForm.special_requirements || null,
           status: editForm.status,
@@ -227,8 +227,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
 
   // 计算已消耗人天和剩余人天
-  const totalConsumedDays = followUps.reduce((sum, record) => sum + (record.consumed_days || 0), 0);
-  const remainingDays = (customer.implementation_days || 0) - totalConsumedDays;
+  const totalConsumedDays = followUps.reduce((sum, record) => sum + parseFloat(record.consumed_days || '0'), 0);
+  const remainingDays = parseFloat(customer.implementation_days || '0') - totalConsumedDays;
 
   return (
     <div className="space-y-6">
@@ -318,6 +318,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       <Label>实施人天</Label>
                       <Input
                         type="number"
+                        min="0"
+                        step="0.01"
                         value={editForm.implementation_days}
                         onChange={(e) => setEditForm({ ...editForm, implementation_days: e.target.value })}
                       />
@@ -352,22 +354,22 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="销售订单号" value={customer.sales_order_no} />
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="实施订单号" value={customer.implementation_order_no} />
                     <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
-                    <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${customer.implementation_days} 天` : null} />
+                    <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${parseFloat(customer.implementation_days).toFixed(2)} 天` : null} />
                   </div>
                   <Separator />
                   {/* 人天统计 */}
                   <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                     <div className="text-center">
                       <p className="text-sm text-gray-500">总实施人天</p>
-                      <p className="text-xl font-bold text-gray-900">{customer.implementation_days || 0}</p>
+                      <p className="text-xl font-bold text-gray-900">{parseFloat(customer.implementation_days || '0').toFixed(2)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-500">已消耗人天</p>
-                      <p className="text-xl font-bold text-orange-600">{totalConsumedDays}</p>
+                      <p className="text-xl font-bold text-orange-600">{totalConsumedDays.toFixed(2)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-500">剩余人天</p>
-                      <p className={`text-xl font-bold ${remainingDays < 0 ? 'text-red-600' : 'text-green-600'}`}>{remainingDays}</p>
+                      <p className={`text-xl font-bold ${remainingDays < 0 ? 'text-red-600' : 'text-green-600'}`}>{remainingDays.toFixed(2)}</p>
                     </div>
                   </div>
                   <Separator />
@@ -462,7 +464,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         <div className="flex items-center gap-2">
                           {record.consumed_days && (
                             <Badge variant="outline" className="text-orange-600 border-orange-300">
-                              消耗 {record.consumed_days} 天
+                              消耗 {parseFloat(record.consumed_days).toFixed(2)} 天
                             </Badge>
                           )}
                           {record.is_accepted && (

@@ -64,7 +64,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data, count });
+    // 获取所有跟进记录，计算每个客户的已消耗人天
+    const customerIds = data?.map(c => c.id) || [];
+    let consumedDaysMap: Record<string, number> = {};
+    
+    if (customerIds.length > 0) {
+      const { data: followUps } = await client
+        .from('follow_up_records')
+        .select('customer_id, consumed_days')
+        .in('customer_id', customerIds);
+      
+      followUps?.forEach(record => {
+        const days = parseFloat(record.consumed_days || '0');
+        if (!consumedDaysMap[record.customer_id]) {
+          consumedDaysMap[record.customer_id] = 0;
+        }
+        consumedDaysMap[record.customer_id] += days;
+      });
+    }
+
+    // 为每个客户添加已消耗人天和剩余人天
+    const customersWithDays = data?.map(customer => ({
+      ...customer,
+      consumed_days: parseFloat((consumedDaysMap[customer.id] || 0).toFixed(2)),
+      remaining_days: parseFloat(((parseFloat(customer.implementation_days || '0') - (consumedDaysMap[customer.id] || 0)).toFixed(2))),
+    }));
+
+    return NextResponse.json({ data: customersWithDays, count });
   } catch (error) {
     console.error('获取客户列表失败:', error);
     return NextResponse.json({ error: '获取客户列表失败' }, { status: 500 });

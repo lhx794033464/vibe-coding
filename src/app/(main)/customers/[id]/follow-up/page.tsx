@@ -78,8 +78,8 @@ export default function FollowUpPage({ params }: PageProps) {
   };
 
   // 计算已消耗人天
-  const totalConsumedDays = followUps.reduce((sum, record) => sum + (record.consumed_days || 0), 0);
-  const remainingDays = customer ? (customer.implementation_days || 0) - totalConsumedDays : 0;
+  const totalConsumedDays = followUps.reduce((sum, record) => sum + parseFloat(record.consumed_days || '0'), 0);
+  const remainingDays = customer ? parseFloat(customer.implementation_days || '0') - totalConsumedDays : 0;
 
   const handleSubmit = async () => {
     if (!customer || !form.content) {
@@ -100,7 +100,7 @@ export default function FollowUpPage({ params }: PageProps) {
           follow_up_at: form.follow_up_at,
           content: form.content,
           meeting_link: form.meeting_link || null,
-          consumed_days: form.consumed_days ? parseInt(form.consumed_days) : null,
+          consumed_days: form.consumed_days ? parseFloat(form.consumed_days) : null,
           is_accepted: false,
         }),
       });
@@ -205,7 +205,7 @@ export default function FollowUpPage({ params }: PageProps) {
               <Clock className="w-4 h-4" />
               <span className="text-sm">总实施人天</span>
             </div>
-            <p className="text-2xl font-bold">{customer.implementation_days || 0} 天</p>
+            <p className="text-2xl font-bold">{parseFloat(customer.implementation_days || '0').toFixed(2)} 天</p>
           </CardContent>
         </Card>
         <Card>
@@ -214,7 +214,7 @@ export default function FollowUpPage({ params }: PageProps) {
               <Clock className="w-4 h-4" />
               <span className="text-sm">已消耗人天</span>
             </div>
-            <p className="text-2xl font-bold text-orange-600">{totalConsumedDays} 天</p>
+            <p className="text-2xl font-bold text-orange-600">{totalConsumedDays.toFixed(2)} 天</p>
           </CardContent>
         </Card>
         <Card>
@@ -224,7 +224,7 @@ export default function FollowUpPage({ params }: PageProps) {
               <span className="text-sm">剩余人天</span>
             </div>
             <p className={`text-2xl font-bold ${remainingDays < 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {remainingDays} 天
+              {remainingDays.toFixed(2)} 天
             </p>
           </CardContent>
         </Card>
@@ -262,6 +262,7 @@ export default function FollowUpPage({ params }: PageProps) {
               <Input
                 type="number"
                 min="0"
+                step="0.01"
                 value={form.consumed_days}
                 onChange={(e) => setForm({ ...form, consumed_days: e.target.value })}
                 placeholder="本次跟进消耗的人天数"
@@ -301,7 +302,7 @@ export default function FollowUpPage({ params }: PageProps) {
                       </span>
                       {record.consumed_days && (
                         <Badge variant="outline" className="text-orange-600 border-orange-300">
-                          消耗 {record.consumed_days} 天
+                          消耗 {parseFloat(record.consumed_days).toFixed(2)} 天
                         </Badge>
                       )}
                     </div>

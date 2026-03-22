@@ -24,7 +24,7 @@ export interface Customer {
   sales_order_no: string | null;
   implementation_order_no: string | null;
   product_amount: number | null;
-  implementation_days: number | null;
+  implementation_days: string | null; // numeric类型返回string
   industry: string | null;
   special_requirements: string | null;
   status: CustomerStatus;
@@ -41,7 +41,7 @@ export interface FollowUpRecord {
   follow_up_at: string;
   content: string;
   meeting_link: string | null;
-  consumed_days: number | null;
+  consumed_days: string | null; // numeric类型返回string
   is_accepted: boolean;
   signature_image_url: string | null;
   user_id: string;
