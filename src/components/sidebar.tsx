@@ -120,7 +120,7 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
 
   return (
     <aside 
-      className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 group ${
+      className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-hidden group ${
         collapsed ? 'w-16' : 'w-64'
       }`}
     >
@@ -131,9 +131,7 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
           <button 
             onClick={handleAvatarClick}
             disabled={uploading}
-            className={`relative rounded-full bg-gray-100 flex items-center justify-center overflow-hidden group/avatar cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all ${
-              collapsed ? 'w-10 h-10' : 'w-10 h-10'
-            }`}
+            className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0 group/avatar cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
             title={collapsed ? "点击上传头像" : undefined}
           >
             {uploading ? (
@@ -167,12 +165,13 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
             onChange={handleFileChange}
             className="hidden"
           />
-          {!collapsed && (
-            <div>
-              <h1 className="font-bold text-gray-900">交付管理系统</h1>
-              <p className="text-xs text-gray-500">{user?.email || '金蝶云星辰'}</p>
-            </div>
-          )}
+          {/* 文字区域 - 使用绝对定位避免布局跳动 */}
+          <div className={`flex-1 overflow-hidden transition-opacity duration-200 ${
+            collapsed ? 'opacity-0 w-0' : 'opacity-100'
+          }`}>
+            <h1 className="font-bold text-gray-900 whitespace-nowrap">交付管理系统</h1>
+            <p className="text-xs text-gray-500 whitespace-nowrap truncate">{user?.email || '金蝶云星辰'}</p>
+          </div>
         </div>
       </div>
 
@@ -197,16 +196,18 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
                 <Link
                   href={item.href}
                   className={`flex items-center gap-3 py-3 rounded-lg transition-colors ${
-                    collapsed ? 'justify-center px-0' : 'px-4'
-                  } ${
                     isActive
                       ? 'bg-blue-50 text-blue-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                  } ${collapsed ? 'justify-center px-0' : 'px-4'}`}
                   title={collapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && item.label}
+                  <span className={`whitespace-nowrap transition-opacity duration-200 ${
+                    collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
+                  }`}>
+                    {item.label}
+                  </span>
                 </Link>
               </li>
             );
@@ -224,7 +225,11 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
           title={collapsed ? "退出登录" : undefined}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && "退出登录"}
+          <span className={`whitespace-nowrap transition-opacity duration-200 ${
+            collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
+          }`}>
+            退出登录
+          </span>
         </button>
       </div>
 
