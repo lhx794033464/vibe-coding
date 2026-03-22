@@ -65,6 +65,8 @@ export interface Customer {
   implementation_fee: number | null;
   implementation_days: string | null; // numeric类型返回string
   opened_at: string | null;
+  online_at: string | null;
+  accepted_at: string | null;
   version: ProductVersion | null;
   modules: ProductModule[] | null;
   industry: string | null;

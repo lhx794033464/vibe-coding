@@ -63,6 +63,13 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // 先获取当前客户信息
+    const { data: currentCustomer } = await client
+      .from('customers')
+      .select('status')
+      .eq('id', id)
+      .single();
+
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
     
     if (body.name !== undefined) updateData.name = body.name;
@@ -75,8 +82,25 @@ export async function PUT(
     if (body.modules !== undefined) updateData.modules = body.modules;
     if (body.industry !== undefined) updateData.industry = body.industry;
     if (body.special_requirements !== undefined) updateData.special_requirements = body.special_requirements;
-    if (body.status !== undefined) updateData.status = body.status;
     if (body.last_follow_up_at !== undefined) updateData.last_follow_up_at = body.last_follow_up_at;
+
+    // 处理状态变更时的时间字段
+    if (body.status !== undefined) {
+      updateData.status = body.status;
+      
+      const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
+      const currentStatus = currentCustomer?.status;
+      
+      // 如果从非上线状态变为上线状态，设置上线时间
+      if (onlineStatuses.includes(body.status) && !onlineStatuses.includes(currentStatus)) {
+        updateData.online_at = new Date().toISOString();
+      }
+      
+      // 如果变为已验收状态，设置验收时间
+      if (body.status === 'accepted' && currentStatus !== 'accepted') {
+        updateData.accepted_at = new Date().toISOString();
+      }
+    }
 
     const { data, error } = await client
       .from('customers')

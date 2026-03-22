@@ -51,6 +51,8 @@ export const customers = pgTable(
     implementationFee: integer("implementation_fee"),
     implementationDays: numeric("implementation_days", { precision: 6, scale: 2 }),
     openedAt: timestamp("opened_at", { withTimezone: true, mode: 'string' }),
+    onlineAt: timestamp("online_at", { withTimezone: true, mode: 'string' }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: 'string' }),
     version: varchar("version", { length: 50 }),
     modules: text("modules").array(),
     industry: varchar("industry", { length: 100 }),

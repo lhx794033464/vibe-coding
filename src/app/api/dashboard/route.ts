@@ -22,35 +22,35 @@ export async function GET(request: NextRequest) {
     // 计算时间范围
     const now = new Date();
     let startDate: Date | null = null;
+    let endDate: Date | null = null;
     
     switch (timeRange) {
       case 'month':
-        // 本月：本月1日
+        // 本月：本月1日到月末
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         break;
       case 'year':
         // 本年：上年12月至本年11月
-        // 如果当前月份是1-11月，本年范围是去年12月1日
-        // 如果当前月份是12月，本年范围是今年12月1日
         if (now.getMonth() === 11) {
           // 12月，本年从今年12月开始
           startDate = new Date(now.getFullYear(), 11, 1);
+          endDate = new Date(now.getFullYear() + 1, 0, 1);
         } else {
           // 1-11月，本年从去年12月开始
           startDate = new Date(now.getFullYear() - 1, 11, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         }
         break;
       case 'all':
       default:
         // 全部：不限制
         startDate = null;
+        endDate = null;
         break;
     }
 
-    // 获取客户
-    let query = client.from('customers').select('*');
-    
-    // 获取所有客户用于计算总数和变动
+    // 获取所有客户
     const { data: allCustomers, error: allCustomersError } = await client
       .from('customers')
       .select('*');
@@ -59,38 +59,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: allCustomersError.message }, { status: 500 });
     }
 
-    // 根据时间范围筛选客户
-    let customers = allCustomers;
-    if (startDate) {
-      customers = allCustomers?.filter(c => new Date(c.created_at) >= startDate) || [];
+    // 根据开通时间（opened_at）筛选客户
+    let customers = allCustomers?.filter(c => c.opened_at) || [];
+    
+    if (startDate && endDate) {
+      customers = customers.filter(c => {
+        const openedAt = new Date(c.opened_at);
+        return openedAt >= startDate && openedAt < endDate;
+      });
     }
 
-    // 计算当前统计数据
-    const totalCustomers = customers?.length || 0;
+    // 计算当前统计数据（基于开通时间筛选后的客户）
+    const totalCustomers = customers.length;
     
     // 已上线：accepted, online_not_accepted, partially_online
     const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
-    const onlineCustomers = customers?.filter(c => onlineStatuses.includes(c.status)).length || 0;
+    const onlineCustomers = customers.filter(c => onlineStatuses.includes(c.status)).length;
     
     // 已验收
-    const acceptedCustomers = customers?.filter(c => c.status === 'accepted').length || 0;
+    const acceptedCustomers = customers.filter(c => c.status === 'accepted').length;
 
     // 上线率和验收率
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100) : 0;
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100) : 0;
 
-    // 计算上月数据（上期）
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1); // 本月1日0点，即上月末
+    // 计算上月数据（上期）用于变动对比
+    // 上月：上月1日到上月末
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    // 上月末的客户数（基于全部客户计算）
-    const lastMonthCustomers = allCustomers?.filter(c => new Date(c.created_at) < lastMonthEnd) || [];
+    // 上月开通的客户
+    const lastMonthCustomers = allCustomers?.filter(c => {
+      if (!c.opened_at) return false;
+      const openedAt = new Date(c.opened_at);
+      return openedAt >= lastMonthStart && openedAt < lastMonthEnd;
+    }) || [];
+    
     const lastMonthTotalCustomers = lastMonthCustomers.length;
-    
-    // 上月末的上线客户数和验收客户数
     const lastMonthOnlineCustomers = lastMonthCustomers.filter(c => onlineStatuses.includes(c.status)).length;
     const lastMonthAcceptedCustomers = lastMonthCustomers.filter(c => c.status === 'accepted').length;
     
-    // 上月末的上线率和验收率
+    // 上月的上线率和验收率
     const lastMonthOnlineRate = lastMonthTotalCustomers > 0 ? (lastMonthOnlineCustomers / lastMonthTotalCustomers * 100) : 0;
     const lastMonthAcceptanceRate = lastMonthTotalCustomers > 0 ? (lastMonthAcceptedCustomers / lastMonthTotalCustomers * 100) : 0;
     
