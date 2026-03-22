@@ -8,9 +8,11 @@ import {
   Users, 
   CheckCircle, 
   TrendingUp,
+  TrendingDown,
   BarChart3
 } from 'lucide-react';
 import { TimeRange, STATUS_CONFIG, CustomerStatus } from '@/types';
+import { cn } from '@/lib/utils';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -18,8 +20,14 @@ interface DashboardStats {
   acceptedCustomers: number;
   onlineRate: number;
   acceptanceRate: number;
-  newCustomersThisMonth: number;
-  totalImplementationDays: number;
+  // 上期数据
+  lastMonthTotalCustomers: number;
+  lastMonthOnlineRate: number;
+  lastMonthAcceptanceRate: number;
+  // 变动数据
+  totalCustomersChange: number;
+  onlineRateChange: number;
+  acceptanceRateChange: number;
   statusDistribution: Record<CustomerStatus, number>;
 }
 
@@ -69,6 +77,21 @@ export default function DashboardPage() {
       }));
   };
 
+  // 格式化变动显示
+  const formatChange = (change: number, isRate: boolean = false) => {
+    const prefix = change > 0 ? '+' : '';
+    const suffix = isRate ? 'pp' : '%';
+    const value = isRate ? change.toFixed(1) : change.toFixed(1);
+    return `${prefix}${value}${suffix}`;
+  };
+
+  // 获取变动样式
+  const getChangeStyle = (change: number) => {
+    if (change > 0) return 'text-green-600';
+    if (change < 0) return 'text-red-600';
+    return 'text-gray-500';
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -108,7 +131,16 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats?.totalCustomers || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">所有客户</p>
+            <div className="flex items-center gap-1 mt-1">
+              {(stats?.totalCustomersChange ?? 0) > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (stats?.totalCustomersChange ?? 0) < 0 ? (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              ) : null}
+              <span className={cn("text-xs", getChangeStyle(stats?.totalCustomersChange ?? 0))}>
+                较上期 {formatChange(stats?.totalCustomersChange ?? 0)}
+              </span>
+            </div>
           </CardContent>
         </Card>
 
@@ -119,6 +151,16 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600">{stats?.onlineRate || 0}%</div>
+            <div className="flex items-center gap-1 mt-1">
+              {(stats?.onlineRateChange ?? 0) > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (stats?.onlineRateChange ?? 0) < 0 ? (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              ) : null}
+              <span className={cn("text-xs", getChangeStyle(stats?.onlineRateChange ?? 0))}>
+                较上期 {formatChange(stats?.onlineRateChange ?? 0, true)}
+              </span>
+            </div>
             <p className="text-xs text-gray-500 mt-1">
               {stats?.onlineCustomers || 0} / {stats?.totalCustomers || 0} 已上线
             </p>
@@ -132,6 +174,16 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-600">{stats?.acceptanceRate || 0}%</div>
+            <div className="flex items-center gap-1 mt-1">
+              {(stats?.acceptanceRateChange ?? 0) > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (stats?.acceptanceRateChange ?? 0) < 0 ? (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              ) : null}
+              <span className={cn("text-xs", getChangeStyle(stats?.acceptanceRateChange ?? 0))}>
+                较上期 {formatChange(stats?.acceptanceRateChange ?? 0, true)}
+              </span>
+            </div>
             <p className="text-xs text-gray-500 mt-1">
               {stats?.acceptedCustomers || 0} / {stats?.totalCustomers || 0} 已验收
             </p>
