@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Upload, Download } from 'lucide-react';
 import { CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS } from '@/types';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 export default function NewCustomerPage() {
@@ -24,8 +25,9 @@ export default function NewCustomerPage() {
     name: '',
     sales_order_no: '',
     implementation_order_no: '',
-    product_amount: '',
+    implementation_fee: '',
     implementation_days: '',
+    opened_at: format(new Date(), "yyyy-MM-dd"),
     version: '' as ProductVersion | '',
     modules: [] as ProductModule[],
     industry: '',
@@ -52,8 +54,9 @@ export default function NewCustomerPage() {
           name: formData.name,
           sales_order_no: formData.sales_order_no || null,
           implementation_order_no: formData.implementation_order_no || null,
-          product_amount: formData.product_amount ? parseInt(formData.product_amount) : null,
+          implementation_fee: formData.implementation_fee ? parseInt(formData.implementation_fee) : null,
           implementation_days: formData.implementation_days ? parseFloat(formData.implementation_days) : null,
+          opened_at: formData.opened_at || null,
           version: formData.version || null,
           modules: formData.modules.length > 0 ? formData.modules : null,
           industry: formData.industry || null,
@@ -103,8 +106,9 @@ export default function NewCustomerPage() {
               name: row['客户名称'] || row['name'] || '',
               sales_order_no: row['销售订单号'] || row['sales_order_no'] || null,
               implementation_order_no: row['实施订单号'] || row['implementation_order_no'] || null,
-              product_amount: row['产品金额'] || row['product_amount'] || null,
+              implementation_fee: row['实施费'] || row['implementation_fee'] || null,
               implementation_days: row['实施人天'] || row['implementation_days'] || null,
+              opened_at: row['开通时间'] || row['opened_at'] || null,
               industry: row['行业背景'] || row['industry'] || null,
               special_requirements: row['特殊要求'] || row['special_requirements'] || null,
               status: mapStatus(row['状态'] || row['status']),
@@ -154,8 +158,9 @@ export default function NewCustomerPage() {
         '客户名称': '示例客户',
         '销售订单号': 'SO2024001',
         '实施订单号': 'IM2024001',
-        '产品金额': 100000,
+        '实施费': 100000,
         '实施人天': 10,
+        '开通时间': '2024-01-01',
         '行业背景': '制造业',
         '特殊要求': '需要定制开发',
         '状态': '未上线',
@@ -242,13 +247,14 @@ export default function NewCustomerPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="product_amount">产品金额（元）</Label>
+                    <Label htmlFor="implementation_fee">实施费（元）</Label>
                     <Input
-                      id="product_amount"
+                      id="implementation_fee"
                       type="number"
-                      value={formData.product_amount}
-                      onChange={(e) => setFormData({ ...formData, product_amount: e.target.value })}
-                      placeholder="请输入产品金额"
+                      min="0"
+                      value={formData.implementation_fee}
+                      onChange={(e) => setFormData({ ...formData, implementation_fee: e.target.value })}
+                      placeholder="请输入实施费"
                     />
                   </div>
 
@@ -262,6 +268,16 @@ export default function NewCustomerPage() {
                       value={formData.implementation_days}
                       onChange={(e) => setFormData({ ...formData, implementation_days: e.target.value })}
                       placeholder="请输入实施人天"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="opened_at">开通时间</Label>
+                    <Input
+                      id="opened_at"
+                      type="date"
+                      value={formData.opened_at}
+                      onChange={(e) => setFormData({ ...formData, opened_at: e.target.value })}
                     />
                   </div>
 

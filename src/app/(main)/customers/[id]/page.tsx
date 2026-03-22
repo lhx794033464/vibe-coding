@@ -48,8 +48,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
     name: '',
     sales_order_no: '',
     implementation_order_no: '',
-    product_amount: '',
+    implementation_fee: '',
     implementation_days: '',
+    opened_at: '',
     version: '' as ProductVersion | '',
     modules: [] as ProductModule[],
     industry: '',
@@ -82,8 +83,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
           name: data.data.name,
           sales_order_no: data.data.sales_order_no || '',
           implementation_order_no: data.data.implementation_order_no || '',
-          product_amount: data.data.product_amount || '',
+          implementation_fee: data.data.implementation_fee || '',
           implementation_days: data.data.implementation_days || '',
+          opened_at: data.data.opened_at ? data.data.opened_at.split('T')[0] : '',
           version: data.data.version || '',
           modules: data.data.modules || [],
           industry: data.data.industry || '',
@@ -128,8 +130,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
           name: editForm.name,
           sales_order_no: editForm.sales_order_no || null,
           implementation_order_no: editForm.implementation_order_no || null,
-          product_amount: editForm.product_amount ? parseInt(editForm.product_amount) : null,
+          implementation_fee: editForm.implementation_fee ? parseInt(editForm.implementation_fee) : null,
           implementation_days: editForm.implementation_days ? parseFloat(editForm.implementation_days) : null,
+          opened_at: editForm.opened_at || null,
           version: editForm.version || null,
           modules: editForm.modules.length > 0 ? editForm.modules : null,
           industry: editForm.industry || null,
@@ -313,11 +316,12 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>产品金额</Label>
+                      <Label>实施费（元）</Label>
                       <Input
                         type="number"
-                        value={editForm.product_amount}
-                        onChange={(e) => setEditForm({ ...editForm, product_amount: e.target.value })}
+                        min="0"
+                        value={editForm.implementation_fee}
+                        onChange={(e) => setEditForm({ ...editForm, implementation_fee: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
@@ -328,6 +332,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         step="0.01"
                         value={editForm.implementation_days}
                         onChange={(e) => setEditForm({ ...editForm, implementation_days: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>开通时间</Label>
+                      <Input
+                        type="date"
+                        value={editForm.opened_at}
+                        onChange={(e) => setEditForm({ ...editForm, opened_at: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
@@ -401,8 +413,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="销售订单号" value={customer.sales_order_no} />
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="实施订单号" value={customer.implementation_order_no} />
-                    <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
+                    <InfoItem icon={<TrendingUp className="w-4 h-4" />} label="实施费" value={customer.implementation_fee ? `${customer.implementation_fee.toLocaleString()} 元` : null} />
                     <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${parseFloat(customer.implementation_days).toFixed(2)} 天` : null} />
+                    <InfoItem icon={<Calendar className="w-4 h-4" />} label="开通时间" value={customer.opened_at ? format(new Date(customer.opened_at), 'yyyy-MM-dd') : null} />
+                    <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
                   </div>
                   {/* 产品版本和模块 */}
                   {(customer.version || (customer.modules && customer.modules.length > 0)) && (
@@ -447,9 +461,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   </div>
                   <Separator />
                   <div>
-                    <Label className="text-gray-500">产品金额</Label>
+                    <Label className="text-gray-500">实施费</Label>
                     <p className="text-lg font-semibold mt-1">
-                      {customer.product_amount ? `¥${customer.product_amount.toLocaleString()}` : '-'}
+                      {customer.implementation_fee ? `¥${customer.implementation_fee.toLocaleString()}` : '-'}
                     </p>
                   </div>
                   <div>

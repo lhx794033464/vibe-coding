@@ -62,8 +62,9 @@ export interface Customer {
   name: string;
   sales_order_no: string | null;
   implementation_order_no: string | null;
-  product_amount: number | null;
+  implementation_fee: number | null;
   implementation_days: string | null; // numeric类型返回string
+  opened_at: string | null;
   version: ProductVersion | null;
   modules: ProductModule[] | null;
   industry: string | null;
@@ -118,3 +119,45 @@ export const INDUSTRY_OPTIONS = [
   '政府机关',
   '其他',
 ];
+
+// 提成记录类型
+export interface CommissionRecord {
+  id: string;
+  customer_id: string;
+  amount: string; // 本次提成金额
+  total_commission: string; // 应提总额
+  paid_commission: string; // 已提金额
+  remark: string | null;
+  user_id: string;
+  created_at: string;
+}
+
+// 提成计算配置
+export const COMMISSION_CONFIG = {
+  STANDARD_DAILY_RATE: 1500, // 标准实施费：1500元/天
+  SINGLE_MODULE_RATE: 0.08, // 单模块提成比例：8%
+  MULTI_MODULE_RATE: 0.11, // 多模块提成比例：11%
+  FINANCE_DAILY_COMMISSION: 100, // 财务模块每天提成
+  OTHER_MODULE_DAILY_COMMISSION: 200, // 其他模块每天提成
+};
+
+// 提成计算结果
+export interface CommissionCalculation {
+  customerId: string;
+  customerName: string;
+  implementationFee: number;
+  implementationDays: number;
+  modules: ProductModule[];
+  modulesLabel: string;
+  standardFee: number; // 标准实施费
+  feeRatio: number; // 实施费比例
+  commissionType: 'percentage' | 'daily'; // 提成类型
+  commissionRate?: number; // 提成比例
+  totalCommission: number; // 应提总额
+  paidCommission: number; // 已提金额
+  remainingCommission: number; // 剩余提成
+  isFullyPaid: boolean;
+  records: CommissionRecord[];
+  acceptedAt: string;
+}
+

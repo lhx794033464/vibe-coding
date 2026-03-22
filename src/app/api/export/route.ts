@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 // 导出客户数据
@@ -43,8 +44,9 @@ export async function GET(request: NextRequest) {
       '客户名称': c.name,
       '销售订单号': c.sales_order_no || '',
       '实施订单号': c.implementation_order_no || '',
-      '产品金额': c.product_amount || '',
+      '实施费': c.implementation_fee || '',
       '实施人天': c.implementation_days || '',
+      '开通时间': c.opened_at ? format(new Date(c.opened_at), 'yyyy-MM-dd') : '',
       '产品版本': c.version ? VERSION_CONFIG[c.version as ProductVersion]?.label : '',
       '产品模块': c.modules ? c.modules.map((m: ProductModule) => MODULE_CONFIG[m]?.label).join('、') : '',
       '行业背景': c.industry || '',

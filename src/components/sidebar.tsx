@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Users, 
-  UserPlus, 
   LogOut,
-  Database
+  Database,
+  DollarSign
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -17,6 +17,7 @@ interface SidebarProps {
 const navItems = [
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
+  { href: '/commissions', label: '提成管理', icon: DollarSign },
 ];
 
 export function Sidebar({ onSignOut }: SidebarProps) {
@@ -42,8 +43,17 @@ export function Sidebar({ onSignOut }: SidebarProps) {
         <ul className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || 
-              (item.href === '/customers' && pathname.startsWith('/customers') && pathname !== '/customers/new');
+            let isActive = pathname === item.href;
+            
+            // 特殊处理：customers路径
+            if (item.href === '/customers' && pathname.startsWith('/customers') && pathname !== '/customers/new') {
+              isActive = true;
+            }
+            // 特殊处理：commissions路径
+            if (item.href === '/commissions' && pathname.startsWith('/commissions')) {
+              isActive = true;
+            }
+            
             return (
               <li key={item.href}>
                 <Link

@@ -48,8 +48,9 @@ export const customers = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     salesOrderNo: varchar("sales_order_no", { length: 100 }),
     implementationOrderNo: varchar("implementation_order_no", { length: 100 }),
-    productAmount: integer("product_amount"),
+    implementationFee: integer("implementation_fee"),
     implementationDays: numeric("implementation_days", { precision: 6, scale: 2 }),
+    openedAt: timestamp("opened_at", { withTimezone: true, mode: 'string' }),
     version: varchar("version", { length: 50 }),
     modules: text("modules").array(),
     industry: varchar("industry", { length: 100 }),
@@ -105,8 +106,9 @@ export const insertCustomerSchema = createCoercedInsertSchema(customers).pick({
   name: true,
   salesOrderNo: true,
   implementationOrderNo: true,
-  productAmount: true,
+  implementationFee: true,
   implementationDays: true,
+  openedAt: true,
   version: true,
   modules: true,
   industry: true,
@@ -120,8 +122,9 @@ export const updateCustomerSchema = createCoercedInsertSchema(customers)
     name: true,
     salesOrderNo: true,
     implementationOrderNo: true,
-    productAmount: true,
+    implementationFee: true,
     implementationDays: true,
+    openedAt: true,
     version: true,
     modules: true,
     industry: true,
@@ -149,3 +152,39 @@ export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type UpdateCustomer = z.infer<typeof updateCustomerSchema>;
 export type FollowUpRecord = typeof followUpRecords.$inferSelect;
 export type InsertFollowUpRecord = z.infer<typeof insertFollowUpRecordSchema>;
+
+// 提成记录表
+export const commissionRecords = pgTable(
+  "commission_records",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    customerId: varchar("customer_id", { length: 36 }).notNull(),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    totalCommission: numeric("total_commission", { precision: 10, scale: 2 }).notNull(), // 应提总额
+    paidCommission: numeric("paid_commission", { precision: 10, scale: 2 }).notNull().default('0'), // 已提金额
+    remark: text("remark"),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("commission_records_customer_id_idx").on(table.customerId),
+    index("commission_records_user_id_idx").on(table.userId),
+  ]
+);
+
+// 提成记录 Zod schemas
+export const insertCommissionRecordSchema = createCoercedInsertSchema(commissionRecords).pick({
+  customerId: true,
+  amount: true,
+  totalCommission: true,
+  paidCommission: true,
+  remark: true,
+  userId: true,
+});
+
+export type CommissionRecord = typeof commissionRecords.$inferSelect;
+export type InsertCommissionRecord = z.infer<typeof insertCommissionRecordSchema>;

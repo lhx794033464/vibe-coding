@@ -68,8 +68,9 @@ export async function PUT(
     if (body.name !== undefined) updateData.name = body.name;
     if (body.sales_order_no !== undefined) updateData.sales_order_no = body.sales_order_no;
     if (body.implementation_order_no !== undefined) updateData.implementation_order_no = body.implementation_order_no;
-    if (body.product_amount !== undefined) updateData.product_amount = body.product_amount;
+    if (body.implementation_fee !== undefined) updateData.implementation_fee = body.implementation_fee;
     if (body.implementation_days !== undefined) updateData.implementation_days = body.implementation_days;
+    if (body.opened_at !== undefined) updateData.opened_at = body.opened_at;
     if (body.version !== undefined) updateData.version = body.version;
     if (body.modules !== undefined) updateData.modules = body.modules;
     if (body.industry !== undefined) updateData.industry = body.industry;
