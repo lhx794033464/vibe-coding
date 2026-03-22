@@ -169,33 +169,34 @@ export default function FollowUpPage({ params }: PageProps) {
   const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => router.push('/customers')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            返回
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-            <Badge className={`mt-1 ${statusConfig?.bgColor} ${statusConfig?.color}`}>
-              {statusConfig?.label}
-            </Badge>
+    <div className="h-full p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => router.push('/customers')}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              返回
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
+              <Badge className={`mt-1 ${statusConfig?.bgColor} ${statusConfig?.color}`}>
+                {statusConfig?.label}
+              </Badge>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {customer.status !== 'accepted' && (
+              <Button variant="outline" onClick={handleMarkAccepted}>
+                <CheckCircle className="w-4 h-4 mr-2" />
+                确认验收
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => router.push(`/customers/${customer.id}`)}>
+              查看详情
+            </Button>
           </div>
         </div>
-        <div className="flex gap-2">
-          {customer.status !== 'accepted' && (
-            <Button variant="outline" onClick={handleMarkAccepted}>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              确认验收
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => router.push(`/customers/${customer.id}`)}>
-            查看详情
-          </Button>
-        </div>
-      </div>
 
       {/* 人天统计 */}
       <div className="grid grid-cols-3 gap-4">
@@ -323,6 +324,7 @@ export default function FollowUpPage({ params }: PageProps) {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

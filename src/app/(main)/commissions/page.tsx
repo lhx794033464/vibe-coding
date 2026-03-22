@@ -118,14 +118,15 @@ export default function CommissionsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">提成管理</h1>
-          <p className="text-gray-500 mt-1">当月验收完成客户的提成计算</p>
+    <div className="h-full p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">提成管理</h1>
+            <p className="text-gray-500 mt-1">当月验收完成客户的提成计算</p>
+          </div>
         </div>
-      </div>
 
       {/* 月份选择 */}
       <div className="flex items-center justify-center gap-4">
@@ -358,6 +359,7 @@ export default function CommissionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

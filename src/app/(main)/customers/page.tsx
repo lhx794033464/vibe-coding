@@ -204,20 +204,21 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">客户列表</h1>
-          <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport}>
-            <Download className="w-4 h-4 mr-2" />
-            导出
-          </Button>
-          <Button onClick={() => router.push('/customers/new')}>
-            <Plus className="w-4 h-4 mr-2" />
+    <div className="h-full p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">客户列表</h1>
+            <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />
+              导出
+            </Button>
+            <Button onClick={() => router.push('/customers/new')}>
+              <Plus className="w-4 h-4 mr-2" />
             添加客户
           </Button>
         </div>
@@ -536,6 +537,7 @@ export default function CustomersPage() {
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

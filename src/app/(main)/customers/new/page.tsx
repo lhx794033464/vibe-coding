@@ -174,15 +174,16 @@ export default function NewCustomerPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => router.back()}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          返回
-        </Button>
-        <h1 className="text-2xl font-bold text-gray-900">添加客户</h1>
-      </div>
+    <div className="h-full p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* 页面标题 */}
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => router.back()}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            返回
+          </Button>
+          <h1 className="text-2xl font-bold text-gray-900">添加客户</h1>
+        </div>
 
       <Tabs defaultValue="manual" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -414,6 +415,7 @@ export default function NewCustomerPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     if (!error) {
-      router.push('/dashboard');
+      router.push('/home');
     }
     return { error };
   };
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     if (!error) {
-      router.push('/dashboard');
+      router.push('/home');
     }
     return { error };
   };

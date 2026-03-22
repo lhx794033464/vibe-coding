@@ -240,24 +240,25 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const remainingDays = parseFloat(customer.implementation_days || '0') - totalConsumedDays;
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => router.push('/customers')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            返回
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-            <Badge className={`mt-1 ${statusConfig?.bgColor} ${statusConfig?.color}`}>
-              {statusConfig?.label}
-            </Badge>
+    <div className="h-full p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => router.push('/customers')}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              返回
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
+              <Badge className={`mt-1 ${statusConfig?.bgColor} ${statusConfig?.color}`}>
+                {statusConfig?.label}
+              </Badge>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          {customer.status !== 'accepted' && (
-            <Button variant="outline" onClick={handleMarkAccepted}>
+          <div className="flex gap-2">
+            {customer.status !== 'accepted' && (
+              <Button variant="outline" onClick={handleMarkAccepted}>
               <CheckCircle className="w-4 h-4 mr-2" />
               确认验收
             </Button>
@@ -578,6 +579,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   );

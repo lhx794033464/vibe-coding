@@ -7,8 +7,8 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // 直接重定向到登录页
-    router.push('/login');
+    // 直接重定向到首页
+    router.push('/home');
   }, [router]);
 
   return (
