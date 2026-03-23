@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Search, Sparkles, Bot, User, Copy, Check, ExternalLink } from 'lucide-react';
+import { Send, Loader2, Search, Sparkles, Bot, User, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
@@ -65,6 +65,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   isStreaming?: boolean;
+  isVoice?: boolean;
 }
 
 export default function HomePage() {
@@ -76,6 +77,15 @@ export default function HomePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const greeting = getGreeting();
+  
+  // 语音相关状态
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [autoSpeak, setAutoSpeak] = useState(false);
 
   // 同步保存的消息
   useEffect(() => {
@@ -94,6 +104,164 @@ export default function HomePage() {
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
     }
   }, [input]);
+
+  // 文本转语音
+  const speakText = useCallback(async (text: string) => {
+    if (!session?.access_token || isSpeaking) return;
+    
+    try {
+      setIsSpeaking(true);
+      
+      const response = await fetch('/api/voice/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await response.json();
+      
+      if (data.audioUri) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        audioRef.current = new Audio(data.audioUri);
+        audioRef.current.onended = () => setIsSpeaking(false);
+        audioRef.current.onerror = () => setIsSpeaking(false);
+        audioRef.current.play();
+      }
+    } catch (error) {
+      console.error('语音合成失败:', error);
+      setIsSpeaking(false);
+    }
+  }, [session?.access_token, isSpeaking]);
+
+  // 停止语音播放
+  const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setIsSpeaking(false);
+  }, []);
+
+  // 开始录音
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          await processVoice(audioBlob);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('无法访问麦克风:', error);
+      alert('无法访问麦克风，请检查权限设置');
+    }
+  }, []);
+
+  // 停止录音
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  }, [isRecording]);
+
+  // 处理语音
+  const processVoice = async (audioBlob: Blob) => {
+    if (!session?.access_token) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // 将音频转为base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      await new Promise<void>((resolve) => {
+        reader.onloadend = () => resolve();
+      });
+      
+      const base64Data = (reader.result as string).split(',')[1];
+
+      // 调用语音识别API
+      const asrResponse = await fetch('/api/voice/asr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ base64Data }),
+      });
+
+      const asrData = await asrResponse.json();
+      
+      if (asrData.text) {
+        // 添加用户消息
+        const userMessage = asrData.text;
+        setMessages(prev => [...prev, { role: 'user', content: userMessage, isVoice: true }]);
+        
+        // 调用语音操作API
+        const actionResponse = await fetch('/api/voice/action', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ text: userMessage }),
+        });
+
+        const actionData = await actionResponse.json();
+        
+        if (actionData.success) {
+          const assistantMessage = actionData.message;
+          setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+          addMessage({ role: 'user', content: userMessage });
+          addMessage({ role: 'assistant', content: assistantMessage });
+          
+          // 自动朗读回复
+          if (autoSpeak) {
+            speakText(assistantMessage);
+          }
+        } else {
+          const errorMessage = actionData.error || actionData.message || '操作失败';
+          setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);
+        }
+      } else {
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: '抱歉，我没有听清楚，请再说一次。' 
+        }]);
+      }
+    } catch (error) {
+      console.error('语音处理失败:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: '语音处理失败，请稍后重试。' 
+      }]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent | string) => {
     const userMessage = typeof e === 'string' ? e : input.trim();
@@ -172,6 +340,11 @@ export default function HomePage() {
         // 保存到全局状态
         addMessage({ role: 'user', content: userMessage });
         addMessage({ role: 'assistant', content: assistantMessage });
+        
+        // 自动朗读回复
+        if (autoSpeak) {
+          speakText(assistantMessage);
+        }
       }
     } catch (error) {
       console.error('对话失败:', error);
@@ -214,9 +387,33 @@ export default function HomePage() {
               <p className="text-xs text-slate-500">{greeting}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-            在线 · 支持联网搜索
+          <div className="flex items-center gap-3">
+            {/* 自动朗读开关 */}
+            <button
+              onClick={() => setAutoSpeak(!autoSpeak)}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full transition-colors ${
+                autoSpeak 
+                  ? 'bg-emerald-100 text-emerald-600' 
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+              title={autoSpeak ? '点击关闭自动朗读' : '点击开启自动朗读'}
+            >
+              {autoSpeak ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5" />
+                  自动朗读
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5" />
+                  静音
+                </>
+              )}
+            </button>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+              在线 · 支持语音交互
+            </div>
           </div>
         </div>
       </div>
@@ -239,6 +436,12 @@ export default function HomePage() {
                     我是你的金蝶云星辰交付助手，可以帮你查询客户数据、解答产品问题、管理工作任务
                   </p>
                 </div>
+              </div>
+
+              {/* 语音提示 */}
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
+                <Mic className="w-4 h-4" />
+                <span>点击麦克风按钮开始语音对话，可以说"创建待办"、"预约会议"等</span>
               </div>
 
               {/* 快捷问题 */}
@@ -291,6 +494,12 @@ export default function HomePage() {
                     {message.role === 'user' ? (
                       <div className="inline-block max-w-[85%] bg-blue-500 text-white px-4 py-3 rounded-2xl rounded-tr-md">
                         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</p>
+                        {message.isVoice && (
+                          <div className="flex items-center gap-1 mt-1 text-blue-200 text-xs">
+                            <Mic className="w-3 h-3" />
+                            语音输入
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="max-w-full bg-white border border-slate-200 rounded-2xl rounded-tl-md px-5 py-4 shadow-sm">
@@ -308,6 +517,27 @@ export default function HomePage() {
                         )}
                         {message.isStreaming && message.content && (
                           <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-0.5 rounded-sm"></span>
+                        )}
+                        {/* 播放按钮 */}
+                        {!message.isStreaming && message.content && (
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
+                            <button
+                              onClick={() => isSpeaking ? stopSpeaking() : speakText(message.content)}
+                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-500 transition-colors"
+                            >
+                              {isSpeaking ? (
+                                <>
+                                  <VolumeX className="w-3.5 h-3.5" />
+                                  停止朗读
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 className="w-3.5 h-3.5" />
+                                  朗读回复
+                                </>
+                              )}
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -336,6 +566,27 @@ export default function HomePage() {
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
               />
+              {/* 语音按钮 */}
+              <Button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing}
+                className={`rounded-xl h-10 w-10 p-0 flex-shrink-0 ${
+                  isRecording 
+                    ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                }`}
+                title={isRecording ? '点击停止录音' : '点击开始语音输入'}
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : isRecording ? (
+                  <MicOff className="w-5 h-5 text-white" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
+              </Button>
+              {/* 发送按钮 */}
               <Button
                 type="submit"
                 disabled={!input.trim() || loading}
@@ -350,7 +601,7 @@ export default function HomePage() {
             </div>
           </form>
           <p className="text-center text-xs text-slate-400 mt-2">
-            按 Enter 发送 · Shift + Enter 换行 · 支持联网搜索金蝶云星辰相关知识
+            按 Enter 发送 · Shift + Enter 换行 · 点击麦克风语音输入 · 支持语音创建待办、预约会议等
           </p>
         </div>
       </div>
