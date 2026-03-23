@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, AlertCircle, Download, MessageSquare, Calendar, Loader2, ExternalLink } from 'lucide-react';
+import { Search, Plus, AlertCircle, Download, MessageSquare, Calendar, Loader2, ExternalLink, Video } from 'lucide-react';
 import Link from 'next/link';
 import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { formatDistanceToNow, format, addHours } from 'date-fns';
@@ -39,6 +39,7 @@ interface ScheduleDialogState {
     duration: number;
     message?: string;
   } | null;
+  showDownloadTip: boolean; // 显示下载提示
 }
 
 export default function CustomersPage() {
@@ -59,6 +60,7 @@ export default function CustomersPage() {
     duration: 60,
     loading: false,
     result: null,
+    showDownloadTip: false,
   });
 
   useEffect(() => {
@@ -131,7 +133,21 @@ export default function CustomersPage() {
       duration: 60,
       loading: false,
       result: null,
+      showDownloadTip: false,
     });
+  };
+
+  // 打开本地腾讯会议预订界面
+  const openLocalTencentMeeting = () => {
+    const wemeetUrl = 'wemeet://page/schedulemeeting';
+    
+    // 尝试打开腾讯会议
+    window.location.href = wemeetUrl;
+    
+    // 显示下载提示（延迟显示，如果成功打开应用则用户会离开页面）
+    setTimeout(() => {
+      setScheduleDialog(prev => ({ ...prev, showDownloadTip: true }));
+    }, 2000);
   };
 
   // 创建腾讯会议
@@ -359,7 +375,7 @@ export default function CustomersPage() {
         open={scheduleDialog.open} 
         onOpenChange={(open) => {
           if (!open) {
-            setScheduleDialog(prev => ({ ...prev, open: false, result: null }));
+            setScheduleDialog(prev => ({ ...prev, open: false, result: null, showDownloadTip: false }));
           }
         }}
       >
@@ -373,7 +389,47 @@ export default function CustomersPage() {
 
           {!scheduleDialog.result ? (
             <>
-              <div className="space-y-4 py-4">
+              {/* 快捷方式：打开本地腾讯会议 */}
+              <div className="py-2">
+                <Button
+                  className="w-full"
+                  onClick={openLocalTencentMeeting}
+                  size="lg"
+                >
+                  <Video className="w-4 h-4 mr-2" />
+                  使用腾讯会议预订
+                </Button>
+                
+                {/* 下载提示 */}
+                {scheduleDialog.showDownloadTip && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-2">
+                      未检测到腾讯会议，请先下载安装
+                    </p>
+                    <a
+                      href="https://meeting.tencent.com/download-center.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                    >
+                      <Download className="w-3 h-3" />
+                      前往下载腾讯会议
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* 分隔线 */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-gray-500">或使用 API 创建</span>
+                </div>
+              </div>
+
+              <div className="space-y-4 py-2">
                 <div className="space-y-2">
                   <Label htmlFor="subject">会议主题</Label>
                   <Input
@@ -443,7 +499,7 @@ export default function CustomersPage() {
                   ) : (
                     <>
                       <Calendar className="w-4 h-4 mr-2" />
-                      创建会议
+                      API 创建会议
                     </>
                   )}
                 </Button>
