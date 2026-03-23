@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -35,34 +35,9 @@ const navItems = [
 
 export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
-  const { user, session } = useAuth();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const { user, session, avatarUrl, avatarLoading, updateAvatar } = useAuth();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // 获取头像
-  useEffect(() => {
-    const fetchAvatar = async () => {
-      if (!session?.access_token) return;
-      
-      try {
-        const response = await fetch('/api/avatar', {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setAvatarUrl(data.avatarUrl);
-        }
-      } catch (error) {
-        console.error('获取头像失败:', error);
-      }
-    };
-
-    fetchAvatar();
-  }, [session?.access_token]);
 
   const handleAvatarClick = () => {
     if (!uploading) {
@@ -103,7 +78,8 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
 
       if (response.ok) {
         const data = await response.json();
-        setAvatarUrl(data.avatarUrl);
+        // 更新全局头像状态
+        updateAvatar(data.avatarUrl);
       } else {
         const error = await response.json();
         alert(error.error || '上传失败');
@@ -136,7 +112,7 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
             className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0 group/avatar cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
             title={collapsed ? "点击上传头像" : undefined}
           >
-            {uploading ? (
+            {uploading || avatarLoading ? (
               <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
             ) : avatarUrl ? (
               <>
@@ -146,6 +122,10 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
                   width={40}
                   height={40}
                   className="object-cover w-full h-full"
+                  onError={(e) => {
+                    // 图片加载失败时隐藏
+                    e.currentTarget.style.display = 'none';
+                  }}
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
                   <Camera className="w-4 h-4 text-white" />
