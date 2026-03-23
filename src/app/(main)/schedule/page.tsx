@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -28,8 +28,31 @@ interface Schedule {
   customer_name?: string;
 }
 
-// 2024-2025年法定节假日（可根据需要扩展）
-const HOLIDAYS_2024_2025: Record<string, string> = {
+// 法定节假日数据（周末调休为工作日）
+// 格式：日期 -> 是否工作日（true=工作日，false=节假日）
+// 注意：这里需要同时处理：
+// 1. 周末调休为工作日
+// 2. 法定节假日
+
+// 周末调休为工作日的日期
+const WORKDAYS_ON_WEEKEND: Set<string> = new Set([
+  // 2024年调休
+  '2024-02-04', // 春节调休
+  '2024-02-18', // 春节调休
+  '2024-04-07', // 清明调休
+  '2024-04-28', // 劳动节调休
+  '2024-05-11', // 劳动节调休
+  '2024-09-14', // 中秋调休
+  '2024-09-29', // 国庆调休
+  '2024-10-12', // 国庆调休
+  // 2025年调休
+  '2025-01-26', // 春节调休
+  '2025-02-08', // 春节调休
+  '2025-04-27', // 劳动节调休
+]);
+
+// 法定节假日（不包括周末）
+const HOLIDAYS: Record<string, string> = {
   // 2024年
   '2024-01-01': '元旦',
   '2024-02-10': '春节',
@@ -40,27 +63,27 @@ const HOLIDAYS_2024_2025: Record<string, string> = {
   '2024-02-15': '春节',
   '2024-02-16': '春节',
   '2024-02-17': '春节',
-  '2024-04-04': '清明节',
-  '2024-04-05': '清明节',
-  '2024-04-06': '清明节',
+  '2024-04-04': '清明',
+  '2024-04-05': '清明',
+  '2024-04-06': '清明',
   '2024-05-01': '劳动节',
   '2024-05-02': '劳动节',
   '2024-05-03': '劳动节',
   '2024-05-04': '劳动节',
   '2024-05-05': '劳动节',
-  '2024-06-08': '端午节',
-  '2024-06-09': '端午节',
-  '2024-06-10': '端午节',
-  '2024-09-15': '中秋节',
-  '2024-09-16': '中秋节',
-  '2024-09-17': '中秋节',
-  '2024-10-01': '国庆节',
-  '2024-10-02': '国庆节',
-  '2024-10-03': '国庆节',
-  '2024-10-04': '国庆节',
-  '2024-10-05': '国庆节',
-  '2024-10-06': '国庆节',
-  '2024-10-07': '国庆节',
+  '2024-06-08': '端午',
+  '2024-06-09': '端午',
+  '2024-06-10': '端午',
+  '2024-09-15': '中秋',
+  '2024-09-16': '中秋',
+  '2024-09-17': '中秋',
+  '2024-10-01': '国庆',
+  '2024-10-02': '国庆',
+  '2024-10-03': '国庆',
+  '2024-10-04': '国庆',
+  '2024-10-05': '国庆',
+  '2024-10-06': '国庆',
+  '2024-10-07': '国庆',
   // 2025年
   '2025-01-01': '元旦',
   '2025-01-28': '春节',
@@ -71,77 +94,89 @@ const HOLIDAYS_2024_2025: Record<string, string> = {
   '2025-02-02': '春节',
   '2025-02-03': '春节',
   '2025-02-04': '春节',
-  '2025-04-04': '清明节',
-  '2025-04-05': '清明节',
-  '2025-04-06': '清明节',
+  '2025-04-04': '清明',
+  '2025-04-05': '清明',
+  '2025-04-06': '清明',
   '2025-05-01': '劳动节',
   '2025-05-02': '劳动节',
   '2025-05-03': '劳动节',
   '2025-05-04': '劳动节',
   '2025-05-05': '劳动节',
-  '2025-05-31': '端午节',
-  '2025-06-01': '端午节',
-  '2025-06-02': '端午节',
-  '2025-10-01': '国庆节',
-  '2025-10-02': '国庆节',
-  '2025-10-03': '国庆节',
-  '2025-10-04': '国庆节',
-  '2025-10-05': '国庆节',
-  '2025-10-06': '国庆节&中秋',
-  '2025-10-07': '国庆节',
+  '2025-05-31': '端午',
+  '2025-06-01': '端午',
+  '2025-06-02': '端午',
+  '2025-10-01': '国庆',
+  '2025-10-02': '国庆',
+  '2025-10-03': '国庆',
+  '2025-10-04': '国庆',
+  '2025-10-05': '国庆',
+  '2025-10-06': '国庆&中秋',
+  '2025-10-07': '国庆',
+  '2025-10-08': '国庆',
 };
-
-// 检查是否是周末
-function isWeekend(date: Date): boolean {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-}
-
-// 检查是否是节假日
-function isHoliday(date: Date): string | null {
-  const dateStr = date.toISOString().split('T')[0];
-  return HOLIDAYS_2024_2025[dateStr] || null;
-}
 
 // 格式化日期为 YYYY-MM-DD
 function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-// 生成以当天为中心的月历数据
+// 判断日期状态
+function getDateStatus(date: Date): { 
+  isHoliday: boolean; 
+  isWorkday: boolean; 
+  holidayName: string | null;
+  isWeekend: boolean;
+} {
+  const dateStr = formatDate(date);
+  const dayOfWeek = date.getDay();
+  const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
+  
+  // 检查是否是法定节假日
+  const holidayName = HOLIDAYS[dateStr] || null;
+  if (holidayName) {
+    return { isHoliday: true, isWorkday: false, holidayName, isWeekend: false };
+  }
+  
+  // 检查是否是周末调休的工作日
+  if (WORKDAYS_ON_WEEKEND.has(dateStr)) {
+    return { isHoliday: false, isWorkday: true, holidayName: '调休', isWeekend: false };
+  }
+  
+  // 周末
+  if (isWeekendDay) {
+    return { isHoliday: false, isWorkday: false, holidayName: null, isWeekend: true };
+  }
+  
+  // 普通工作日
+  return { isHoliday: false, isWorkday: true, holidayName: null, isWeekend: false };
+}
+
+// 生成月历数据 - 以今天所在周的周一开始
 function generateCalendarData(centerDate: Date): Date[] {
   const dates: Date[] = [];
   const today = new Date(centerDate);
   today.setHours(0, 0, 0, 0);
   
-  // 当天固定在第一行第三个（索引2，即周三）
-  // 需要计算偏移量
-  const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ..., 6=周六
-  // 周一=0, 周二=1, ..., 周日=6
+  // 获取今天是星期几（0=周日, 1=周一, ..., 6=周六）
+  const dayOfWeek = today.getDay();
+  // 计算今天是周几（周一=0, 周二=1, ..., 周日=6）
   const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  // 当天应该在第0行第2列（周三位置）
-  // 所以需要计算从当天到周三的偏移
-  const targetPosition = 2; // 周三位置
-  const offset = adjustedDayOfWeek - targetPosition;
-  
-  // 计算起始日期（第一行第一个位置）
-  const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - adjustedDayOfWeek + targetPosition);
+  // 计算本周的周一
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - adjustedDayOfWeek);
   
   // 生成6周的日期（42天）
   for (let i = 0; i < 42; i++) {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + i);
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
     dates.push(date);
   }
   
   return dates;
-}
-
-// 获取日期所在的月份
-function getMonthFromDate(date: Date): number {
-  return date.getMonth() + 1;
 }
 
 export default function SchedulePage() {
@@ -173,8 +208,9 @@ export default function SchedulePage() {
         });
         
         if (response.ok) {
-          const data = await response.json();
-          setCustomers(data.customers || []);
+          const result = await response.json();
+          // API 返回的是 { data: customers, count }
+          setCustomers(result.data || []);
         }
       } catch (error) {
         console.error('获取客户列表失败:', error);
@@ -190,7 +226,6 @@ export default function SchedulePage() {
       if (!session?.access_token) return;
       
       try {
-        // 获取当前显示月份的范围
         const startDate = calendarDates[0];
         const endDate = calendarDates[calendarDates.length - 1];
         
@@ -338,8 +373,6 @@ export default function SchedulePage() {
     };
   };
 
-  const today = new Date();
-
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* 头部 */}
@@ -374,7 +407,7 @@ export default function SchedulePage() {
               <div
                 key={day}
                 className={`text-center py-2 text-sm font-medium ${
-                  index >= 5 ? 'text-red-400' : 'text-gray-500'
+                  index >= 5 ? 'text-gray-400' : 'text-gray-500'
                 }`}
               >
                 {day}
@@ -386,8 +419,7 @@ export default function SchedulePage() {
           <div className="grid grid-cols-7 gap-1">
             {calendarDates.map((date, index) => {
               const dateStr = formatDate(date);
-              const holidayName = isHoliday(date);
-              const weekend = isWeekend(date);
+              const dateStatus = getDateStatus(date);
               const todayClass = isToday(date);
               const { isFirst, month } = isFirstOfMonth(date);
               const dateSchedules = getSchedulesForDate(date);
@@ -397,9 +429,11 @@ export default function SchedulePage() {
                 <div
                   key={index}
                   className={`relative min-h-[100px] border rounded-lg transition-colors cursor-pointer group ${
-                    holidayName
-                      ? 'bg-red-50 border-red-200'
-                      : weekend
+                    dateStatus.isHoliday
+                      ? 'bg-gray-100 border-gray-300'
+                      : dateStatus.isWorkday
+                      ? 'bg-white border-gray-200 hover:border-blue-300'
+                      : dateStatus.isWeekend
                       ? 'bg-gray-50 border-gray-200'
                       : 'bg-white border-gray-200 hover:border-blue-300'
                   } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
@@ -416,23 +450,26 @@ export default function SchedulePage() {
                       {isFirst ? (
                         <span className="text-lg font-bold text-blue-600">{month}月</span>
                       ) : (
-                        <span className={`text-sm ${weekend || holidayName ? 'text-red-500' : 'text-gray-700'}`}>
+                        <span className={`text-sm ${
+                          dateStatus.isHoliday ? 'text-gray-600' : 
+                          dateStatus.isWeekend ? 'text-gray-400' : 'text-gray-700'
+                        }`}>
                           {date.getDate()}
                         </span>
                       )}
                     </div>
                     {/* 添加按钮 */}
                     {isHovered && (
-                      <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm">
                         <Plus className="w-4 h-4" />
                       </div>
                     )}
                   </div>
 
                   {/* 节假日名称 */}
-                  {holidayName && (
+                  {dateStatus.holidayName && (
                     <div className="px-2 pb-1">
-                      <span className="text-xs text-red-500">{holidayName}</span>
+                      <span className="text-xs text-gray-500">{dateStatus.holidayName}</span>
                     </div>
                   )}
 
