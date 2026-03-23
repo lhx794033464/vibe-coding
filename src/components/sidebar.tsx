@@ -26,7 +26,7 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { href: '/home', label: '首页', icon: Home },
+  { href: '/home', label: '智能助手', icon: Home },
   { href: '/todos', label: '待办清单', icon: CheckSquare },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
