@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
+// 获取今天的日期字符串（北京时间，用于前端筛选）
+function getTodayDateString(): string {
+  const now = new Date();
+  // 使用北京时间 (UTC+8)
+  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return beijingTime.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
 // 获取待办列表
 export async function GET(request: NextRequest) {
   try {
@@ -20,19 +28,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status'); // 'pending' | 'completed' | 'all'
     const date = searchParams.get('date'); // ISO date string
 
-    // 先处理自动delay逻辑：将昨天未完成的待办delay到今天
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    await client
-      .from('todos')
-      .update({ 
-        due_date: today.toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .lt('due_date', today.toISOString())
-      .eq('completed', false)
-      .eq('user_id', user.id);
+    // 调用 RPC 函数自动延期
+    await client.rpc('auto_delay_todos', { user_id: user.id });
 
     let query = client
       .from('todos')
@@ -48,13 +45,8 @@ export async function GET(request: NextRequest) {
 
     // 日期筛选
     if (date) {
-      const targetDate = new Date(date);
-      const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      query = query
-        .gte('due_date', targetDate.toISOString())
-        .lt('due_date', nextDay.toISOString());
+      const targetDate = date.split('T')[0]; // 取日期部分 YYYY-MM-DD
+      query = query.filter('due_date::date', 'eq', targetDate);
     }
 
     // 按优先级和日期排序
