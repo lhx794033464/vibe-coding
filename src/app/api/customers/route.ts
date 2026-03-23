@@ -64,17 +64,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 获取所有跟进记录，计算每个客户的已消耗人天
+    // 获取所有实施日志，计算每个客户的已消耗人天
     const customerIds = data?.map(c => c.id) || [];
     let consumedDaysMap: Record<string, number> = {};
     
     if (customerIds.length > 0) {
-      const { data: followUps } = await client
-        .from('follow_up_records')
+      const { data: logs } = await client
+        .from('implementation_logs')
         .select('customer_id, consumed_days')
         .in('customer_id', customerIds);
       
-      followUps?.forEach(record => {
+      logs?.forEach(record => {
         const days = parseFloat(record.consumed_days || '0');
         if (!consumedDaysMap[record.customer_id]) {
           consumedDaysMap[record.customer_id] = 0;
