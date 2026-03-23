@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -9,9 +9,13 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format, addHours } from 'date-fns';
 
 // 类型定义
 interface Customer {
@@ -28,94 +32,35 @@ interface Schedule {
   customer_name?: string;
 }
 
-// 法定节假日数据（周末调休为工作日）
-// 格式：日期 -> 是否工作日（true=工作日，false=节假日）
-// 注意：这里需要同时处理：
-// 1. 周末调休为工作日
-// 2. 法定节假日
-
-// 周末调休为工作日的日期
+// 法定节假日数据
 const WORKDAYS_ON_WEEKEND: Set<string> = new Set([
-  // 2024年调休
-  '2024-02-04', // 春节调休
-  '2024-02-18', // 春节调休
-  '2024-04-07', // 清明调休
-  '2024-04-28', // 劳动节调休
-  '2024-05-11', // 劳动节调休
-  '2024-09-14', // 中秋调休
-  '2024-09-29', // 国庆调休
-  '2024-10-12', // 国庆调休
-  // 2025年调休
-  '2025-01-26', // 春节调休
-  '2025-02-08', // 春节调休
-  '2025-04-27', // 劳动节调休
+  '2024-02-04', '2024-02-18', '2024-04-07', '2024-04-28', '2024-05-11',
+  '2024-09-14', '2024-09-29', '2024-10-12',
+  '2025-01-26', '2025-02-08', '2025-04-27',
 ]);
 
-// 法定节假日（不包括周末）
 const HOLIDAYS: Record<string, string> = {
-  // 2024年
   '2024-01-01': '元旦',
-  '2024-02-10': '春节',
-  '2024-02-11': '春节',
-  '2024-02-12': '春节',
-  '2024-02-13': '春节',
-  '2024-02-14': '春节',
-  '2024-02-15': '春节',
-  '2024-02-16': '春节',
-  '2024-02-17': '春节',
-  '2024-04-04': '清明',
-  '2024-04-05': '清明',
-  '2024-04-06': '清明',
-  '2024-05-01': '劳动节',
-  '2024-05-02': '劳动节',
-  '2024-05-03': '劳动节',
-  '2024-05-04': '劳动节',
-  '2024-05-05': '劳动节',
-  '2024-06-08': '端午',
-  '2024-06-09': '端午',
-  '2024-06-10': '端午',
-  '2024-09-15': '中秋',
-  '2024-09-16': '中秋',
-  '2024-09-17': '中秋',
-  '2024-10-01': '国庆',
-  '2024-10-02': '国庆',
-  '2024-10-03': '国庆',
-  '2024-10-04': '国庆',
-  '2024-10-05': '国庆',
-  '2024-10-06': '国庆',
-  '2024-10-07': '国庆',
-  // 2025年
+  '2024-02-10': '春节', '2024-02-11': '春节', '2024-02-12': '春节', '2024-02-13': '春节',
+  '2024-02-14': '春节', '2024-02-15': '春节', '2024-02-16': '春节', '2024-02-17': '春节',
+  '2024-04-04': '清明', '2024-04-05': '清明', '2024-04-06': '清明',
+  '2024-05-01': '劳动节', '2024-05-02': '劳动节', '2024-05-03': '劳动节',
+  '2024-05-04': '劳动节', '2024-05-05': '劳动节',
+  '2024-06-08': '端午', '2024-06-09': '端午', '2024-06-10': '端午',
+  '2024-09-15': '中秋', '2024-09-16': '中秋', '2024-09-17': '中秋',
+  '2024-10-01': '国庆', '2024-10-02': '国庆', '2024-10-03': '国庆',
+  '2024-10-04': '国庆', '2024-10-05': '国庆', '2024-10-06': '国庆', '2024-10-07': '国庆',
   '2025-01-01': '元旦',
-  '2025-01-28': '春节',
-  '2025-01-29': '春节',
-  '2025-01-30': '春节',
-  '2025-01-31': '春节',
-  '2025-02-01': '春节',
-  '2025-02-02': '春节',
-  '2025-02-03': '春节',
-  '2025-02-04': '春节',
-  '2025-04-04': '清明',
-  '2025-04-05': '清明',
-  '2025-04-06': '清明',
-  '2025-05-01': '劳动节',
-  '2025-05-02': '劳动节',
-  '2025-05-03': '劳动节',
-  '2025-05-04': '劳动节',
-  '2025-05-05': '劳动节',
-  '2025-05-31': '端午',
-  '2025-06-01': '端午',
-  '2025-06-02': '端午',
-  '2025-10-01': '国庆',
-  '2025-10-02': '国庆',
-  '2025-10-03': '国庆',
-  '2025-10-04': '国庆',
-  '2025-10-05': '国庆',
-  '2025-10-06': '国庆&中秋',
-  '2025-10-07': '国庆',
-  '2025-10-08': '国庆',
+  '2025-01-28': '春节', '2025-01-29': '春节', '2025-01-30': '春节', '2025-01-31': '春节',
+  '2025-02-01': '春节', '2025-02-02': '春节', '2025-02-03': '春节', '2025-02-04': '春节',
+  '2025-04-04': '清明', '2025-04-05': '清明', '2025-04-06': '清明',
+  '2025-05-01': '劳动节', '2025-05-02': '劳动节', '2025-05-03': '劳动节',
+  '2025-05-04': '劳动节', '2025-05-05': '劳动节',
+  '2025-05-31': '端午', '2025-06-01': '端午', '2025-06-02': '端午',
+  '2025-10-01': '国庆', '2025-10-02': '国庆', '2025-10-03': '国庆',
+  '2025-10-04': '国庆', '2025-10-05': '国庆', '2025-10-06': '国庆&中秋', '2025-10-07': '国庆',
 };
 
-// 格式化日期为 YYYY-MM-DD
 function formatDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -123,7 +68,6 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// 判断日期状态
 function getDateStatus(date: Date): { 
   isHoliday: boolean; 
   isWorkday: boolean; 
@@ -134,42 +78,33 @@ function getDateStatus(date: Date): {
   const dayOfWeek = date.getDay();
   const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
   
-  // 检查是否是法定节假日
   const holidayName = HOLIDAYS[dateStr] || null;
   if (holidayName) {
     return { isHoliday: true, isWorkday: false, holidayName, isWeekend: false };
   }
   
-  // 检查是否是周末调休的工作日
   if (WORKDAYS_ON_WEEKEND.has(dateStr)) {
     return { isHoliday: false, isWorkday: true, holidayName: '调休', isWeekend: false };
   }
   
-  // 周末
   if (isWeekendDay) {
     return { isHoliday: false, isWorkday: false, holidayName: null, isWeekend: true };
   }
   
-  // 普通工作日
   return { isHoliday: false, isWorkday: true, holidayName: null, isWeekend: false };
 }
 
-// 生成月历数据 - 以今天所在周的周一开始
 function generateCalendarData(centerDate: Date): Date[] {
   const dates: Date[] = [];
   const today = new Date(centerDate);
   today.setHours(0, 0, 0, 0);
   
-  // 获取今天是星期几（0=周日, 1=周一, ..., 6=周六）
   const dayOfWeek = today.getDay();
-  // 计算今天是周几（周一=0, 周二=1, ..., 周日=6）
   const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  // 计算本周的周一
   const monday = new Date(today);
   monday.setDate(today.getDate() - adjustedDayOfWeek);
   
-  // 生成6周的日期（42天）
   for (let i = 0; i < 42; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
@@ -186,13 +121,27 @@ export default function SchedulePage() {
   const [centerDate, setCenterDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  
+  // 会议相关状态
+  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [meetingSubject, setMeetingSubject] = useState('');
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('');
+  const [meetingDuration, setMeetingDuration] = useState(60);
+  const [meetingLoading, setMeetingLoading] = useState(false);
+  const [meetingResult, setMeetingResult] = useState<{
+    meetingUrl: string;
+    meetingCode: string;
+    subject: string;
+    startTime: number;
+    duration: number;
+  } | null>(null);
+  const [showDownloadTip, setShowDownloadTip] = useState(false);
 
-  // 生成日历数据
   const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
 
   // 获取客户列表
@@ -209,7 +158,6 @@ export default function SchedulePage() {
         
         if (response.ok) {
           const result = await response.json();
-          // API 返回的是 { data: customers, count }
           setCustomers(result.data || []);
         }
       } catch (error) {
@@ -250,20 +198,17 @@ export default function SchedulePage() {
     fetchSchedules();
   }, [session?.access_token, calendarDates]);
 
-  // 过滤客户列表
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // 获取某日期的日程
   const getSchedulesForDate = (date: Date): Schedule[] => {
     const dateStr = formatDate(date);
     return schedules.filter(s => s.schedule_date.split('T')[0] === dateStr);
   };
 
-  // 处理添加日程
-  const handleAddSchedule = async () => {
-    if (!selectedCustomer || !selectedDate || !session?.access_token) return;
+  // 添加日程
+  const handleAddSchedule = async (openMeeting: boolean = false) => {
+    if (!selectedCustomerId || !selectedDate || !session?.access_token) return;
+
+    const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+    if (!selectedCustomer) return;
 
     setLoading(true);
     try {
@@ -274,7 +219,7 @@ export default function SchedulePage() {
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          customerId: selectedCustomer.id,
+          customerId: selectedCustomerId,
           scheduleDate: formatDate(selectedDate),
           notes: notes || null,
         }),
@@ -286,10 +231,22 @@ export default function SchedulePage() {
           ...newSchedule.schedule, 
           customer_name: selectedCustomer.name 
         }]);
+        
+        // 关闭添加对话框
         setShowAddDialog(false);
-        setSelectedCustomer(null);
+        setSelectedCustomerId('');
         setNotes('');
-        setSearchQuery('');
+        
+        // 如果需要打开会议对话框
+        if (openMeeting) {
+          setMeetingSubject(`${selectedCustomer.name} - 项目实施沟通`);
+          setMeetingDate(formatDate(selectedDate));
+          setMeetingTime(format(addHours(new Date(), 1), 'HH:mm'));
+          setMeetingDuration(60);
+          setMeetingResult(null);
+          setShowDownloadTip(false);
+          setShowMeetingDialog(true);
+        }
       }
     } catch (error) {
       console.error('添加日程失败:', error);
@@ -318,26 +275,69 @@ export default function SchedulePage() {
     }
   };
 
-  // 上一个月
+  // 打开本地腾讯会议
+  const openLocalTencentMeeting = () => {
+    window.location.href = 'wemeet://page/schedulemeeting';
+    setTimeout(() => {
+      setShowDownloadTip(true);
+    }, 2000);
+  };
+
+  // 创建腾讯会议
+  const handleCreateMeeting = async () => {
+    if (!meetingSubject || !meetingDate || !meetingTime) return;
+
+    setMeetingLoading(true);
+
+    try {
+      const startDateTime = new Date(`${meetingDate}T${meetingTime}`);
+      const startTime = Math.floor(startDateTime.getTime() / 1000);
+
+      const response = await fetch('/api/tencent-meeting', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          subject: meetingSubject,
+          startTime,
+          duration: meetingDuration,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setMeetingResult(data.data);
+      } else {
+        alert(data.error || '创建会议失败');
+      }
+    } catch (error) {
+      console.error('创建会议失败:', error);
+      alert('创建会议失败');
+    } finally {
+      setMeetingLoading(false);
+    }
+  };
+
+  // 导航
   const goToPrevMonth = () => {
     const newDate = new Date(centerDate);
     newDate.setMonth(newDate.getMonth() - 1);
     setCenterDate(newDate);
   };
 
-  // 下一个月
   const goToNextMonth = () => {
     const newDate = new Date(centerDate);
     newDate.setMonth(newDate.getMonth() + 1);
     setCenterDate(newDate);
   };
 
-  // 回到今天
   const goToToday = () => {
     setCenterDate(new Date());
   };
 
-  // 获取当前显示的月份范围
   const getDisplayMonthRange = (): string => {
     const months = new Set<number>();
     const years = new Set<number>();
@@ -357,13 +357,11 @@ export default function SchedulePage() {
     }
   };
 
-  // 判断是否是当天
   const isToday = (date: Date): boolean => {
     const today = new Date();
     return formatDate(date) === formatDate(today);
   };
 
-  // 判断是否是1号（需要显示月份）
   const isFirstOfMonth = (date: Date): { isFirst: boolean; month: number } => {
     const prevDate = new Date(date);
     prevDate.setDate(prevDate.getDate() - 1);
@@ -441,10 +439,11 @@ export default function SchedulePage() {
                   onMouseLeave={() => setHoveredDate(null)}
                   onClick={() => {
                     setSelectedDate(date);
+                    setSelectedCustomerId('');
+                    setNotes('');
                     setShowAddDialog(true);
                   }}
                 >
-                  {/* 日期显示 */}
                   <div className="p-2 flex items-start justify-between">
                     <div>
                       {isFirst ? (
@@ -458,7 +457,6 @@ export default function SchedulePage() {
                         </span>
                       )}
                     </div>
-                    {/* 添加按钮 */}
                     {isHovered && (
                       <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm">
                         <Plus className="w-4 h-4" />
@@ -466,14 +464,12 @@ export default function SchedulePage() {
                     )}
                   </div>
 
-                  {/* 节假日名称 */}
                   {dateStatus.holidayName && (
                     <div className="px-2 pb-1">
                       <span className="text-xs text-gray-500">{dateStatus.holidayName}</span>
                     </div>
                   )}
 
-                  {/* 日程列表 */}
                   <div className="px-2 pb-2 space-y-1">
                     {dateSchedules.slice(0, 3).map(schedule => (
                       <div
@@ -517,81 +513,240 @@ export default function SchedulePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* 客户选择 */}
+            {/* 客户选择 - 下拉菜单 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">选择客户</label>
-              {selectedCustomer ? (
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <span className="font-medium text-blue-700">{selectedCustomer.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedCustomer(null)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Input
-                    placeholder="搜索客户名称..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <ScrollArea className="h-[200px] border rounded-lg">
-                    {filteredCustomers.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500 text-sm">
-                        {searchQuery ? '未找到匹配的客户' : '暂无客户数据'}
-                      </div>
-                    ) : (
-                      <div className="p-1">
-                        {filteredCustomers.map(customer => (
-                          <button
-                            key={customer.id}
-                            onClick={() => {
-                              setSelectedCustomer(customer);
-                              setSearchQuery('');
-                            }}
-                            className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm"
-                          >
-                            {customer.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </ScrollArea>
-                </div>
-              )}
+              <Label>选择客户</Label>
+              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="请选择客户" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.length === 0 ? (
+                    <div className="px-2 py-4 text-center text-gray-500 text-sm">
+                      暂无客户数据
+                    </div>
+                  ) : (
+                    customers.map(customer => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* 备注 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">备注（可选）</label>
+              <Label>备注（可选）</Label>
               <Input
                 placeholder="输入备注信息..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
-
-            {/* 按钮 */}
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => {
-                setShowAddDialog(false);
-                setSelectedCustomer(null);
-                setNotes('');
-                setSearchQuery('');
-              }}>
-                取消
-              </Button>
-              <Button
-                onClick={handleAddSchedule}
-                disabled={!selectedCustomer || loading}
-              >
-                {loading ? '添加中...' : '确认添加'}
-              </Button>
-            </div>
           </div>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              取消
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleAddSchedule(false)}
+              disabled={!selectedCustomerId || loading}
+            >
+              {loading ? '添加中...' : '添加'}
+            </Button>
+            <Button
+              onClick={() => handleAddSchedule(true)}
+              disabled={!selectedCustomerId || loading}
+            >
+              <Video className="w-4 h-4 mr-1" />
+              {loading ? '添加中...' : '添加并预订会议'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 会议预订对话框 */}
+      <Dialog 
+        open={showMeetingDialog} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowMeetingDialog(false);
+            setMeetingResult(null);
+            setShowDownloadTip(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>预订会议</DialogTitle>
+            <DialogDescription>
+              为日程创建腾讯会议
+            </DialogDescription>
+          </DialogHeader>
+
+          {!meetingResult ? (
+            <>
+              {/* 快捷方式 */}
+              <div className="py-2">
+                <Button className="w-full" onClick={openLocalTencentMeeting} size="lg">
+                  <Video className="w-4 h-4 mr-2" />
+                  使用腾讯会议预订
+                </Button>
+                
+                {showDownloadTip && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-2">未检测到腾讯会议，请先下载安装</p>
+                    <a
+                      href="https://meeting.tencent.com/download-center.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                    >
+                      <Download className="w-3 h-3" />
+                      前往下载腾讯会议
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-gray-500">或使用 API 创建</span>
+                </div>
+              </div>
+
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>会议主题</Label>
+                  <Input
+                    value={meetingSubject}
+                    onChange={(e) => setMeetingSubject(e.target.value)}
+                    placeholder="请输入会议主题"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>会议日期</Label>
+                    <Input
+                      type="date"
+                      value={meetingDate}
+                      onChange={(e) => setMeetingDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>开始时间</Label>
+                    <Input
+                      type="time"
+                      value={meetingTime}
+                      onChange={(e) => setMeetingTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>会议时长</Label>
+                  <Select
+                    value={meetingDuration.toString()}
+                    onValueChange={(v) => setMeetingDuration(parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择会议时长" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 分钟</SelectItem>
+                      <SelectItem value="60">1 小时</SelectItem>
+                      <SelectItem value="90">1.5 小时</SelectItem>
+                      <SelectItem value="120">2 小时</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowMeetingDialog(false)}>
+                  取消
+                </Button>
+                <Button 
+                  onClick={handleCreateMeeting}
+                  disabled={meetingLoading || !meetingSubject || !meetingDate || !meetingTime}
+                >
+                  {meetingLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      创建中...
+                    </>
+                  ) : (
+                    '创建会议'
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <div className="space-y-4 py-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                      <Video className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">会议创建成功</p>
+                      <p className="text-sm text-gray-500">会议码: {meetingResult.meetingCode}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">会议主题</span>
+                      <span className="font-medium">{meetingResult.subject}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">会议时间</span>
+                      <span className="font-medium">
+                        {format(new Date(meetingResult.startTime * 1000), 'yyyy-MM-dd HH:mm')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">会议时长</span>
+                      <span className="font-medium">{meetingResult.duration} 分钟</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>会议链接</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={meetingResult.meetingUrl} className="flex-1" />
+                    <Button
+                      variant="outline"
+                      onClick={() => navigator.clipboard.writeText(meetingResult.meetingUrl)}
+                    >
+                      复制
+                    </Button>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => window.open(meetingResult.meetingUrl, '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  打开腾讯会议
+                </Button>
+              </div>
+
+              <DialogFooter>
+                <Button onClick={() => setShowMeetingDialog(false)}>关闭</Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
