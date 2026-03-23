@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
@@ -10,11 +10,9 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   avatarUrl: string | null;
-  avatarLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  refreshAvatar: () => Promise<void>;
   updateAvatar: (url: string) => void;
 }
 
@@ -26,15 +24,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [avatarLoading, setAvatarLoading] = useState(false);
   const router = useRouter();
+  
+  // 使用 ref 防止重复请求
+  const avatarFetchingRef = useRef(false);
 
   // 获取头像
-  const refreshAvatar = useCallback(async () => {
-    const token = session?.access_token;
-    if (!token) return;
+  const fetchAvatar = useCallback(async (token: string) => {
+    // 防止重复请求
+    if (avatarFetchingRef.current) return;
+    avatarFetchingRef.current = true;
     
-    setAvatarLoading(true);
     try {
       const response = await fetch('/api/avatar', {
         headers: {
@@ -49,9 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('获取头像失败:', error);
     } finally {
-      setAvatarLoading(false);
+      avatarFetchingRef.current = false;
     }
-  }, [session?.access_token]);
+  }, []);
 
   // 更新头像（上传成功后调用）
   const updateAvatar = useCallback((url: string) => {
@@ -73,6 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data: { session } } = await client.auth.getSession();
           setSession(session);
           setUser(session?.user ?? null);
+          
+          // 如果已有会话，立即获取头像
+          if (session?.access_token) {
+            fetchAvatar(session.access_token);
+          }
         }
       } catch (error) {
         console.error('初始化 Supabase 失败:', error);
@@ -82,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     initSupabase();
-  }, []);
+  }, [fetchAvatar]);
 
   // 监听认证状态变化
   useEffect(() => {
@@ -95,21 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // 登录成功后清除旧的头像状态，等待重新获取
-      if (session) {
-        setAvatarUrl(null);
+      // 登录成功后获取头像
+      if (session?.access_token) {
+        setAvatarUrl(null); // 先清除，等待重新获取
+        fetchAvatar(session.access_token);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
-
-  // session 变化时获取头像
-  useEffect(() => {
-    if (session?.access_token && !avatarLoading) {
-      refreshAvatar();
-    }
-  }, [session?.access_token, refreshAvatar, avatarLoading]);
+  }, [supabase, fetchAvatar]);
 
   const signIn = async (email: string, password: string) => {
     if (!supabase) {
@@ -156,11 +155,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session, 
       loading, 
       avatarUrl,
-      avatarLoading,
       signIn, 
       signUp, 
       signOut,
-      refreshAvatar,
       updateAvatar
     }}>
       {children}

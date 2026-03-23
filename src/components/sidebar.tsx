@@ -35,7 +35,7 @@ const navItems = [
 
 export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
-  const { user, session, avatarUrl, avatarLoading, updateAvatar } = useAuth();
+  const { user, session, avatarUrl, updateAvatar } = useAuth();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -112,7 +112,7 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
             className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0 group/avatar cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
             title={collapsed ? "点击上传头像" : undefined}
           >
-            {uploading || avatarLoading ? (
+            {uploading ? (
               <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
             ) : avatarUrl ? (
               <>
