@@ -92,6 +92,9 @@ export default function TodosPage() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   
+  // 当前选中日期
+  const [currentDate, setCurrentDate] = useState(startOfDay(new Date()));
+  
   // 动画状态 - 完成动画
   const [completingTodo, setCompletingTodo] = useState<TransitionTodo | null>(null);
   // 动画状态 - 取消完成动画
@@ -105,14 +108,15 @@ export default function TodosPage() {
       fetchTodos();
       fetchCustomers();
     }
-  }, [session]);
+  }, [session, currentDate]);
 
   const fetchTodos = async () => {
     if (!session?.access_token) return;
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/todos?status=all`, {
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const response = await fetch(`/api/todos?status=all&date=${dateStr}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
@@ -331,35 +335,6 @@ export default function TodosPage() {
     }
   };
 
-  // 调整待办日期
-  const handleDateChange = async (todo: Todo, direction: 'prev' | 'next') => {
-    if (!session?.access_token) return;
-
-    const currentDate = parseISO(todo.due_date);
-    const newDate = direction === 'prev' ? subDays(currentDate, 1) : addDays(currentDate, 1);
-
-    try {
-      const response = await fetch(`/api/todos/${todo.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          due_date: newDate.toISOString(),
-        }),
-      });
-
-      if (response.ok) {
-        setTodos(prev => prev.map(t => 
-          t.id === todo.id ? { ...t, due_date: newDate.toISOString() } : t
-        ));
-      }
-    } catch (error) {
-      console.error('更新日期失败:', error);
-    }
-  };
-
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase())
   );
@@ -370,13 +345,6 @@ export default function TodosPage() {
     if (isToday(date)) return '今天';
     if (isTomorrow(date)) return '明天';
     return format(date, 'M/d', { locale: zhCN });
-  };
-
-  const formatTodoDate = (dateStr: string) => {
-    const date = parseISO(dateStr);
-    if (isToday(date)) return '今天';
-    if (isTomorrow(date)) return '明天';
-    return format(date, 'M月d日', { locale: zhCN });
   };
 
   // 分离未完成和已完成的待办（排除正在过渡中的）
@@ -403,10 +371,34 @@ export default function TodosPage() {
         <div className="flex-1 flex flex-col min-h-0">
           <Card className="flex-1 flex flex-col min-h-0">
             <CardHeader className="shrink-0 pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                待办事项
-                <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  待办事项
+                  <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
+                </CardTitle>
+                {/* 日期调整 */}
+                <div className="flex items-center gap-1 bg-gray-100 rounded-md px-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-gray-500 hover:text-gray-700"
+                    onClick={() => setCurrentDate(subDays(currentDate, 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600 min-w-[60px] text-center font-medium">
+                    {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-gray-500 hover:text-gray-700"
+                    onClick={() => setCurrentDate(addDays(currentDate, 1))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 p-0">
               <ScrollArea className="h-full px-6 pb-6">
@@ -453,29 +445,6 @@ export default function TodosPage() {
 
                         {/* 操作区域 */}
                         <div className="flex items-center gap-1 shrink-0">
-                          {/* 日期调整 */}
-                          <div className="flex items-center gap-0.5 bg-gray-100 rounded-md px-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-gray-500 hover:text-gray-700"
-                              onClick={() => handleDateChange(todo, 'prev')}
-                            >
-                              <ChevronLeft className="h-3 w-3" />
-                            </Button>
-                            <span className="text-xs text-gray-600 min-w-[50px] text-center">
-                              {formatTodoDate(todo.due_date)}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-gray-500 hover:text-gray-700"
-                              onClick={() => handleDateChange(todo, 'next')}
-                            >
-                              <ChevronRight className="h-3 w-3" />
-                            </Button>
-                          </div>
-
                           <Select
                             value={todo.priority}
                             onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
