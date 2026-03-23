@@ -541,18 +541,17 @@ export default function SchedulePage() {
               />
             </div>
           </div>
-          <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              取消
-            </Button>
+          <DialogFooter className="flex gap-4">
             <Button
               variant="outline"
+              className="flex-1"
               onClick={() => handleAddSchedule(false)}
               disabled={!selectedCustomerId || loading}
             >
               {loading ? '添加中...' : '添加'}
             </Button>
             <Button
+              className="flex-1"
               onClick={() => handleAddSchedule(true)}
               disabled={!selectedCustomerId || loading}
             >
