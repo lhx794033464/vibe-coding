@@ -20,11 +20,23 @@ import {
   Building,
   FileText,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Trash2
 } from 'lucide-react';
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+
+// 实施日志类型
+interface ImplementationLog {
+  id: string;
+  customer_id: string;
+  log_date: string;
+  consumed_days: string;
+  summary: string;
+  meeting_link: string | null;
+  created_at: string;
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -35,13 +47,19 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
+  const [implementationLogs, setImplementationLogs] = useState<ImplementationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFollowUpForm, setShowFollowUpForm] = useState(false);
+  const [showLogForm, setShowLogForm] = useState(false);
   const [followUpForm, setFollowUpForm] = useState({
     follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     content: '',
-    meeting_link: '',
+  });
+  const [logForm, setLogForm] = useState({
+    log_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     consumed_days: '',
+    summary: '',
+    meeting_link: '',
   });
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -64,6 +82,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       if (id && session?.access_token) {
         fetchCustomer(id);
         fetchFollowUps(id);
+        fetchImplementationLogs(id);
       }
     };
     loadCustomer();
@@ -113,6 +132,22 @@ export default function CustomerDetailPage({ params }: PageProps) {
       }
     } catch (error) {
       console.error('获取跟进记录失败:', error);
+    }
+  };
+
+  const fetchImplementationLogs = async (customerId: string) => {
+    try {
+      const response = await fetch(`/api/implementation-logs?customer_id=${customerId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setImplementationLogs(data.data || []);
+      }
+    } catch (error) {
+      console.error('获取实施日志失败:', error);
     }
   };
 
@@ -167,9 +202,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
           customer_id: customer.id,
           follow_up_at: followUpForm.follow_up_at,
           content: followUpForm.content,
-          meeting_link: followUpForm.meeting_link || null,
-          consumed_days: followUpForm.consumed_days ? parseInt(followUpForm.consumed_days) : null,
-          is_accepted: false,
         }),
       });
 
@@ -177,15 +209,68 @@ export default function CustomerDetailPage({ params }: PageProps) {
         setFollowUpForm({
           follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
           content: '',
-          meeting_link: '',
-          consumed_days: '',
         });
         setShowFollowUpForm(false);
         fetchFollowUps(customer.id);
-        fetchCustomer(customer.id);
       }
     } catch (error) {
       console.error('添加跟进记录失败:', error);
+    }
+  };
+
+  const handleAddImplementationLog = async () => {
+    if (!customer || !logForm.summary || !logForm.consumed_days) {
+      alert('请填写实施纪要和消耗人天');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/implementation-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          customer_id: customer.id,
+          log_date: logForm.log_date,
+          consumed_days: parseFloat(logForm.consumed_days),
+          summary: logForm.summary,
+          meeting_link: logForm.meeting_link || null,
+        }),
+      });
+
+      if (response.ok) {
+        setLogForm({
+          log_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+          consumed_days: '',
+          summary: '',
+          meeting_link: '',
+        });
+        setShowLogForm(false);
+        fetchImplementationLogs(customer.id);
+      }
+    } catch (error) {
+      console.error('添加实施日志失败:', error);
+    }
+  };
+
+  const handleDeleteImplementationLog = async (logId: string) => {
+    if (!confirm('确定删除此实施日志吗？')) return;
+
+    try {
+      const response = await fetch(`/api/implementation-logs/${logId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+      });
+
+      if (response.ok && customer) {
+        fetchImplementationLogs(customer.id);
+      }
+    } catch (error) {
+      console.error('删除实施日志失败:', error);
     }
   };
 
@@ -235,8 +320,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
 
-  // 计算已消耗人天和剩余人天
-  const totalConsumedDays = followUps.reduce((sum, record) => sum + parseFloat(record.consumed_days || '0'), 0);
+  // 计算已消耗人天和剩余人天（从实施日志计算）
+  const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
   const remainingDays = parseFloat(customer.implementation_days || '0') - totalConsumedDays;
 
   return (
@@ -479,6 +564,109 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* 实施日志 */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                实施日志
+              </CardTitle>
+              <Button size="sm" onClick={() => setShowLogForm(!showLogForm)}>
+                <Plus className="w-4 h-4 mr-1" />
+                添加
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {showLogForm && (
+                <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>实施时间</Label>
+                      <Input
+                        type="datetime-local"
+                        value={logForm.log_date}
+                        onChange={(e) => setLogForm({ ...logForm, log_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>消耗人天</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={logForm.consumed_days}
+                        onChange={(e) => setLogForm({ ...logForm, consumed_days: e.target.value })}
+                        placeholder="本次消耗的人天数"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>实施纪要</Label>
+                    <Textarea
+                      value={logForm.summary}
+                      onChange={(e) => setLogForm({ ...logForm, summary: e.target.value })}
+                      placeholder="请输入实施纪要"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>会议链接</Label>
+                    <Input
+                      value={logForm.meeting_link}
+                      onChange={(e) => setLogForm({ ...logForm, meeting_link: e.target.value })}
+                      placeholder="可选"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddImplementationLog}>保存</Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowLogForm(false)}>取消</Button>
+                  </div>
+                </div>
+              )}
+
+              {implementationLogs.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">暂无实施日志</p>
+              ) : (
+                <div className="space-y-3">
+                  {implementationLogs.map((log) => (
+                    <div key={log.id} className="p-3 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">
+                          {format(new Date(log.log_date), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-orange-600 border-orange-300">
+                            消耗 {parseFloat(log.consumed_days).toFixed(2)} 天
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-gray-400 hover:text-red-500"
+                            onClick={() => handleDeleteImplementationLog(log.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm whitespace-pre-wrap">{log.summary}</p>
+                      {log.meeting_link && (
+                        <a
+                          href={log.meeting_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          会议链接
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* 右侧：跟进记录 */}
@@ -514,24 +702,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       rows={3}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>消耗人天</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={followUpForm.consumed_days}
-                      onChange={(e) => setFollowUpForm({ ...followUpForm, consumed_days: e.target.value })}
-                      placeholder="本次跟进消耗的人天数"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>会议回放链接</Label>
-                    <Input
-                      value={followUpForm.meeting_link}
-                      onChange={(e) => setFollowUpForm({ ...followUpForm, meeting_link: e.target.value })}
-                      placeholder="可选"
-                    />
-                  </div>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleAddFollowUp}>保存</Button>
                     <Button size="sm" variant="outline" onClick={() => setShowFollowUpForm(false)}>取消</Button>
@@ -549,29 +719,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         <span className="text-sm text-gray-500">
                           {format(new Date(record.follow_up_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
                         </span>
-                        <div className="flex items-center gap-2">
-                          {record.consumed_days && (
-                            <Badge variant="outline" className="text-orange-600 border-orange-300">
-                              消耗 {parseFloat(record.consumed_days).toFixed(2)} 天
-                            </Badge>
-                          )}
-                          {record.is_accepted && (
-                            <Badge className="bg-green-100 text-green-700">已验收</Badge>
-                          )}
-                        </div>
+                        {record.is_accepted && (
+                          <Badge className="bg-green-100 text-green-700">已验收</Badge>
+                        )}
                       </div>
                       <p className="mt-2 text-sm whitespace-pre-wrap">{record.content}</p>
-                      {record.meeting_link && (
-                        <a
-                          href={record.meeting_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          会议回放
-                        </a>
-                      )}
                     </div>
                   ))}
                 </div>

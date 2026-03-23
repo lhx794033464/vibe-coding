@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// 获取跟进记录列表
+// 获取实施日志列表
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error } = await client
-      .from('follow_up_records')
+      .from('implementation_logs')
       .select('*')
       .eq('customer_id', customerId)
-      .order('follow_up_at', { ascending: false });
+      .order('log_date', { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,12 +35,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('获取跟进记录失败:', error);
-    return NextResponse.json({ error: '获取跟进记录失败' }, { status: 500 });
+    console.error('获取实施日志失败:', error);
+    return NextResponse.json({ error: '获取实施日志失败' }, { status: 500 });
   }
 }
 
-// 创建跟进记录
+// 创建实施日志
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -58,24 +58,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { 
       customer_id, 
-      follow_up_at, 
-      content, 
-      is_accepted, 
-      signature_image_url 
+      log_date, 
+      consumed_days, 
+      summary, 
+      meeting_link 
     } = body;
 
-    if (!customer_id || !follow_up_at || !content) {
+    if (!customer_id || !log_date || !consumed_days || !summary) {
       return NextResponse.json({ error: '缺少必要字段' }, { status: 400 });
     }
 
     const { data, error } = await client
-      .from('follow_up_records')
+      .from('implementation_logs')
       .insert({
         customer_id,
-        follow_up_at,
-        content,
-        is_accepted: is_accepted || false,
-        signature_image_url: signature_image_url || null,
+        log_date,
+        consumed_days,
+        summary,
+        meeting_link: meeting_link || null,
         user_id: user.id,
       })
       .select()
@@ -85,29 +85,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 更新客户的最后跟进时间
-    await client
-      .from('customers')
-      .update({ 
-        last_follow_up_at: follow_up_at,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', customer_id);
-
-    // 如果标记为验收，更新客户状态
-    if (is_accepted) {
-      await client
-        .from('customers')
-        .update({ 
-          status: 'accepted',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', customer_id);
-    }
-
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('创建跟进记录失败:', error);
-    return NextResponse.json({ error: '创建跟进记录失败' }, { status: 500 });
+    console.error('创建实施日志失败:', error);
+    return NextResponse.json({ error: '创建实施日志失败' }, { status: 500 });
   }
 }

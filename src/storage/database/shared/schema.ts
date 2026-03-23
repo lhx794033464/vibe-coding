@@ -323,3 +323,51 @@ export const updateScheduleSchema = createCoercedInsertSchema(schedules)
 export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
 export type UpdateSchedule = z.infer<typeof updateScheduleSchema>;
+
+// 实施日志表
+export const implementationLogs = pgTable(
+  "implementation_logs",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    customerId: varchar("customer_id", { length: 36 }).notNull(),
+    logDate: timestamp("log_date", { withTimezone: true, mode: 'string' }).notNull(),
+    consumedDays: numeric("consumed_days", { precision: 6, scale: 2 }).notNull(),
+    summary: text("summary").notNull(),
+    meetingLink: varchar("meeting_link", { length: 500 }),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index("implementation_logs_user_id_idx").on(table.userId),
+    index("implementation_logs_customer_id_idx").on(table.customerId),
+    index("implementation_logs_log_date_idx").on(table.logDate),
+  ]
+);
+
+// 实施日志 Zod schemas
+export const insertImplementationLogSchema = createCoercedInsertSchema(implementationLogs).pick({
+  customerId: true,
+  logDate: true,
+  consumedDays: true,
+  summary: true,
+  meetingLink: true,
+  userId: true,
+});
+
+export const updateImplementationLogSchema = createCoercedInsertSchema(implementationLogs)
+  .pick({
+    logDate: true,
+    consumedDays: true,
+    summary: true,
+    meetingLink: true,
+  })
+  .partial();
+
+export type ImplementationLog = typeof implementationLogs.$inferSelect;
+export type InsertImplementationLog = z.infer<typeof insertImplementationLogSchema>;
+export type UpdateImplementationLog = z.infer<typeof updateImplementationLogSchema>;
