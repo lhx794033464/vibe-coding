@@ -15,7 +15,8 @@ import {
   Home,
   ChevronLeft,
   ChevronRight,
-  CheckSquare
+  CheckSquare,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -28,6 +29,7 @@ interface SidebarProps {
 const navItems = [
   { href: '/home', label: '智能助手', icon: Home },
   { href: '/todos', label: '待办清单', icon: CheckSquare },
+  { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
   { href: '/commissions', label: '提成管理', icon: DollarSign },
@@ -170,6 +172,10 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
             }
             // 特殊处理：todos路径
             if (item.href === '/todos' && pathname.startsWith('/todos')) {
+              isActive = true;
+            }
+            // 特殊处理：schedule路径
+            if (item.href === '/schedule' && pathname.startsWith('/schedule')) {
               isActive = true;
             }
             // 特殊处理：commissions路径

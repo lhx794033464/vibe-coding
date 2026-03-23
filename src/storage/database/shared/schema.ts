@@ -280,3 +280,46 @@ export const updateTodoSchema = createCoercedInsertSchema(todos)
 export type Todo = typeof todos.$inferSelect;
 export type InsertTodo = z.infer<typeof insertTodoSchema>;
 export type UpdateTodo = z.infer<typeof updateTodoSchema>;
+
+// 日程排期表
+export const schedules = pgTable(
+  "schedules",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    customerId: varchar("customer_id", { length: 36 }).notNull(),
+    scheduleDate: timestamp("schedule_date", { withTimezone: true, mode: 'string' }).notNull(),
+    notes: text("notes"),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index("schedules_user_id_idx").on(table.userId),
+    index("schedules_schedule_date_idx").on(table.scheduleDate),
+    index("schedules_customer_id_idx").on(table.customerId),
+  ]
+);
+
+// 日程排期 Zod schemas
+export const insertScheduleSchema = createCoercedInsertSchema(schedules).pick({
+  customerId: true,
+  scheduleDate: true,
+  notes: true,
+  userId: true,
+});
+
+export const updateScheduleSchema = createCoercedInsertSchema(schedules)
+  .pick({
+    customerId: true,
+    scheduleDate: true,
+    notes: true,
+  })
+  .partial();
+
+export type Schedule = typeof schedules.$inferSelect;
+export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
+export type UpdateSchedule = z.infer<typeof updateScheduleSchema>;
