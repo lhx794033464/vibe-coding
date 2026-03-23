@@ -26,18 +26,20 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Calendar } from '@/components/ui/calendar';
 import { 
   Plus, 
   Trash2, 
   Calendar as CalendarIcon, 
   Check,
   ChevronsUpDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { format, isToday, isTomorrow, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
+import { format, isToday, isTomorrow, addDays, subDays, startOfDay, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -72,15 +74,6 @@ const PRIORITY_CONFIG = {
   low: { label: '常规', color: 'bg-gray-100 text-gray-600 border-gray-200', order: 1 },
 };
 
-// 生成日期列表（前后各30天）
-const generateDateList = (centerDate: Date) => {
-  const dates: Date[] = [];
-  for (let i = -30; i <= 30; i++) {
-    dates.push(addDays(centerDate, i));
-  }
-  return dates;
-};
-
 export default function TodosPage() {
   const { session } = useAuth();
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -98,8 +91,6 @@ export default function TodosPage() {
   const [newPriority, setNewPriority] = useState<'high' | 'medium' | 'low'>('low');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
-  const [currentDate, setCurrentDate] = useState(startOfDay(new Date()));
-  const [dateList] = useState(() => generateDateList(new Date()));
   
   // 动画状态 - 完成动画
   const [completingTodo, setCompletingTodo] = useState<TransitionTodo | null>(null);
@@ -107,7 +98,6 @@ export default function TodosPage() {
   const [uncompletingTodo, setUncompletingTodo] = useState<TransitionTodo | null>(null);
   
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,28 +105,14 @@ export default function TodosPage() {
       fetchTodos();
       fetchCustomers();
     }
-  }, [session, currentDate]);
-
-  // 滚动到当前日期
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (scrollRef.current) {
-        const todayElement = scrollRef.current.querySelector('[data-date="today"]');
-        if (todayElement) {
-          todayElement.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
-        }
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+  }, [session]);
 
   const fetchTodos = async () => {
     if (!session?.access_token) return;
     
     setLoading(true);
     try {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
-      const response = await fetch(`/api/todos?status=all&date=${dateStr}`, {
+      const response = await fetch(`/api/todos?status=all`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
@@ -355,6 +331,35 @@ export default function TodosPage() {
     }
   };
 
+  // 调整待办日期
+  const handleDateChange = async (todo: Todo, direction: 'prev' | 'next') => {
+    if (!session?.access_token) return;
+
+    const currentDate = parseISO(todo.due_date);
+    const newDate = direction === 'prev' ? subDays(currentDate, 1) : addDays(currentDate, 1);
+
+    try {
+      const response = await fetch(`/api/todos/${todo.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          due_date: newDate.toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        setTodos(prev => prev.map(t => 
+          t.id === todo.id ? { ...t, due_date: newDate.toISOString() } : t
+        ));
+      }
+    } catch (error) {
+      console.error('更新日期失败:', error);
+    }
+  };
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase())
   );
@@ -365,6 +370,13 @@ export default function TodosPage() {
     if (isToday(date)) return '今天';
     if (isTomorrow(date)) return '明天';
     return format(date, 'M/d', { locale: zhCN });
+  };
+
+  const formatTodoDate = (dateStr: string) => {
+    const date = parseISO(dateStr);
+    if (isToday(date)) return '今天';
+    if (isTomorrow(date)) return '明天';
+    return format(date, 'M月d日', { locale: zhCN });
   };
 
   // 分离未完成和已完成的待办（排除正在过渡中的）
@@ -383,51 +395,6 @@ export default function TodosPage() {
       <div className="shrink-0 mb-4">
         <h1 className="text-2xl font-bold text-gray-900">待办清单</h1>
         <p className="text-gray-500 mt-1">管理你的日常待办事项</p>
-      </div>
-
-      {/* 日期横向滚轴 */}
-      <div className="shrink-0 mb-6">
-        <ScrollArea className="w-full whitespace-nowrap">
-          <div 
-            ref={scrollRef}
-            className="flex gap-1 px-4"
-          >
-            {dateList.map((date) => {
-              const isSelected = isSameDay(date, currentDate);
-              const isTodayDate = isToday(date);
-              return (
-                <button
-                  key={date.toISOString()}
-                  data-date={isTodayDate ? 'today' : undefined}
-                  onClick={() => setCurrentDate(startOfDay(date))}
-                  className={cn(
-                    "flex flex-col items-center justify-center px-4 py-2 rounded-lg transition-all min-w-[60px]",
-                    isSelected 
-                      ? "bg-blue-500 text-white shadow-md" 
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200",
-                    isTodayDate && !isSelected && "ring-2 ring-blue-300"
-                  )}
-                >
-                  <span className="text-xs font-medium">
-                    {format(date, 'EEE', { locale: zhCN })}
-                  </span>
-                  <span className="text-lg font-bold">
-                    {format(date, 'd')}
-                  </span>
-                  {isTodayDate && (
-                    <span className={cn(
-                      "text-xs",
-                      isSelected ? "text-blue-100" : "text-blue-500"
-                    )}>
-                      今天
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
       </div>
 
       {/* 左右布局：左边待办事项，右边新增待办 */}
@@ -486,6 +453,29 @@ export default function TodosPage() {
 
                         {/* 操作区域 */}
                         <div className="flex items-center gap-1 shrink-0">
+                          {/* 日期调整 */}
+                          <div className="flex items-center gap-0.5 bg-gray-100 rounded-md px-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-gray-500 hover:text-gray-700"
+                              onClick={() => handleDateChange(todo, 'prev')}
+                            >
+                              <ChevronLeft className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs text-gray-600 min-w-[50px] text-center">
+                              {formatTodoDate(todo.due_date)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-gray-500 hover:text-gray-700"
+                              onClick={() => handleDateChange(todo, 'next')}
+                            >
+                              <ChevronRight className="h-3 w-3" />
+                            </Button>
+                          </div>
+
                           <Select
                             value={todo.priority}
                             onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
@@ -788,7 +778,7 @@ export default function TodosPage() {
                       <Calendar
                         mode="single"
                         selected={newDueDate}
-                        onSelect={(date) => date && setNewDueDate(date)}
+                        onSelect={(date: Date | undefined) => date && setNewDueDate(date)}
                         initialFocus
                       />
                     </PopoverContent>
