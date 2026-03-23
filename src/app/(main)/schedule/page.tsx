@@ -292,6 +292,10 @@ export default function SchedulePage() {
   // 打开本地腾讯会议
   const openLocalTencentMeeting = () => {
     window.location.href = 'wemeet://page/schedulemeeting';
+    // 1秒后关闭弹窗
+    setTimeout(() => {
+      setShowMeetingDialog(false);
+    }, 1000);
   };
 
   // 创建腾讯会议
