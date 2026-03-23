@@ -249,9 +249,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
               <ArrowLeft className="w-4 h-4 mr-2" />
               返回
             </Button>
-            <div>
+            <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-              <Badge className={`mt-1 ${statusConfig?.bgColor} ${statusConfig?.color}`}>
+              <Badge className={`${statusConfig?.bgColor} ${statusConfig?.color}`}>
                 {statusConfig?.label}
               </Badge>
             </div>
