@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Download, Loader2 } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -140,7 +140,6 @@ export default function SchedulePage() {
     startTime: number;
     duration: number;
   } | null>(null);
-  const [showDownloadTip, setShowDownloadTip] = useState(false);
 
   const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
 
@@ -244,7 +243,6 @@ export default function SchedulePage() {
           setMeetingTime(format(addHours(new Date(), 1), 'HH:mm'));
           setMeetingDuration(60);
           setMeetingResult(null);
-          setShowDownloadTip(false);
           setShowMeetingDialog(true);
         }
       }
@@ -278,9 +276,6 @@ export default function SchedulePage() {
   // 打开本地腾讯会议
   const openLocalTencentMeeting = () => {
     window.location.href = 'wemeet://page/schedulemeeting';
-    setTimeout(() => {
-      setShowDownloadTip(true);
-    }, 2000);
   };
 
   // 创建腾讯会议
@@ -575,7 +570,6 @@ export default function SchedulePage() {
           if (!open) {
             setShowMeetingDialog(false);
             setMeetingResult(null);
-            setShowDownloadTip(false);
           }
         }}
       >
@@ -595,21 +589,6 @@ export default function SchedulePage() {
                   <Video className="w-4 h-4 mr-2" />
                   使用腾讯会议预订
                 </Button>
-                
-                {showDownloadTip && (
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-800 mb-2">未检测到腾讯会议，请先下载安装</p>
-                    <a
-                      href="https://meeting.tencent.com/download-center.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
-                    >
-                      <Download className="w-3 h-3" />
-                      前往下载腾讯会议
-                    </a>
-                  </div>
-                )}
               </div>
 
               <div className="relative">
