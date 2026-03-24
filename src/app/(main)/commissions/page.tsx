@@ -176,16 +176,17 @@ export default function CommissionsPage() {
       const data = await response.json();
       if (response.ok) {
         setDialogOpen(false);
-        fetchCommissions();
         
-        // 检查是否还有剩余提成，如果有则自动弹出设置下次计提时间
-        const newRemaining = selectedCommission.remainingCommission - parseFloat(commissionAmount);
-        if (newRemaining > 0) {
-          // 延迟一点弹出，让用户先看到更新后的列表
+        // 先刷新列表获取最新数据
+        await fetchCommissions();
+        
+        // 使用后端返回的数据判断是否还有剩余提成
+        // 注意：remainingCommission 需要重新计算，因为后端可能更新了
+        if (data.data && data.data.remainingCommission > 0) {
           setTimeout(() => {
             openScheduleDialog({
               ...selectedCommission,
-              remainingCommission: newRemaining,
+              remainingCommission: data.data.remainingCommission,
             });
           }, 300);
         }
@@ -263,6 +264,38 @@ export default function CommissionsPage() {
       total: totalDays - paidDays,
       paidDays,
     };
+  };
+  
+  // 判断是否还有剩余可提（区分两种计算方式）
+  const hasRemainingCommission = (commission: CommissionCalculation) => {
+    if (commission.commissionType === 'daily') {
+      // 按天计算：检查人天是否还有剩余
+      let paidDays = 0;
+      if (commission.records) {
+        for (const record of commission.records) {
+          const rec = record as { finance_days?: string; other_days?: string };
+          paidDays += parseFloat(rec.finance_days || '0');
+          paidDays += parseFloat(rec.other_days || '0');
+        }
+      }
+      return paidDays < commission.implementationDays;
+    } else {
+      // 按比例计算：检查金额是否还有剩余
+      return commission.remainingCommission > 0.01; // 考虑浮点数精度
+    }
+  };
+  
+  // 获取剩余可提人天（用于列表显示）
+  const getListRemainingDays = (commission: CommissionCalculation) => {
+    let paidDays = 0;
+    if (commission.records) {
+      for (const record of commission.records) {
+        const rec = record as { finance_days?: string; other_days?: string };
+        paidDays += parseFloat(rec.finance_days || '0');
+        paidDays += parseFloat(rec.other_days || '0');
+      }
+    }
+    return commission.implementationDays - paidDays;
   };
   
   // 实施费>50%时，输入总人天计算提成
@@ -545,8 +578,8 @@ export default function CommissionsPage() {
                   {/* 计提按钮 */}
                   <div className="ml-4 flex flex-col items-end gap-2">
                     <div className="flex items-center gap-2">
-                      {/* 设置下次计提时间 */}
-                      {commission.remainingCommission > 0 && (
+                      {/* 设置下次计提时间 - 只有还有剩余时才显示 */}
+                      {hasRemainingCommission(commission) && (
                         <Button
                           variant="outline"
                           size="icon"
@@ -558,13 +591,22 @@ export default function CommissionsPage() {
                       )}
                       <Button
                         onClick={() => openCommissionDialog(commission)}
-                        disabled={commission.remainingCommission <= 0}
+                        disabled={!hasRemainingCommission(commission)}
                       >
                         计提提成
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500">
-                      剩余: ¥{commission.remainingCommission.toFixed(2)}
+                      {commission.commissionType === 'daily' ? (
+                        // 按天计算显示剩余人天
+                        (() => {
+                          const remainingDays = getListRemainingDays(commission);
+                          return `剩余: ${remainingDays.toFixed(1)}天`;
+                        })()
+                      ) : (
+                        // 按比例计算显示剩余金额
+                        `剩余: ¥${commission.remainingCommission.toFixed(2)}`
+                      )}
                     </p>
                   </div>
                 </div>

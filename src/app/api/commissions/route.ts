@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
         records: commissionByCustomer[customer.id]?.records || [],
         acceptedAt: customer.updated_at,
       };
-    }).filter(c => !c.isFullyPaid) || []; // 过滤掉已全部计提的
+    }) || []; // 不过滤已全部计提的客户，全部显示
 
     return NextResponse.json({ 
       data: commissionData,
@@ -219,36 +219,10 @@ export async function POST(request: NextRequest) {
     const implementationDays = parseFloat(customer.implementation_days || '0');
     const modules = (customer.modules as ProductModule[]) || [];
     
-    // 计算应提总额
-    let calculation = calculateCommission(implementationFee, implementationDays, modules);
+    // 计算客户的总应提金额（原始值，不修改）
+    const calculation = calculateCommission(implementationFee, implementationDays, modules);
+    const originalTotalCommission = calculation.totalCommission;
     
-    // 如果提供了人天参数，根据提成类型重新计算本次提成
-    if (finance_days !== undefined || other_days !== undefined) {
-      const financeDaysNum = parseFloat(finance_days) || 0;
-      const otherDaysNum = parseFloat(other_days) || 0;
-      
-      if (calculation.commissionType === 'daily') {
-        // 实施费≤50%：按天计算
-        const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
-                                otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
-        calculation = {
-          ...calculation,
-          totalCommission,
-        };
-      } else {
-        // 实施费>50%：按比例计算，finance_days存储总人天
-        const totalDaysNum = financeDaysNum;
-        if (totalDaysNum > 0 && implementationDays > 0) {
-          const ratio = totalDaysNum / implementationDays;
-          const totalCommission = calculation.totalCommission * ratio;
-          calculation = {
-            ...calculation,
-            totalCommission,
-          };
-        }
-      }
-    }
-
     // 获取已提金额
     const { data: existingRecords } = await client
       .from('commission_records')
@@ -256,12 +230,17 @@ export async function POST(request: NextRequest) {
       .eq('customer_id', customer_id);
 
     const paidCommission = existingRecords?.reduce((sum, r) => sum + parseFloat(r.amount), 0) || 0;
-    const remainingCommission = calculation.totalCommission - paidCommission;
+    
+    // 计算本次提成金额（前端已经计算好了）
+    const currentAmount = parseFloat(amount);
+    
+    // 计算剩余提成
+    const remainingCommission = originalTotalCommission - paidCommission - currentAmount;
 
     // 检查是否超过剩余提成
-    if (parseFloat(amount) > remainingCommission) {
+    if (currentAmount > (originalTotalCommission - paidCommission)) {
       return NextResponse.json({ 
-        error: `本次提成金额不能超过剩余提成 ${remainingCommission.toFixed(2)} 元` 
+        error: `本次提成金额不能超过剩余提成 ${(originalTotalCommission - paidCommission).toFixed(2)} 元` 
       }, { status: 400 });
     }
 
@@ -271,8 +250,8 @@ export async function POST(request: NextRequest) {
       .insert({
         customer_id,
         amount,
-        total_commission: calculation.totalCommission,
-        paid_commission: paidCommission + parseFloat(amount),
+        total_commission: originalTotalCommission,
+        paid_commission: paidCommission + currentAmount,
         finance_days: finance_days !== undefined ? finance_days : null,
         other_days: other_days !== undefined ? other_days : null,
         remark: remark || null,
@@ -286,8 +265,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 如果已全部计提，清空下次计提月份
-    const newPaidCommission = paidCommission + parseFloat(amount);
-    const newRemainingCommission = calculation.totalCommission - newPaidCommission;
+    const newPaidCommission = paidCommission + currentAmount;
+    const newRemainingCommission = originalTotalCommission - newPaidCommission;
     
     if (newRemainingCommission <= 0) {
       await client
@@ -296,7 +275,12 @@ export async function POST(request: NextRequest) {
         .eq('id', customer_id);
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ 
+      data: {
+        ...data,
+        remainingCommission: newRemainingCommission,
+      }
+    });
   } catch (error) {
     console.error('创建提成记录失败:', error);
     return NextResponse.json({ error: '创建提成记录失败' }, { status: 500 });
