@@ -145,12 +145,10 @@ export async function GET(request: NextRequest) {
       const remainingCommission = calculation.totalCommission - paidCommission;
 
       // 计算财务和其他模块的可提人天（按天计算时需要）
+      // 关键规则：财务人天 + 其他人天 ≤ 实施人天
       const hasFinance = modules.includes('finance');
       const otherModuleCount = modules.filter(m => m !== 'finance').length;
-      const financeMaxDays = hasFinance ? implementationDays : 0;
-      const otherMaxDays = otherModuleCount > 0 ? implementationDays : 0;
-      const totalMaxDays = financeMaxDays + otherMaxDays; // 总可提人天
-
+      
       // 从记录中计算已提人天
       let paidFinanceDays = 0;
       let paidOtherDays = 0;
@@ -161,7 +159,14 @@ export async function GET(request: NextRequest) {
         paidOtherDays += parseFloat(rec.other_days || '0');
       }
       const paidDays = paidFinanceDays + paidOtherDays;
+      
+      // 总可提人天 = 实施人天
+      const totalMaxDays = implementationDays;
       const remainingDays = totalMaxDays - paidDays;
+      
+      // 财务和其他的可提上限（各自最多可提实施人天，但总和不超过实施人天）
+      const financeMaxDays = hasFinance ? implementationDays : 0;
+      const otherMaxDays = otherModuleCount > 0 ? implementationDays : 0;
 
       return {
         customerId: customer.id,
