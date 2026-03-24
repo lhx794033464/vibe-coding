@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -9,9 +8,6 @@ import {
   Users, 
   LogOut,
   DollarSign,
-  User,
-  Camera,
-  Loader2,
   Home,
   ChevronLeft,
   ChevronRight,
@@ -37,66 +33,7 @@ const navItems = [
 
 export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
-  const { user, session, avatarUrl, updateAvatar } = useAuth();
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleAvatarClick = () => {
-    if (!uploading) {
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !session?.access_token) return;
-
-    // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('仅支持 JPG、PNG、GIF、WebP 格式');
-      return;
-    }
-
-    // 验证文件大小
-    if (file.size > 2 * 1024 * 1024) {
-      alert('文件大小不能超过 2MB');
-      return;
-    }
-
-    setUploading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/avatar', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // 更新全局头像状态
-        updateAvatar(data.avatarUrl);
-      } else {
-        const error = await response.json();
-        alert(error.error || '上传失败');
-      }
-    } catch (error) {
-      console.error('上传头像失败:', error);
-      alert('上传失败，请重试');
-    } finally {
-      setUploading(false);
-      // 清空input，允许重复选择同一文件
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
+  const { user } = useAuth();
 
   return (
     <aside 
@@ -107,49 +44,17 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
       {/* Logo */}
       <div className={`border-b border-gray-200 ${collapsed ? 'p-3' : 'p-6'}`}>
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          {/* 用户头像 */}
-          <button 
-            onClick={handleAvatarClick}
-            disabled={uploading}
-            className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0 group/avatar cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
-            title={collapsed ? "点击上传头像" : undefined}
-          >
-            {uploading ? (
-              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-            ) : avatarUrl ? (
-              <>
-                <Image
-                  src={avatarUrl}
-                  alt="用户头像"
-                  width={40}
-                  height={40}
-                  className="object-cover w-full h-full"
-                  onError={(e) => {
-                    // 图片加载失败时隐藏
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera className="w-4 h-4 text-white" />
-                </div>
-              </>
-            ) : (
-              <>
-                <User className="w-5 h-5 text-gray-400" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera className="w-4 h-4 text-white" />
-                </div>
-              </>
-            )}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          {/* 文字区域 - 使用绝对定位避免布局跳动 */}
+          {/* Logo */}
+          <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              width={40}
+              height={40}
+              className="object-contain"
+            />
+          </div>
+          {/* 文字区域 */}
           <div className={`flex-1 overflow-hidden transition-opacity duration-200 ${
             collapsed ? 'opacity-0 w-0' : 'opacity-100'
           }`}>
