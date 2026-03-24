@@ -247,9 +247,15 @@ export default function CommissionsPage() {
     };
   };
   
-  // 判断是否还有剩余可提（统一使用剩余提成金额判断）
+  // 判断是否还有剩余可提（按天计算用人天判断，按比例计算用金额判断）
   const hasRemainingCommission = (commission: CommissionCalculation) => {
-    return commission.remainingCommission > 0.01; // 考虑浮点数精度
+    if (commission.commissionType === 'daily') {
+      // 按天计算：使用剩余人天判断
+      return (commission.remainingDays || 0) > 0.01;
+    } else {
+      // 按比例计算：使用剩余金额判断
+      return commission.remainingCommission > 0.01;
+    }
   };
   
   // 获取剩余可提人天（用于列表显示）
