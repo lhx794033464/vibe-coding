@@ -324,17 +324,9 @@ export default function CommissionsPage() {
         return false;
       }
       
-      // 验证财务人天不超过财务剩余可提
-      const remainingFinanceDays = (remainingDays.financeMax || 0) - (remainingDays.paidFinanceDays || 0);
-      if (financeDaysNum > remainingFinanceDays) {
-        alert(`财务人天(${financeDaysNum}天)不能大于财务剩余可提人天(${remainingFinanceDays.toFixed(1)}天)`);
-        return false;
-      }
-      
-      // 验证其他人天不超过其他剩余可提
-      const remainingOtherDays = (remainingDays.otherMax || 0) - (remainingDays.paidOtherDays || 0);
-      if (otherDaysNum > remainingOtherDays) {
-        alert(`其他人天(${otherDaysNum}天)不能大于其他剩余可提人天(${remainingOtherDays.toFixed(1)}天)`);
+      // 验证总人天不超过剩余可提人天
+      if (totalInputDays > remainingDays.total) {
+        alert(`计提人天之和(${totalInputDays.toFixed(1)}天)不能大于剩余可提人天(${remainingDays.total.toFixed(1)}天)`);
         return false;
       }
     }
@@ -355,14 +347,9 @@ export default function CommissionsPage() {
       // 实施费≤50%：验证财务和其他人天
       const financeDaysNum = parseFloat(financeDays) || 0;
       const otherDaysNum = parseFloat(otherDays) || 0;
+      const totalInputDays = financeDaysNum + otherDaysNum;
       
-      const remainingFinanceDays = (remainingDays.financeMax || 0) - (remainingDays.paidFinanceDays || 0);
-      const remainingOtherDays = (remainingDays.otherMax || 0) - (remainingDays.paidOtherDays || 0);
-      
-      // 至少有一个输入，且不超过各自剩余
-      return (financeDaysNum > 0 || otherDaysNum > 0) &&
-             financeDaysNum <= remainingFinanceDays &&
-             otherDaysNum <= remainingOtherDays;
+      return totalInputDays > 0 && totalInputDays <= remainingDays.total;
     }
   };
 
@@ -529,8 +516,8 @@ export default function CommissionsPage() {
                                 ></div>
                               </div>
                               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>财务: {paidFinanceDays.toFixed(1)}天/{financeMaxDays.toFixed(1)}天</span>
-                                <span>其他: {paidOtherDays.toFixed(1)}天/{otherMaxDays.toFixed(1)}天</span>
+                                <span>财务: {paidFinanceDays.toFixed(1)}天</span>
+                                <span>其他: {paidOtherDays.toFixed(1)}天</span>
                               </div>
                             </>
                           );
