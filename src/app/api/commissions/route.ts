@@ -164,6 +164,13 @@ export async function GET(request: NextRequest) {
       };
     }) || []; // 不过滤已全部计提的客户，全部显示
 
+    // 按提成进度升序排列（未计提的在上，计提完成的在下）
+    commissionData.sort((a, b) => {
+      const progressA = a.totalCommission > 0 ? a.paidCommission / a.totalCommission : 0;
+      const progressB = b.totalCommission > 0 ? b.paidCommission / b.totalCommission : 0;
+      return progressA - progressB; // 升序：进度低的在前
+    });
+
     return NextResponse.json({ 
       data: commissionData,
       month: monthParam,
