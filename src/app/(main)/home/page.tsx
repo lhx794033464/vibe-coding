@@ -410,10 +410,10 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full overflow-hidden shadow-lg shadow-blue-500/20 bg-white">
-              <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-contain" />
+              <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-slate-800">智能助手</h1>
+              <h1 className="text-lg font-semibold text-slate-800">小蝶</h1>
               <p className="text-xs text-slate-500">{greeting}</p>
             </div>
           </div>
@@ -445,14 +445,14 @@ export default function HomePage() {
               {/* 欢迎信息 */}
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
-                  <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-contain" />
+                  <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-slate-800 mb-2">
-                    你好，我是智能助手
+                    你好，我是小蝶
                   </h2>
                   <p className="text-slate-500 max-w-md mx-auto">
-                    我是你的金蝶云星辰交付助手，可以帮你查询客户数据、解答产品问题、管理工作任务
+                    我是你的金蝶云星辰交付顾问和日常安排助手，可以帮你查询客户数据、解答产品问题、管理工作任务、搜索金蝶知识
                   </p>
                 </div>
               </div>
@@ -502,7 +502,7 @@ export default function HomePage() {
                     {message.role === 'user' ? (
                       <User className="w-4 h-4 text-white" />
                     ) : (
-                      <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-contain" />
+                      <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
                     )}
                   </div>
                   
@@ -557,7 +557,7 @@ export default function HomePage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={input.trim() ? "问智能助手任何问题..." : "空格长按语音输入，Enter发送..."}
+                placeholder={input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送..."}
                 rows={1}
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}

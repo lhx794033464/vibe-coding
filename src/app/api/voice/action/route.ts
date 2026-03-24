@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     const config = new Config();
     const llmClient = new LLMClient(config, customHeaders);
 
-    const systemPrompt = `你是一个智能助手的意图解析模块。你需要分析用户的语音指令，识别用户想要执行的操作，并返回JSON格式的结果。
+    const systemPrompt = `你是小蝶的语音意图解析模块。你需要分析用户的语音指令，识别用户想要执行的操作，并返回JSON格式的结果。
 
 ## 当前日期信息（重要！）
 今天是 ${todayDate}，星期${dayOfWeek}。

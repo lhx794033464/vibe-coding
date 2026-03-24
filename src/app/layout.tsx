@@ -5,16 +5,17 @@ import { AuthProvider } from '@/contexts/AuthContext';
 
 export const metadata: Metadata = {
   title: {
-    default: '交付管理系统 | 金蝶云星辰',
-    template: '%s | 交付管理系统',
+    default: '交付管理平台 | 金蝶云星辰',
+    template: '%s | 交付管理平台',
   },
   description:
-    '金蝶云星辰实施顾问客户跟进系统，全生命周期管理客户实施进度',
+    '金蝶云星辰交付管理平台，全生命周期管理客户实施进度，助力交付顾问高效工作',
   keywords: [
     '金蝶云星辰',
     '客户管理',
     '实施跟进',
     'CRM',
+    '交付管理',
   ],
   authors: [{ name: 'KisCloud' }],
   generator: 'Coze Code',
