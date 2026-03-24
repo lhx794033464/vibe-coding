@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { CommissionCalculation, VERSION_CONFIG, ProductVersion } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -30,6 +30,11 @@ export default function CommissionsPage() {
   // 人天输入状态（用于实施费≤50%的情况）
   const [financeDays, setFinanceDays] = useState('');
   const [otherDays, setOtherDays] = useState('');
+  
+  // 删除确认对话框状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<{ id: string; customerId: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchCommissions();
@@ -114,6 +119,41 @@ export default function CommissionsPage() {
       alert('创建提成失败');
     } finally {
       setSubmitting(false);
+    }
+  };
+  
+  // 打开删除确认对话框
+  const openDeleteDialog = (recordId: string, customerId: string) => {
+    setRecordToDelete({ id: recordId, customerId });
+    setDeleteDialogOpen(true);
+  };
+  
+  // 删除提成记录
+  const handleDeleteRecord = async () => {
+    if (!recordToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/commissions?record_id=${recordToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setDeleteDialogOpen(false);
+        setRecordToDelete(null);
+        fetchCommissions();
+      } else {
+        alert(data.error || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除提成记录失败:', error);
+      alert('删除提成记录失败');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -397,12 +437,22 @@ export default function CommissionsPage() {
                     <p className="text-sm text-gray-500 mb-2">已提记录:</p>
                     <div className="space-y-1">
                       {commission.records.map((record: { id: string; amount: string; remark: string | null; created_at: string }) => (
-                        <div key={record.id} className="flex items-center justify-between text-sm">
+                        <div key={record.id} className="flex items-center justify-between text-sm group">
                           <span className="text-gray-600">
                             {format(new Date(record.created_at), 'yyyy-MM-dd HH:mm')}
                             {record.remark && ` - ${record.remark}`}
                           </span>
-                          <span className="font-medium text-green-600">+¥{parseFloat(record.amount).toFixed(2)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-green-600">+¥{parseFloat(record.amount).toFixed(2)}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => openDeleteDialog(record.id, commission.customerId)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -535,6 +585,37 @@ export default function CommissionsPage() {
                 </>
               ) : (
                 '确认计提'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除确认对话框 */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>
+              确定要删除这条提成记录吗？此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeleteRecord}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                '确认删除'
               )}
             </Button>
           </DialogFooter>

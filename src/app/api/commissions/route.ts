@@ -256,3 +256,59 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '创建提成记录失败' }, { status: 500 });
   }
 }
+
+/**
+ * 删除提成记录
+ * DELETE /api/commissions?record_id=xxx
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: '未授权' }, { status: 401 });
+    }
+
+    const client = getSupabaseClient(token);
+    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: '未授权' }, { status: 401 });
+    }
+
+    const recordId = request.nextUrl.searchParams.get('record_id');
+    if (!recordId) {
+      return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
+    }
+
+    // 获取记录信息，验证归属
+    const { data: record, error: fetchError } = await client
+      .from('commission_records')
+      .select('*')
+      .eq('id', recordId)
+      .single();
+
+    if (fetchError || !record) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    // 验证记录归属当前用户
+    if (record.user_id !== user.id) {
+      return NextResponse.json({ error: '无权删除此记录' }, { status: 403 });
+    }
+
+    // 删除记录
+    const { error: deleteError } = await client
+      .from('commission_records')
+      .delete()
+      .eq('id', recordId);
+
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('删除提成记录失败:', error);
+    return NextResponse.json({ error: '删除提成记录失败' }, { status: 500 });
+  }
+}
