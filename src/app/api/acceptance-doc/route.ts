@@ -175,10 +175,9 @@ export async function POST(request: NextRequest) {
               spacing: { after: 300 },
             }),
             
-            // 主表格（粗外边框，细内边框）
+            // 主表格（粗外边框，细内边框，第一列固定20%宽度）
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
-              columnWidths: [2049, 2258, 2384, 2547],
               rows: [
                 // 第1行：客户名称
                 new TableRow({
@@ -345,6 +344,7 @@ function createLabelCell(
     verticalAlign: VerticalAlign.CENTER,
     shading: { fill: 'FFFFFF' },
     borders: borders,
+    width: { size: 20, type: WidthType.PERCENTAGE }, // 第一列固定20%宽度
   });
 }
 
