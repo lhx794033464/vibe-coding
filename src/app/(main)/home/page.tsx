@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Search, Sparkles, Bot, User, Mic, MicOff, Volume2, VolumeX, Trash2 } from 'lucide-react';
+import { Send, Loader2, Search, User, Mic, MicOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
@@ -87,11 +87,8 @@ export default function HomePage() {
   // 语音相关状态
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [autoSpeak, setAutoSpeak] = useState(false);
   const isRecordingRef = useRef(false); // 用于全局事件中获取最新状态
 
   // 同步录音状态到ref
@@ -116,48 +113,6 @@ export default function HomePage() {
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
     }
   }, [input]);
-
-  // 文本转语音
-  const speakText = useCallback(async (text: string) => {
-    if (!session?.access_token || isSpeaking) return;
-    
-    try {
-      setIsSpeaking(true);
-      
-      const response = await fetch('/api/voice/tts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ text }),
-      });
-
-      const data = await response.json();
-      
-      if (data.audioUri) {
-        if (audioRef.current) {
-          audioRef.current.pause();
-        }
-        audioRef.current = new Audio(data.audioUri);
-        audioRef.current.onended = () => setIsSpeaking(false);
-        audioRef.current.onerror = () => setIsSpeaking(false);
-        audioRef.current.play();
-      }
-    } catch (error) {
-      console.error('语音合成失败:', error);
-      setIsSpeaking(false);
-    }
-  }, [session?.access_token, isSpeaking]);
-
-  // 停止语音播放
-  const stopSpeaking = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    setIsSpeaking(false);
-  }, []);
 
   // 开始录音
   const startRecording = useCallback(async () => {
@@ -320,11 +275,6 @@ export default function HomePage() {
           setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
           addMessage({ role: 'user', content: userMessage });
           addMessage({ role: 'assistant', content: assistantMessage });
-          
-          // 自动朗读回复
-          if (autoSpeak) {
-            speakText(assistantMessage);
-          }
         } else {
           const errorMessage = actionData.error || actionData.message || '操作失败';
           setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);
@@ -423,11 +373,6 @@ export default function HomePage() {
         // 保存到全局状态
         addMessage({ role: 'user', content: userMessage });
         addMessage({ role: 'assistant', content: assistantMessage });
-        
-        // 自动朗读回复
-        if (autoSpeak) {
-          speakText(assistantMessage);
-        }
       }
     } catch (error) {
       console.error('对话失败:', error);
@@ -464,8 +409,8 @@ export default function HomePage() {
       <div className="flex-shrink-0 pt-6 pb-4 px-6 border-b border-slate-100">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-blue-500/20">
+              <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-slate-800">智能助手</h1>
@@ -473,28 +418,6 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* 自动朗读开关 */}
-            <button
-              onClick={() => setAutoSpeak(!autoSpeak)}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full transition-colors ${
-                autoSpeak 
-                  ? 'bg-emerald-100 text-emerald-600' 
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-              title={autoSpeak ? '点击关闭自动朗读' : '点击开启自动朗读'}
-            >
-              {autoSpeak ? (
-                <>
-                  <Volume2 className="w-3.5 h-3.5" />
-                  自动朗读
-                </>
-              ) : (
-                <>
-                  <VolumeX className="w-3.5 h-3.5" />
-                  静音
-                </>
-              )}
-            </button>
             {/* 清除对话按钮 */}
             {messages.length > 0 && (
               <button
@@ -521,8 +444,8 @@ export default function HomePage() {
             <div className="space-y-8 py-8">
               {/* 欢迎信息 */}
               <div className="text-center space-y-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 flex items-center justify-center mx-auto shadow-xl shadow-blue-500/20">
-                  <Bot className="w-8 h-8 text-white" />
+                <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto shadow-xl shadow-blue-500/20">
+                  <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-slate-800 mb-2">
@@ -573,15 +496,13 @@ export default function HomePage() {
                   className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
                 >
                   {/* 头像 */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
-                    message.role === 'user' 
-                      ? 'bg-blue-500' 
-                      : 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500'
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden ${
+                    message.role === 'user' ? 'bg-blue-500 flex items-center justify-center' : ''
                   }`}>
                     {message.role === 'user' ? (
                       <User className="w-4 h-4 text-white" />
                     ) : (
-                      <Bot className="w-4 h-4 text-white" />
+                      <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-cover" />
                     )}
                   </div>
                   
@@ -613,27 +534,6 @@ export default function HomePage() {
                         )}
                         {message.isStreaming && message.content && (
                           <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-0.5 rounded-sm"></span>
-                        )}
-                        {/* 播放按钮 */}
-                        {!message.isStreaming && message.content && (
-                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
-                            <button
-                              onClick={() => isSpeaking ? stopSpeaking() : speakText(message.content)}
-                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-500 transition-colors"
-                            >
-                              {isSpeaking ? (
-                                <>
-                                  <VolumeX className="w-3.5 h-3.5" />
-                                  停止朗读
-                                </>
-                              ) : (
-                                <>
-                                  <Volume2 className="w-3.5 h-3.5" />
-                                  朗读回复
-                                </>
-                              )}
-                            </button>
-                          </div>
                         )}
                       </div>
                     )}
