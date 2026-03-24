@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     const monthEnd = endOfMonth(monthStart);
 
     // 获取当月验收完成的客户
-    const { data: customers, error: customerError } = await client
+    const { data: acceptedCustomers, error: customerError } = await client
       .from('customers')
       .select('*')
       .eq('status', 'accepted')
@@ -96,6 +96,26 @@ export async function GET(request: NextRequest) {
     if (customerError) {
       return NextResponse.json({ error: customerError.message }, { status: 500 });
     }
+
+    // 获取设置下次计提月份为当前月份的客户
+    const { data: scheduledCustomers, error: scheduledError } = await client
+      .from('customers')
+      .select('*')
+      .eq('status', 'accepted')
+      .eq('next_commission_month', monthParam);
+
+    if (scheduledError) {
+      return NextResponse.json({ error: scheduledError.message }, { status: 500 });
+    }
+
+    // 合并客户列表（去重）
+    const customerMap = new Map();
+    [...(acceptedCustomers || []), ...(scheduledCustomers || [])].forEach(c => {
+      if (!customerMap.has(c.id)) {
+        customerMap.set(c.id, c);
+      }
+    });
+    const customers = Array.from(customerMap.values());
 
     // 获取已有的提成记录
     const customerIds = customers?.map(c => c.id) || [];
@@ -178,7 +198,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, amount, remark, finance_days, other_days } = body;
+    const { customer_id, amount, remark, finance_days, other_days, next_commission_month } = body;
 
     if (!customer_id || !amount) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -248,6 +268,24 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 更新客户的下次计提月份
+    const newPaidCommission = paidCommission + parseFloat(amount);
+    const newRemainingCommission = calculation.totalCommission - newPaidCommission;
+    
+    // 如果还有剩余提成且设置了下次计提月份，则更新；否则清空
+    if (newRemainingCommission > 0 && next_commission_month) {
+      await client
+        .from('customers')
+        .update({ next_commission_month })
+        .eq('id', customer_id);
+    } else if (newRemainingCommission <= 0) {
+      // 已全部计提，清空下次计提月份
+      await client
+        .from('customers')
+        .update({ next_commission_month: null })
+        .eq('id', customer_id);
     }
 
     return NextResponse.json({ data });

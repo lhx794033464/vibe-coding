@@ -35,6 +35,9 @@ export default function CommissionsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<{ id: string; customerId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // 下次计提月份
+  const [nextCommissionMonth, setNextCommissionMonth] = useState('');
 
   useEffect(() => {
     fetchCommissions();
@@ -67,6 +70,10 @@ export default function CommissionsPage() {
     setCommissionRemark('');
     setFinanceDays('');
     setOtherDays('');
+    // 默认设置为下一个月份
+    const nextMonth = new Date(currentMonth + '-01');
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    setNextCommissionMonth(format(nextMonth, 'yyyy-MM'));
     setDialogOpen(true);
   };
 
@@ -104,6 +111,7 @@ export default function CommissionsPage() {
           remark: finalRemark,
           finance_days: financeDaysParam,
           other_days: otherDaysParam,
+          next_commission_month: nextCommissionMonth || undefined,
         }),
       });
 
@@ -626,6 +634,23 @@ export default function CommissionsPage() {
                   />
                 </div>
               </>
+            )}
+
+            {/* 下次计提月份（仅当还有剩余提成时显示） */}
+            {selectedCommission && selectedCommission.remainingCommission > parseFloat(commissionAmount || '0') && (
+              <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <Label htmlFor="nextMonth" className="text-sm font-medium text-amber-900">
+                  设置下次计提月份
+                </Label>
+                <p className="text-xs text-amber-700">到达该月份时，此客户将出现在当月应计提列表中</p>
+                <Input
+                  id="nextMonth"
+                  type="month"
+                  value={nextCommissionMonth}
+                  onChange={(e) => setNextCommissionMonth(e.target.value)}
+                  min={currentMonth}
+                />
+              </div>
             )}
 
             <div className="space-y-2">

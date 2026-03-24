@@ -59,6 +59,7 @@ export const customers = pgTable(
     specialRequirements: text("special_requirements"),
     status: varchar("status", { length: 50 }).notNull().default('not_online'),
     lastFollowUpAt: timestamp("last_follow_up_at", { withTimezone: true, mode: 'string' }),
+    nextCommissionMonth: varchar("next_commission_month", { length: 7 }), // 下次计提月份 yyyy-MM
     userId: varchar("user_id", { length: 36 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
       .defaultNow()
