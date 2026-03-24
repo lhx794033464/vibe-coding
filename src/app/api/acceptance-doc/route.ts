@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
     const logoPath = path.join(process.cwd(), 'public', 'kingdee-logo.png');
     const logoBuffer = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
 
-    // 创建实施日志段落（每个序号另起一行，末尾添加签署区域）
-    const implementationParagraphs = createImplementationParagraphsWithSignature(implementationLogs || []);
+    // 创建实施日志段落（每个序号另起一行）
+    const implementationParagraphs = createImplementationParagraphs(implementationLogs || []);
 
     // 创建Word文档
     const doc = new Document({
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
                   ],
                 }),
                 
-                // 第6行：系统实施主要内容（包含签署区域）
+                // 第6行：系统实施主要内容
                 new TableRow({
                   tableHeader: true,
                   children: [
@@ -238,6 +238,33 @@ export async function POST(request: NextRequest) {
                   ],
                 }),
               ],
+            }),
+            
+            // 签署区域（表格外部右下方，加粗显示）
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: '客户对接人： __________________ 签署日期：______________',
+                  bold: true,
+                  size: 24,
+                  font: '微软雅黑',
+                }),
+              ],
+              alignment: AlignmentType.RIGHT,
+              spacing: { before: 300, after: 100 },
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `金蝶项目经理： __________________ 签署日期：${format(new Date(), 'yyyy/M/d')}`,
+                  bold: true,
+                  size: 24,
+                  font: '微软雅黑',
+                }),
+              ],
+              alignment: AlignmentType.RIGHT,
+              spacing: { before: 100, after: 100 },
             }),
           ],
         },
@@ -384,8 +411,8 @@ function getBordersForPosition(
   }
 }
 
-// 创建实施日志段落（每个序号另起一行，末尾添加签署区域）
-function createImplementationParagraphsWithSignature(
+// 创建实施日志段落（每个序号另起一行）
+function createImplementationParagraphs(
   logs: Array<{ log_date: string; consumed_days: string; summary: string }>
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
@@ -439,45 +466,6 @@ function createImplementationParagraphsWithSignature(
       );
     });
   }
-
-  // 添加签署区域（在表格单元格内右下角）
-  // 空行分隔
-  paragraphs.push(
-    new Paragraph({
-      children: [],
-      spacing: { before: 300 },
-    })
-  );
-
-  // 客户对接人签署（签署和日期在同一行）
-  paragraphs.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: '客户对接人： __________________ 签署日期：______________',
-          size: 24,
-          font: '微软雅黑',
-        }),
-      ],
-      alignment: AlignmentType.LEFT,
-      spacing: { before: 200, after: 100 },
-    })
-  );
-
-  // 金蝶项目经理签署（签署和日期在同一行）
-  paragraphs.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `金蝶项目经理： __________________ 签署日期：${format(new Date(), 'yyyy/M/d')}`,
-          size: 24,
-          font: '微软雅黑',
-        }),
-      ],
-      alignment: AlignmentType.LEFT,
-      spacing: { before: 100, after: 100 },
-    })
-  );
 
   return paragraphs;
 }
