@@ -65,10 +65,11 @@ interface TransitionTodo {
   content: string;
   customer_id: string | null;
   priority: 'high' | 'medium' | 'low';
-  phase: 'check' | 'move' | 'slideIn'; // 变绿阶段 | 移动阶段 | 滑入阶段
+  phase: 'check' | 'move' | 'done'; // 变绿阶段 | 移动阶段 | 完成
   // 移动阶段的位置信息
   sourceRect?: DOMRect;
   targetRect?: DOMRect;
+  moveDistance?: number; // 需要移动的距离
 }
 
 const PRIORITY_CONFIG = {
@@ -208,6 +209,12 @@ export default function TodosPage() {
     // 获取已完成区域头部的位置（目标位置）
     const completedHeader = document.querySelector('[data-completed-header]');
     const targetRect = completedHeader?.getBoundingClientRect();
+    
+    // 计算移动距离：从当前位置移动到已完成区域头部下方
+    // 移动距离 = 目标位置底部 - 源位置顶部
+    const moveDistance = targetRect && sourceRect 
+      ? targetRect.bottom - sourceRect.top + 8 // +8 是间距
+      : 100; // 默认值
 
     // 开始动画 - 变绿阶段
     setCompletingTodo({
@@ -218,15 +225,15 @@ export default function TodosPage() {
       phase: 'check',
       sourceRect,
       targetRect,
+      moveDistance,
     });
 
-    // 300ms 后进入移动阶段，同时让已完成的待办下移
+    // 300ms 后进入移动阶段
     setTimeout(() => {
-      setCompletedShifting(true);
       setCompletingTodo(prev => prev ? { ...prev, phase: 'move' } : null);
     }, 300);
 
-    // 600ms 后更新状态并进入滑入阶段
+    // 600ms 后更新状态
     setTimeout(async () => {
       try {
         const response = await fetch(`/api/todos/${todo.id}`, {
@@ -243,20 +250,17 @@ export default function TodosPage() {
           setTodos(prev => prev.map(t => 
             t.id === todo.id ? { ...t, completed: true } : t
           ));
-          // 停止已完成区域的下移动画
-          setCompletedShifting(false);
-          // 进入滑入阶段
-          setCompletingTodo(prev => prev ? { ...prev, phase: 'slideIn' } : null);
+          // 完成过渡
+          setCompletingTodo(prev => prev ? { ...prev, phase: 'done' } : null);
           
-          // 200ms 后清除过渡状态
+          // 清除过渡状态
           setTimeout(() => {
             setCompletingTodo(null);
-          }, 200);
+          }, 50);
         }
       } catch (error) {
         console.error('更新待办失败:', error);
         setCompletingTodo(null);
-        setCompletedShifting(false);
       }
     }, 600);
   }, [session?.access_token, completingTodo]);
@@ -296,13 +300,13 @@ export default function TodosPage() {
           setTodos(prev => prev.map(t => 
             t.id === todo.id ? { ...t, completed: false } : t
           ));
-          // 进入滑入阶段
-          setUncompletingTodo(prev => prev ? { ...prev, phase: 'slideIn' } : null);
+          // 完成过渡
+          setUncompletingTodo(prev => prev ? { ...prev, phase: 'done' } : null);
           
-          // 300ms 后清除过渡状态
+          // 清除过渡状态
           setTimeout(() => {
             setUncompletingTodo(null);
-          }, 300);
+          }, 50);
         }
       } catch (error) {
         console.error('更新待办失败:', error);
@@ -493,19 +497,20 @@ export default function TodosPage() {
                     ))}
 
                     {/* 正在完成中的待办（动画） */}
-                    {completingTodo && completingTodo.phase !== 'slideIn' && (
+                    {completingTodo && completingTodo.phase !== 'done' && (
                       <div
                         className={cn(
-                          "flex items-start gap-3 p-3 rounded-lg border",
+                          "flex items-start gap-3 p-3 rounded-lg border relative",
                           completingTodo.phase === 'check' && "animate-check-phase",
-                          completingTodo.phase === 'move' && "animate-move-to-completed"
+                          completingTodo.phase === 'move' && "animate-move-down z-50"
                         )}
                         style={{ 
                           borderLeftWidth: '4px', 
                           borderLeftStyle: 'solid', 
                           borderLeftColor: '#22c55e',
-                          backgroundColor: '#dcfce7'
-                        }}
+                          backgroundColor: '#dcfce7',
+                          '--move-distance': `${completingTodo.moveDistance || 100}px`,
+                        } as React.CSSProperties}
                       >
                         <Checkbox
                           checked={true}
@@ -525,47 +530,26 @@ export default function TodosPage() {
                     )}
 
                     {/* 已完成待办 */}
-                    {(completedTodos.length > 0 || completingTodo?.phase === 'slideIn') && (
+                    {(completedTodos.length > 0 || (completingTodo && completingTodo.phase === 'move')) && (
                       <>
-                        <div className="flex items-center gap-2 py-2" data-completed-header>
+                        <div 
+                          className={cn(
+                            "flex items-center gap-2 py-2",
+                            completingTodo?.phase === 'move' && "animate-shift-down"
+                          )} 
+                          data-completed-header
+                        >
                           <div className="flex-1 h-px bg-gray-200"></div>
                           <span className="text-sm text-gray-400">已完成</span>
                           <div className="flex-1 h-px bg-gray-200"></div>
                         </div>
 
-                        {/* 正在滑入的已完成待办 */}
-                        {completingTodo?.phase === 'slideIn' && (
-                          <div
-                            className="flex items-start gap-3 p-3 rounded-lg border bg-green-50 border-green-200 animate-fade-in"
-                            style={{ 
-                              borderLeftWidth: '4px', 
-                              borderLeftStyle: 'solid', 
-                              borderLeftColor: '#22c55e'
-                            }}
-                          >
-                            <Checkbox
-                              checked={true}
-                              className="mt-0.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium line-through text-gray-400">
-                                {completingTodo.content}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                                  {completingTodo.customer_id ? (customers.find(c => c.id === completingTodo.customer_id)?.name || '未知客户') : '个人事项'}
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {completedTodos.map((todo) => (
+                        {completedTodos.map((todo, index) => (
                           <div
                             key={todo.id}
                             className={cn(
                               "flex items-start gap-3 p-3 rounded-lg border transition-colors bg-green-50 border-green-200",
-                              completedShifting && "animate-shift-down"
+                              completingTodo?.phase === 'move' && "animate-shift-down"
                             )}
                             style={{ 
                               borderLeftWidth: '4px', 
@@ -611,7 +595,7 @@ export default function TodosPage() {
                         className={cn(
                           "flex items-start gap-3 p-3 rounded-lg border",
                           uncompletingTodo.phase === 'check' && "animate-uncheck-phase",
-                          uncompletingTodo.phase === 'move' && "animate-move-to-uncompleted"
+                          uncompletingTodo.phase === 'move' && "animate-fade-out"
                         )}
                         style={{ 
                           borderLeftWidth: '4px', 
@@ -630,33 +614,6 @@ export default function TodosPage() {
                             uncompletingTodo.phase === 'check' && "line-through text-gray-400"
                           )}>
                             {uncompletingTodo.content}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 正在滑入的未完成待办（取消完成时） */}
-                    {uncompletingTodo?.phase === 'slideIn' && (
-                      <div
-                        className="flex items-start gap-3 p-3 rounded-lg border bg-white border-gray-200 animate-fade-in"
-                        style={{ 
-                          borderLeftWidth: '4px', 
-                          borderLeftStyle: 'solid', 
-                          borderLeftColor: uncompletingTodo.priority === 'high' ? '#ef4444' : uncompletingTodo.priority === 'medium' ? '#eab308' : '#9ca3af'
-                        }}
-                      >
-                        <Checkbox
-                          checked={false}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium">
-                            {uncompletingTodo.content}
-                          </div>
-                          <div className="mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {uncompletingTodo.customer_id ? (customers.find(c => c.id === uncompletingTodo.customer_id)?.name || '未知客户') : '个人事项'}
-                            </Badge>
                           </div>
                         </div>
                       </div>
@@ -862,27 +819,13 @@ export default function TodosPage() {
           }
         }
 
-        /* 移动到已完成动画 - 渐隐 + 缩小 */
-        @keyframes moveToCompleted {
+        /* 卡片下移动画 - 移动到已完成区域顶部 */
+        @keyframes moveDown {
           0% {
-            opacity: 1;
-            transform: scale(1);
+            transform: translateY(0);
           }
           100% {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-        }
-
-        /* 淡入动画 */
-        @keyframes fadeIn {
-          0% {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
+            transform: translateY(var(--move-distance, 100px));
           }
         }
 
@@ -891,11 +834,8 @@ export default function TodosPage() {
           0% {
             transform: translateY(0);
           }
-          50% {
-            transform: translateY(5px);
-          }
           100% {
-            transform: translateY(0);
+            transform: translateY(70px); /* 一个卡片高度 + 间距 */
           }
         }
 
@@ -907,21 +847,12 @@ export default function TodosPage() {
           animation: checkmark 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        .animate-move-to-completed {
-          animation: moveToCompleted 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        .animate-fade-in {
-          animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .animate-move-down {
+          animation: moveDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
         .animate-shift-down {
           animation: shiftDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        /* 已完成区域过渡动画 */
-        [data-completed-header] {
-          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         /* 取消完成 - 变白阶段 */
@@ -952,7 +883,7 @@ export default function TodosPage() {
           animation: uncheckPhase 0.3s ease-out forwards;
         }
 
-        .animate-move-to-uncompleted {
+        .animate-fade-out {
           animation: moveToUncompleted 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
       `}</style>
