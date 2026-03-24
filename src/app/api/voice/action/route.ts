@@ -80,7 +80,16 @@ ${customerListStr}
 5. query_todo - 查询待办
    参数：无
 
-6. general - 普通对话
+6. update_todo - 修改待办事项
+   参数：
+   - todo_content（要修改的待办内容关键词，用于匹配待办）
+   - new_content（可选，新的待办内容）
+   - customer_name（可选，要关联的客户名称）
+   - date（可选，新的截止日期）
+   - priority（可选，新的优先级 high/medium/low）
+   - completed（可选，是否完成 true/false）
+
+7. general - 普通对话
    参数：response（回复内容）
 
 ## 重要规则：
@@ -397,6 +406,92 @@ ${customerListStr}
             success: true, 
             data: todos, 
             message: `今日待办（${todos.length}项）：${todoList}` 
+          };
+        }
+        break;
+      }
+
+      case 'update_todo': {
+        const { todo_content, new_content, customer_name, date, priority, completed } = intent.params || {};
+        
+        if (!todo_content) {
+          result = { success: false, message: '请指定要修改的待办内容' };
+          break;
+        }
+
+        // 查找匹配的待办
+        const { data: allTodos, error: queryError } = await client
+          .from('todos')
+          .select('id, content, customer_id, priority, completed')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (queryError) {
+          result = { success: false, message: `查询待办失败：${queryError.message}` };
+          break;
+        }
+
+        // 模糊匹配待办内容
+        const matchedTodo = allTodos?.find((t: { content: string }) => 
+          t.content.includes(todo_content) || todo_content.includes(t.content)
+        );
+
+        if (!matchedTodo) {
+          result = { success: false, message: `未找到包含"${todo_content}"的待办事项` };
+          break;
+        }
+
+        // 构建更新数据
+        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        let updateDesc = [];
+
+        if (new_content) {
+          updateData.content = new_content;
+          updateDesc.push(`内容改为"${new_content}"`);
+        }
+        if (customer_name) {
+          const matchedCustomer = customers?.find(c => 
+            c.name === customer_name || c.name.includes(customer_name) || customer_name.includes(c.name)
+          );
+          if (matchedCustomer) {
+            updateData.customer_id = matchedCustomer.id;
+            updateDesc.push(`关联客户"${matchedCustomer.name}"`);
+          } else {
+            result = { success: false, message: `未找到客户"${customer_name}"` };
+            break;
+          }
+        }
+        if (date) {
+          updateData.due_date = `${date}T00:00:00`;
+          updateDesc.push(`日期改为${date}`);
+        }
+        if (priority) {
+          updateData.priority = priority;
+          const priorityLabel = priority === 'high' ? '重要' : priority === 'medium' ? '次要' : '常规';
+          updateDesc.push(`优先级改为${priorityLabel}`);
+        }
+        if (completed !== undefined) {
+          updateData.completed = completed;
+          updateData.completed_at = completed ? new Date().toISOString() : null;
+          updateDesc.push(completed ? '标记为完成' : '标记为未完成');
+        }
+
+        if (Object.keys(updateData).length === 1) { // 只有 updated_at
+          result = { success: false, message: '请指定要修改的内容' };
+          break;
+        }
+
+        const { error: updateError } = await client
+          .from('todos')
+          .update(updateData)
+          .eq('id', matchedTodo.id);
+
+        if (updateError) {
+          result = { success: false, message: `修改失败：${updateError.message}` };
+        } else {
+          result = { 
+            success: true, 
+            message: `已修改待办"${matchedTodo.content}"：${updateDesc.join('，')}` 
           };
         }
         break;

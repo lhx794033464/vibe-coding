@@ -38,6 +38,8 @@ import {
   ChevronsUpDown,
   ChevronLeft,
   ChevronRight,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays, subDays, startOfDay, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -105,6 +107,13 @@ export default function TodosPage() {
   const [uncompletingTodo, setUncompletingTodo] = useState<TransitionTodo | null>(null);
   // 已完成区域是否在下移（用于动画）
   const [completedShifting, setCompletedShifting] = useState(false);
+  
+  // 编辑状态
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editCustomerId, setEditCustomerId] = useState<string>('');
+  const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('low');
+  const [editCustomerPopoverOpen, setEditCustomerPopoverOpen] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -359,6 +368,56 @@ export default function TodosPage() {
     }
   };
 
+  // 开始编辑待办
+  const handleStartEdit = (todo: Todo) => {
+    setEditingTodoId(todo.id);
+    setEditContent(todo.content);
+    setEditCustomerId(todo.customer_id || '');
+    setEditPriority(todo.priority);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setEditingTodoId(null);
+    setEditContent('');
+    setEditCustomerId('');
+    setEditPriority('low');
+  };
+
+  // 保存编辑
+  const handleSaveEdit = async (todoId: string) => {
+    if (!session?.access_token || !editContent.trim()) return;
+
+    try {
+      const response = await fetch(`/api/todos/${todoId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: editContent.trim(),
+          customer_id: editCustomerId || null,
+          priority: editPriority,
+        }),
+      });
+
+      if (response.ok) {
+        setTodos(prev => prev.map(t => 
+          t.id === todoId ? { 
+            ...t, 
+            content: editContent.trim(), 
+            customer_id: editCustomerId || null,
+            priority: editPriority 
+          } : t
+        ));
+        handleCancelEdit();
+      }
+    } catch (error) {
+      console.error('更新待办失败:', error);
+    }
+  };
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase())
   );
@@ -438,63 +497,171 @@ export default function TodosPage() {
                 ) : (
                   <div ref={listRef} className="space-y-3 pr-4">
                     {/* 未完成待办 */}
-                    {pendingTodos.map((todo) => (
-                      <div
-                        key={todo.id}
-                        data-todo-id={todo.id}
-                        className={cn(
-                          "flex items-start gap-3 p-3 rounded-lg border transition-colors bg-white border-gray-200 hover:border-gray-300"
-                        )}
-                        style={{ 
-                          borderLeftWidth: '4px', 
-                          borderLeftStyle: 'solid', 
-                          borderLeftColor: todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af' 
-                        }}
-                      >
-                        {/* 完成勾选 */}
-                        <Checkbox
-                          checked={false}
-                          onCheckedChange={() => handleCompleteTodo(todo)}
-                          className="mt-0.5"
-                        />
+                    {pendingTodos.map((todo) => {
+                      const isEditing = editingTodoId === todo.id;
+                      const editSelectedCustomer = customers.find(c => c.id === editCustomerId);
+                      
+                      return (
+                        <div
+                          key={todo.id}
+                          data-todo-id={todo.id}
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-lg border transition-colors",
+                            isEditing ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200 hover:border-gray-300"
+                          )}
+                          style={{ 
+                            borderLeftWidth: '4px', 
+                            borderLeftStyle: 'solid', 
+                            borderLeftColor: isEditing ? '#3b82f6' : (todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af')
+                          }}
+                        >
+                          {/* 完成勾选 */}
+                          <Checkbox
+                            checked={false}
+                            onCheckedChange={() => !isEditing && handleCompleteTodo(todo)}
+                            className="mt-0.5"
+                            disabled={isEditing}
+                          />
 
-                        {/* 内容区域 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium">{todo.content}</div>
-                          <div className="mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
-                            </Badge>
+                          {/* 内容区域 */}
+                          <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={editContent}
+                                  onChange={(e) => setEditContent(e.target.value)}
+                                  placeholder="待办内容"
+                                  className="h-8"
+                                  autoFocus
+                                />
+                                <div className="flex items-center gap-2">
+                                  <Popover open={editCustomerPopoverOpen} onOpenChange={setEditCustomerPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="outline" size="sm" className="h-7 text-xs justify-between w-[140px]">
+                                        {editSelectedCustomer ? (
+                                          <span className="truncate">{editSelectedCustomer.name}</span>
+                                        ) : (
+                                          <span className="text-gray-400">关联客户</span>
+                                        )}
+                                        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[200px] p-0" align="start">
+                                      <Command>
+                                        <CommandInput placeholder="搜索客户..." />
+                                        <CommandList>
+                                          <CommandEmpty>未找到客户</CommandEmpty>
+                                          <CommandGroup>
+                                            <CommandItem
+                                              value="none"
+                                              onSelect={() => {
+                                                setEditCustomerId('');
+                                                setEditCustomerPopoverOpen(false);
+                                              }}
+                                            >
+                                              <Check className={cn("mr-2 h-4 w-4", !editCustomerId ? "opacity-100" : "opacity-0")} />
+                                              不关联客户
+                                            </CommandItem>
+                                            {customers.map((customer) => (
+                                              <CommandItem
+                                                key={customer.id}
+                                                value={customer.name}
+                                                onSelect={() => {
+                                                  setEditCustomerId(customer.id);
+                                                  setEditCustomerPopoverOpen(false);
+                                                }}
+                                              >
+                                                <Check className={cn("mr-2 h-4 w-4", editCustomerId === customer.id ? "opacity-100" : "opacity-0")} />
+                                                {customer.name}
+                                              </CommandItem>
+                                            ))}
+                                          </CommandGroup>
+                                        </CommandList>
+                                      </Command>
+                                    </PopoverContent>
+                                  </Popover>
+                                  <Select value={editPriority} onValueChange={(v) => setEditPriority(v as 'high' | 'medium' | 'low')}>
+                                    <SelectTrigger className="w-[80px] h-7 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="high">重要</SelectItem>
+                                      <SelectItem value="medium">次要</SelectItem>
+                                      <SelectItem value="low">常规</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="font-medium">{todo.content}</div>
+                                <div className="mt-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                                  </Badge>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          {/* 操作区域 */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isEditing ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-50"
+                                  onClick={() => handleSaveEdit(todo.id)}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-gray-400 hover:text-gray-600"
+                                  onClick={handleCancelEdit}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-gray-400 hover:text-blue-500"
+                                  onClick={() => handleStartEdit(todo)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Select
+                                  value={todo.priority}
+                                  onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
+                                >
+                                  <SelectTrigger className="w-[80px] h-7 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="high">重要</SelectItem>
+                                    <SelectItem value="medium">次要</SelectItem>
+                                    <SelectItem value="low">常规</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-gray-400 hover:text-red-500"
+                                  onClick={() => handleDelete(todo.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
-
-                        {/* 操作区域 */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Select
-                            value={todo.priority}
-                            onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
-                          >
-                            <SelectTrigger className="w-[80px] h-7 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="high">重要</SelectItem>
-                              <SelectItem value="medium">次要</SelectItem>
-                              <SelectItem value="low">常规</SelectItem>
-                            </SelectContent>
-                          </Select>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-gray-400 hover:text-red-500"
-                            onClick={() => handleDelete(todo.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {/* 正在完成中的待办（动画） */}
                     {completingTodo && completingTodo.phase !== 'done' && (
