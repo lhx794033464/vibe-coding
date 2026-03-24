@@ -447,12 +447,10 @@ export default function SchedulePage() {
                 <div
                   key={index}
                   className={`relative min-h-[100px] border rounded-lg transition-colors cursor-pointer group ${
-                    dateStatus.isHoliday
+                    (dateStatus.isHoliday || dateStatus.isWeekend)
                       ? 'bg-gray-100 border-gray-300'
                       : dateStatus.isWorkday
                       ? 'bg-white border-gray-200 hover:border-blue-300'
-                      : dateStatus.isWeekend
-                      ? 'bg-gray-50 border-gray-200'
                       : 'bg-white border-gray-200 hover:border-blue-300'
                   } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
                   onMouseEnter={() => setHoveredDate(dateStr)}
@@ -470,8 +468,7 @@ export default function SchedulePage() {
                         <span className="text-lg font-bold text-blue-600">{month}月</span>
                       ) : (
                         <span className={`text-sm ${
-                          dateStatus.isHoliday ? 'text-gray-600' : 
-                          dateStatus.isWeekend ? 'text-gray-400' : 'text-gray-700'
+                          (dateStatus.isHoliday || dateStatus.isWeekend) ? 'text-gray-600' : 'text-gray-700'
                         }`}>
                           {date.getDate()}
                         </span>
