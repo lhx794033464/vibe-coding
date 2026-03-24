@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
     }
 
+    // 先获取用户的所有客户列表，用于匹配
+    const { data: customers } = await client
+      .from('customers')
+      .select('id, name')
+      .order('name');
+    
+    const customerList = customers?.map(c => c.name) || [];
+    const customerListStr = customerList.length > 0 ? customerList.join('、') : '暂无客户';
+
     // 使用LLM解析意图
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
@@ -31,18 +40,22 @@ export async function POST(request: NextRequest) {
 
     const systemPrompt = `你是一个智能助手的意图解析模块。你需要分析用户的语音指令，识别用户想要执行的操作，并返回JSON格式的结果。
 
-支持的操作类型：
+## 用户的客户列表（重要！）
+当用户提到客户/公司名称时，必须从以下客户列表中选择最匹配的一个：
+${customerListStr}
+
+## 支持的操作类型：
 1. create_todo - 创建待办事项
-   参数：content（待办内容）, customer_name（可选，客户名称）, priority（可选，high/medium/low，默认low）
+   参数：content（待办内容）, customer_name（可选，必须从客户列表中选择）, priority（可选，high/medium/low，默认low）
 
 2. create_schedule - 创建日程排期
-   参数：customer_name（客户名称）, date（日期，格式yyyy-MM-dd）, notes（可选，备注）
+   参数：customer_name（必须从客户列表中选择）, date（日期，格式yyyy-MM-dd）, notes（可选，备注）
 
 3. create_log - 创建实施日志
-   参数：customer_name（客户名称）, consumed_days（消耗人天，数字）, summary（实施纪要）
+   参数：customer_name（必须从客户列表中选择）, consumed_days（消耗人天，数字）, summary（实施纪要）
 
 4. query_customer - 查询客户
-   参数：customer_name（客户名称，可选）, status（状态，可选）
+   参数：customer_name（可选，从客户列表中选择）
 
 5. query_todo - 查询待办
    参数：无
@@ -50,28 +63,15 @@ export async function POST(request: NextRequest) {
 6. general - 普通对话
    参数：response（回复内容）
 
-请根据用户输入返回JSON：
-{
-  "action": "操作类型",
-  "params": { 具体参数 },
-  "response": "给用户的简短确认信息"
-}
+## 返回格式（纯JSON，不要其他文字）：
+{"action": "操作类型", "params": {具体参数}, "response": "给用户的简短确认信息"}
 
-示例：
-用户："帮我创建一个待办，明天跟进金蝶客户"
-返回：{"action": "create_todo", "params": {"content": "跟进金蝶客户", "customer_name": "金蝶"}, "response": "已为您创建待办：跟进金蝶客户"}
-
-用户："帮我预约明天下午三点和张三开会"
-返回：{"action": "create_schedule", "params": {"customer_name": "张三", "date": "2024-01-02", "notes": "会议"}, "response": "已为您预约明天与张三的会议"}
-
-用户："给王五记录一条实施日志，消耗0.5天，做了凭证导入"
-返回：{"action": "create_log", "params": {"customer_name": "王五", "consumed_days": 0.5, "summary": "凭证导入"}, "response": "已记录王五的实施日志：凭证导入，消耗0.5天"}
+## 示例：
+用户："帮我创建一个待办，跟进华瑞科技"
+返回：{"action": "create_todo", "params": {"content": "跟进华瑞科技", "customer_name": "华瑞科技"}, "response": "已为您创建待办：跟进华瑞科技"}
 
 用户："今天有什么待办？"
 返回：{"action": "query_todo", "params": {}, "response": "正在为您查询今日待办..."}
-
-用户："查看客户金蝶的信息"
-返回：{"action": "query_customer", "params": {"customer_name": "金蝶"}, "response": "正在查询金蝶的客户信息..."}
 
 用户："你好"
 返回：{"action": "general", "params": {}, "response": "你好！我是您的智能助手，可以帮您创建待办、预约会议、记录实施日志等。请问有什么可以帮您的？"}`;
@@ -83,10 +83,11 @@ export async function POST(request: NextRequest) {
 
     const llmResponse = await llmClient.invoke(messages, { 
       model: 'doubao-seed-1-6-lite-251015',
-      temperature: 0.3 
+      temperature: 0.1 
     });
 
     const responseText = llmResponse.content || '';
+    console.log('LLM响应:', responseText);
     
     // 解析JSON
     let intent;
@@ -102,6 +103,8 @@ export async function POST(request: NextRequest) {
       intent = { action: 'general', params: {}, response: responseText };
     }
 
+    console.log('解析的意图:', intent);
+
     // 执行操作
     let result: { success: boolean; data?: unknown; message: string } = { 
       success: false, 
@@ -110,20 +113,36 @@ export async function POST(request: NextRequest) {
 
     switch (intent.action) {
       case 'create_todo': {
-        const { content, customer_name, priority = 'low' } = intent.params;
+        const { content, customer_name, priority = 'low' } = intent.params || {};
+        
+        if (!content) {
+          result = { success: false, message: '请提供待办内容' };
+          break;
+        }
         
         // 如果有客户名称，查找客户ID
         let customerId = null;
+        let matchedCustomerName = customer_name;
+        
         if (customer_name) {
-          const { data: customers } = await client
-            .from('customers')
-            .select('id')
-            .ilike('name', `%${customer_name}%`)
-            .limit(1);
-          if (customers && customers.length > 0) {
-            customerId = customers[0].id;
+          // 先尝试精确匹配
+          const exactMatch = customers?.find(c => c.name === customer_name);
+          if (exactMatch) {
+            customerId = exactMatch.id;
+            matchedCustomerName = exactMatch.name;
+          } else {
+            // 再尝试模糊匹配
+            const fuzzyMatch = customers?.find(c => 
+              c.name.includes(customer_name) || customer_name.includes(c.name)
+            );
+            if (fuzzyMatch) {
+              customerId = fuzzyMatch.id;
+              matchedCustomerName = fuzzyMatch.name;
+            }
           }
         }
+
+        console.log('创建待办:', { content, customerId, matchedCustomerName, priority });
 
         const { data: todo, error } = await client
           .from('todos')
@@ -138,41 +157,44 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (error) {
+          console.error('创建待办失败:', error);
           result = { success: false, message: `创建待办失败：${error.message}` };
         } else {
+          console.log('待办创建成功:', todo);
           result = { 
             success: true, 
             data: todo, 
-            message: `已创建待办：${content}${customer_name ? `（关联客户：${customer_name}）` : ''}` 
+            message: `已创建待办：${content}${matchedCustomerName ? `（关联客户：${matchedCustomerName}）` : ''}` 
           };
         }
         break;
       }
 
       case 'create_schedule': {
-        const { customer_name, date, notes = '' } = intent.params;
+        const { customer_name, date, notes = '' } = intent.params || {};
         
         if (!customer_name) {
           result = { success: false, message: '请指定客户名称' };
           break;
         }
 
-        // 查找客户
-        const { data: customers } = await client
-          .from('customers')
-          .select('id, name')
-          .ilike('name', `%${customer_name}%`)
-          .limit(1);
+        // 查找客户（先精确匹配，再模糊匹配）
+        let matchedCustomer = customers?.find(c => c.name === customer_name);
+        if (!matchedCustomer) {
+          matchedCustomer = customers?.find(c => 
+            c.name.includes(customer_name) || customer_name.includes(c.name)
+          );
+        }
 
-        if (!customers || customers.length === 0) {
-          result = { success: false, message: `未找到客户：${customer_name}` };
+        if (!matchedCustomer) {
+          result = { success: false, message: `未找到客户：${customer_name}。可用客户：${customerListStr}` };
           break;
         }
 
         const { data: schedule, error } = await client
           .from('schedules')
           .insert({
-            customer_id: customers[0].id,
+            customer_id: matchedCustomer.id,
             schedule_date: date ? `${date}T00:00:00` : new Date().toISOString(),
             notes: notes,
             user_id: user.id,
@@ -181,41 +203,43 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (error) {
+          console.error('创建日程失败:', error);
           result = { success: false, message: `创建日程失败：${error.message}` };
         } else {
           result = { 
             success: true, 
             data: schedule, 
-            message: `已创建日程：${customers[0].name}${date ? `（${date}）` : ''}` 
+            message: `已创建日程：${matchedCustomer.name}${date ? `（${date}）` : ''}` 
           };
         }
         break;
       }
 
       case 'create_log': {
-        const { customer_name, consumed_days, summary } = intent.params;
+        const { customer_name, consumed_days, summary } = intent.params || {};
         
         if (!customer_name || !consumed_days || !summary) {
           result = { success: false, message: '请提供客户名称、消耗人天和实施纪要' };
           break;
         }
 
-        // 查找客户
-        const { data: customers } = await client
-          .from('customers')
-          .select('id, name')
-          .ilike('name', `%${customer_name}%`)
-          .limit(1);
+        // 查找客户（先精确匹配，再模糊匹配）
+        let matchedCustomer = customers?.find(c => c.name === customer_name);
+        if (!matchedCustomer) {
+          matchedCustomer = customers?.find(c => 
+            c.name.includes(customer_name) || customer_name.includes(c.name)
+          );
+        }
 
-        if (!customers || customers.length === 0) {
-          result = { success: false, message: `未找到客户：${customer_name}` };
+        if (!matchedCustomer) {
+          result = { success: false, message: `未找到客户：${customer_name}。可用客户：${customerListStr}` };
           break;
         }
 
         const { data: log, error } = await client
           .from('implementation_logs')
           .insert({
-            customer_id: customers[0].id,
+            customer_id: matchedCustomer.id,
             log_date: new Date().toISOString(),
             consumed_days: consumed_days,
             summary: summary,
@@ -225,19 +249,20 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (error) {
+          console.error('创建实施日志失败:', error);
           result = { success: false, message: `创建实施日志失败：${error.message}` };
         } else {
           result = { 
             success: true, 
             data: log, 
-            message: `已记录实施日志：${customers[0].name}，消耗${consumed_days}天，${summary}` 
+            message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${summary}` 
           };
         }
         break;
       }
 
       case 'query_customer': {
-        const { customer_name, status } = intent.params;
+        const { customer_name, status } = intent.params || {};
         
         let query = client
           .from('customers')
@@ -252,16 +277,16 @@ export async function POST(request: NextRequest) {
           query = query.eq('status', status);
         }
 
-        const { data: customers, error } = await query;
+        const { data: queryCustomers, error } = await query;
 
         if (error) {
           result = { success: false, message: `查询失败：${error.message}` };
         } else {
-          const customerList = customers?.map((c: { name: string }) => c.name).join('、') || '暂无客户';
+          const customerListResult = queryCustomers?.map((c: { name: string }) => c.name).join('、') || '暂无客户';
           result = { 
             success: true, 
-            data: customers, 
-            message: customer_name ? `找到客户：${customerList}` : `客户列表：${customerList}` 
+            data: queryCustomers, 
+            message: customer_name ? `找到客户：${customerListResult}` : `客户列表：${customerListResult}` 
           };
         }
         break;
@@ -285,14 +310,9 @@ export async function POST(request: NextRequest) {
         } else {
           // 获取关联客户名称
           const customerIds = todos.filter((t: { customer_id: string | null }) => t.customer_id).map((t: { customer_id: string }) => t.customer_id);
-          let customerMap: Record<string, string> = {};
+          const customerMap: Record<string, string> = {};
           
           if (customerIds.length > 0) {
-            const { data: customers } = await client
-              .from('customers')
-              .select('id, name')
-              .in('id', customerIds);
-            
             customers?.forEach((c: { id: string; name: string }) => {
               customerMap[c.id] = c.name;
             });
