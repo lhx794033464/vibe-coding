@@ -493,7 +493,8 @@ export default function HomePage() {
               {messages.map((message, index) => (
                 <div
                   key={index}
-                  className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+                  className={`flex gap-4 message-fade-in ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   {/* 头像 */}
                   <div className={`flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden ${
@@ -509,7 +510,7 @@ export default function HomePage() {
                   {/* 消息内容 */}
                   <div className={`flex-1 ${message.role === 'user' ? 'flex justify-end' : ''}`}>
                     {message.role === 'user' ? (
-                      <div className="inline-block max-w-[85%] bg-blue-500 text-white px-4 py-3 rounded-2xl rounded-tr-md">
+                      <div className="inline-block max-w-[85%] bg-blue-500 text-white px-4 py-3 rounded-2xl rounded-tr-md shadow-sm">
                         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</p>
                         {message.isVoice && (
                           <div className="flex items-center gap-1 mt-1 text-blue-200 text-xs">
@@ -519,7 +520,7 @@ export default function HomePage() {
                         )}
                       </div>
                     ) : (
-                      <div className="max-w-full bg-white border border-slate-200 rounded-2xl rounded-tl-md px-5 py-4 shadow-sm">
+                      <div className={`max-w-full bg-white border border-slate-200 rounded-2xl rounded-tl-md px-5 py-4 shadow-sm ${message.isStreaming ? 'streaming-text' : ''}`}>
                         {message.isStreaming && !message.content ? (
                           <div className="flex items-center gap-2 text-slate-400">
                             <div className="flex gap-1">
@@ -533,7 +534,7 @@ export default function HomePage() {
                           <MessageContent content={message.content} />
                         )}
                         {message.isStreaming && message.content && (
-                          <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-0.5 rounded-sm"></span>
+                          <span className="inline-block w-2 h-4 bg-blue-500 typing-cursor ml-0.5 rounded-sm"></span>
                         )}
                       </div>
                     )}

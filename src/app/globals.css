@@ -135,3 +135,83 @@
 body {
   @apply font-sans;
 }
+
+/* 对话消息动画 */
+@keyframes message-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes text-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes typing-cursor {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes content-fade-in {
+  0% {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* 消息渐入动画 */
+.message-fade-in {
+  animation: message-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 流式文字渐变效果 */
+.streaming-text {
+  position: relative;
+}
+
+.streaming-text::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(59, 130, 246, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: text-shimmer 1.5s ease-in-out infinite;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* 内容淡入效果 */
+.content-fade-in {
+  animation: content-fade-in 0.3s ease-out forwards;
+}
+
+/* 打字光标 */
+.typing-cursor {
+  animation: typing-cursor 0.8s ease-in-out infinite;
+}
