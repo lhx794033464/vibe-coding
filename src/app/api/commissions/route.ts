@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, amount, remark, finance_days, other_days, next_commission_month } = body;
+    const { customer_id, amount, remark, finance_days, other_days } = body;
 
     if (!customer_id || !amount) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -270,18 +270,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 更新客户的下次计提月份
+    // 如果已全部计提，清空下次计提月份
     const newPaidCommission = paidCommission + parseFloat(amount);
     const newRemainingCommission = calculation.totalCommission - newPaidCommission;
     
-    // 如果还有剩余提成且设置了下次计提月份，则更新；否则清空
-    if (newRemainingCommission > 0 && next_commission_month) {
-      await client
-        .from('customers')
-        .update({ next_commission_month })
-        .eq('id', customer_id);
-    } else if (newRemainingCommission <= 0) {
-      // 已全部计提，清空下次计提月份
+    if (newRemainingCommission <= 0) {
       await client
         .from('customers')
         .update({ next_commission_month: null })

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2, Bell } from 'lucide-react';
 import { CommissionCalculation, VERSION_CONFIG, ProductVersion } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -38,6 +38,12 @@ export default function CommissionsPage() {
   
   // 下次计提月份
   const [nextCommissionMonth, setNextCommissionMonth] = useState('');
+  
+  // 设置下次计提时间对话框状态
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [schedulingCommission, setSchedulingCommission] = useState<CommissionCalculation | null>(null);
+  const [scheduleMonth, setScheduleMonth] = useState('');
+  const [scheduling, setScheduling] = useState(false);
 
   useEffect(() => {
     fetchCommissions();
@@ -76,6 +82,49 @@ export default function CommissionsPage() {
     setNextCommissionMonth(format(nextMonth, 'yyyy-MM'));
     setDialogOpen(true);
   };
+  
+  // 打开设置下次计提时间对话框
+  const openScheduleDialog = (commission: CommissionCalculation) => {
+    setSchedulingCommission(commission);
+    // 默认设置为下一个月份
+    const nextMonth = new Date(currentMonth + '-01');
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    setScheduleMonth(format(nextMonth, 'yyyy-MM'));
+    setScheduleDialogOpen(true);
+  };
+  
+  // 设置下次计提时间
+  const handleSetSchedule = async () => {
+    if (!schedulingCommission || !scheduleMonth) return;
+    
+    setScheduling(true);
+    try {
+      const response = await fetch('/api/commissions/schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          customer_id: schedulingCommission.customerId,
+          next_commission_month: scheduleMonth,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setScheduleDialogOpen(false);
+        fetchCommissions();
+      } else {
+        alert(data.error || '设置失败');
+      }
+    } catch (error) {
+      console.error('设置下次计提时间失败:', error);
+      alert('设置下次计提时间失败');
+    } finally {
+      setScheduling(false);
+    }
+  };
 
   const handleSubmitCommission = async () => {
     if (!selectedCommission || !commissionAmount) return;
@@ -111,7 +160,6 @@ export default function CommissionsPage() {
           remark: finalRemark,
           finance_days: financeDaysParam,
           other_days: otherDaysParam,
-          next_commission_month: nextCommissionMonth || undefined,
         }),
       });
 
@@ -119,6 +167,18 @@ export default function CommissionsPage() {
       if (response.ok) {
         setDialogOpen(false);
         fetchCommissions();
+        
+        // 检查是否还有剩余提成，如果有则自动弹出设置下次计提时间
+        const newRemaining = selectedCommission.remainingCommission - parseFloat(commissionAmount);
+        if (newRemaining > 0) {
+          // 延迟一点弹出，让用户先看到更新后的列表
+          setTimeout(() => {
+            openScheduleDialog({
+              ...selectedCommission,
+              remainingCommission: newRemaining,
+            });
+          }, 300);
+        }
       } else {
         alert(data.error || '创建提成失败');
       }
@@ -448,14 +508,27 @@ export default function CommissionsPage() {
                   </div>
 
                   {/* 计提按钮 */}
-                  <div className="ml-4">
-                    <Button
-                      onClick={() => openCommissionDialog(commission)}
-                      disabled={commission.remainingCommission <= 0}
-                    >
-                      计提提成
-                    </Button>
-                    <p className="text-xs text-gray-500 mt-1 text-right">
+                  <div className="ml-4 flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2">
+                      {/* 设置下次计提时间 */}
+                      {commission.remainingCommission > 0 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="设置下次计提时间"
+                          onClick={() => openScheduleDialog(commission)}
+                        >
+                          <Bell className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => openCommissionDialog(commission)}
+                        disabled={commission.remainingCommission <= 0}
+                      >
+                        计提提成
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500">
                       剩余: ¥{commission.remainingCommission.toFixed(2)}
                     </p>
                   </div>
@@ -636,23 +709,6 @@ export default function CommissionsPage() {
               </>
             )}
 
-            {/* 下次计提月份（仅当还有剩余提成时显示） */}
-            {selectedCommission && selectedCommission.remainingCommission > parseFloat(commissionAmount || '0') && (
-              <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <Label htmlFor="nextMonth" className="text-sm font-medium text-amber-900">
-                  设置下次计提月份
-                </Label>
-                <p className="text-xs text-amber-700">到达该月份时，此客户将出现在当月应计提列表中</p>
-                <Input
-                  id="nextMonth"
-                  type="month"
-                  value={nextCommissionMonth}
-                  onChange={(e) => setNextCommissionMonth(e.target.value)}
-                  min={currentMonth}
-                />
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="remark">备注</Label>
               <Textarea
@@ -711,6 +767,57 @@ export default function CommissionsPage() {
                 </>
               ) : (
                 '确认删除'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 设置下次计提时间对话框 */}
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>设置下次计提时间</DialogTitle>
+            <DialogDescription>
+              为客户 <span className="font-semibold">{schedulingCommission?.customerName}</span> 设置下次计提月份
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <p className="text-sm text-amber-900">
+                当前剩余提成: <span className="font-bold">¥{schedulingCommission?.remainingCommission.toFixed(2)}</span>
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="scheduleMonth">下次计提月份</Label>
+              <p className="text-xs text-gray-500">到达该月份时，此客户将出现在当月应计提列表中</p>
+              <Input
+                id="scheduleMonth"
+                type="month"
+                value={scheduleMonth}
+                onChange={(e) => setScheduleMonth(e.target.value)}
+                min={currentMonth}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={handleSetSchedule}
+              disabled={scheduling || !scheduleMonth}
+            >
+              {scheduling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  设置中...
+                </>
+              ) : (
+                '确认设置'
               )}
             </Button>
           </DialogFooter>
