@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
         records: commissionByCustomer[customer.id]?.records || [],
         acceptedAt: customer.updated_at,
       };
-    }).filter(c => !c.isFullyPaid) || []; // 过滤掉已全部计提的
+    }) || [];
 
     return NextResponse.json({ 
       data: commissionData,
@@ -219,20 +219,11 @@ export async function POST(request: NextRequest) {
     const implementationDays = parseFloat(customer.implementation_days || '0');
     const modules = (customer.modules as ProductModule[]) || [];
     
-    // 计算应提总额
-    let calculation = calculateCommission(implementationFee, implementationDays, modules);
-    
-    // 如果提供了人天参数且提成类型为按天计算，则重新计算
-    if (calculation.commissionType === 'daily' && (finance_days !== undefined || other_days !== undefined)) {
-      const financeDaysNum = parseFloat(finance_days) || 0;
-      const otherDaysNum = parseFloat(other_days) || 0;
-      const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
-                              otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
-      calculation = {
-        ...calculation,
-        totalCommission,
-      };
-    }
+    // 计算应提总额 - 统一按人天计算
+    const financeDaysNum = parseFloat(finance_days) || 0;
+    const otherDaysNum = parseFloat(other_days) || 0;
+    const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
+                            otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
 
     // 获取已提金额
     const { data: existingRecords } = await client
@@ -241,7 +232,7 @@ export async function POST(request: NextRequest) {
       .eq('customer_id', customer_id);
 
     const paidCommission = existingRecords?.reduce((sum, r) => sum + parseFloat(r.amount), 0) || 0;
-    const remainingCommission = calculation.totalCommission - paidCommission;
+    const remainingCommission = totalCommission - paidCommission;
 
     // 检查是否超过剩余提成
     if (parseFloat(amount) > remainingCommission) {
@@ -256,7 +247,7 @@ export async function POST(request: NextRequest) {
       .insert({
         customer_id,
         amount,
-        total_commission: calculation.totalCommission,
+        total_commission: totalCommission,
         paid_commission: paidCommission + parseFloat(amount),
         finance_days: finance_days !== undefined ? finance_days : null,
         other_days: other_days !== undefined ? other_days : null,
@@ -272,7 +263,7 @@ export async function POST(request: NextRequest) {
 
     // 如果已全部计提，清空下次计提月份
     const newPaidCommission = paidCommission + parseFloat(amount);
-    const newRemainingCommission = calculation.totalCommission - newPaidCommission;
+    const newRemainingCommission = totalCommission - newPaidCommission;
     
     if (newRemainingCommission <= 0) {
       await client

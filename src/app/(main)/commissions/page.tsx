@@ -250,12 +250,17 @@ export default function CommissionsPage() {
   
   // 验证人天输入
   const validateDaysInput = () => {
-    if (selectedCommission?.commissionType !== 'daily') return true;
+    if (!selectedCommission) return false;
     
     const financeDaysNum = parseFloat(financeDays) || 0;
     const otherDaysNum = parseFloat(otherDays) || 0;
     const totalInputDays = financeDaysNum + otherDaysNum;
     const maxDays = selectedCommission.implementationDays;
+    
+    if (totalInputDays <= 0) {
+      alert('请输入至少一个模块的人天');
+      return false;
+    }
     
     if (totalInputDays > maxDays) {
       alert(`计提人天之和(${totalInputDays}天)不能大于总实施人天(${maxDays}天)`);
@@ -266,8 +271,8 @@ export default function CommissionsPage() {
   
   // 计算剩余可提人天
   const getRemainingDays = () => {
-    if (!selectedCommission || selectedCommission.commissionType !== 'daily') {
-      return { finance: 0, other: 0, total: 0 };
+    if (!selectedCommission) {
+      return { finance: 0, other: 0, total: 0, paidFinanceDays: 0, paidOtherDays: 0 };
     }
     
     // 从已提记录中累计人天
@@ -296,22 +301,16 @@ export default function CommissionsPage() {
   const isFormValid = () => {
     if (!selectedCommission) return false;
     
-    if (selectedCommission.commissionType === 'daily') {
-      // 按天计算：必须录入至少一个模块的人天
-      const financeDaysNum = parseFloat(financeDays) || 0;
-      const otherDaysNum = parseFloat(otherDays) || 0;
-      const totalInputDays = financeDaysNum + otherDaysNum;
-      
-      // 必须录入人天，且不能超过总实施人天
-      if (totalInputDays <= 0) return false;
-      if (totalInputDays > selectedCommission.implementationDays) return false;
-      
-      return true;
-    } else {
-      // 按比例计算：必须录入金额
-      const amount = parseFloat(commissionAmount) || 0;
-      return amount > 0 && amount <= selectedCommission.remainingCommission;
-    }
+    // 必须录入至少一个模块的人天
+    const financeDaysNum = parseFloat(financeDays) || 0;
+    const otherDaysNum = parseFloat(otherDays) || 0;
+    const totalInputDays = financeDaysNum + otherDaysNum;
+    
+    // 必须录入人天，且不能超过总实施人天
+    if (totalInputDays <= 0) return false;
+    if (totalInputDays > selectedCommission.implementationDays) return false;
+    
+    return true;
   };
 
   const goToNextMonth = () => {
@@ -425,7 +424,7 @@ export default function CommissionsPage() {
                     </div>
                     
                     {/* 提成详情 */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-gray-500">实施费</p>
                         <p className="font-medium">¥{commission.implementationFee.toLocaleString()}</p>
@@ -435,75 +434,48 @@ export default function CommissionsPage() {
                         <p className="font-medium">{commission.implementationDays.toFixed(2)} 天</p>
                       </div>
                       <div>
-                        <p className="text-gray-500">提成类型</p>
-                        <p className="font-medium">
-                          {commission.commissionType === 'percentage' 
-                            ? `按比例 (${(commission.commissionRate! * 100).toFixed(0)}%)` 
-                            : '按天计算'}
-                        </p>
-                      </div>
-                      <div>
                         <p className="text-gray-500">验收时间</p>
                         <p className="font-medium">{format(new Date(commission.acceptedAt), 'yyyy-MM-dd')}</p>
                       </div>
                     </div>
 
-                    {/* 提成进度 */}
+                    {/* 提成进度 - 统一按人天显示 */}
                     <div className="mt-3">
-                      {commission.commissionType === 'daily' ? (
-                        // 按天计算时显示人天进度
-                        (() => {
-                          let paidFinanceDays = 0;
-                          let paidOtherDays = 0;
-                          if (commission.records) {
-                            for (const record of commission.records) {
-                              const rec = record as { finance_days?: string; other_days?: string };
-                              paidFinanceDays += parseFloat(rec.finance_days || '0');
-                              paidOtherDays += parseFloat(rec.other_days || '0');
-                            }
+                      {(() => {
+                        let paidFinanceDays = 0;
+                        let paidOtherDays = 0;
+                        if (commission.records) {
+                          for (const record of commission.records) {
+                            const rec = record as { finance_days?: string; other_days?: string };
+                            paidFinanceDays += parseFloat(rec.finance_days || '0');
+                            paidOtherDays += parseFloat(rec.other_days || '0');
                           }
-                          const totalPaidDays = paidFinanceDays + paidOtherDays;
-                          const totalDays = commission.implementationDays;
-                          const progressPercent = totalDays > 0 ? (totalPaidDays / totalDays) * 100 : 0;
-                          
-                          return (
-                            <>
-                              <div className="flex items-center justify-between text-sm mb-1">
-                                <span className="text-gray-500">提成进度（人天）</span>
-                                <span className="font-medium">
-                                  {totalPaidDays.toFixed(1)}天 / {totalDays.toFixed(1)}天
-                                </span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-green-500 h-2 rounded-full transition-all"
-                                  style={{ width: `${Math.min(progressPercent, 100)}%` }}
-                                ></div>
-                              </div>
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>财务: {paidFinanceDays.toFixed(1)}天</span>
-                                <span>其他: {paidOtherDays.toFixed(1)}天</span>
-                              </div>
-                            </>
-                          );
-                        })()
-                      ) : (
-                        // 按比例计算时显示金额进度
-                        <>
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-gray-500">提成进度</span>
-                            <span className="font-medium">
-                              ¥{commission.paidCommission.toFixed(2)} / ¥{commission.totalCommission.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-green-500 h-2 rounded-full transition-all"
-                              style={{ width: `${Math.min((commission.paidCommission / commission.totalCommission) * 100, 100)}%` }}
-                            ></div>
-                          </div>
-                        </>
-                      )}
+                        }
+                        const totalPaidDays = paidFinanceDays + paidOtherDays;
+                        const totalDays = commission.implementationDays;
+                        const progressPercent = totalDays > 0 ? (totalPaidDays / totalDays) * 100 : 0;
+                        
+                        return (
+                          <>
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="text-gray-500">提成进度（人天）</span>
+                              <span className="font-medium">
+                                {totalPaidDays.toFixed(1)}天 / {totalDays.toFixed(1)}天
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-green-500 h-2 rounded-full transition-all"
+                                style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>财务: {paidFinanceDays.toFixed(1)}天</span>
+                              <span>其他: {paidOtherDays.toFixed(1)}天</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -578,136 +550,102 @@ export default function CommissionsPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* 按天计算时，人天输入放在最前面 */}
-            {selectedCommission?.commissionType === 'daily' ? (
-              (() => {
-                const remainingDays = getRemainingDays();
-                const financeDaysNum = parseFloat(financeDays) || 0;
-                const otherDaysNum = parseFloat(otherDays) || 0;
-                const totalDays = financeDaysNum + otherDaysNum;
-                const calculatedAmount = financeDaysNum * 100 + otherDaysNum * 200;
-                
-                return (
-                  <div className="space-y-4">
-                    {/* 提示信息 */}
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-sm text-blue-900 font-medium">按天计算提成</p>
-                      <p className="text-xs text-blue-700 mt-1">财务模块: 100元/天，其他模块: 200元/天</p>
+            {/* 人天输入 - 所有客户统一 */}
+            {selectedCommission && (() => {
+              const remainingDays = getRemainingDays();
+              const financeDaysNum = parseFloat(financeDays) || 0;
+              const otherDaysNum = parseFloat(otherDays) || 0;
+              const totalDays = financeDaysNum + otherDaysNum;
+              const calculatedAmount = financeDaysNum * 100 + otherDaysNum * 200;
+              
+              return (
+                <div className="space-y-4">
+                  {/* 提示信息 */}
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-900 font-medium">计提提成</p>
+                    <p className="text-xs text-blue-700 mt-1">财务模块: 100元/天，其他模块: 200元/天</p>
+                  </div>
+                  
+                  {/* 剩余可提人天 */}
+                  <div className="text-sm text-gray-600">
+                    总实施人天: <span className="font-medium">{selectedCommission.implementationDays.toFixed(1)}天</span>
+                    <span className="mx-2">|</span>
+                    剩余可提: <span className="font-medium text-orange-600">{remainingDays.total.toFixed(1)}天</span>
+                  </div>
+                  
+                  {/* 人天输入 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="financeDays">财务模块人天</Label>
+                      <Input
+                        id="financeDays"
+                        type="number"
+                        min="0"
+                        max={remainingDays.finance}
+                        step="0.5"
+                        value={financeDays}
+                        onChange={(e) => handleFinanceDaysChange(e.target.value)}
+                        placeholder="0"
+                      />
                     </div>
-                    
-                    {/* 剩余可提人天 */}
-                    <div className="text-sm text-gray-600">
-                      总实施人天: <span className="font-medium">{selectedCommission.implementationDays.toFixed(1)}天</span>
-                      <span className="mx-2">|</span>
-                      剩余可提: <span className="font-medium text-orange-600">{remainingDays.total.toFixed(1)}天</span>
+                    <div className="space-y-2">
+                      <Label htmlFor="otherDays">其他模块人天</Label>
+                      <Input
+                        id="otherDays"
+                        type="number"
+                        min="0"
+                        max={remainingDays.other}
+                        step="0.5"
+                        value={otherDays}
+                        onChange={(e) => handleOtherDaysChange(e.target.value)}
+                        placeholder="0"
+                      />
                     </div>
-                    
-                    {/* 人天输入 */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="financeDays">财务模块人天</Label>
-                        <Input
-                          id="financeDays"
-                          type="number"
-                          min="0"
-                          max={remainingDays.finance}
-                          step="0.5"
-                          value={financeDays}
-                          onChange={(e) => handleFinanceDaysChange(e.target.value)}
-                          placeholder="0"
-                        />
+                  </div>
+                  
+                  {/* 人天验证提示 */}
+                  {totalDays > selectedCommission.implementationDays && (
+                    <p className="text-sm text-red-500">
+                      计提人天之和({totalDays.toFixed(1)}天)不能大于总实施人天({selectedCommission.implementationDays.toFixed(1)}天)
+                    </p>
+                  )}
+                  
+                  {/* 计算结果 */}
+                  {totalDays > 0 && totalDays <= selectedCommission.implementationDays && (
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">计提人天</span>
+                        <span className="font-medium">{totalDays.toFixed(1)}天</span>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="otherDays">其他模块人天</Label>
-                        <Input
-                          id="otherDays"
-                          type="number"
-                          min="0"
-                          max={remainingDays.other}
-                          step="0.5"
-                          value={otherDays}
-                          onChange={(e) => handleOtherDaysChange(e.target.value)}
-                          placeholder="0"
-                        />
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+                        <span>财务 {financeDaysNum.toFixed(1)}天 × ¥100</span>
+                        <span>¥{(financeDaysNum * 100).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+                        <span>其他 {otherDaysNum.toFixed(1)}天 × ¥200</span>
+                        <span>¥{(otherDaysNum * 200).toFixed(2)}</span>
+                      </div>
+                      <div className="pt-2 border-t border-green-200">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-green-900">本次应提金额</span>
+                          <span className="text-xl font-bold text-green-600">¥{calculatedAmount.toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* 人天验证提示 */}
-                    {totalDays > selectedCommission.implementationDays && (
-                      <p className="text-sm text-red-500">
-                        计提人天之和({totalDays.toFixed(1)}天)不能大于总实施人天({selectedCommission.implementationDays.toFixed(1)}天)
-                      </p>
-                    )}
-                    
-                    {/* 计算结果 */}
-                    {totalDays > 0 && totalDays <= selectedCommission.implementationDays && (
-                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-gray-600">计提人天</span>
-                          <span className="font-medium">{totalDays.toFixed(1)}天</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
-                          <span>财务 {financeDaysNum.toFixed(1)}天 × ¥100</span>
-                          <span>¥{(financeDaysNum * 100).toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-                          <span>其他 {otherDaysNum.toFixed(1)}天 × ¥200</span>
-                          <span>¥{(otherDaysNum * 200).toFixed(2)}</span>
-                        </div>
-                        <div className="pt-2 border-t border-green-200">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-green-900">本次应提金额</span>
-                            <span className="text-xl font-bold text-green-600">¥{calculatedAmount.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 已提记录 */}
-                    {selectedCommission.paidCommission > 0 && (
-                      <div className="text-sm text-gray-500">
-                        已提: ¥{selectedCommission.paidCommission.toFixed(2)}
-                      </div>
-                    )}
-                    
-                    {/* 隐藏的金额输入 */}
-                    <input type="hidden" value={commissionAmount} />
-                  </div>
-                );
-              })()
-            ) : (
-              /* 按比例计算时显示原有信息 */
-              <>
-                <div className="p-3 bg-gray-50 rounded-lg space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">应提总额</span>
-                    <span className="font-medium">¥{selectedCommission?.totalCommission.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">已提金额</span>
-                    <span className="font-medium text-green-600">¥{selectedCommission?.paidCommission.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">待提金额</span>
-                    <span className="font-medium text-orange-600">¥{selectedCommission?.remainingCommission.toFixed(2)}</span>
-                  </div>
+                  )}
+                  
+                  {/* 已提记录 */}
+                  {selectedCommission.paidCommission > 0 && (
+                    <div className="text-sm text-gray-500">
+                      已提: ¥{selectedCommission.paidCommission.toFixed(2)}
+                    </div>
+                  )}
+                  
+                  {/* 隐藏的金额输入 */}
+                  <input type="hidden" value={commissionAmount} />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="amount">本次提成金额</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    max={selectedCommission?.remainingCommission}
-                    value={commissionAmount}
-                    onChange={(e) => setCommissionAmount(e.target.value)}
-                    placeholder={`最多可提 ¥${selectedCommission?.remainingCommission.toFixed(2)}`}
-                  />
-                </div>
-              </>
-            )}
+              );
+            })()}
 
             <div className="space-y-2">
               <Label htmlFor="remark">备注</Label>
