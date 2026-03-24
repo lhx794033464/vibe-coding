@@ -166,6 +166,8 @@ export const commissionRecords = pgTable(
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
     totalCommission: numeric("total_commission", { precision: 10, scale: 2 }).notNull(), // 应提总额
     paidCommission: numeric("paid_commission", { precision: 10, scale: 2 }).notNull().default('0'), // 已提金额
+    financeDays: numeric("finance_days", { precision: 6, scale: 2 }), // 财务模块人天
+    otherDays: numeric("other_days", { precision: 6, scale: 2 }), // 其他模块人天
     remark: text("remark"),
     userId: varchar("user_id", { length: 36 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })

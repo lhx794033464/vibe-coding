@@ -238,6 +238,8 @@ export async function POST(request: NextRequest) {
         amount,
         total_commission: calculation.totalCommission,
         paid_commission: paidCommission + parseFloat(amount),
+        finance_days: finance_days !== undefined ? finance_days : null,
+        other_days: other_days !== undefined ? other_days : null,
         remark: remark || null,
         user_id: user.id,
       })
