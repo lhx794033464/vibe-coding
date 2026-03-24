@@ -222,16 +222,31 @@ export async function POST(request: NextRequest) {
     // 计算应提总额
     let calculation = calculateCommission(implementationFee, implementationDays, modules);
     
-    // 如果提供了人天参数且提成类型为按天计算，则重新计算
-    if (calculation.commissionType === 'daily' && (finance_days !== undefined || other_days !== undefined)) {
+    // 如果提供了人天参数，根据提成类型重新计算本次提成
+    if (finance_days !== undefined || other_days !== undefined) {
       const financeDaysNum = parseFloat(finance_days) || 0;
       const otherDaysNum = parseFloat(other_days) || 0;
-      const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
-                              otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
-      calculation = {
-        ...calculation,
-        totalCommission,
-      };
+      
+      if (calculation.commissionType === 'daily') {
+        // 实施费≤50%：按天计算
+        const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
+                                otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
+        calculation = {
+          ...calculation,
+          totalCommission,
+        };
+      } else {
+        // 实施费>50%：按比例计算，finance_days存储总人天
+        const totalDaysNum = financeDaysNum;
+        if (totalDaysNum > 0 && implementationDays > 0) {
+          const ratio = totalDaysNum / implementationDays;
+          const totalCommission = calculation.totalCommission * ratio;
+          calculation = {
+            ...calculation,
+            totalCommission,
+          };
+        }
+      }
     }
 
     // 获取已提金额
