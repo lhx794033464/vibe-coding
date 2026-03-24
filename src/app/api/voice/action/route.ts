@@ -150,7 +150,7 @@ ${customerListStr}
           break;
         }
         
-        // 如果有客户名称，查找客户ID
+        // 如果有客户名称，必须在现有客户中找到匹配
         let customerId = null;
         let matchedCustomerName = customer_name;
         
@@ -169,6 +169,15 @@ ${customerListStr}
               customerId = fuzzyMatch.id;
               matchedCustomerName = fuzzyMatch.name;
             }
+          }
+          
+          // 如果指定了客户名称但找不到匹配，返回错误
+          if (!customerId) {
+            result = { 
+              success: false, 
+              message: `未找到客户"${customer_name}"。请先在客户管理中添加该客户，或从现有客户中选择：${customerListStr.slice(0, 100)}${customerListStr.length > 100 ? '...' : ''}` 
+            };
+            break;
           }
         }
 
