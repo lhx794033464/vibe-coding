@@ -411,7 +411,7 @@ function getBordersForPosition(
   }
 }
 
-// 创建实施日志段落（每个序号另起一行）
+// 创建实施日志段落（每个序号另起一行，六号字体）
 function createImplementationParagraphs(
   logs: Array<{ log_date: string; consumed_days: string; summary: string }>
 ): Paragraph[] {
@@ -423,7 +423,7 @@ function createImplementationParagraphs(
         children: [
           new TextRun({
             text: '暂无实施记录',
-            size: 24,
+            size: 15, // 六号字体 7.5pt
             font: '微软雅黑',
             italics: true,
           }),
@@ -443,7 +443,7 @@ function createImplementationParagraphs(
             new TextRun({
               text: `${index + 1}、${dateStr}`,
               bold: true,
-              size: 24,
+              size: 15, // 六号字体 7.5pt
               font: '微软雅黑',
             }),
           ],
@@ -457,7 +457,7 @@ function createImplementationParagraphs(
           children: [
             new TextRun({
               text: summary,
-              size: 24,
+              size: 15, // 六号字体 7.5pt
               font: '微软雅黑',
             }),
           ],
