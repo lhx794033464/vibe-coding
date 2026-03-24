@@ -134,8 +134,11 @@ export async function POST(request: NextRequest) {
           footers: {
             default: new Footer({
               children: [
+                // 第一行：左边公司名称，右边页码
                 new Paragraph({
                   children: [
+                    new TextRun({ text: '金蝶软件（中国）有限公司', size: 21 }),
+                    new TextRun({ text: '\t', size: 21 }), // 制表符
                     new TextRun({ text: '第 ', size: 21 }),
                     new TextRun({
                       children: [PageNumber.CURRENT],
@@ -147,15 +150,20 @@ export async function POST(request: NextRequest) {
                       size: 21,
                     }),
                     new TextRun({ text: ' 页', size: 21 }),
-                    new TextRun({ text: '金蝶软件（中国）有限公司', size: 21 }),
                   ],
-                  alignment: AlignmentType.CENTER,
+                  tabStops: [
+                    {
+                      type: 'right' as const,
+                      position: 9000, // 右侧位置
+                    },
+                  ],
                 }),
+                // 第二行：版权信息左对齐
                 new Paragraph({
                   children: [
                     new TextRun({ text: '版权所有        翻版必究', size: 21 }),
                   ],
-                  alignment: AlignmentType.CENTER,
+                  alignment: AlignmentType.LEFT,
                 }),
               ],
             }),
