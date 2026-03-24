@@ -16,7 +16,6 @@ import {
   Footer,
   PageNumber,
   ImageRun,
-  convertInchesToTwip,
 } from 'docx';
 import { format } from 'date-fns';
 import { MODULE_CONFIG, ProductModule, ProductVersion, VERSION_CONFIG } from '@/types';
@@ -75,16 +74,16 @@ export async function POST(request: NextRequest) {
       ? customer.modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
       : '-';
 
-    // 创建表格边框样式
-    const tableBorder = {
+    // 边框样式：粗外边框，细内边框
+    const outerBorder = {
       style: BorderStyle.SINGLE,
-      size: 12,
+      size: 12, // 粗边框
       color: '000000',
     } as const;
     
     const innerBorder = {
       style: BorderStyle.SINGLE,
-      size: 6,
+      size: 6, // 细边框
       color: '000000',
     } as const;
 
@@ -92,8 +91,8 @@ export async function POST(request: NextRequest) {
     const logoPath = path.join(process.cwd(), 'public', 'kingdee-logo.png');
     const logoBuffer = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
 
-    // 创建实施日志段落（每个序号另起一行）
-    const implementationParagraphs = createImplementationParagraphs(implementationLogs || []);
+    // 创建实施日志段落（每个序号另起一行，末尾添加签署区域）
+    const implementationParagraphs = createImplementationParagraphsWithSignature(implementationLogs || []);
 
     // 创建Word文档
     const doc = new Document({
@@ -168,7 +167,7 @@ export async function POST(request: NextRequest) {
                 new TextRun({
                   text: '项目实施验收确认单',
                   bold: true,
-                  size: 56, // 28pt，对应模板中的大标题
+                  size: 56, // 28pt
                   font: '黑体',
                 }),
               ],
@@ -176,17 +175,17 @@ export async function POST(request: NextRequest) {
               spacing: { after: 300 },
             }),
             
-            // 主表格（严格按照模板格式）
+            // 主表格（粗外边框，细内边框）
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
-              columnWidths: [2049, 2258, 2384, 2547], // 按模板比例
+              columnWidths: [2049, 2258, 2384, 2547],
               rows: [
                 // 第1行：客户名称
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('客户名称', tableBorder, innerBorder),
-                    createValueCell(customer.name || '', tableBorder, innerBorder, 3),
+                    createLabelCell('客户名称', outerBorder, innerBorder, 'left'),
+                    createValueCell(customer.name || '', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
                 
@@ -194,8 +193,8 @@ export async function POST(request: NextRequest) {
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('合同编号', tableBorder, innerBorder),
-                    createValueCell(customer.sales_order_no || '', tableBorder, innerBorder, 3),
+                    createLabelCell('合同编号', outerBorder, innerBorder, 'left'),
+                    createValueCell('', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
                 
@@ -203,8 +202,8 @@ export async function POST(request: NextRequest) {
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('参会人员', tableBorder, innerBorder),
-                    createValueCell('', tableBorder, innerBorder, 3), // 暂无数据，留空
+                    createLabelCell('参会人员', outerBorder, innerBorder, 'left'),
+                    createValueCell('', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
                 
@@ -212,10 +211,10 @@ export async function POST(request: NextRequest) {
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('客户联系人', tableBorder, innerBorder),
-                    createValueCell('', tableBorder, innerBorder, 1), // 暂无数据，留空
-                    createLabelCell('客户电话', tableBorder, innerBorder),
-                    createValueCell('', tableBorder, innerBorder, 1), // 暂无数据，留空
+                    createLabelCell('客户联系人', outerBorder, innerBorder, 'left'),
+                    createValueCell('', outerBorder, innerBorder, 1, 'middle'),
+                    createLabelCell('客户电话', outerBorder, innerBorder, 'middle'),
+                    createValueCell('', outerBorder, innerBorder, 1, 'right'),
                   ],
                 }),
                 
@@ -223,74 +222,22 @@ export async function POST(request: NextRequest) {
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('软件版本', tableBorder, innerBorder),
-                    createValueCell(versionName, tableBorder, innerBorder, 1),
-                    createLabelCell('上线模块', tableBorder, innerBorder),
-                    createValueCell(modulesName, tableBorder, innerBorder, 1),
+                    createLabelCell('软件版本', outerBorder, innerBorder, 'left'),
+                    createValueCell(versionName, outerBorder, innerBorder, 1, 'middle'),
+                    createLabelCell('上线模块', outerBorder, innerBorder, 'middle'),
+                    createValueCell(modulesName, outerBorder, innerBorder, 1, 'right'),
                   ],
                 }),
                 
-                // 第6行：系统实施主要内容
+                // 第6行：系统实施主要内容（包含签署区域）
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('系统实施\n主要内容', tableBorder, innerBorder, true),
-                    createImplementationCell(implementationParagraphs, tableBorder, innerBorder),
+                    createLabelCell('系统实施\n主要内容', outerBorder, innerBorder, 'left', true),
+                    createImplementationCell(implementationParagraphs, outerBorder, innerBorder),
                   ],
                 }),
               ],
-            }),
-            
-            // 签字区域
-            new Paragraph({
-              children: [],
-              spacing: { before: 400 },
-            }),
-            
-            // 客户对接人签字
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: '客户对接人： __________________ 签署',
-                  size: 24,
-                  font: '微软雅黑',
-                }),
-              ],
-              spacing: { before: 200 },
-            }),
-            
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `日期：${'_'.repeat(30)}`,
-                  size: 24,
-                  font: '微软雅黑',
-                }),
-              ],
-              spacing: { after: 300 },
-            }),
-            
-            // 金蝶项目经理签字
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: '金蝶项目经理： __________________ 签署',
-                  size: 24,
-                  font: '微软雅黑',
-                }),
-              ],
-              spacing: { before: 200 },
-            }),
-            
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `日期：${format(new Date(), 'yyyy/M/d')}`,
-                  size: 24,
-                  font: '微软雅黑',
-                }),
-              ],
-              spacing: { after: 200 },
             }),
           ],
         },
@@ -323,11 +270,15 @@ type BorderStyleType = {
   color: string;
 };
 
+// 单元格位置类型
+type CellPosition = 'left' | 'right' | 'middle';
+
 // 创建标签单元格
 function createLabelCell(
   text: string, 
-  tableBorder: BorderStyleType,
+  outerBorder: BorderStyleType,
   innerBorder: BorderStyleType,
+  position: CellPosition,
   multiLine: boolean = false
 ): TableCell {
   const paragraphs = multiLine 
@@ -359,67 +310,40 @@ function createLabelCell(
         }),
       ];
 
+  // 根据位置设置边框
+  const borders = getBordersForPosition(position, outerBorder, innerBorder);
+
   return new TableCell({
     children: paragraphs,
     verticalAlign: VerticalAlign.CENTER,
     shading: { fill: 'FFFFFF' },
-    borders: {
-      top: tableBorder,
-      left: tableBorder,
-      bottom: tableBorder,
-      right: innerBorder,
-    },
+    borders: borders,
   });
 }
 
 // 创建值单元格
 function createValueCell(
   text: string,
-  tableBorder: BorderStyleType,
+  outerBorder: BorderStyleType,
   innerBorder: BorderStyleType,
   columnSpan: number = 1,
-  multiLine: boolean = false
+  position: CellPosition
 ): TableCell {
-  const paragraphs = multiLine
-    ? [
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: text,
-              size: 24,
-              font: '微软雅黑',
-            }),
-          ],
-          alignment: AlignmentType.LEFT,
-          spacing: { before: 100, after: 100 },
+  const paragraphs = [
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: text,
+          size: 24,
+          font: '微软雅黑',
         }),
-      ]
-    : [
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: text,
-              size: 24,
-              font: '微软雅黑',
-            }),
-          ],
-          alignment: AlignmentType.CENTER,
-        }),
-      ];
+      ],
+      alignment: AlignmentType.CENTER,
+    }),
+  ];
 
-  const borders = columnSpan === 3 
-    ? {
-        top: tableBorder,
-        left: innerBorder,
-        bottom: tableBorder,
-        right: tableBorder,
-      }
-    : {
-        top: tableBorder,
-        left: innerBorder,
-        bottom: tableBorder,
-        right: innerBorder,
-      };
+  // 根据位置设置边框
+  const borders = getBordersForPosition(position, outerBorder, innerBorder);
 
   return new TableCell({
     children: paragraphs,
@@ -429,12 +353,45 @@ function createValueCell(
   });
 }
 
-// 创建实施日志段落（每个序号另起一行）
-function createImplementationParagraphs(
+// 根据位置获取边框配置
+function getBordersForPosition(
+  position: CellPosition,
+  outerBorder: BorderStyleType,
+  innerBorder: BorderStyleType
+) {
+  switch (position) {
+    case 'left':
+      return {
+        top: outerBorder,
+        left: outerBorder,
+        bottom: innerBorder,
+        right: innerBorder,
+      };
+    case 'right':
+      return {
+        top: outerBorder,
+        left: innerBorder,
+        bottom: innerBorder,
+        right: outerBorder,
+      };
+    case 'middle':
+      return {
+        top: outerBorder,
+        left: innerBorder,
+        bottom: innerBorder,
+        right: innerBorder,
+      };
+  }
+}
+
+// 创建实施日志段落（每个序号另起一行，末尾添加签署区域）
+function createImplementationParagraphsWithSignature(
   logs: Array<{ log_date: string; consumed_days: string; summary: string }>
 ): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+
   if (!logs || logs.length === 0) {
-    return [
+    paragraphs.push(
       new Paragraph({
         children: [
           new TextRun({
@@ -445,45 +402,82 @@ function createImplementationParagraphs(
           }),
         ],
         spacing: { before: 100, after: 100 },
-      }),
-    ];
+      })
+    );
+  } else {
+    logs.forEach((log, index) => {
+      const dateStr = format(new Date(log.log_date), 'M/d');
+      const summary = log.summary || '';
+      
+      // 序号和日期行（加粗）
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${index + 1}、${dateStr}`,
+              bold: true,
+              size: 24,
+              font: '微软雅黑',
+            }),
+          ],
+          spacing: { before: index === 0 ? 100 : 200, after: 60 },
+        })
+      );
+      
+      // 内容行
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: summary,
+              size: 24,
+              font: '微软雅黑',
+            }),
+          ],
+          spacing: { before: 60, after: 100 },
+        })
+      );
+    });
   }
 
-  const paragraphs: Paragraph[] = [];
+  // 添加签署区域（在表格单元格内右下角）
+  // 空行分隔
+  paragraphs.push(
+    new Paragraph({
+      children: [],
+      spacing: { before: 300 },
+    })
+  );
 
-  logs.forEach((log, index) => {
-    const dateStr = format(new Date(log.log_date), 'M/d');
-    const summary = log.summary || '';
-    
-    // 序号和日期行（加粗）
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `${index + 1}、${dateStr}`,
-            bold: true,
-            size: 24,
-            font: '微软雅黑',
-          }),
-        ],
-        spacing: { before: index === 0 ? 100 : 200, after: 60 },
-      })
-    );
-    
-    // 内容行
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: summary,
-            size: 24,
-            font: '微软雅黑',
-          }),
-        ],
-        spacing: { before: 60, after: 100 },
-      })
-    );
-  });
+  // 客户对接人签署（签署和日期在同一行）
+  paragraphs.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: '客户对接人： __________________ 签署日期：______________',
+          size: 24,
+          font: '微软雅黑',
+        }),
+      ],
+      alignment: AlignmentType.LEFT,
+      spacing: { before: 200, after: 100 },
+    })
+  );
+
+  // 金蝶项目经理签署（签署和日期在同一行）
+  paragraphs.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `金蝶项目经理： __________________ 签署日期：${format(new Date(), 'yyyy/M/d')}`,
+          size: 24,
+          font: '微软雅黑',
+        }),
+      ],
+      alignment: AlignmentType.LEFT,
+      spacing: { before: 100, after: 100 },
+    })
+  );
 
   return paragraphs;
 }
@@ -491,7 +485,7 @@ function createImplementationParagraphs(
 // 创建实施日志单元格
 function createImplementationCell(
   paragraphs: Paragraph[],
-  tableBorder: BorderStyleType,
+  outerBorder: BorderStyleType,
   innerBorder: BorderStyleType
 ): TableCell {
   return new TableCell({
@@ -499,10 +493,10 @@ function createImplementationCell(
     verticalAlign: VerticalAlign.TOP,
     columnSpan: 3,
     borders: {
-      top: tableBorder,
+      top: innerBorder,
       left: innerBorder,
-      bottom: tableBorder,
-      right: tableBorder,
+      bottom: outerBorder,
+      right: outerBorder,
     },
   });
 }
