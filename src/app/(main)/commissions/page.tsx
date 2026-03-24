@@ -553,16 +553,10 @@ export default function CommissionsPage() {
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500">
-                      {commission.commissionType === 'daily' ? (
-                        // 按天计算显示剩余人天
-                        (() => {
-                          const remainingDays = getListRemainingDays(commission);
-                          return `剩余: ${remainingDays.toFixed(1)}天`;
-                        })()
-                      ) : (
-                        // 按比例计算显示剩余金额
-                        `剩余: ¥${commission.remainingCommission.toFixed(2)}`
-                      )}
+                      {(() => {
+                        const remainingDays = getListRemainingDays(commission);
+                        return `剩余: ${remainingDays.toFixed(1)}天`;
+                      })()}
                     </p>
                   </div>
                 </div>
