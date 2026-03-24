@@ -65,7 +65,10 @@ interface TransitionTodo {
   content: string;
   customer_id: string | null;
   priority: 'high' | 'medium' | 'low';
-  phase: 'check' | 'slideOut' | 'slideIn'; // 打勾阶段 | 滑出阶段 | 滑入阶段
+  phase: 'check' | 'move' | 'slideIn'; // 变绿阶段 | 移动阶段 | 滑入阶段
+  // 移动阶段的位置信息
+  sourceRect?: DOMRect;
+  targetRect?: DOMRect;
 }
 
 const PRIORITY_CONFIG = {
@@ -99,9 +102,12 @@ export default function TodosPage() {
   const [completingTodo, setCompletingTodo] = useState<TransitionTodo | null>(null);
   // 动画状态 - 取消完成动画
   const [uncompletingTodo, setUncompletingTodo] = useState<TransitionTodo | null>(null);
+  // 已完成区域是否在下移（用于动画）
+  const [completedShifting, setCompletedShifting] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const completedHeaderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (session?.access_token) {
@@ -195,21 +201,32 @@ export default function TodosPage() {
   const handleCompleteTodo = useCallback(async (todo: Todo) => {
     if (!session?.access_token || completingTodo) return;
 
-    // 开始动画 - 打勾阶段
+    // 获取源元素位置
+    const sourceElement = document.querySelector(`[data-todo-id="${todo.id}"]`);
+    const sourceRect = sourceElement?.getBoundingClientRect();
+    
+    // 获取已完成区域头部的位置（目标位置）
+    const completedHeader = document.querySelector('[data-completed-header]');
+    const targetRect = completedHeader?.getBoundingClientRect();
+
+    // 开始动画 - 变绿阶段
     setCompletingTodo({
       id: todo.id,
       content: todo.content,
       customer_id: todo.customer_id,
       priority: todo.priority,
       phase: 'check',
+      sourceRect,
+      targetRect,
     });
 
-    // 200ms 后进入滑出阶段
+    // 300ms 后进入移动阶段，同时让已完成的待办下移
     setTimeout(() => {
-      setCompletingTodo(prev => prev ? { ...prev, phase: 'slideOut' } : null);
-    }, 200);
+      setCompletedShifting(true);
+      setCompletingTodo(prev => prev ? { ...prev, phase: 'move' } : null);
+    }, 300);
 
-    // 500ms 后更新状态并进入滑入阶段
+    // 600ms 后更新状态并进入滑入阶段
     setTimeout(async () => {
       try {
         const response = await fetch(`/api/todos/${todo.id}`, {
@@ -226,26 +243,29 @@ export default function TodosPage() {
           setTodos(prev => prev.map(t => 
             t.id === todo.id ? { ...t, completed: true } : t
           ));
+          // 停止已完成区域的下移动画
+          setCompletedShifting(false);
           // 进入滑入阶段
           setCompletingTodo(prev => prev ? { ...prev, phase: 'slideIn' } : null);
           
-          // 300ms 后清除过渡状态
+          // 200ms 后清除过渡状态
           setTimeout(() => {
             setCompletingTodo(null);
-          }, 300);
+          }, 200);
         }
       } catch (error) {
         console.error('更新待办失败:', error);
         setCompletingTodo(null);
+        setCompletedShifting(false);
       }
-    }, 500);
+    }, 600);
   }, [session?.access_token, completingTodo]);
 
   // 取消完成（带动画）
   const handleUncompleteTodo = useCallback(async (todo: Todo) => {
     if (!session?.access_token || uncompletingTodo) return;
 
-    // 开始动画 - 打勾阶段（反向）
+    // 开始动画 - 变白阶段（反向）
     setUncompletingTodo({
       id: todo.id,
       content: todo.content,
@@ -254,12 +274,12 @@ export default function TodosPage() {
       phase: 'check',
     });
 
-    // 200ms 后进入滑出阶段（向上滑出）
+    // 300ms 后进入移动阶段（淡出）
     setTimeout(() => {
-      setUncompletingTodo(prev => prev ? { ...prev, phase: 'slideOut' } : null);
-    }, 200);
+      setUncompletingTodo(prev => prev ? { ...prev, phase: 'move' } : null);
+    }, 300);
 
-    // 500ms 后更新状态并进入滑入阶段
+    // 600ms 后更新状态并进入滑入阶段
     setTimeout(async () => {
       try {
         const response = await fetch(`/api/todos/${todo.id}`, {
@@ -288,7 +308,7 @@ export default function TodosPage() {
         console.error('更新待办失败:', error);
         setUncompletingTodo(null);
       }
-    }, 500);
+    }, 600);
   }, [session?.access_token, uncompletingTodo]);
 
   const handleDelete = async (id: string) => {
@@ -417,6 +437,7 @@ export default function TodosPage() {
                     {pendingTodos.map((todo) => (
                       <div
                         key={todo.id}
+                        data-todo-id={todo.id}
                         className={cn(
                           "flex items-start gap-3 p-3 rounded-lg border transition-colors bg-white border-gray-200 hover:border-gray-300"
                         )}
@@ -472,20 +493,18 @@ export default function TodosPage() {
                     ))}
 
                     {/* 正在完成中的待办（动画） */}
-                    {completingTodo && (
+                    {completingTodo && completingTodo.phase !== 'slideIn' && (
                       <div
                         className={cn(
-                          "flex items-start gap-3 p-3 rounded-lg border bg-white",
+                          "flex items-start gap-3 p-3 rounded-lg border",
                           completingTodo.phase === 'check' && "animate-check-phase",
-                          completingTodo.phase === 'slideOut' && "animate-slide-out-down"
+                          completingTodo.phase === 'move' && "animate-move-to-completed"
                         )}
                         style={{ 
                           borderLeftWidth: '4px', 
                           borderLeftStyle: 'solid', 
-                          borderLeftColor: completingTodo.phase === 'check' 
-                            ? (completingTodo.priority === 'high' ? '#ef4444' : completingTodo.priority === 'medium' ? '#eab308' : '#9ca3af')
-                            : '#22c55e',
-                          backgroundColor: completingTodo.phase === 'check' ? 'inherit' : '#dcfce7'
+                          borderLeftColor: '#22c55e',
+                          backgroundColor: '#dcfce7'
                         }}
                       >
                         <Checkbox
@@ -493,14 +512,11 @@ export default function TodosPage() {
                           className="mt-0.5 animate-checkmark"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className={cn(
-                            "font-medium",
-                            completingTodo.phase !== 'check' && "line-through text-gray-400"
-                          )}>
+                          <div className="font-medium line-through text-gray-400">
                             {completingTodo.content}
                           </div>
                           <div className="mt-1">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs border-green-200 text-green-600">
                               {completingTodo.customer_id ? (customers.find(c => c.id === completingTodo.customer_id)?.name || '未知客户') : '个人事项'}
                             </Badge>
                           </div>
@@ -509,9 +525,9 @@ export default function TodosPage() {
                     )}
 
                     {/* 已完成待办 */}
-                    {completedTodos.length > 0 && (
+                    {(completedTodos.length > 0 || completingTodo?.phase === 'slideIn') && (
                       <>
-                        <div className="flex items-center gap-2 py-2">
+                        <div className="flex items-center gap-2 py-2" data-completed-header>
                           <div className="flex-1 h-px bg-gray-200"></div>
                           <span className="text-sm text-gray-400">已完成</span>
                           <div className="flex-1 h-px bg-gray-200"></div>
@@ -520,7 +536,7 @@ export default function TodosPage() {
                         {/* 正在滑入的已完成待办 */}
                         {completingTodo?.phase === 'slideIn' && (
                           <div
-                            className="flex items-start gap-3 p-3 rounded-lg border bg-green-50 border-green-200 animate-slide-in-from-top"
+                            className="flex items-start gap-3 p-3 rounded-lg border bg-green-50 border-green-200 animate-fade-in"
                             style={{ 
                               borderLeftWidth: '4px', 
                               borderLeftStyle: 'solid', 
@@ -539,10 +555,6 @@ export default function TodosPage() {
                                 <Badge variant="outline" className="text-xs border-green-200 text-green-600">
                                   {completingTodo.customer_id ? (customers.find(c => c.id === completingTodo.customer_id)?.name || '未知客户') : '个人事项'}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                                  <Check className="h-3 w-3 mr-1" />
-                                  已完成
-                                </Badge>
                               </div>
                             </div>
                           </div>
@@ -551,7 +563,10 @@ export default function TodosPage() {
                         {completedTodos.map((todo) => (
                           <div
                             key={todo.id}
-                            className="flex items-start gap-3 p-3 rounded-lg border transition-colors bg-green-50 border-green-200"
+                            className={cn(
+                              "flex items-start gap-3 p-3 rounded-lg border transition-colors bg-green-50 border-green-200",
+                              completedShifting && "animate-shift-down"
+                            )}
                             style={{ 
                               borderLeftWidth: '4px', 
                               borderLeftStyle: 'solid', 
@@ -590,22 +605,30 @@ export default function TodosPage() {
                       </>
                     )}
 
-                    {/* 正在取消完成中的待办（从已完成区域向上滑出） */}
-                    {uncompletingTodo && uncompletingTodo.phase === 'slideOut' && (
+                    {/* 正在取消完成中的待办（check/move阶段在已完成区域显示） */}
+                    {uncompletingTodo && (uncompletingTodo.phase === 'check' || uncompletingTodo.phase === 'move') && (
                       <div
-                        className="flex items-start gap-3 p-3 rounded-lg border bg-green-50 border-green-200 animate-slide-out-up"
+                        className={cn(
+                          "flex items-start gap-3 p-3 rounded-lg border",
+                          uncompletingTodo.phase === 'check' && "animate-uncheck-phase",
+                          uncompletingTodo.phase === 'move' && "animate-move-to-uncompleted"
+                        )}
                         style={{ 
                           borderLeftWidth: '4px', 
                           borderLeftStyle: 'solid', 
-                          borderLeftColor: '#9ca3af'
+                          borderLeftColor: uncompletingTodo.phase === 'check' ? '#22c55e' : '#9ca3af',
+                          backgroundColor: uncompletingTodo.phase === 'check' ? '#dcfce7' : 'transparent'
                         }}
                       >
                         <Checkbox
-                          checked={false}
+                          checked={uncompletingTodo.phase === 'check'}
                           className="mt-0.5"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium">
+                          <div className={cn(
+                            "font-medium",
+                            uncompletingTodo.phase === 'check' && "line-through text-gray-400"
+                          )}>
                             {uncompletingTodo.content}
                           </div>
                         </div>
@@ -615,7 +638,7 @@ export default function TodosPage() {
                     {/* 正在滑入的未完成待办（取消完成时） */}
                     {uncompletingTodo?.phase === 'slideIn' && (
                       <div
-                        className="flex items-start gap-3 p-3 rounded-lg border bg-white border-gray-200 animate-slide-in-from-bottom"
+                        className="flex items-start gap-3 p-3 rounded-lg border bg-white border-gray-200 animate-fade-in"
                         style={{ 
                           borderLeftWidth: '4px', 
                           borderLeftStyle: 'solid', 
@@ -814,13 +837,15 @@ export default function TodosPage() {
 
       {/* CSS 动画样式 */}
       <style jsx global>{`
-        /* 打勾阶段动画 */
+        /* 打勾阶段动画 - 变绿 */
         @keyframes checkPhase {
           0% {
             background-color: rgb(255 255 255);
+            border-left-color: var(--original-border-color, rgb(156 163 175));
           }
           100% {
             background-color: rgb(220 252 231);
+            border-left-color: rgb(34 197 94);
           }
         }
 
@@ -837,76 +862,98 @@ export default function TodosPage() {
           }
         }
 
-        /* 向下滑出动画 */
-        @keyframes slideOutDown {
+        /* 移动到已完成动画 - 渐隐 + 缩小 */
+        @keyframes moveToCompleted {
           0% {
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: scale(1);
           }
           100% {
             opacity: 0;
-            transform: translateY(60px) scale(0.95);
+            transform: scale(0.95);
           }
         }
 
-        /* 从上方滑入动画 */
-        @keyframes slideInFromTop {
+        /* 淡入动画 */
+        @keyframes fadeIn {
           0% {
             opacity: 0;
-            transform: translateY(-60px) scale(0.95);
+            transform: scale(0.95);
           }
           100% {
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: scale(1);
           }
         }
 
-        /* 向上滑出动画 */
-        @keyframes slideOutUp {
+        /* 已完成待办下移动画 */
+        @keyframes shiftDown {
           0% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(5px);
           }
           100% {
-            opacity: 0;
-            transform: translateY(-60px) scale(0.95);
-          }
-        }
-
-        /* 从下方滑入动画 */
-        @keyframes slideInFromBottom {
-          0% {
-            opacity: 0;
-            transform: translateY(60px) scale(0.95);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateY(0);
           }
         }
 
         .animate-check-phase {
-          animation: checkPhase 0.2s ease-out forwards;
+          animation: checkPhase 0.3s ease-out forwards;
         }
 
         .animate-checkmark {
           animation: checkmark 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        .animate-slide-out-down {
-          animation: slideOutDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .animate-move-to-completed {
+          animation: moveToCompleted 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        .animate-slide-in-from-top {
-          animation: slideInFromTop 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .animate-fade-in {
+          animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        .animate-slide-out-up {
-          animation: slideOutUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .animate-shift-down {
+          animation: shiftDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        .animate-slide-in-from-bottom {
-          animation: slideInFromBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        /* 已完成区域过渡动画 */
+        [data-completed-header] {
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 取消完成 - 变白阶段 */
+        @keyframes uncheckPhase {
+          0% {
+            background-color: rgb(220 252 231);
+            border-left-color: rgb(34 197 94);
+          }
+          100% {
+            background-color: rgb(255 255 255);
+            border-left-color: rgb(156 163 175);
+          }
+        }
+
+        /* 取消完成 - 淡出动画 */
+        @keyframes moveToUncompleted {
+          0% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+        }
+
+        .animate-uncheck-phase {
+          animation: uncheckPhase 0.3s ease-out forwards;
+        }
+
+        .animate-move-to-uncompleted {
+          animation: moveToUncompleted 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
       `}</style>
     </div>
