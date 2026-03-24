@@ -409,8 +409,8 @@ export default function HomePage() {
       <div className="flex-shrink-0 pt-6 pb-4 px-6 border-b border-slate-100">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-blue-500/20">
-              <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-cover" />
+            <div className="w-10 h-10 rounded-full overflow-hidden shadow-lg shadow-blue-500/20 bg-white">
+              <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-slate-800">智能助手</h1>
@@ -444,8 +444,8 @@ export default function HomePage() {
             <div className="space-y-8 py-8">
               {/* 欢迎信息 */}
               <div className="text-center space-y-4">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto shadow-xl shadow-blue-500/20">
-                  <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-cover" />
+                <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
+                  <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-slate-800 mb-2">
@@ -497,12 +497,12 @@ export default function HomePage() {
                 >
                   {/* 头像 */}
                   <div className={`flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden ${
-                    message.role === 'user' ? 'bg-blue-500 flex items-center justify-center' : ''
+                    message.role === 'user' ? 'bg-blue-500 flex items-center justify-center' : 'rounded-full bg-white'
                   }`}>
                     {message.role === 'user' ? (
                       <User className="w-4 h-4 text-white" />
                     ) : (
-                      <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-cover" />
+                      <img src="/assistant-avatar.png" alt="智能助手" className="w-full h-full object-contain" />
                     )}
                   </div>
                   
