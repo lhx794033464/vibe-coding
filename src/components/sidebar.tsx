@@ -58,7 +58,7 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
           <div className={`flex-1 overflow-hidden transition-opacity duration-200 ${
             collapsed ? 'opacity-0 w-0' : 'opacity-100'
           }`}>
-            <h1 className="font-bold text-gray-900 whitespace-nowrap">交付管理平台</h1>
+            <h1 className="font-bold text-gray-900 whitespace-nowrap">交付集成平台</h1>
             <p className="text-xs text-gray-500 whitespace-nowrap truncate">金蝶云星辰</p>
           </div>
         </div>

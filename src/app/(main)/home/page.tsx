@@ -556,7 +556,15 @@ export default function HomePage() {
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  // 首字禁止输入空格：如果以空格开头，移除开头的所有空格
+                  if (newValue.startsWith(' ')) {
+                    setInput(newValue.replace(/^ +/, ''));
+                  } else {
+                    setInput(newValue);
+                  }
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder={input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送..."}
                 rows={1}
