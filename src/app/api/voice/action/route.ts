@@ -118,7 +118,19 @@ ${customerListStr}
 返回：{"action": "query_todo", "params": {}, "response": "正在为您查询今日待办..."}
 
 用户："下周一给自贡中铁做初始化"
-返回：{"action": "create_todo", "params": {"content": "初始化", "customer_name": "自贡中铁二局地产新城投资有限公司", "date": "2026-03-30"}, "response": "已为您创建待办：下周一初始化（自贡中铁二局地产新城投资有限公司）"}`;
+返回：{"action": "create_todo", "params": {"content": "初始化", "customer_name": "自贡中铁二局地产新城投资有限公司", "date": "2026-03-30"}, "response": "已为您创建待办：下周一初始化（自贡中铁二局地产新城投资有限公司）"}
+
+用户："把导账的待办改为重要"
+返回：{"action": "update_todo", "params": {"todo_content": "导账", "priority": "high"}, "response": "已将导账待办改为重要"}
+
+用户："把培训的待办标记为完成"
+返回：{"action": "update_todo", "params": {"todo_content": "培训", "completed": true}, "response": "已将培训待办标记为完成"}
+
+用户："把初始化的待办关联华瑞科技"
+返回：{"action": "update_todo", "params": {"todo_content": "初始化", "customer_name": "华瑞科技"}, "response": "已将初始化待办关联华瑞科技"}
+
+用户："把导账的内容改成对账"
+返回：{"action": "update_todo", "params": {"todo_content": "导账", "new_content": "对账"}, "response": "已将待办内容改为对账"}`;
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },
@@ -412,7 +424,9 @@ ${customerListStr}
       }
 
       case 'update_todo': {
+        console.log('执行 update_todo 操作');
         const { todo_content, new_content, customer_name, date, priority, completed } = intent.params || {};
+        console.log('update_todo 参数:', { todo_content, new_content, customer_name, date, priority, completed });
         
         if (!todo_content) {
           result = { success: false, message: '请指定要修改的待办内容' };
