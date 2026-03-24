@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, amount, remark } = body;
+    const { customer_id, amount, remark, finance_days, other_days } = body;
 
     if (!customer_id || !amount) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -199,7 +199,20 @@ export async function POST(request: NextRequest) {
     const implementationDays = parseFloat(customer.implementation_days || '0');
     const modules = (customer.modules as ProductModule[]) || [];
     
-    const calculation = calculateCommission(implementationFee, implementationDays, modules);
+    // 计算应提总额
+    let calculation = calculateCommission(implementationFee, implementationDays, modules);
+    
+    // 如果提供了人天参数且提成类型为按天计算，则重新计算
+    if (calculation.commissionType === 'daily' && (finance_days !== undefined || other_days !== undefined)) {
+      const financeDaysNum = parseFloat(finance_days) || 0;
+      const otherDaysNum = parseFloat(other_days) || 0;
+      const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
+                              otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
+      calculation = {
+        ...calculation,
+        totalCommission,
+      };
+    }
 
     // 获取已提金额
     const { data: existingRecords } = await client

@@ -26,6 +26,10 @@ export default function CommissionsPage() {
   const [commissionAmount, setCommissionAmount] = useState('');
   const [commissionRemark, setCommissionRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // 人天输入状态（用于实施费≤50%的情况）
+  const [financeDays, setFinanceDays] = useState('');
+  const [otherDays, setOtherDays] = useState('');
 
   useEffect(() => {
     fetchCommissions();
@@ -56,6 +60,8 @@ export default function CommissionsPage() {
     setSelectedCommission(commission);
     setCommissionAmount('');
     setCommissionRemark('');
+    setFinanceDays('');
+    setOtherDays('');
     setDialogOpen(true);
   };
 
@@ -64,6 +70,20 @@ export default function CommissionsPage() {
     
     setSubmitting(true);
     try {
+      // 构建备注信息
+      let finalRemark = commissionRemark;
+      let financeDaysParam: number | undefined;
+      let otherDaysParam: number | undefined;
+      
+      if (selectedCommission.commissionType === 'daily') {
+        const financeDaysNum = parseFloat(financeDays) || 0;
+        const otherDaysNum = parseFloat(otherDays) || 0;
+        financeDaysParam = financeDaysNum;
+        otherDaysParam = otherDaysNum;
+        const daysInfo = `财务${financeDaysNum}天，其他${otherDaysNum}天`;
+        finalRemark = commissionRemark ? `${commissionRemark} (${daysInfo})` : daysInfo;
+      }
+      
       const response = await fetch('/api/commissions', {
         method: 'POST',
         headers: {
@@ -73,7 +93,9 @@ export default function CommissionsPage() {
         body: JSON.stringify({
           customer_id: selectedCommission.customerId,
           amount: parseFloat(commissionAmount),
-          remark: commissionRemark,
+          remark: finalRemark,
+          finance_days: financeDaysParam,
+          other_days: otherDaysParam,
         }),
       });
 
@@ -96,6 +118,14 @@ export default function CommissionsPage() {
     const date = new Date(currentMonth + '-01');
     date.setMonth(date.getMonth() - 1);
     setCurrentMonth(format(date, 'yyyy-MM'));
+  };
+  
+  // 自动计算提成（实施费≤50%时）
+  const calculateDailyCommission = () => {
+    const financeDaysNum = parseFloat(financeDays) || 0;
+    const otherDaysNum = parseFloat(otherDays) || 0;
+    const total = financeDaysNum * 100 + otherDaysNum * 200;
+    setCommissionAmount(total.toFixed(2));
   };
 
   const goToNextMonth = () => {
@@ -312,6 +342,51 @@ export default function CommissionsPage() {
                 <span className="font-medium text-orange-600">¥{selectedCommission?.remainingCommission.toFixed(2)}</span>
               </div>
             </div>
+
+            {/* 人天输入（仅当实施费≤50%时显示） */}
+            {selectedCommission?.commissionType === 'daily' && (
+              <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-blue-900">按天计算提成</p>
+                  <p className="text-xs text-blue-700">财务100元/天，其他200元/天</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="financeDays" className="text-sm">财务模块人天</Label>
+                    <Input
+                      id="financeDays"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={financeDays}
+                      onChange={(e) => setFinanceDays(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="otherDays" className="text-sm">其他模块人天</Label>
+                    <Input
+                      id="otherDays"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={otherDays}
+                      onChange={(e) => setOtherDays(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={calculateDailyCommission}
+                >
+                  自动计算提成金额
+                </Button>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="amount">本次提成金额</Label>
