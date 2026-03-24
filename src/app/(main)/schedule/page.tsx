@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -115,10 +115,15 @@ function generateCalendarData(centerDate: Date): Date[] {
   const today = new Date(centerDate);
   today.setHours(0, 0, 0, 0);
   
-  // 生成前后各60天的日期，共121天
-  for (let i = -60; i <= 60; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
+  const dayOfWeek = today.getDay();
+  const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - adjustedDayOfWeek);
+  
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
     dates.push(date);
   }
   
@@ -386,40 +391,6 @@ export default function SchedulePage() {
     };
   };
 
-  // 日历容器引用
-  const calendarRef = useRef<HTMLDivElement>(null);
-  const [isScrolling, setIsScrolling] = useState(false);
-
-  // 滚动到今天
-  useEffect(() => {
-    if (calendarRef.current) {
-      const todayElement = calendarRef.current.querySelector('[data-today="true"]');
-      if (todayElement) {
-        const containerRect = calendarRef.current.getBoundingClientRect();
-        const elementRect = todayElement.getBoundingClientRect();
-        const scrollTop = calendarRef.current.scrollTop + elementRect.top - containerRect.top - containerRect.height / 2 + elementRect.height / 2;
-        calendarRef.current.scrollTop = scrollTop;
-      }
-    }
-  }, []);
-
-  // 鼠标滚轮处理 - 一次滚动一行
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    
-    if (!calendarRef.current) return;
-    
-    const rowHeight = 80; // 每行高度
-    const direction = e.deltaY > 0 ? 1 : -1;
-    const currentScroll = calendarRef.current.scrollTop;
-    const targetScroll = Math.round(currentScroll / rowHeight) * rowHeight + direction * rowHeight;
-    
-    calendarRef.current.scrollTo({
-      top: targetScroll,
-      behavior: 'smooth'
-    });
-  }, []);
-
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* 头部 */}
@@ -445,124 +416,108 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* 日历区域 - 垂直滚动列表 */}
-      <div 
-        ref={calendarRef}
-        className="flex-1 overflow-y-auto px-6 py-4"
-        onWheel={handleWheel}
-        style={{ scrollSnapType: 'y mandatory' }}
-      >
-        <div className="max-w-4xl mx-auto">
-          {calendarDates.map((date, index) => {
-            const dateStr = formatDate(date);
-            const dateStatus = getDateStatus(date);
-            const todayClass = isToday(date);
-            const { isFirst, month } = isFirstOfMonth(date);
-            const dateSchedules = getSchedulesForDate(date);
-            const isHovered = hoveredDate === dateStr;
-
-            return (
+      {/* 日历区域 */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* 星期标题 */}
+          <div className="grid grid-cols-7 mb-2">
+            {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
               <div
-                key={index}
-                data-today={todayClass}
-                className={`relative border-b border-gray-200 transition-colors cursor-pointer group ${
-                  (dateStatus.isHoliday || dateStatus.isWeekend)
-                    ? 'bg-gray-100'
-                    : 'bg-white hover:bg-blue-50'
+                key={day}
+                className={`text-center py-2 text-sm font-medium ${
+                  index >= 5 ? 'text-gray-400' : 'text-gray-500'
                 }`}
-                style={{ scrollSnapAlign: 'start', minHeight: '80px' }}
-                onMouseEnter={() => setHoveredDate(dateStr)}
-                onMouseLeave={() => setHoveredDate(null)}
-                onClick={() => {
-                  setSelectedDate(date);
-                  setSelectedCustomerId('');
-                  setNotes('');
-                  setShowAddDialog(true);
-                }}
               >
-                <div className="flex items-stretch h-full">
-                  {/* 日期区域 */}
-                  <div className={`w-24 flex-shrink-0 flex flex-col items-center justify-center border-r border-gray-200 ${
-                    todayClass ? 'bg-blue-50' : ''
-                  }`}>
-                    {isFirst ? (
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">{month}月</div>
-                        <div className="text-sm text-gray-500">{date.getDate()}日</div>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <div className={`text-xl font-semibold ${
-                          (dateStatus.isHoliday || dateStatus.isWeekend) ? 'text-gray-400' : 'text-gray-700'
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* 日历网格 */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDates.map((date, index) => {
+              const dateStr = formatDate(date);
+              const dateStatus = getDateStatus(date);
+              const todayClass = isToday(date);
+              const { isFirst, month } = isFirstOfMonth(date);
+              const dateSchedules = getSchedulesForDate(date);
+              const isHovered = hoveredDate === dateStr;
+
+              return (
+                <div
+                  key={index}
+                  className={`relative min-h-[100px] border rounded-lg transition-colors cursor-pointer group ${
+                    (dateStatus.isHoliday || dateStatus.isWeekend)
+                      ? 'bg-gray-100 border-gray-300'
+                      : dateStatus.isWorkday
+                      ? 'bg-white border-gray-200 hover:border-blue-300'
+                      : 'bg-white border-gray-200 hover:border-blue-300'
+                  } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                  onMouseEnter={() => setHoveredDate(dateStr)}
+                  onMouseLeave={() => setHoveredDate(null)}
+                  onClick={() => {
+                    setSelectedDate(date);
+                    setSelectedCustomerId('');
+                    setNotes('');
+                    setShowAddDialog(true);
+                  }}
+                >
+                  <div className="p-2 flex items-start justify-between">
+                    <div>
+                      {isFirst ? (
+                        <span className="text-lg font-bold text-blue-600">{month}月</span>
+                      ) : (
+                        <span className={`text-sm ${
+                          (dateStatus.isHoliday || dateStatus.isWeekend) ? 'text-gray-600' : 'text-gray-700'
                         }`}>
                           {date.getDate()}
-                        </div>
-                        <div className={`text-xs ${
-                          dateStatus.isHoliday || dateStatus.isWeekend ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()]}
-                        </div>
-                      </div>
-                    )}
-                    {todayClass && (
-                      <div className="mt-1 px-2 py-0.5 bg-blue-500 text-white text-xs rounded">
-                        今天
+                        </span>
+                      )}
+                    </div>
+                    {isHovered && (
+                      <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm">
+                        <Plus className="w-4 h-4" />
                       </div>
                     )}
                   </div>
 
-                  {/* 节假日名称 */}
                   {dateStatus.holidayName && (
-                    <div className="w-32 flex-shrink-0 flex items-center justify-center border-r border-gray-200 bg-gray-50">
-                      <span className="text-sm text-red-500">{dateStatus.holidayName}</span>
+                    <div className="px-2 pb-1">
+                      <span className="text-xs text-gray-500">{dateStatus.holidayName}</span>
                     </div>
                   )}
 
-                  {/* 日程列表区域 */}
-                  <div className="flex-1 flex items-center px-4 py-2">
-                    <div className="flex-1 flex flex-wrap gap-2">
-                      {dateSchedules.length === 0 ? (
-                        <div className="text-sm text-gray-400 italic">
-                          {isHovered ? '点击添加日程...' : '暂无日程'}
-                        </div>
-                      ) : (
-                        dateSchedules.map(schedule => (
-                          <div
-                            key={schedule.id}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm group/schedule hover:bg-blue-200 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <span>{schedule.customer_name || '未知客户'}</span>
-                            {schedule.notes && (
-                              <span className="text-blue-500 text-xs">({schedule.notes})</span>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSchedule(schedule.id);
-                              }}
-                              className="opacity-0 group-hover/schedule:opacity-100 hover:text-red-500 transition-opacity"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    
-                    {/* 添加按钮 */}
-                    {isHovered && (
-                      <div className="flex-shrink-0 ml-2">
-                        <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm hover:bg-blue-600 transition-colors">
-                          <Plus className="w-4 h-4" />
-                        </div>
+                  <div className="px-2 pb-2 space-y-1">
+                    {dateSchedules.slice(0, 3).map(schedule => (
+                      <div
+                        key={schedule.id}
+                        className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded truncate flex items-center justify-between group/schedule"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="truncate flex-1">
+                          {schedule.customer_name || '未知客户'}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSchedule(schedule.id);
+                          }}
+                          className="ml-1 opacity-0 group-hover/schedule:opacity-100 hover:text-red-500 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {dateSchedules.length > 3 && (
+                      <div className="text-xs text-gray-500 px-2">
+                        +{dateSchedules.length - 3} 更多
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
