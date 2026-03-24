@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
         records: commissionByCustomer[customer.id]?.records || [],
         acceptedAt: customer.updated_at,
       };
-    }) || [];
+    }).filter(c => !c.isFullyPaid) || []; // 过滤掉已全部计提的
 
     return NextResponse.json({ 
       data: commissionData,
@@ -198,16 +198,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, remark, finance_days, other_days } = body;
+    const { customer_id, amount, remark, finance_days, other_days } = body;
 
-    if (!customer_id) {
-      return NextResponse.json({ error: '缺少客户ID' }, { status: 400 });
-    }
-    
-    const financeDaysNum = parseFloat(finance_days) || 0;
-    const otherDaysNum = parseFloat(other_days) || 0;
-    if (financeDaysNum <= 0 && otherDaysNum <= 0) {
-      return NextResponse.json({ error: '请输入至少一个模块的人天' }, { status: 400 });
+    if (!customer_id || !amount) {
+      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
     }
 
     // 获取客户信息计算应提总额
@@ -225,21 +219,19 @@ export async function POST(request: NextRequest) {
     const implementationDays = parseFloat(customer.implementation_days || '0');
     const modules = (customer.modules as ProductModule[]) || [];
     
-    // 计算提成类型和应提总额
-    const calculation = calculateCommission(implementationFee, implementationDays, modules);
-    const totalInputDays = financeDaysNum + otherDaysNum;
+    // 计算应提总额
+    let calculation = calculateCommission(implementationFee, implementationDays, modules);
     
-    // 根据提成类型计算本次提成金额
-    let calculatedAmount: number;
-    if (calculation.commissionType === 'percentage') {
-      // 按比例计算：金额 = 实施费 × 提成比例 × (计提人天 / 总人天)
-      const rate = calculation.commissionRate || 0;
-      const ratio = totalInputDays / implementationDays;
-      calculatedAmount = implementationFee * rate * ratio;
-    } else {
-      // 按天计算：财务100元/天，其他200元/天
-      calculatedAmount = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
-                         otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
+    // 如果提供了人天参数且提成类型为按天计算，则重新计算
+    if (calculation.commissionType === 'daily' && (finance_days !== undefined || other_days !== undefined)) {
+      const financeDaysNum = parseFloat(finance_days) || 0;
+      const otherDaysNum = parseFloat(other_days) || 0;
+      const totalCommission = financeDaysNum * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION + 
+                              otherDaysNum * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
+      calculation = {
+        ...calculation,
+        totalCommission,
+      };
     }
 
     // 获取已提金额
@@ -251,17 +243,10 @@ export async function POST(request: NextRequest) {
     const paidCommission = existingRecords?.reduce((sum, r) => sum + parseFloat(r.amount), 0) || 0;
     const remainingCommission = calculation.totalCommission - paidCommission;
 
-    // 检查人天是否超过总实施人天
-    if (totalInputDays > implementationDays) {
+    // 检查是否超过剩余提成
+    if (parseFloat(amount) > remainingCommission) {
       return NextResponse.json({ 
-        error: `计提人天之和(${totalInputDays}天)不能大于总实施人天(${implementationDays}天)` 
-      }, { status: 400 });
-    }
-    
-    // 检查计算金额是否超过剩余提成
-    if (calculatedAmount > remainingCommission) {
-      return NextResponse.json({ 
-        error: `本次提成金额 ¥${calculatedAmount.toFixed(2)} 超过剩余提成 ¥${remainingCommission.toFixed(2)}` 
+        error: `本次提成金额不能超过剩余提成 ${remainingCommission.toFixed(2)} 元` 
       }, { status: 400 });
     }
 
@@ -270,9 +255,9 @@ export async function POST(request: NextRequest) {
       .from('commission_records')
       .insert({
         customer_id,
-        amount: calculatedAmount.toFixed(2),
+        amount,
         total_commission: calculation.totalCommission,
-        paid_commission: paidCommission + calculatedAmount,
+        paid_commission: paidCommission + parseFloat(amount),
         finance_days: finance_days !== undefined ? finance_days : null,
         other_days: other_days !== undefined ? other_days : null,
         remark: remark || null,
@@ -286,7 +271,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 如果已全部计提，清空下次计提月份
-    const newPaidCommission = paidCommission + calculatedAmount;
+    const newPaidCommission = paidCommission + parseFloat(amount);
     const newRemainingCommission = calculation.totalCommission - newPaidCommission;
     
     if (newRemainingCommission <= 0) {
