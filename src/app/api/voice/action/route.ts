@@ -51,7 +51,11 @@ ${customerListStr}
 
 ## 支持的操作类型：
 1. create_todo - 创建待办事项
-   参数：content（待办内容）, customer_name（可选，必须从客户列表中选择）, priority（可选，high/medium/low，默认low）
+   参数：
+   - content（待办内容，仅提取动词/行为，不要包含公司名和日期）
+   - customer_name（可选，必须从客户列表中选择）
+   - date（可选，日期格式yyyy-MM-dd，从语音中解析相对日期如"今天"、"明天"、"后天"、"下周一"等）
+   - priority（可选，high/medium/low，默认low）
 
 2. create_schedule - 创建日程排期
    参数：customer_name（必须从客户列表中选择）, date（日期，格式yyyy-MM-dd）, notes（可选，备注）
@@ -68,18 +72,33 @@ ${customerListStr}
 6. general - 普通对话
    参数：response（回复内容）
 
+## 重要规则：
+- 待办内容(content)只保留动作/行为，如"导账"、"跟进"、"培训"、"初始化"等
+- 如果语音中包含日期（今天、明天、后天、下周一等），提取为date参数，不要放入content
+- 如果语音中包含公司名，匹配到客户列表后放入customer_name参数，不要放入content
+
+## 日期解析规则：
+- "今天" → 当天日期
+- "明天" → 第二天
+- "后天" → 第三天
+- "下周一/周二..." → 下周对应日期
+- "几号" → 对应月份的日期
+
 ## 返回格式（纯JSON，不要其他文字）：
 {"action": "操作类型", "params": {具体参数}, "response": "给用户的简短确认信息"}
 
 ## 示例：
-用户："帮我创建一个待办，跟进华瑞科技"
-返回：{"action": "create_todo", "params": {"content": "跟进华瑞科技", "customer_name": "华瑞科技"}, "response": "已为您创建待办：跟进华瑞科技"}
+用户："明天给华瑞科技导账"
+返回：{"action": "create_todo", "params": {"content": "导账", "customer_name": "华瑞科技", "date": "2026-03-25"}, "response": "已为您创建待办：明天导账（华瑞科技）"}
+
+用户："后天去培训"
+返回：{"action": "create_todo", "params": {"content": "培训", "date": "2026-03-26"}, "response": "已为您创建待办：后天培训"}
 
 用户："今天有什么待办？"
 返回：{"action": "query_todo", "params": {}, "response": "正在为您查询今日待办..."}
 
-用户："你好"
-返回：{"action": "general", "params": {}, "response": "你好！我是您的智能助手，可以帮您创建待办、预约会议、记录实施日志等。请问有什么可以帮您的？"}`;
+用户："下周一给自贡中铁做初始化"
+返回：{"action": "create_todo", "params": {"content": "初始化", "customer_name": "自贡中铁二局地产新城投资有限公司", "date": "2026-03-30"}, "response": "已为您创建待办：下周一初始化（自贡中铁二局地产新城投资有限公司）"}`;
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },
@@ -124,7 +143,7 @@ ${customerListStr}
 
     switch (intent.action) {
       case 'create_todo': {
-        const { content, customer_name, priority = 'low' } = intent.params || {};
+        const { content, customer_name, date, priority = 'low' } = intent.params || {};
         
         if (!content) {
           result = { success: false, message: '请提供待办内容' };
@@ -153,12 +172,27 @@ ${customerListStr}
           }
         }
 
-        console.log('创建待办:', { content, customerId, matchedCustomerName, priority });
+        console.log('创建待办:', { content, customerId, matchedCustomerName, priority, date });
 
-        // 获取当前日期（本地时间），设置为当天的开始时间
-        const now = new Date();
-        const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const dueDate = todayLocal.toISOString();
+        // 计算截止日期
+        let dueDate: string;
+        if (date) {
+          // 如果LLM解析出了日期，直接使用
+          dueDate = `${date}T00:00:00`;
+        } else {
+          // 默认规则：当前时间在下午5点前用当天，否则用明天
+          const now = new Date();
+          const hour = now.getHours();
+          const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          
+          if (hour < 17) {
+            dueDate = todayLocal.toISOString();
+          } else {
+            const tomorrow = new Date(todayLocal);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            dueDate = tomorrow.toISOString();
+          }
+        }
 
         const { data: todo, error } = await client
           .from('todos')
