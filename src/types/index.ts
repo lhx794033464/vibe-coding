@@ -161,5 +161,13 @@ export interface CommissionCalculation {
   isFullyPaid: boolean;
   records: CommissionRecord[];
   acceptedAt: string;
+  // 按天计算时的人天信息
+  financeMaxDays: number; // 财务模块可提人天
+  otherMaxDays: number; // 其他模块可提人天
+  totalMaxDays: number; // 总可提人天
+  paidFinanceDays: number; // 已提财务人天
+  paidOtherDays: number; // 已提其他人天
+  paidDays: number; // 已提总人天
+  remainingDays: number; // 剩余人天
 }
 

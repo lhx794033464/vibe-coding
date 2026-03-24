@@ -245,40 +245,24 @@ export default function CommissionsPage() {
   // 计算剩余可提人天
   const getRemainingDays = () => {
     if (!selectedCommission) {
-      return { total: 0 };
+      return { total: 0, paidFinanceDays: 0, paidOtherDays: 0 };
     }
     
-    // 从已提记录中累计人天
-    let paidDays = 0;
-    
-    if (selectedCommission.records) {
-      for (const record of selectedCommission.records) {
-        const rec = record as { finance_days?: string; other_days?: string };
-        paidDays += parseFloat(rec.finance_days || '0');
-        paidDays += parseFloat(rec.other_days || '0');
-      }
-    }
-    
-    const totalDays = selectedCommission.implementationDays;
+    // 使用后端返回的人天数据
     return {
-      total: totalDays - paidDays,
-      paidDays,
+      total: selectedCommission.remainingDays || 0,
+      paidFinanceDays: selectedCommission.paidFinanceDays || 0,
+      paidOtherDays: selectedCommission.paidOtherDays || 0,
+      financeMax: selectedCommission.financeMaxDays || 0,
+      otherMax: selectedCommission.otherMaxDays || 0,
     };
   };
   
   // 判断是否还有剩余可提（区分两种计算方式）
   const hasRemainingCommission = (commission: CommissionCalculation) => {
     if (commission.commissionType === 'daily') {
-      // 按天计算：检查人天是否还有剩余
-      let paidDays = 0;
-      if (commission.records) {
-        for (const record of commission.records) {
-          const rec = record as { finance_days?: string; other_days?: string };
-          paidDays += parseFloat(rec.finance_days || '0');
-          paidDays += parseFloat(rec.other_days || '0');
-        }
-      }
-      return paidDays < commission.implementationDays;
+      // 按天计算：使用后端返回的剩余人天
+      return (commission.remainingDays || 0) > 0;
     } else {
       // 按比例计算：检查金额是否还有剩余
       return commission.remainingCommission > 0.01; // 考虑浮点数精度
@@ -287,15 +271,7 @@ export default function CommissionsPage() {
   
   // 获取剩余可提人天（用于列表显示）
   const getListRemainingDays = (commission: CommissionCalculation) => {
-    let paidDays = 0;
-    if (commission.records) {
-      for (const record of commission.records) {
-        const rec = record as { finance_days?: string; other_days?: string };
-        paidDays += parseFloat(rec.finance_days || '0');
-        paidDays += parseFloat(rec.other_days || '0');
-      }
-    }
-    return commission.implementationDays - paidDays;
+    return commission.remainingDays || 0;
   };
   
   // 实施费>50%时，输入总人天计算提成
@@ -354,8 +330,17 @@ export default function CommissionsPage() {
         alert('请输入计提人天');
         return false;
       }
-      if (totalInputDays > totalDays) {
-        alert(`计提人天之和(${totalInputDays.toFixed(1)}天)不能大于总实施人天(${totalDays.toFixed(1)}天)`);
+      
+      // 分别验证财务和其他模块的人天
+      const remainingFinanceDays = (remainingDays.financeMax || 0) - (remainingDays.paidFinanceDays || 0);
+      const remainingOtherDays = (remainingDays.otherMax || 0) - (remainingDays.paidOtherDays || 0);
+      
+      if (financeDaysNum > remainingFinanceDays) {
+        alert(`财务人天(${financeDaysNum}天)不能大于剩余可提人天(${remainingFinanceDays.toFixed(1)}天)`);
+        return false;
+      }
+      if (otherDaysNum > remainingOtherDays) {
+        alert(`其他人天(${otherDaysNum}天)不能大于剩余可提人天(${remainingOtherDays.toFixed(1)}天)`);
         return false;
       }
     }
@@ -367,7 +352,6 @@ export default function CommissionsPage() {
     if (!selectedCommission) return false;
     
     const remainingDays = getRemainingDays();
-    const totalDays = selectedCommission.implementationDays;
     
     if (selectedCommission.commissionType === 'percentage') {
       // 实施费>50%：验证总人天
@@ -377,8 +361,11 @@ export default function CommissionsPage() {
       // 实施费≤50%：验证财务和其他人天
       const financeDaysNum = parseFloat(financeDays) || 0;
       const otherDaysNum = parseFloat(otherDays) || 0;
-      const totalInputDays = financeDaysNum + otherDaysNum;
-      return totalInputDays > 0 && totalInputDays <= totalDays;
+      
+      const remainingFinanceDays = (remainingDays.financeMax || 0) - (remainingDays.paidFinanceDays || 0);
+      const remainingOtherDays = (remainingDays.otherMax || 0) - (remainingDays.paidOtherDays || 0);
+      
+      return financeDaysNum > 0 || otherDaysNum > 0;
     }
   };
 
@@ -521,25 +508,21 @@ export default function CommissionsPage() {
                       {commission.commissionType === 'daily' ? (
                         // 按天计算时显示人天进度
                         (() => {
-                          let paidFinanceDays = 0;
-                          let paidOtherDays = 0;
-                          if (commission.records) {
-                            for (const record of commission.records) {
-                              const rec = record as { finance_days?: string; other_days?: string };
-                              paidFinanceDays += parseFloat(rec.finance_days || '0');
-                              paidOtherDays += parseFloat(rec.other_days || '0');
-                            }
-                          }
+                          // 使用后端返回的人天数据
+                          const paidFinanceDays = commission.paidFinanceDays || 0;
+                          const paidOtherDays = commission.paidOtherDays || 0;
+                          const financeMaxDays = commission.financeMaxDays || 0;
+                          const otherMaxDays = commission.otherMaxDays || 0;
                           const totalPaidDays = paidFinanceDays + paidOtherDays;
-                          const totalDays = commission.implementationDays;
-                          const progressPercent = totalDays > 0 ? (totalPaidDays / totalDays) * 100 : 0;
+                          const totalMaxDays = commission.totalMaxDays || commission.implementationDays;
+                          const progressPercent = totalMaxDays > 0 ? (totalPaidDays / totalMaxDays) * 100 : 0;
                           
                           return (
                             <>
                               <div className="flex items-center justify-between text-sm mb-1">
                                 <span className="text-gray-500">提成进度（人天）</span>
                                 <span className="font-medium">
-                                  {totalPaidDays.toFixed(1)}天 / {totalDays.toFixed(1)}天
+                                  {totalPaidDays.toFixed(1)}天 / {totalMaxDays.toFixed(1)}天
                                 </span>
                               </div>
                               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -549,8 +532,8 @@ export default function CommissionsPage() {
                                 ></div>
                               </div>
                               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>财务: {paidFinanceDays.toFixed(1)}天</span>
-                                <span>其他: {paidOtherDays.toFixed(1)}天</span>
+                                <span>财务: {paidFinanceDays.toFixed(1)}天/{financeMaxDays.toFixed(1)}天</span>
+                                <span>其他: {paidOtherDays.toFixed(1)}天/{otherMaxDays.toFixed(1)}天</span>
                               </div>
                             </>
                           );

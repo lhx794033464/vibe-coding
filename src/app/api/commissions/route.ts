@@ -144,6 +144,25 @@ export async function GET(request: NextRequest) {
       const paidCommission = commissionByCustomer[customer.id]?.total || 0;
       const remainingCommission = calculation.totalCommission - paidCommission;
 
+      // 计算财务和其他模块的可提人天（按天计算时需要）
+      const hasFinance = modules.includes('finance');
+      const otherModuleCount = modules.filter(m => m !== 'finance').length;
+      const financeMaxDays = hasFinance ? implementationDays : 0;
+      const otherMaxDays = otherModuleCount > 0 ? implementationDays : 0;
+      const totalMaxDays = financeMaxDays + otherMaxDays; // 总可提人天
+
+      // 从记录中计算已提人天
+      let paidFinanceDays = 0;
+      let paidOtherDays = 0;
+      const records = commissionByCustomer[customer.id]?.records || [];
+      for (const record of records) {
+        const rec = record as { finance_days?: string; other_days?: string };
+        paidFinanceDays += parseFloat(rec.finance_days || '0');
+        paidOtherDays += parseFloat(rec.other_days || '0');
+      }
+      const paidDays = paidFinanceDays + paidOtherDays;
+      const remainingDays = totalMaxDays - paidDays;
+
       return {
         customerId: customer.id,
         customerName: customer.name,
@@ -159,8 +178,16 @@ export async function GET(request: NextRequest) {
         paidCommission,
         remainingCommission,
         isFullyPaid: remainingCommission <= 0,
-        records: commissionByCustomer[customer.id]?.records || [],
+        records,
         acceptedAt: customer.updated_at,
+        // 按天计算时的人天信息
+        financeMaxDays,
+        otherMaxDays,
+        totalMaxDays,
+        paidFinanceDays,
+        paidOtherDays,
+        paidDays,
+        remainingDays,
       };
     }) || []; // 不过滤已全部计提的客户，全部显示
 
