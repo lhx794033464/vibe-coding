@@ -411,11 +411,14 @@ function getBordersForPosition(
   }
 }
 
-// 创建实施日志段落（每个序号另起一行，六号字体）
+// 创建实施日志段落（每个序号另起一行，六号字体，1.5倍行距）
 function createImplementationParagraphs(
   logs: Array<{ log_date: string; consumed_days: string; summary: string }>
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
+
+  // 1.5倍行距配置（240 * 1.5 = 360 twips）
+  const lineSpacing = { line: 360, lineRule: 'auto' as const };
 
   if (!logs || logs.length === 0) {
     paragraphs.push(
@@ -428,7 +431,7 @@ function createImplementationParagraphs(
             italics: true,
           }),
         ],
-        spacing: { before: 100, after: 100 },
+        spacing: { before: 100, after: 100, ...lineSpacing },
       })
     );
   } else {
@@ -447,7 +450,7 @@ function createImplementationParagraphs(
               font: '微软雅黑',
             }),
           ],
-          spacing: { before: index === 0 ? 100 : 200, after: 60 },
+          spacing: { before: index === 0 ? 100 : 200, after: 60, ...lineSpacing },
         })
       );
       
@@ -461,7 +464,7 @@ function createImplementationParagraphs(
               font: '微软雅黑',
             }),
           ],
-          spacing: { before: 60, after: 100 },
+          spacing: { before: 60, after: 100, ...lineSpacing },
         })
       );
     });
