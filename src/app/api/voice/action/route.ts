@@ -87,7 +87,7 @@ ${customerListStr}
     ];
 
     const llmResponse = await llmClient.invoke(messages, { 
-      model: 'doubao-seed-1-6-lite-251015',
+      model: 'deepseek-v3-2-251201',
       temperature: 0.1 
     });
 

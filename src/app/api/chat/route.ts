@@ -391,7 +391,7 @@ ${searchResultText}
       async start(controller) {
         try {
           const llmStream = client.stream(fullMessages, {
-            model: 'doubao-seed-1-6-lite-251015',
+            model: 'deepseek-v3-2-251201',
             temperature: 0.7,
           });
 
