@@ -86,6 +86,12 @@ export default function HomePage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(false);
+  const isRecordingRef = useRef(false); // 用于全局事件中获取最新状态
+
+  // 同步录音状态到ref
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   // 同步保存的消息
   useEffect(() => {
@@ -185,6 +191,75 @@ export default function HomePage() {
       setIsRecording(false);
     }
   }, [isRecording]);
+
+  // 全局空格键监听 - 按住录音，松开发送
+  useEffect(() => {
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
+      // 只响应空格键
+      if (e.code !== 'Space') return;
+      
+      // 如果正在录音或处理中，不响应
+      if (isRecordingRef.current || isProcessing) return;
+      
+      // 检查是否在输入框中输入
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement === inputRef.current;
+      
+      // 如果输入框有焦点且有内容，允许正常输入空格
+      if (isInputFocused && input.trim()) return;
+      
+      // 阻止默认行为
+      e.preventDefault();
+      
+      // 开始录音
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach(track => track.stop());
+          
+          if (audioChunksRef.current.length > 0) {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            await processVoice(audioBlob);
+          }
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error('无法访问麦克风:', error);
+      }
+    };
+
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      // 只响应空格键
+      if (e.code !== 'Space') return;
+      
+      // 如果正在录音，停止并发送
+      if (isRecordingRef.current && mediaRecorderRef.current) {
+        e.preventDefault();
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener('keyup', handleGlobalKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('keyup', handleGlobalKeyUp);
+    };
+  }, [isProcessing, input]); // 只依赖这些状态
 
   // 处理语音
   const processVoice = async (audioBlob: Blob) => {
@@ -364,27 +439,12 @@ export default function HomePage() {
     }
   };
 
-  // 空格键按下开始录音
-  const handleKeyDown = async (e: React.KeyboardEvent) => {
-    // 空格键：输入框为空时开始录音
-    if (e.key === ' ' && !input.trim() && !isRecording && !isProcessing) {
-      e.preventDefault();
-      await startRecording();
-      return;
-    }
-    
+  // 输入框键盘事件处理
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     // Enter键：发送消息
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
-    }
-  };
-
-  // 空格键松开停止录音并发送
-  const handleKeyUp = (e: React.KeyboardEvent) => {
-    if (e.key === ' ' && isRecording) {
-      e.preventDefault();
-      stopRecording();
     }
   };
 
@@ -580,7 +640,6 @@ export default function HomePage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                onKeyUp={handleKeyUp}
                 placeholder={input.trim() ? "问智能助手任何问题..." : "空格长按语音输入，Enter发送..."}
                 rows={1}
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
@@ -621,7 +680,7 @@ export default function HomePage() {
             </div>
           </form>
           <p className="text-center text-xs text-slate-400 mt-2">
-            按 Enter 发送 · Shift + Enter 换行 · 点击麦克风语音输入 · 支持语音创建待办、预约会议等
+            按 Enter 发送 · Shift + Enter 换行 · 空格键语音输入 · 支持语音创建待办、预约会议等
           </p>
         </div>
       </div>
