@@ -4,9 +4,11 @@ import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 // 语音操作解析API
 export async function POST(request: NextRequest) {
+  console.log('=== 语音操作API开始 ===');
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
+      console.log('错误：未授权');
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
@@ -14,11 +16,14 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await client.auth.getUser(token);
     
     if (authError || !user) {
+      console.log('错误：用户验证失败', authError);
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
+    console.log('用户验证成功:', user.id);
 
     const body = await request.json();
     const { text } = body;
+    console.log('接收到的文本:', text);
 
     if (!text) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
@@ -104,6 +109,12 @@ ${customerListStr}
     }
 
     console.log('解析的意图:', intent);
+    console.log('意图action类型:', intent.action, '是否create_todo:', intent.action === 'create_todo');
+
+    // 确保params存在
+    if (!intent.params) {
+      intent.params = {};
+    }
 
     // 执行操作
     let result: { success: boolean; data?: unknown; message: string } = { 
@@ -144,12 +155,17 @@ ${customerListStr}
 
         console.log('创建待办:', { content, customerId, matchedCustomerName, priority });
 
+        // 获取当前日期（本地时间），设置为当天的开始时间
+        const now = new Date();
+        const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dueDate = todayLocal.toISOString();
+
         const { data: todo, error } = await client
           .from('todos')
           .insert({
             content: content,
             customer_id: customerId,
-            due_date: new Date().toISOString(),
+            due_date: dueDate,
             priority: priority,
             user_id: user.id,
           })

@@ -214,6 +214,7 @@ export default function HomePage() {
       });
 
       const asrData = await asrResponse.json();
+      console.log('ASR识别结果:', asrData);
       
       if (asrData.text) {
         // 添加用户消息
@@ -231,6 +232,7 @@ export default function HomePage() {
         });
 
         const actionData = await actionResponse.json();
+        console.log('语音操作结果:', actionData);
         
         if (actionData.success) {
           const assistantMessage = actionData.message;
