@@ -38,12 +38,23 @@ export async function POST(request: NextRequest) {
     const customerList = customers?.map(c => c.name) || [];
     const customerListStr = customerList.length > 0 ? customerList.join('、') : '暂无客户';
 
+    // 获取当前日期信息
+    const now = new Date();
+    const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+    const tomorrowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate() + 1).padStart(2, '0')}`;
+
     // 使用LLM解析意图
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
     const llmClient = new LLMClient(config, customHeaders);
 
     const systemPrompt = `你是一个智能助手的意图解析模块。你需要分析用户的语音指令，识别用户想要执行的操作，并返回JSON格式的结果。
+
+## 当前日期信息（重要！）
+今天是 ${todayDate}，星期${dayOfWeek}。
+明天是 ${tomorrowDate}。
+当用户说"今天"、"明天"、"后天"等相对日期时，请根据当前日期计算出具体日期。
 
 ## 用户的客户列表（重要！）
 当用户提到客户/公司名称时，必须从以下客户列表中选择最匹配的一个：
