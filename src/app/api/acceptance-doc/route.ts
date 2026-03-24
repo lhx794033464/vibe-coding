@@ -8,14 +8,18 @@ import {
   TableRow,
   TableCell,
   WidthType,
-  BorderStyle,
   AlignmentType,
-  HeadingLevel,
+  VerticalAlign,
+  BorderStyle,
   Packer,
+  Header,
+  Footer,
+  PageNumber,
 } from 'docx';
 import { format } from 'date-fns';
+import { MODULE_CONFIG, ProductModule, ProductVersion, VERSION_CONFIG } from '@/types';
 
-// 生成验收单Word文档
+// 生成验收单Word文档（严格按照模板格式）
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -23,8 +27,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const supabaseClient = getSupabaseClient(token);
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError || !user) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
@@ -38,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取客户信息
-    const { data: customer, error: customerError } = await client
+    const { data: customer, error: customerError } = await supabaseClient
       .from('customers')
       .select('*')
       .eq('id', customer_id)
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取实施日志
-    const { data: implementationLogs, error: logsError } = await client
+    const { data: implementationLogs, error: logsError } = await supabaseClient
       .from('implementation_logs')
       .select('*')
       .eq('customer_id', customer_id)
@@ -59,11 +63,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: logsError.message }, { status: 500 });
     }
 
-    // 计算总消耗人天
-    const totalConsumedDays = (implementationLogs || []).reduce(
-      (sum, log) => sum + parseFloat(log.consumed_days || '0'),
-      0
-    );
+    // 格式化实施日志内容
+    const implementationContent = formatImplementationLogs(implementationLogs || []);
+    
+    // 格式化版本名称
+    const versionName = customer.version ? (VERSION_CONFIG[customer.version as ProductVersion]?.label || customer.version) : '-';
+    
+    // 格式化模块名称
+    const modulesName = customer.modules && customer.modules.length > 0
+      ? customer.modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
+      : '-';
+
+    // 创建表格边框样式
+    const tableBorder = {
+      style: BorderStyle.SINGLE,
+      size: 12,
+      color: '000000',
+    } as const;
+    
+    const innerBorder = {
+      style: BorderStyle.SINGLE,
+      size: 6,
+      color: '000000',
+    } as const;
 
     // 创建Word文档
     const doc = new Document({
@@ -71,181 +93,135 @@ export async function POST(request: NextRequest) {
         {
           properties: {},
           children: [
-            // 标题
+            // 标题：项目实施验收确认单
             new Paragraph({
               children: [
                 new TextRun({
-                  text: '项目实施验收单',
+                  text: '项目实施验收确认单',
                   bold: true,
-                  size: 44, // 22pt
+                  size: 56, // 28pt，对应模板中的大标题
+                  font: '黑体',
                 }),
               ],
               alignment: AlignmentType.CENTER,
-              spacing: { after: 400 },
+              spacing: { after: 300 },
             }),
             
-            // 客户基本信息表格
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: '一、客户基本信息',
-                  bold: true,
-                  size: 28,
-                }),
-              ],
-              spacing: { before: 200, after: 200 },
-            }),
-            
+            // 主表格（严格按照模板格式）
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
+              columnWidths: [2049, 2258, 2384, 2547], // 按模板比例
               rows: [
-                createTableRow('客户名称', customer.name || '-'),
-                createTableRow('销售订单号', customer.sales_order_no || '-'),
-                createTableRow('实施订单号', customer.implementation_order_no || '-'),
-                createTableRow('产品版本', customer.version || '-'),
-                createTableRow('行业', customer.industry || '-'),
-                createTableRow('签订实施人天', customer.implementation_days ? `${customer.implementation_days}天` : '-'),
-                createTableRow('实际消耗人天', `${totalConsumedDays.toFixed(2)}天`),
-                createTableRow('开通日期', customer.opened_at ? format(new Date(customer.opened_at), 'yyyy-MM-dd') : '-'),
-                createTableRow('上线日期', customer.online_at ? format(new Date(customer.online_at), 'yyyy-MM-dd') : '-'),
-                createTableRow('验收日期', customer.accepted_at ? format(new Date(customer.accepted_at), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
-              ],
-            }),
-            
-            // 特殊需求
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: '二、特殊需求说明',
-                  bold: true,
-                  size: 28,
+                // 第1行：客户名称
+                new TableRow({
+                  tableHeader: true,
+                  children: [
+                    createLabelCell('客户名称', tableBorder, innerBorder),
+                    createValueCell(customer.name || '', tableBorder, innerBorder, 3),
+                  ],
+                }),
+                
+                // 第2行：合同编号
+                new TableRow({
+                  tableHeader: true,
+                  children: [
+                    createLabelCell('合同编号', tableBorder, innerBorder),
+                    createValueCell(customer.sales_order_no || '', tableBorder, innerBorder, 3),
+                  ],
+                }),
+                
+                // 第3行：参会人员
+                new TableRow({
+                  tableHeader: true,
+                  children: [
+                    createLabelCell('参会人员', tableBorder, innerBorder),
+                    createValueCell('', tableBorder, innerBorder, 3), // 暂无数据，留空
+                  ],
+                }),
+                
+                // 第4行：客户联系人 | 客户电话
+                new TableRow({
+                  tableHeader: true,
+                  children: [
+                    createLabelCell('客户联系人', tableBorder, innerBorder),
+                    createValueCell('', tableBorder, innerBorder, 1), // 暂无数据，留空
+                    createLabelCell('客户电话', tableBorder, innerBorder),
+                    createValueCell('', tableBorder, innerBorder, 1), // 暂无数据，留空
+                  ],
+                }),
+                
+                // 第5行：软件版本 | 上线模块
+                new TableRow({
+                  tableHeader: true,
+                  children: [
+                    createLabelCell('软件版本', tableBorder, innerBorder),
+                    createValueCell(versionName, tableBorder, innerBorder, 1),
+                    createLabelCell('上线模块', tableBorder, innerBorder),
+                    createValueCell(modulesName, tableBorder, innerBorder, 1),
+                  ],
+                }),
+                
+                // 第6行：系统实施主要内容
+                new TableRow({
+                  tableHeader: true,
+                  children: [
+                    createLabelCell('系统实施\n主要内容', tableBorder, innerBorder, true),
+                    createValueCell(implementationContent, tableBorder, innerBorder, 3, true),
+                  ],
                 }),
               ],
-              spacing: { before: 300, after: 200 },
             }),
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: customer.special_requirements || '无特殊需求',
-                  size: 24,
-                }),
-              ],
-              spacing: { after: 200 },
-            }),
-            
-            // 实施日志
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: '三、实施纪要记录',
-                  bold: true,
-                  size: 28,
-                }),
-              ],
-              spacing: { before: 300, after: 200 },
-            }),
-            
-            ...(implementationLogs && implementationLogs.length > 0
-              ? [
-                  new Table({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: [
-                      // 表头
-                      new TableRow({
-                        children: [
-                          createHeaderCell('日期'),
-                          createHeaderCell('消耗人天'),
-                          createHeaderCell('实施纪要'),
-                        ],
-                      }),
-                      // 数据行
-                      ...implementationLogs.map((log: { log_date: string; consumed_days: string; summary: string }) =>
-                        new TableRow({
-                          children: [
-                            createDataCell(format(new Date(log.log_date), 'yyyy-MM-dd HH:mm')),
-                            createDataCell(`${parseFloat(log.consumed_days).toFixed(2)}天`),
-                            createDataCell(log.summary || '-'),
-                          ],
-                        })
-                      ),
-                    ],
-                  }),
-                ]
-              : [
-                  new Paragraph({
-                    children: [
-                      new TextRun({
-                        text: '暂无实施日志记录',
-                        size: 24,
-                        italics: true,
-                      }),
-                    ],
-                  }),
-                ]),
             
             // 签字区域
             new Paragraph({
+              children: [],
+              spacing: { before: 400 },
+            }),
+            
+            // 客户对接人签字
+            new Paragraph({
               children: [
                 new TextRun({
-                  text: '四、签字确认',
-                  bold: true,
-                  size: 28,
+                  text: '客户对接人： __________________ 签署',
+                  size: 24,
+                  font: '微软雅黑',
                 }),
               ],
-              spacing: { before: 400, after: 200 },
+              spacing: { before: 200 },
             }),
             
             new Paragraph({
               children: [
                 new TextRun({
-                  text: '实施顾问签字：________________    日期：________________',
+                  text: `日期：${'_'.repeat(30)}`,
                   size: 24,
-                }),
-              ],
-              spacing: { after: 300 },
-            }),
-            
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: '客户确认签字：________________    日期：________________',
-                  size: 24,
+                  font: '微软雅黑',
                 }),
               ],
               spacing: { after: 300 },
             }),
             
+            // 金蝶项目经理签字
             new Paragraph({
               children: [
                 new TextRun({
-                  text: '客户盖章：',
+                  text: '金蝶项目经理： __________________ 签署',
                   size: 24,
+                  font: '微软雅黑',
                 }),
               ],
-              spacing: { after: 100 },
+              spacing: { before: 200 },
             }),
             
             new Paragraph({
               children: [
                 new TextRun({
-                  text: ' ',
+                  text: `日期：${format(new Date(), 'yyyy/M/d')}`,
                   size: 24,
+                  font: '微软雅黑',
                 }),
               ],
               spacing: { after: 200 },
-            }),
-            
-            // 文档生成日期
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `文档生成日期：${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
-                  size: 20,
-                  italics: true,
-                }),
-              ],
-              alignment: AlignmentType.RIGHT,
-              spacing: { before: 400 },
             }),
           ],
         },
@@ -271,73 +247,128 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 辅助函数：创建表格行
-function createTableRow(label: string, value: string): TableRow {
-  return new TableRow({
-    children: [
-      new TableCell({
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: label,
-                bold: true,
-                size: 24,
-              }),
-            ],
-          }),
-        ],
-        width: { size: 30, type: WidthType.PERCENTAGE },
-        shading: { fill: 'F0F0F0' },
-      }),
-      new TableCell({
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: value,
-                size: 24,
-              }),
-            ],
-          }),
-        ],
-        width: { size: 70, type: WidthType.PERCENTAGE },
-      }),
-    ],
+// 边框样式类型
+type BorderStyleType = {
+  style: typeof BorderStyle.SINGLE;
+  size: number;
+  color: string;
+};
+
+// 创建标签单元格
+function createLabelCell(
+  text: string, 
+  tableBorder: BorderStyleType,
+  innerBorder: BorderStyleType,
+  multiLine: boolean = false
+): TableCell {
+  const paragraphs = multiLine 
+    ? text.split('\n').map(line => 
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: line,
+              bold: true,
+              size: 24,
+              font: '微软雅黑',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 60, after: 60 },
+        })
+      )
+    : [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: text,
+              bold: true,
+              size: 24,
+              font: '微软雅黑',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+        }),
+      ];
+
+  return new TableCell({
+    children: paragraphs,
+    verticalAlign: VerticalAlign.CENTER,
+    shading: { fill: 'FFFFFF' },
+    borders: {
+      top: tableBorder,
+      left: tableBorder,
+      bottom: tableBorder,
+      right: innerBorder,
+    },
   });
 }
 
-// 辅助函数：创建表头单元格
-function createHeaderCell(text: string): TableCell {
+// 创建值单元格
+function createValueCell(
+  text: string,
+  tableBorder: BorderStyleType,
+  innerBorder: BorderStyleType,
+  columnSpan: number = 1,
+  multiLine: boolean = false
+): TableCell {
+  const paragraphs = multiLine
+    ? [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: text,
+              size: 24,
+              font: '微软雅黑',
+            }),
+          ],
+          alignment: AlignmentType.LEFT,
+          spacing: { before: 100, after: 100 },
+        }),
+      ]
+    : [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: text,
+              size: 24,
+              font: '微软雅黑',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+        }),
+      ];
+
+  const borders = columnSpan === 3 
+    ? {
+        top: tableBorder,
+        left: innerBorder,
+        bottom: tableBorder,
+        right: tableBorder,
+      }
+    : {
+        top: tableBorder,
+        left: innerBorder,
+        bottom: tableBorder,
+        right: innerBorder,
+      };
+
   return new TableCell({
-    children: [
-      new Paragraph({
-        children: [
-          new TextRun({
-            text,
-            bold: true,
-            size: 24,
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-      }),
-    ],
-    shading: { fill: 'E0E0E0' },
+    children: paragraphs,
+    verticalAlign: VerticalAlign.CENTER,
+    columnSpan: columnSpan,
+    borders: borders,
   });
 }
 
-// 辅助函数：创建数据单元格
-function createDataCell(text: string): TableCell {
-  return new TableCell({
-    children: [
-      new Paragraph({
-        children: [
-          new TextRun({
-            text,
-            size: 22,
-          }),
-        ],
-      }),
-    ],
-  });
+// 格式化实施日志内容
+function formatImplementationLogs(logs: Array<{ log_date: string; consumed_days: string; summary: string }>): string {
+  if (!logs || logs.length === 0) {
+    return '暂无实施记录';
+  }
+
+  return logs.map((log, index) => {
+    const dateStr = format(new Date(log.log_date), 'M/d');
+    const summary = log.summary || '';
+    return `${index + 1}、${dateStr}\n${summary}`;
+  }).join('\n');
 }
