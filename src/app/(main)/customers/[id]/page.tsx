@@ -22,7 +22,8 @@ import {
   Clock,
   TrendingUp,
   Trash2,
-  FileDown
+  FileDown,
+  Pencil
 } from 'lucide-react';
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
 import { format } from 'date-fns';
@@ -58,6 +59,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
   });
   const [logForm, setLogForm] = useState({
     log_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    consumed_days: '',
+    summary: '',
+    meeting_link: '',
+  });
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogForm, setEditLogForm] = useState({
+    log_date: '',
     consumed_days: '',
     summary: '',
     meeting_link: '',
@@ -273,6 +281,65 @@ export default function CustomerDetailPage({ params }: PageProps) {
       }
     } catch (error) {
       console.error('删除实施日志失败:', error);
+    }
+  };
+
+  // 开始编辑实施日志
+  const handleStartEditLog = (log: ImplementationLog) => {
+    setEditingLogId(log.id);
+    setEditLogForm({
+      log_date: format(new Date(log.log_date), "yyyy-MM-dd'T'HH:mm"),
+      consumed_days: log.consumed_days,
+      summary: log.summary,
+      meeting_link: log.meeting_link || '',
+    });
+  };
+
+  // 取消编辑实施日志
+  const handleCancelEditLog = () => {
+    setEditingLogId(null);
+    setEditLogForm({
+      log_date: '',
+      consumed_days: '',
+      summary: '',
+      meeting_link: '',
+    });
+  };
+
+  // 更新实施日志
+  const handleUpdateImplementationLog = async () => {
+    if (!editingLogId || !customer || !editLogForm.summary || !editLogForm.consumed_days) {
+      alert('请填写实施纪要和消耗人天');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/implementation-logs/${editingLogId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          log_date: editLogForm.log_date,
+          consumed_days: parseFloat(editLogForm.consumed_days),
+          summary: editLogForm.summary,
+          meeting_link: editLogForm.meeting_link || null,
+        }),
+      });
+
+      if (response.ok) {
+        setEditingLogId(null);
+        setEditLogForm({
+          log_date: '',
+          consumed_days: '',
+          summary: '',
+          meeting_link: '',
+        });
+        fetchImplementationLogs(customer.id);
+      }
+    } catch (error) {
+      console.error('更新实施日志失败:', error);
     }
   };
 
@@ -682,35 +749,92 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 <div className="space-y-3">
                   {implementationLogs.map((log) => (
                     <div key={log.id} className="p-3 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">
-                          {format(new Date(log.log_date), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-orange-600 border-orange-300">
-                            消耗 {parseFloat(log.consumed_days).toFixed(2)} 天
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-gray-400 hover:text-red-500"
-                            onClick={() => handleDeleteImplementationLog(log.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                      {editingLogId === log.id ? (
+                        // 编辑模式
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>实施时间</Label>
+                              <Input
+                                type="datetime-local"
+                                value={editLogForm.log_date}
+                                onChange={(e) => setEditLogForm({ ...editLogForm, log_date: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>消耗人天</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editLogForm.consumed_days}
+                                onChange={(e) => setEditLogForm({ ...editLogForm, consumed_days: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>实施纪要</Label>
+                            <Textarea
+                              value={editLogForm.summary}
+                              onChange={(e) => setEditLogForm({ ...editLogForm, summary: e.target.value })}
+                              rows={3}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>会议链接</Label>
+                            <Input
+                              value={editLogForm.meeting_link}
+                              onChange={(e) => setEditLogForm({ ...editLogForm, meeting_link: e.target.value })}
+                              placeholder="可选"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleUpdateImplementationLog}>保存</Button>
+                            <Button size="sm" variant="outline" onClick={handleCancelEditLog}>取消</Button>
+                          </div>
                         </div>
-                      </div>
-                      <p className="mt-2 text-sm whitespace-pre-wrap">{log.summary}</p>
-                      {log.meeting_link && (
-                        <a
-                          href={log.meeting_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          会议链接
-                        </a>
+                      ) : (
+                        // 显示模式
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">
+                              {format(new Date(log.log_date), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                消耗 {parseFloat(log.consumed_days).toFixed(2)} 天
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-gray-400 hover:text-blue-500"
+                                onClick={() => handleStartEditLog(log)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-gray-400 hover:text-red-500"
+                                onClick={() => handleDeleteImplementationLog(log.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm whitespace-pre-wrap">{log.summary}</p>
+                          {log.meeting_link && (
+                            <a
+                              href={log.meeting_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              会议链接
+                            </a>
+                          )}
+                        </>
                       )}
                     </div>
                   ))}
