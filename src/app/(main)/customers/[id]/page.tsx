@@ -21,7 +21,8 @@ import {
   FileText,
   Clock,
   TrendingUp,
-  Trash2
+  Trash2,
+  FileDown
 } from 'lucide-react';
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
 import { format } from 'date-fns';
@@ -75,6 +76,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     special_requirements: '',
     status: '' as CustomerStatus,
   });
+  const [generatingDoc, setGeneratingDoc] = useState(false);
 
   useEffect(() => {
     const loadCustomer = async () => {
@@ -271,6 +273,44 @@ export default function CustomerDetailPage({ params }: PageProps) {
       }
     } catch (error) {
       console.error('删除实施日志失败:', error);
+    }
+  };
+
+  // 生成验收单
+  const handleGenerateAcceptanceDoc = async () => {
+    if (!customer) return;
+    
+    setGeneratingDoc(true);
+    try {
+      const response = await fetch('/api/acceptance-doc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          customer_id: customer.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('生成验收单失败');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${customer.name}_验收单_${format(new Date(), 'yyyyMMdd')}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('生成验收单失败:', error);
+      alert('生成验收单失败，请重试');
+    } finally {
+      setGeneratingDoc(false);
     }
   };
 
@@ -572,10 +612,21 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 <Clock className="w-5 h-5" />
                 实施日志
               </CardTitle>
-              <Button size="sm" onClick={() => setShowLogForm(!showLogForm)}>
-                <Plus className="w-4 h-4 mr-1" />
-                添加
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleGenerateAcceptanceDoc}
+                  disabled={generatingDoc || implementationLogs.length === 0}
+                >
+                  <FileDown className="w-4 h-4 mr-1" />
+                  {generatingDoc ? '生成中...' : '验收单'}
+                </Button>
+                <Button size="sm" onClick={() => setShowLogForm(!showLogForm)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  添加
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {showLogForm && (
