@@ -127,7 +127,7 @@ export default function CommissionsPage() {
   };
 
   const handleSubmitCommission = async () => {
-    if (!selectedCommission || !commissionAmount) return;
+    if (!selectedCommission) return;
     
     // 验证人天输入
     if (!validateDaysInput()) return;
@@ -135,18 +135,10 @@ export default function CommissionsPage() {
     setSubmitting(true);
     try {
       // 构建备注信息
-      let finalRemark = commissionRemark;
-      let financeDaysParam: number | undefined;
-      let otherDaysParam: number | undefined;
-      
-      if (selectedCommission.commissionType === 'daily') {
-        const financeDaysNum = parseFloat(financeDays) || 0;
-        const otherDaysNum = parseFloat(otherDays) || 0;
-        financeDaysParam = financeDaysNum;
-        otherDaysParam = otherDaysNum;
-        const daysInfo = `财务${financeDaysNum}天，其他${otherDaysNum}天`;
-        finalRemark = commissionRemark ? `${commissionRemark} (${daysInfo})` : daysInfo;
-      }
+      const financeDaysNum = parseFloat(financeDays) || 0;
+      const otherDaysNum = parseFloat(otherDays) || 0;
+      const daysInfo = `财务${financeDaysNum}天，其他${otherDaysNum}天`;
+      const finalRemark = commissionRemark ? `${commissionRemark} (${daysInfo})` : daysInfo;
       
       const response = await fetch('/api/commissions', {
         method: 'POST',
@@ -156,10 +148,9 @@ export default function CommissionsPage() {
         },
         body: JSON.stringify({
           customer_id: selectedCommission.customerId,
-          amount: parseFloat(commissionAmount),
           remark: finalRemark,
-          finance_days: financeDaysParam,
-          other_days: otherDaysParam,
+          finance_days: financeDaysNum,
+          other_days: otherDaysNum,
         }),
       });
 
@@ -169,6 +160,9 @@ export default function CommissionsPage() {
         fetchCommissions();
         
         // 检查是否还有剩余提成，如果有则自动弹出设置下次计提时间
+        const totalInputDays = financeDaysNum + otherDaysNum;
+        const daysRemaining = selectedCommission.implementationDays - totalInputDays;
+        // 通过已提记录计算新的剩余
         const newRemaining = selectedCommission.remainingCommission - parseFloat(commissionAmount);
         if (newRemaining > 0) {
           // 延迟一点弹出，让用户先看到更新后的列表
@@ -231,12 +225,29 @@ export default function CommissionsPage() {
     setCurrentMonth(format(date, 'yyyy-MM'));
   };
   
-  // 自动计算提成（实施费≤50%时）- 输入人天时实时计算
+  // 根据提成规则计算金额
+  const calculateCommissionAmount = (financeDaysNum: number, otherDaysNum: number) => {
+    if (!selectedCommission) return 0;
+    
+    const totalInputDays = financeDaysNum + otherDaysNum;
+    
+    if (selectedCommission.commissionType === 'percentage') {
+      // 按比例计算：金额 = 实施费 × 提成比例 × (计提人天 / 总人天)
+      const rate = selectedCommission.commissionRate || 0;
+      const ratio = totalInputDays / selectedCommission.implementationDays;
+      return selectedCommission.implementationFee * rate * ratio;
+    } else {
+      // 按天计算：财务100元/天，其他200元/天
+      return financeDaysNum * 100 + otherDaysNum * 200;
+    }
+  };
+  
+  // 自动计算提成 - 输入人天时实时计算
   const handleFinanceDaysChange = (value: string) => {
     setFinanceDays(value);
     const financeDaysNum = parseFloat(value) || 0;
     const otherDaysNum = parseFloat(otherDays) || 0;
-    const total = financeDaysNum * 100 + otherDaysNum * 200;
+    const total = calculateCommissionAmount(financeDaysNum, otherDaysNum);
     setCommissionAmount(total.toFixed(2));
   };
   
@@ -244,7 +255,7 @@ export default function CommissionsPage() {
     setOtherDays(value);
     const financeDaysNum = parseFloat(financeDays) || 0;
     const otherDaysNum = parseFloat(value) || 0;
-    const total = financeDaysNum * 100 + otherDaysNum * 200;
+    const total = calculateCommissionAmount(financeDaysNum, otherDaysNum);
     setCommissionAmount(total.toFixed(2));
   };
   
@@ -562,8 +573,16 @@ export default function CommissionsPage() {
                 <div className="space-y-4">
                   {/* 提示信息 */}
                   <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-900 font-medium">计提提成</p>
-                    <p className="text-xs text-blue-700 mt-1">财务模块: 100元/天，其他模块: 200元/天</p>
+                    <p className="text-sm text-blue-900 font-medium">
+                      {selectedCommission.commissionType === 'percentage' 
+                        ? `按比例计算 (${(selectedCommission.commissionRate! * 100).toFixed(0)}%)`
+                        : '按天计算'}
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      {selectedCommission.commissionType === 'percentage'
+                        ? `实施费 ¥${selectedCommission.implementationFee.toLocaleString()} × ${(selectedCommission.commissionRate! * 100).toFixed(0)}% × (计提人天 / 总人天)`
+                        : '财务模块: 100元/天，其他模块: 200元/天'}
+                    </p>
                   </div>
                   
                   {/* 剩余可提人天 */}
@@ -615,16 +634,37 @@ export default function CommissionsPage() {
                     <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm text-gray-600">计提人天</span>
-                        <span className="font-medium">{totalDays.toFixed(1)}天</span>
+                        <span className="font-medium">{totalDays.toFixed(1)}天 / {selectedCommission.implementationDays.toFixed(1)}天</span>
                       </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
-                        <span>财务 {financeDaysNum.toFixed(1)}天 × ¥100</span>
-                        <span>¥{(financeDaysNum * 100).toFixed(2)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-                        <span>其他 {otherDaysNum.toFixed(1)}天 × ¥200</span>
-                        <span>¥{(otherDaysNum * 200).toFixed(2)}</span>
-                      </div>
+                      {selectedCommission.commissionType === 'percentage' ? (
+                        // 按比例计算的明细
+                        <>
+                          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+                            <span>实施费</span>
+                            <span>¥{selectedCommission.implementationFee.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+                            <span>提成比例</span>
+                            <span>{(selectedCommission.commissionRate! * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+                            <span>人天比例</span>
+                            <span>{(totalDays / selectedCommission.implementationDays * 100).toFixed(1)}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        // 按天计算的明细
+                        <>
+                          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+                            <span>财务 {financeDaysNum.toFixed(1)}天 × ¥100</span>
+                            <span>¥{(financeDaysNum * 100).toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+                            <span>其他 {otherDaysNum.toFixed(1)}天 × ¥200</span>
+                            <span>¥{(otherDaysNum * 200).toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
                       <div className="pt-2 border-t border-green-200">
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-green-900">本次应提金额</span>
