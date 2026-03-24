@@ -213,46 +213,64 @@ async function performSearch(query: string, customHeaders: Record<string, string
 
 // 判断是否需要联网搜索
 function needsWebSearch(message: string): boolean {
-  // 实时信息关键词 - 需要联网获取最新数据
-  const realtimeKeywords = [
-    '天气', '气温', '温度', '下雨', '晴天', '阴天', '雪', '风',
-    '今天', '明天', '昨天', '本周', '下周', '最近',
-    '新闻', '最新', '最近', '当前', '现在',
-    '股价', '股票', '行情', '基金', '汇率', '黄金价格',
-    '电影', '上映', '比赛', '比分', '赛程',
-    '节假日', '放假', '调休',
-    '政策', '法规', '新规', '规定',
-  ];
-  
-  // 金蝶产品相关问题 - 需要联网搜索官方文档
-  const kingdeeKeywords = [
-    '金蝶', '云星辰', '星辰', 'KIS云', 'KIS',
-    '怎么', '如何', '方法', '步骤', '教程',
-    '操作', '设置', '配置', '功能', '模块',
-    '问题', '错误', '报错', '解决', '修复',
-    '新功能', '更新', '版本', '升级',
-    '财务', '进销存', '生产', '报销', '纳税', '开票',
-    '凭证', '科目', '报表', '账套', '初始化',
-    'API', '接口', '集成', '对接',
-  ];
-  
   const lowerMessage = message.toLowerCase();
   
-  // 检查是否包含实时信息关键词
-  if (realtimeKeywords.some(keyword => lowerMessage.includes(keyword))) {
+  // 系统内部功能关键词 - 这些不需要联网搜索
+  const systemKeywords = [
+    '客户', '跟进', '待办', '任务', '日程', '排期',
+    '提成', '业绩', '人天', '实施', '交付',
+    '验收', '上线', '项目', '进度',
+    '我的', '帮我', '创建', '添加', '删除', '修改', '更新',
+    '提醒', '统计', '数据', '报表', '看板',
+  ];
+  
+  // 如果是系统内部功能问题，不联网搜索
+  if (systemKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    // 但如果同时包含明确的联网需求关键词，则仍然联网
+    const forceSearchKeywords = [
+      '天气', '气温', '温度', '股票', '股价', '基金', '汇率',
+      '新闻', '最新消息', '今天', '明天', '节假日',
+    ];
+    if (!forceSearchKeywords.some(k => lowerMessage.includes(k))) {
+      return false;
+    }
+  }
+  
+  // 工作以外的内容 - 需要联网搜索
+  const nonWorkKeywords = [
+    // 天气
+    '天气', '气温', '温度', '下雨', '晴天', '阴天', '雪', '风',
+    // 新闻资讯
+    '新闻', '最新消息', '热点', '头条', '时事',
+    // 金融理财
+    '股价', '股票', '行情', '基金', '汇率', '黄金价格', '比特币',
+    // 娱乐生活
+    '电影', '上映', '比赛', '比分', '赛程', '明星', '综艺',
+    // 日常知识
+    '节假日', '放假', '调休', '吃什么', '怎么做菜', '菜谱',
+    '旅游', '景点', '酒店', '机票',
+    // 政策法规
+    '政策', '法规', '新规', '规定', '法律',
+    // 百科知识
+    '是什么', '什么是', '为什么', '怎么来的', '历史',
+  ];
+  
+  // 检查是否包含非工作相关关键词
+  if (nonWorkKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return true;
   }
   
-  // 检查是否是金蝶产品问题（且不是创建待办等操作指令）
-  if (kingdeeKeywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))) {
-    // 排除工作助手操作指令
-    const workAssistantPatterns = [
-      /创建.*待办/, /添加.*待办/, /新增.*待办/,
-      /提醒我/, /帮我.*跟进/,
-    ];
-    if (!workAssistantPatterns.some(pattern => pattern.test(message))) {
-      return true;
-    }
+  // 金蝶产品技术问题 - 需要联网搜索官方文档
+  const kingdeeKeywords = [
+    '金蝶', '云星辰', 'KIS云', 'KIS云星辰',
+    '凭证', '科目', '账套', '初始化',
+    '财务模块', '进销存模块', '生产模块',
+    'API', '接口', '集成', '对接',
+    '报错', '错误代码', '异常',
+  ];
+  
+  if (kingdeeKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    return true;
   }
   
   return false;
@@ -508,7 +526,7 @@ ${searchResultText}
       async start(controller) {
         try {
           const llmStream = client.stream(fullMessages, {
-            model: 'deepseek-v3-2-251201',
+            model: 'doubao-seed-2-0-pro-260215',
             temperature: 0.7,
           });
 
