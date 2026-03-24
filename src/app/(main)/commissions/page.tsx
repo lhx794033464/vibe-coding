@@ -177,19 +177,8 @@ export default function CommissionsPage() {
       if (response.ok) {
         setDialogOpen(false);
         
-        // 先刷新列表获取最新数据
+        // 刷新列表获取最新数据
         await fetchCommissions();
-        
-        // 使用后端返回的数据判断是否还有剩余提成
-        // 注意：remainingCommission 需要重新计算，因为后端可能更新了
-        if (data.data && data.data.remainingCommission > 0) {
-          setTimeout(() => {
-            openScheduleDialog({
-              ...selectedCommission,
-              remainingCommission: data.data.remainingCommission,
-            });
-          }, 300);
-        }
       } else {
         alert(data.error || '创建提成失败');
       }
