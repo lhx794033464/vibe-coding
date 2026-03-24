@@ -364,10 +364,27 @@ export default function HomePage() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  // 空格键按下开始录音
+  const handleKeyDown = async (e: React.KeyboardEvent) => {
+    // 空格键：输入框为空时开始录音
+    if (e.key === ' ' && !input.trim() && !isRecording && !isProcessing) {
+      e.preventDefault();
+      await startRecording();
+      return;
+    }
+    
+    // Enter键：发送消息
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
+    }
+  };
+
+  // 空格键松开停止录音并发送
+  const handleKeyUp = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' && isRecording) {
+      e.preventDefault();
+      stopRecording();
     }
   };
 
@@ -443,7 +460,7 @@ export default function HomePage() {
               {/* 语音提示 */}
               <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
                 <Mic className="w-4 h-4" />
-                <span>点击麦克风按钮开始语音对话，可以说"创建待办"、"预约会议"等</span>
+                <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
               </div>
 
               {/* 快捷问题 */}
@@ -563,7 +580,8 @@ export default function HomePage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="问智能助手任何问题..."
+                onKeyUp={handleKeyUp}
+                placeholder={input.trim() ? "问智能助手任何问题..." : "空格长按语音输入，Enter发送..."}
                 rows={1}
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
@@ -578,7 +596,7 @@ export default function HomePage() {
                     ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
                     : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
                 }`}
-                title={isRecording ? '点击停止录音' : '点击开始语音输入'}
+                title={isRecording ? '松开空格或点击停止录音' : '空格长按或点击开始语音输入'}
               >
                 {isProcessing ? (
                   <Loader2 className="w-5 h-5 animate-spin text-white" />
