@@ -258,15 +258,9 @@ export default function CommissionsPage() {
     };
   };
   
-  // 判断是否还有剩余可提（区分两种计算方式）
+  // 判断是否还有剩余可提（统一使用剩余提成金额判断）
   const hasRemainingCommission = (commission: CommissionCalculation) => {
-    if (commission.commissionType === 'daily') {
-      // 按天计算：使用后端返回的剩余人天
-      return (commission.remainingDays || 0) > 0;
-    } else {
-      // 按比例计算：检查金额是否还有剩余
-      return commission.remainingCommission > 0.01; // 考虑浮点数精度
-    }
+    return commission.remainingCommission > 0.01; // 考虑浮点数精度
   };
   
   // 获取剩余可提人天（用于列表显示）
@@ -330,21 +324,17 @@ export default function CommissionsPage() {
         return false;
       }
       
-      // 验证总人天不超过剩余可提人天
-      if (totalInputDays > remainingDays.total) {
-        alert(`计提人天之和(${totalInputDays.toFixed(1)}天)不能大于剩余可提人天(${remainingDays.total.toFixed(1)}天)`);
+      // 验证财务人天不超过财务剩余可提
+      const remainingFinanceDays = (remainingDays.financeMax || 0) - (remainingDays.paidFinanceDays || 0);
+      if (financeDaysNum > remainingFinanceDays) {
+        alert(`财务人天(${financeDaysNum}天)不能大于财务剩余可提人天(${remainingFinanceDays.toFixed(1)}天)`);
         return false;
       }
       
-      // 验证财务人天不超过财务可提上限
-      if (financeDaysNum > (remainingDays.financeMax || 0)) {
-        alert(`财务人天(${financeDaysNum}天)不能大于财务可提上限(${(remainingDays.financeMax || 0).toFixed(1)}天)`);
-        return false;
-      }
-      
-      // 验证其他人天不超过其他可提上限
-      if (otherDaysNum > (remainingDays.otherMax || 0)) {
-        alert(`其他人天(${otherDaysNum}天)不能大于其他可提上限(${(remainingDays.otherMax || 0).toFixed(1)}天)`);
+      // 验证其他人天不超过其他剩余可提
+      const remainingOtherDays = (remainingDays.otherMax || 0) - (remainingDays.paidOtherDays || 0);
+      if (otherDaysNum > remainingOtherDays) {
+        alert(`其他人天(${otherDaysNum}天)不能大于其他剩余可提人天(${remainingOtherDays.toFixed(1)}天)`);
         return false;
       }
     }
@@ -365,9 +355,14 @@ export default function CommissionsPage() {
       // 实施费≤50%：验证财务和其他人天
       const financeDaysNum = parseFloat(financeDays) || 0;
       const otherDaysNum = parseFloat(otherDays) || 0;
-      const totalInputDays = financeDaysNum + otherDaysNum;
       
-      return totalInputDays > 0 && totalInputDays <= remainingDays.total;
+      const remainingFinanceDays = (remainingDays.financeMax || 0) - (remainingDays.paidFinanceDays || 0);
+      const remainingOtherDays = (remainingDays.otherMax || 0) - (remainingDays.paidOtherDays || 0);
+      
+      // 至少有一个输入，且不超过各自剩余
+      return (financeDaysNum > 0 || otherDaysNum > 0) &&
+             financeDaysNum <= remainingFinanceDays &&
+             otherDaysNum <= remainingOtherDays;
     }
   };
 
@@ -534,8 +529,8 @@ export default function CommissionsPage() {
                                 ></div>
                               </div>
                               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>财务: {paidFinanceDays.toFixed(1)}天</span>
-                                <span>其他: {paidOtherDays.toFixed(1)}天</span>
+                                <span>财务: {paidFinanceDays.toFixed(1)}天/{financeMaxDays.toFixed(1)}天</span>
+                                <span>其他: {paidOtherDays.toFixed(1)}天/{otherMaxDays.toFixed(1)}天</span>
                               </div>
                             </>
                           );
@@ -888,12 +883,6 @@ export default function CommissionsPage() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <p className="text-sm text-amber-900">
-                当前剩余提成: <span className="font-bold">¥{schedulingCommission?.remainingCommission.toFixed(2)}</span>
-              </p>
-            </div>
-            
             <div className="space-y-2">
               <Label htmlFor="scheduleMonth">下次计提月份</Label>
               <p className="text-xs text-gray-500">到达该月份时，此客户将出现在当月应计提列表中</p>
