@@ -39,13 +39,22 @@ async function getUserBusinessData(token: string, userId: string) {
       .order('follow_up_at', { ascending: false })
       .limit(10);
 
-    // 获取待办事项
-    const { data: todos } = await client
+    // 获取今天的日期（本地时间）
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // 获取待办事项 - 分别获取今天和所有未完成的
+    const { data: allTodos } = await client
       .from('todos')
       .select('*')
       .eq('completed', false)
       .order('due_date', { ascending: true })
-      .limit(10);
+      .limit(20);
+
+    // 分类待办：今天、已过期、未来
+    const todayTodos = allTodos?.filter(t => t.due_date === todayStr) || [];
+    const overdueTodos = allTodos?.filter(t => t.due_date < todayStr) || [];
+    const futureTodos = allTodos?.filter(t => t.due_date > todayStr).slice(0, 5) || [];
 
     // 创建客户ID到名称的映射
     const customerNameMap: Record<string, string> = {};
@@ -104,13 +113,31 @@ async function getUserBusinessData(token: string, userId: string) {
       date: f.follow_up_at,
     })) || [];
 
-    // 待办事项
-    const todoList = todos?.map(t => ({
-      content: t.content,
-      dueDate: t.due_date,
-      priority: t.priority,
-      customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
-    })) || [];
+    // 待办事项 - 分类返回
+    const todoData = {
+      today: todayTodos.map(t => ({
+        id: t.id,
+        content: t.content,
+        dueDate: t.due_date,
+        priority: t.priority,
+        customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
+      })),
+      overdue: overdueTodos.map(t => ({
+        id: t.id,
+        content: t.content,
+        dueDate: t.due_date,
+        priority: t.priority,
+        customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
+        overdueDays: Math.floor((today.getTime() - new Date(t.due_date).getTime()) / (1000 * 60 * 60 * 24)),
+      })),
+      future: futureTodos.map(t => ({
+        id: t.id,
+        content: t.content,
+        dueDate: t.due_date,
+        priority: t.priority,
+        customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
+      })),
+    };
 
     return {
       totalCustomers,
@@ -121,7 +148,8 @@ async function getUserBusinessData(token: string, userId: string) {
       statusDistribution,
       customersByStatus,
       recentFollowUps: recentFollowUpsList,
-      todos: todoList,
+      todos: todoData,
+      todayDate: todayStr,
     };
   } catch (error) {
     console.error('获取业务数据失败:', error);
@@ -401,10 +429,27 @@ ${businessData.recentFollowUps.slice(0, 5).map(f =>
   `- ${f.customerName}：${f.content.substring(0, 50)}${f.content.length > 50 ? '...' : ''}`
 ).join('\n') || '- 暂无'}
 
-【待办事项】（最多显示5条）
-${businessData.todos.slice(0, 5).map(t => 
-  `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}，截止：${t.dueDate || '无截止日期'}`
-).join('\n') || '- 暂无'}
+【待办事项】
+📌 今日待办（${businessData.todos.today.length}项）：
+${businessData.todos.today.length > 0 
+  ? businessData.todos.today.map(t => 
+      `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}${t.priority === 'high' ? ' ⚠️重要' : ''}`
+    ).join('\n')
+  : '- 暂无今日待办'}
+
+⚠️ 已过期待办（${businessData.todos.overdue.length}项）：
+${businessData.todos.overdue.length > 0 
+  ? businessData.todos.overdue.slice(0, 5).map(t => 
+      `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}，过期${t.overdueDays}天${t.priority === 'high' ? ' ⚠️重要' : ''}`
+    ).join('\n')
+  : '- 无过期待办'}
+
+📅 未来待办（${businessData.todos.future.length}项）：
+${businessData.todos.future.length > 0 
+  ? businessData.todos.future.map(t => 
+      `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}，截止：${t.dueDate || '无截止日期'}`
+    ).join('\n')
+  : '- 暂无未来待办'}
 `;
           }
         }
