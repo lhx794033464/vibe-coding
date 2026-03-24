@@ -15,11 +15,15 @@ import {
   Header,
   Footer,
   PageNumber,
+  ImageRun,
+  convertInchesToTwip,
 } from 'docx';
 import { format } from 'date-fns';
 import { MODULE_CONFIG, ProductModule, ProductVersion, VERSION_CONFIG } from '@/types';
+import * as fs from 'fs';
+import * as path from 'path';
 
-// 生成验收单Word文档（严格按照模板格式）
+// 生成验收单Word文档（严格按照模板格式，保留页眉页脚）
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -63,9 +67,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: logsError.message }, { status: 500 });
     }
 
-    // 格式化实施日志内容
-    const implementationContent = formatImplementationLogs(implementationLogs || []);
-    
     // 格式化版本名称
     const versionName = customer.version ? (VERSION_CONFIG[customer.version as ProductVersion]?.label || customer.version) : '-';
     
@@ -87,11 +88,79 @@ export async function POST(request: NextRequest) {
       color: '000000',
     } as const;
 
+    // 读取logo图片
+    const logoPath = path.join(process.cwd(), 'public', 'kingdee-logo.png');
+    const logoBuffer = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
+
+    // 创建实施日志段落（每个序号另起一行）
+    const implementationParagraphs = createImplementationParagraphs(implementationLogs || []);
+
     // 创建Word文档
     const doc = new Document({
       sections: [
         {
           properties: {},
+          headers: {
+            default: new Header({
+              children: [
+                new Paragraph({
+                  children: [
+                    // 添加空格占位
+                    new TextRun({ text: ' '.repeat(80) }),
+                    // 添加logo图片
+                    ...(logoBuffer ? [
+                      new ImageRun({
+                        data: logoBuffer,
+                        type: 'png',
+                        transformation: {
+                          width: 80,
+                          height: 33,
+                        },
+                      }),
+                    ] : []),
+                  ],
+                  alignment: AlignmentType.RIGHT,
+                  border: {
+                    bottom: {
+                      color: 'auto',
+                      space: 1,
+                      style: BorderStyle.SINGLE,
+                      size: 24,
+                    },
+                  },
+                }),
+              ],
+            }),
+          },
+          footers: {
+            default: new Footer({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: '第 ', size: 21 }),
+                    new TextRun({
+                      children: [PageNumber.CURRENT],
+                      size: 21,
+                    }),
+                    new TextRun({ text: ' 页 共 ', size: 21 }),
+                    new TextRun({
+                      children: [PageNumber.TOTAL_PAGES],
+                      size: 21,
+                    }),
+                    new TextRun({ text: ' 页', size: 21 }),
+                    new TextRun({ text: '金蝶软件（中国）有限公司', size: 21 }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: '版权所有        翻版必究', size: 21 }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                }),
+              ],
+            }),
+          },
           children: [
             // 标题：项目实施验收确认单
             new Paragraph({
@@ -166,7 +235,7 @@ export async function POST(request: NextRequest) {
                   tableHeader: true,
                   children: [
                     createLabelCell('系统实施\n主要内容', tableBorder, innerBorder, true),
-                    createValueCell(implementationContent, tableBorder, innerBorder, 3, true),
+                    createImplementationCell(implementationParagraphs, tableBorder, innerBorder),
                   ],
                 }),
               ],
@@ -360,15 +429,80 @@ function createValueCell(
   });
 }
 
-// 格式化实施日志内容
-function formatImplementationLogs(logs: Array<{ log_date: string; consumed_days: string; summary: string }>): string {
+// 创建实施日志段落（每个序号另起一行）
+function createImplementationParagraphs(
+  logs: Array<{ log_date: string; consumed_days: string; summary: string }>
+): Paragraph[] {
   if (!logs || logs.length === 0) {
-    return '暂无实施记录';
+    return [
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '暂无实施记录',
+            size: 24,
+            font: '微软雅黑',
+            italics: true,
+          }),
+        ],
+        spacing: { before: 100, after: 100 },
+      }),
+    ];
   }
 
-  return logs.map((log, index) => {
+  const paragraphs: Paragraph[] = [];
+
+  logs.forEach((log, index) => {
     const dateStr = format(new Date(log.log_date), 'M/d');
     const summary = log.summary || '';
-    return `${index + 1}、${dateStr}\n${summary}`;
-  }).join('\n');
+    
+    // 序号和日期行（加粗）
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `${index + 1}、${dateStr}`,
+            bold: true,
+            size: 24,
+            font: '微软雅黑',
+          }),
+        ],
+        spacing: { before: index === 0 ? 100 : 200, after: 60 },
+      })
+    );
+    
+    // 内容行
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: summary,
+            size: 24,
+            font: '微软雅黑',
+          }),
+        ],
+        spacing: { before: 60, after: 100 },
+      })
+    );
+  });
+
+  return paragraphs;
+}
+
+// 创建实施日志单元格
+function createImplementationCell(
+  paragraphs: Paragraph[],
+  tableBorder: BorderStyleType,
+  innerBorder: BorderStyleType
+): TableCell {
+  return new TableCell({
+    children: paragraphs,
+    verticalAlign: VerticalAlign.TOP,
+    columnSpan: 3,
+    borders: {
+      top: tableBorder,
+      left: innerBorder,
+      bottom: tableBorder,
+      right: tableBorder,
+    },
+  });
 }
