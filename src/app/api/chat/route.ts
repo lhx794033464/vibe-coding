@@ -129,34 +129,69 @@ async function getUserBusinessData(token: string, userId: string) {
   }
 }
 
-// 执行联网搜索（渐进式搜索策略）
-async function performSearch(query: string, customHeaders: Record<string, string>) {
+// 执行联网搜索（根据查询类型采用不同策略）
+async function performSearch(query: string, customHeaders: Record<string, string>, searchType?: 'weather' | 'news' | 'finance' | 'kingdee' | 'general') {
   try {
     const { SearchClient } = await import('coze-coding-dev-sdk');
     const config = new Config();
     const client = new SearchClient(config, customHeaders);
     
-    // 先尝试在金蝶相关网站搜索
-    let response = await client.advancedSearch(query, {
-      searchType: 'web',
-      count: 5,
-      needSummary: true,
-      needContent: false,
-      sites: 'kingdee.com,kisyun.com,cs.ecs.kingdee.com,club.kingdee.com,vip.kingdee.com',
-    });
-
-    // 如果没有结果，尝试更广泛的搜索（知名技术社区）
-    if (!response.web_items || response.web_items.length === 0) {
-      response = await client.advancedSearch(query, {
-        searchType: 'web',
-        count: 5,
-        needSummary: true,
-        needContent: false,
-        sites: 'zhihu.com,cnblogs.com,juejin.cn,csdn.net',
-      });
+    let response;
+    
+    // 根据搜索类型采用不同策略
+    switch (searchType) {
+      case 'weather':
+        // 天气查询：直接搜索
+        response = await client.webSearch(query, 5, true);
+        break;
+        
+      case 'kingdee':
+        // 金蝶问题：优先搜索官方站点
+        response = await client.advancedSearch(query, {
+          searchType: 'web',
+          count: 5,
+          needSummary: true,
+          needContent: false,
+          sites: 'kingdee.com,kisyun.com,club.kingdee.com,vip.kingdee.com,cs.ecs.kingdee.com',
+        });
+        
+        // 如果没有结果，尝试技术社区
+        if (!response.web_items || response.web_items.length === 0) {
+          response = await client.advancedSearch(query, {
+            searchType: 'web',
+            count: 5,
+            needSummary: true,
+            sites: 'zhihu.com,cnblogs.com,juejin.cn,csdn.net',
+          });
+        }
+        break;
+        
+      case 'news':
+        // 新闻查询：限制时间范围
+        response = await client.advancedSearch(query, {
+          searchType: 'web',
+          count: 5,
+          needSummary: true,
+          timeRange: '1d',
+        });
+        break;
+        
+      case 'finance':
+        // 金融查询：优先财经网站
+        response = await client.advancedSearch(query, {
+          searchType: 'web',
+          count: 5,
+          needSummary: true,
+          sites: 'sina.com.cn,eastmoney.com,10jqka.com.cn,xueqiu.com',
+        });
+        break;
+        
+      default:
+        // 通用搜索
+        response = await client.webSearch(query, 5, true);
     }
-
-    // 如果还是没有结果，进行通用搜索
+    
+    // 如果特定搜索没有结果，回退到通用搜索
     if (!response.web_items || response.web_items.length === 0) {
       response = await client.webSearch(query, 5, true);
     }
@@ -178,7 +213,19 @@ async function performSearch(query: string, customHeaders: Record<string, string
 
 // 判断是否需要联网搜索
 function needsWebSearch(message: string): boolean {
-  const keywords = [
+  // 实时信息关键词 - 需要联网获取最新数据
+  const realtimeKeywords = [
+    '天气', '气温', '温度', '下雨', '晴天', '阴天', '雪', '风',
+    '今天', '明天', '昨天', '本周', '下周', '最近',
+    '新闻', '最新', '最近', '当前', '现在',
+    '股价', '股票', '行情', '基金', '汇率', '黄金价格',
+    '电影', '上映', '比赛', '比分', '赛程',
+    '节假日', '放假', '调休',
+    '政策', '法规', '新规', '规定',
+  ];
+  
+  // 金蝶产品相关问题 - 需要联网搜索官方文档
+  const kingdeeKeywords = [
     '金蝶', '云星辰', '星辰', 'KIS云', 'KIS',
     '怎么', '如何', '方法', '步骤', '教程',
     '操作', '设置', '配置', '功能', '模块',
@@ -190,21 +237,77 @@ function needsWebSearch(message: string): boolean {
   ];
   
   const lowerMessage = message.toLowerCase();
-  return keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()));
+  
+  // 检查是否包含实时信息关键词
+  if (realtimeKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    return true;
+  }
+  
+  // 检查是否是金蝶产品问题（且不是创建待办等操作指令）
+  if (kingdeeKeywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))) {
+    // 排除工作助手操作指令
+    const workAssistantPatterns = [
+      /创建.*待办/, /添加.*待办/, /新增.*待办/,
+      /提醒我/, /帮我.*跟进/,
+    ];
+    if (!workAssistantPatterns.some(pattern => pattern.test(message))) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// 判断查询类型
+function getSearchType(message: string): 'weather' | 'news' | 'finance' | 'kingdee' | 'general' {
+  const lowerMessage = message.toLowerCase();
+  
+  // 天气相关
+  if (['天气', '气温', '温度', '下雨', '晴天', '阴天', '雪'].some(k => lowerMessage.includes(k))) {
+    return 'weather';
+  }
+  
+  // 新闻相关
+  if (['新闻', '最新消息', '最近发生'].some(k => lowerMessage.includes(k))) {
+    return 'news';
+  }
+  
+  // 金融相关
+  if (['股价', '股票', '基金', '汇率', '黄金'].some(k => lowerMessage.includes(k))) {
+    return 'finance';
+  }
+  
+  // 金蝶产品相关
+  if (['金蝶', '云星辰', 'KIS', '星辰'].some(k => lowerMessage.includes(k))) {
+    return 'kingdee';
+  }
+  
+  return 'general';
 }
 
 // 生成搜索查询词
 function generateSearchQuery(message: string): string {
-  // 提取关键信息生成搜索词
-  const prefix = '金蝶云星辰';
+  const searchType = getSearchType(message);
   
-  // 如果已经包含金蝶相关词，直接使用原消息
-  if (message.includes('金蝶') || message.includes('云星辰') || message.includes('星辰')) {
+  // 天气查询优化
+  if (searchType === 'weather') {
+    // 提取城市名
+    const cityMatch = message.match(/(.{2,4})(天气|气温|温度)/);
+    if (cityMatch) {
+      return `${cityMatch[1]}天气 今天`;
+    }
     return message;
   }
   
-  // 否则添加前缀
-  return `${prefix} ${message}`;
+  // 金蝶相关问题添加前缀
+  if (searchType === 'kingdee') {
+    if (message.includes('金蝶') || message.includes('云星辰') || message.includes('星辰')) {
+      return message;
+    }
+    return `金蝶云星辰 ${message}`;
+  }
+  
+  return message;
 }
 
 export async function POST(request: NextRequest) {
@@ -297,8 +400,9 @@ ${businessData.todos.slice(0, 5).map(t =>
     
     // 判断是否需要联网搜索
     if (lastUserMessage && (enableSearch || needsWebSearch(lastUserMessage.content))) {
+      const searchType = getSearchType(lastUserMessage.content);
       const searchQuery = generateSearchQuery(lastUserMessage.content);
-      const searchResult = await performSearch(searchQuery, customHeaders);
+      const searchResult = await performSearch(searchQuery, customHeaders, searchType);
       
       if (searchResult && searchResult.results.length > 0) {
         searchResultText = `
@@ -318,54 +422,63 @@ ${searchResult.results.map((r, i) =>
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
 
-    // 专业系统提示语 - 金蝶云星辰交付助手
+    // 专业系统提示语 - 智能助手
     const systemMessage = {
       role: 'system' as const,
-      content: `你是"智能助手"，一位专业的金蝶云星辰实施顾问交付助手。你由金蝶云星辰实施顾问团队打造，专门服务于金蝶云星辰的实施顾问们。
-
-## 你的身份与定位
-- 你是金蝶云星辰实施顾问的智能助手和贴心伙伴
-- 你精通金蝶云星辰的产品功能、实施方法论和行业最佳实践
-- 你能够帮助顾问解决实施过程中的技术问题、管理问题和沟通问题
-- 你也是顾问的日常工作助手，帮助管理工作任务和客户关系
+      content: `你是"智能助手"，一位功能强大的 AI 助手，同时具备联网搜索、日常聊天和工作助手的能力。
 
 ## 你的核心能力
 
-### 1. 产品知识专家
-- 精通金蝶云星辰各版本（标准版、专业版、旗舰版）的功能差异
-- 熟悉各模块：财务、进销存、生产、报销、纳税、开票、订货、零售、委外等
-- 了解产品更新动态和新功能发布
-- 能够解答产品操作、配置、流程设计等问题
+### 1. 联网搜索能力
+你可以联网获取实时信息，包括但不限于：
+- **天气查询**：用户询问某地天气时，你会联网搜索并给出准确的天气信息
+- **新闻资讯**：用户询问最新动态时，你会搜索最新新闻并总结
+- **金融行情**：用户询问股价、汇率等信息时，你会搜索实时数据
+- **金蝶产品问题**：用户询问金蝶云星辰相关问题时，你会搜索官方文档和技术资料
+- **通用知识**：对于任何需要最新信息的问题，你都可以联网搜索
 
-### 2. 实施方法论顾问
-- 掌握项目实施的标准流程和最佳实践
-- 能够提供项目排期、里程碑设置、风险控制等建议
-- 熟悉数据迁移、系统初始化、用户培训等关键环节
-- 能够针对不同行业提供定制化实施方案
+### 2. 金蝶云星辰交付助手
+- 你精通金蝶云星辰的产品功能、实施方法论和行业最佳实践
+- 你能够帮助顾问解决实施过程中的技术问题、管理问题和沟通问题
+- 你熟悉各版本（标准版、专业版、旗舰版）的功能差异
+- 你了解各模块：财务、进销存、生产、报销、纳税、开票、订货、零售、委外等
 
-### 3. 问题解决专家
-- 善于分析问题根因，提供系统化的解决方案
-- 能够指导用户排查常见错误和异常情况
-- 了解金蝶官方技术支持渠道和资源
-- 能够判断问题优先级，建议处理顺序
-
-### 4. 工作管理助手
+### 3. 工作管理助手
 - 帮助顾问管理客户跟进、待办事项、项目进度
 - 提醒重要节点和即将到期的任务
 - 分析客户状态，建议重点关注对象
 - 协助整理工作总结和汇报材料
 
-## 回答风格指南
-1. **专业准确**：提供的信息必须准确可靠，不确定时要明确说明
-2. **简洁高效**：回答直击要点，避免冗长，使用结构化格式（列表、分点）
-3. **贴心温暖**：语气友好，像一位经验丰富的同事在帮忙
-4. **实用导向**：给出可操作的建议，而非空洞的理论
-5. **主动关怀**：适时提醒注意事项和潜在风险
+### 4. 日常聊天伙伴
+- 你可以和用户进行日常聊天，提供情绪价值和陪伴
+- 关心用户的工作状态和身心健康
+- 给予真诚的鼓励和建议
+- 用温暖友好的语气交流
 
-## 特殊情况处理
-- 如果问题超出你的知识范围，诚实地说明，并建议查询官方文档或联系技术支持
-- 如果需要最新信息（如新版本功能），告诉用户你可能需要联网搜索获取最新答案
-- 对于紧急问题，建议优先联系金蝶官方技术支持
+## 回答风格指南
+1. **及时准确**：对于需要实时信息的问题（如天气），基于联网搜索结果回答
+2. **专业可靠**：金蝶相关问题提供准确的技术指导
+3. **简洁高效**：回答直击要点，避免冗长，使用结构化格式
+4. **贴心温暖**：语气友好，像一位可靠的同事兼朋友
+5. **实用导向**：给出可操作的建议，而非空洞的理论
+
+## 特殊场景处理
+
+### 天气查询
+当用户询问天气时，直接基于搜索结果回答：
+- 告知今天的天气状况（温度、天气类型、是否需要带伞等）
+- 可以给出穿衣建议或出行提示
+- 语气轻松友好
+
+### 金蝶产品问题
+- 优先引用官方文档和权威资料
+- 提供可操作的操作步骤
+- 说明注意事项和常见问题
+
+### 工作压力或疲劳
+- 给予真诚的关怀和鼓励
+- 提供一些缓解压力的建议
+- 可以适当用幽默缓解气氛
 
 ${businessDataText ? `## 当前用户业务数据
 ${businessDataText}
@@ -373,13 +486,17 @@ ${businessDataText}
 ${searchResultText ? `## 联网搜索结果
 ${searchResultText}
 
-请结合以上搜索结果回答用户问题，如果搜索结果有帮助，可以引用相关内容。
+请基于以上搜索结果回答用户问题：
+1. 如果是天气查询，直接给出天气信息，并附上温馨提示
+2. 如果是产品问题，引用相关资料并给出操作建议
+3. 如果是新闻资讯，总结关键信息
+4. 搜索结果可能不完全准确，重要信息建议用户核实
 ` : ''}
 ## 回答要求
 1. 优先使用"智能助手"自称
-2. 回答与金蝶云星辰相关问题时，尽可能详细和专业
-3. 对于工作管理类问题，参考用户的业务数据给出个性化建议
-4. 如果用户提到压力或疲劳，给予真诚的鼓励和关怀
+2. 对于天气等实时信息，直接给出答案，不要说"我无法获取"
+3. 对于日常聊天，用自然友好的语气交流
+4. 对于工作问题，参考用户的业务数据给出个性化建议
 5. 适当使用表情符号增加亲和力，但不要过度`,
     };
 
