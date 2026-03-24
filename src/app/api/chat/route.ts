@@ -41,7 +41,7 @@ async function getUserBusinessData(token: string, userId: string) {
 
     // 获取今天的日期（本地时间）
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; // YYYY-MM-DD in local time
 
     // 获取待办事项 - 分别获取今天和所有未完成的
     const { data: allTodos } = await client

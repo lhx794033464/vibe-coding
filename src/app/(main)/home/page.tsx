@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Search, Sparkles, Bot, User, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { Send, Loader2, Search, Sparkles, Bot, User, Mic, MicOff, Volume2, VolumeX, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
@@ -70,13 +70,19 @@ interface Message {
 
 export default function HomePage() {
   const { session } = useAuth();
-  const { messages: savedMessages, addMessage } = useChat();
+  const { messages: savedMessages, addMessage, clearMessages } = useChat();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const greeting = getGreeting();
+  
+  // 清除对话
+  const handleClearChat = () => {
+    clearMessages();
+    setMessages([]);
+  };
   
   // 语音相关状态
   const [isRecording, setIsRecording] = useState(false);
@@ -489,6 +495,17 @@ export default function HomePage() {
                 </>
               )}
             </button>
+            {/* 清除对话按钮 */}
+            {messages.length > 0 && (
+              <button
+                onClick={handleClearChat}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                title="清除对话"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                清除
+              </button>
+            )}
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
               在线 · 支持语音交互
