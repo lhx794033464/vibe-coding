@@ -346,29 +346,6 @@ const createNodeTypes = (): NodeTypes => {
 
 const nodeTypes = createNodeTypes();
 
-// ============= 根据位置自动选择 Handle =============
-const getBestHandles = (
-  sourcePos: { x: number; y: number },
-  targetPos: { x: number; y: number }
-): { sourceHandle: string; targetHandle: string } => {
-  const dx = targetPos.x - sourcePos.x;
-  const dy = targetPos.y - sourcePos.y;
-  
-  if (Math.abs(dy) > Math.abs(dx)) {
-    if (dy > 0) {
-      return { sourceHandle: 'bottom', targetHandle: 'top-in' };
-    } else {
-      return { sourceHandle: 'top', targetHandle: 'bottom-in' };
-    }
-  } else {
-    if (dx > 0) {
-      return { sourceHandle: 'right', targetHandle: 'left-in' };
-    } else {
-      return { sourceHandle: 'left', targetHandle: 'right-in' };
-    }
-  }
-};
-
 // ============= 主编辑器组件 =============
 const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
   ({ data, onDataChange, readOnly = false, onReady }, ref) => {
@@ -391,45 +368,48 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
     const [showShapePanel, setShowShapePanel] = useState(true);
     const [expandedLibraries, setExpandedLibraries] = useState<string[]>(['general', 'flowchart', 'business']);
     
-    // 初始化节点
+    // 初始化节点 - 强制所有节点垂直对齐
     const initialNodes: Node[] = useMemo(() => {
       if (!data?.nodes) return [];
-      return data.nodes.map(node => ({
-        id: node.id,
-        type: node.type || 'rectangle',
-        position: node.position,
-        data: { 
-          label: node.data.label, 
-          color: node.data.color || 'blue',
-          width: node.width,
-          height: node.height,
-        },
-      }));
+      
+      // 找出所有节点中最大的x坐标作为中心
+      const centerX = 350;
+      
+      return data.nodes.map((node, index) => {
+        // 强制所有节点垂直对齐
+        const correctedPosition = {
+          x: centerX,
+          y: node.position.y || (80 + index * 90),
+        };
+        
+        // 根据节点类型确定颜色
+        let nodeColor = node.data.color || 'blue';
+        if (node.type === 'start' || node.type === 'end') {
+          nodeColor = 'gray';
+        }
+        
+        return {
+          id: node.id,
+          type: node.type || 'process',
+          position: correctedPosition,
+          data: { 
+            label: node.data.label, 
+            color: nodeColor,
+            width: node.width,
+            height: node.height,
+          },
+        };
+      });
     }, [data?.nodes]);
 
-    // 初始化边
+    // 初始化边 - 强制垂直连接
     const initialEdges: Edge[] = useMemo(() => {
       if (!data?.edges || !data?.nodes) return [];
       
-      const nodePositions = new Map(data.nodes.map(n => [n.id, n.position]));
-      
-      return data.edges.map(edge => {
-        const sourcePos = nodePositions.get(edge.source);
-        const targetPos = nodePositions.get(edge.target);
-        
-        let sourceHandle = edge.sourceHandle;
-        let targetHandle = edge.targetHandle;
-        
-        if (!sourceHandle || !targetHandle) {
-          if (sourcePos && targetPos) {
-            const handles = getBestHandles(sourcePos, targetPos);
-            sourceHandle = handles.sourceHandle;
-            targetHandle = handles.targetHandle;
-          } else {
-            sourceHandle = 'bottom';
-            targetHandle = 'top-in';
-          }
-        }
+      return data.edges.map((edge, index) => {
+        // 强制使用垂直连接：从源节点的底部连接到目标节点的顶部
+        const sourceHandle = edge.sourceHandle || 'bottom';
+        const targetHandle = edge.targetHandle || 'top-in';
         
         return {
           id: edge.id,
@@ -455,26 +435,12 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
       setSelectedEdges(selectedEdges);
     }, []);
 
-    // 连接处理
+    // 连接处理 - 强制垂直连接
     const onConnect = useCallback(
       (params: Connection) => {
-        const nodes = getNodes();
-        const sourceNode = nodes.find(n => n.id === params.source);
-        const targetNode = nodes.find(n => n.id === params.target);
-        
-        let sourceHandle = params.sourceHandle;
-        let targetHandle = params.targetHandle;
-        
-        if (!sourceHandle || !targetHandle) {
-          if (sourceNode && targetNode) {
-            const handles = getBestHandles(sourceNode.position, targetNode.position);
-            sourceHandle = sourceHandle || handles.sourceHandle;
-            targetHandle = targetHandle || handles.targetHandle;
-          } else {
-            sourceHandle = 'bottom';
-            targetHandle = 'top-in';
-          }
-        }
+        // 强制使用垂直连接
+        const sourceHandle = params.sourceHandle || 'bottom';
+        const targetHandle = params.targetHandle || 'top-in';
         
         setLocalEdges((eds) => addEdge({
           ...params,
@@ -486,7 +452,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
           style: { stroke: '#666', strokeWidth: 2 },
         }, eds));
       },
-      [setLocalEdges, getNodes, currentEdgeStyle]
+      [setLocalEdges, currentEdgeStyle]
     );
 
     // 添加节点
@@ -606,53 +572,52 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
       };
     }, [getNodes, getEdges]);
 
-    // 设置数据
+    // 设置数据 - 强制垂直对齐
     const setDataInternal = useCallback((newData: FlowData) => {
-      const nodePositions = new Map(newData.nodes.map(n => [n.id, n.position]));
+      const centerX = 350;
       
-      const convertedNodes: Node[] = newData.nodes.map(node => ({
-        id: node.id,
-        type: node.type || 'rectangle',
-        position: node.position,
-        data: { 
-          label: node.data.label,
-          color: node.data.color || 'blue',
-          width: node.width,
-          height: node.height,
-        },
-      }));
+      // 按y坐标排序节点
+      const sortedNodes = [...newData.nodes].sort((a, b) => a.position.y - b.position.y);
       
-      const convertedEdges: Edge[] = newData.edges.map(edge => {
-        const sourcePos = nodePositions.get(edge.source);
-        const targetPos = nodePositions.get(edge.target);
+      const convertedNodes: Node[] = sortedNodes.map((node, index) => {
+        // 强制垂直对齐
+        const correctedPosition = {
+          x: centerX,
+          y: 80 + index * 90,
+        };
         
-        let sourceHandle = edge.sourceHandle;
-        let targetHandle = edge.targetHandle;
-        
-        if (!sourceHandle || !targetHandle) {
-          if (sourcePos && targetPos) {
-            const handles = getBestHandles(sourcePos, targetPos);
-            sourceHandle = handles.sourceHandle;
-            targetHandle = handles.targetHandle;
-          } else {
-            sourceHandle = 'bottom';
-            targetHandle = 'top-in';
-          }
+        // 根据节点类型确定颜色
+        let nodeColor = node.data.color || 'blue';
+        if (node.type === 'start' || node.type === 'end') {
+          nodeColor = 'gray';
         }
         
         return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle,
-          targetHandle,
-          label: edge.label,
-          type: 'straight',
-          animated: false,
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#666' },
-          style: { stroke: '#666', strokeWidth: 2 },
+          id: node.id,
+          type: node.type || 'process',
+          position: correctedPosition,
+          data: { 
+            label: node.data.label,
+            color: nodeColor,
+            width: node.width,
+            height: node.height,
+          },
         };
       });
+      
+      // 强制垂直连接
+      const convertedEdges: Edge[] = newData.edges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle || 'bottom',
+        targetHandle: edge.targetHandle || 'top-in',
+        label: edge.label,
+        type: 'straight',
+        animated: false,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#666' },
+        style: { stroke: '#666', strokeWidth: 2 },
+      }));
       
       setLocalNodes(convertedNodes);
       setLocalEdges(convertedEdges);
