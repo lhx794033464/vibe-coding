@@ -257,14 +257,14 @@ export default function FlowChartPage() {
         </button>
       </div>
 
-      {/* 展开按钮 - 当左侧面板折叠时显示 */}
+      {/* 展开按钮 - 当左侧面板折叠时显示在右上角 */}
       {!showSidebar && (
         <button
           onClick={() => setShowSidebar(true)}
-          className="absolute left-0 top-1/2 z-10 bg-white border border-slate-200 rounded-r py-6 px-0.5 shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center"
-          style={{ transform: 'translateY(-50%)' }}
+          className="absolute top-4 left-4 z-10 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-1.5"
         >
           <ChevronRight className="w-4 h-4 text-slate-500" />
+          <span className="text-xs text-slate-600">展开面板</span>
         </button>
       )}
 
