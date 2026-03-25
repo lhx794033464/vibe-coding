@@ -37,34 +37,32 @@ const KINGDEE_DOCUMENTS = `
 1. 订货订单 → 订货发货 → 收货确认
 `;
 
-// LogicFlow JSON 生成提示词
-const LOGICFLOW_PROMPT = `
+// React Flow JSON 生成提示词
+const REACTFLOW_PROMPT = `
 你是一个专业的业务流程图生成专家，精通金蝶云星辰ERP系统的业务流程。
 
 ## 任务
-根据用户描述的业务场景，生成 LogicFlow 流程图编辑器可用的 JSON 数据格式。
+根据用户描述的业务场景，生成 React Flow 流程图编辑器可用的 JSON 数据格式。
 
-## LogicFlow JSON 格式规范
+## React Flow JSON 格式规范
 
 基础结构：
 \`\`\`json
 {
   "nodes": [
     {
-      "id": "node_unique_id",
+      "id": "唯一标识符",
       "type": "节点类型",
-      "x": 横坐标数字,
-      "y": 纵坐标数字,
-      "text": "节点显示文字"
+      "position": { "x": 横坐标, "y": 纵坐标 },
+      "data": { "label": "节点显示文字" }
     }
   ],
   "edges": [
     {
-      "id": "edge_unique_id",
-      "type": "polyline",
-      "sourceNodeId": "源节点id",
-      "targetNodeId": "目标节点id",
-      "text": "连线文字（可选）"
+      "id": "边唯一标识符",
+      "source": "源节点id",
+      "target": "目标节点id",
+      "label": "连线文字（可选）"
     }
   ]
 }
@@ -73,12 +71,12 @@ const LOGICFLOW_PROMPT = `
 ## 节点类型说明
 
 1. **开始节点**: type = "start"
-   - 用于流程开始，圆形绿色节点
-   - text 通常为 "开始"
+   - 圆形绿色节点
+   - label 通常为 "开始"
 
 2. **结束节点**: type = "end"  
-   - 用于流程结束，圆形红色节点
-   - text 通常为 "结束"
+   - 圆形红色节点
+   - label 通常为 "结束"
 
 3. **通用流程节点**: type = "process"
    - 圆角矩形，蓝色
@@ -100,9 +98,9 @@ const LOGICFLOW_PROMPT = `
    - 用于收款单、付款单、费用报销单、转账单、凭证等
 
 8. **判断节点**: type = "decision"
-   - 菱形，黄色
+   - 黄色节点
    - 用于审批判断、条件分支
-   - text 示例: "审批通过?", "库存充足?", "信用额度够?"
+   - label 示例: "审批通过?", "库存充足?", "信用额度够?"
 
 ## 布局规则
 
@@ -111,7 +109,6 @@ const LOGICFLOW_PROMPT = `
 3. 居中布局，x 坐标以 400 为中心
 4. 节点 id 使用有意义的英文，如: start, purchase_request, purchase_order, end 等
 5. 边 id 使用 edge_ 前缀，如: edge_1, edge_2 等
-6. 连线类型统一使用 "polyline"（折线）
 
 ## 生成示例
 
@@ -121,21 +118,21 @@ const LOGICFLOW_PROMPT = `
 \`\`\`json
 {
   "nodes": [
-    {"id": "start", "type": "start", "x": 400, "y": 100, "text": "开始"},
-    {"id": "purchase_request", "type": "purchase", "x": 400, "y": 200, "text": "采购申请单"},
-    {"id": "purchase_order", "type": "purchase", "x": 400, "y": 300, "text": "采购订单"},
-    {"id": "purchase_inbound", "type": "purchase", "x": 400, "y": 400, "text": "采购入库单"},
-    {"id": "purchase_invoice", "type": "purchase", "x": 400, "y": 500, "text": "采购发票"},
-    {"id": "payment", "type": "finance", "x": 400, "y": 600, "text": "付款单"},
-    {"id": "end", "type": "end", "x": 400, "y": 700, "text": "结束"}
+    {"id": "start", "type": "start", "position": {"x": 400, "y": 100}, "data": {"label": "开始"}},
+    {"id": "purchase_request", "type": "purchase", "position": {"x": 400, "y": 200}, "data": {"label": "采购申请单"}},
+    {"id": "purchase_order", "type": "purchase", "position": {"x": 400, "y": 300}, "data": {"label": "采购订单"}},
+    {"id": "purchase_inbound", "type": "purchase", "position": {"x": 400, "y": 400}, "data": {"label": "采购入库单"}},
+    {"id": "purchase_invoice", "type": "purchase", "position": {"x": 400, "y": 500}, "data": {"label": "采购发票"}},
+    {"id": "payment", "type": "finance", "position": {"x": 400, "y": 600}, "data": {"label": "付款单"}},
+    {"id": "end", "type": "end", "position": {"x": 400, "y": 700}, "data": {"label": "结束"}}
   ],
   "edges": [
-    {"id": "edge_1", "type": "polyline", "sourceNodeId": "start", "targetNodeId": "purchase_request"},
-    {"id": "edge_2", "type": "polyline", "sourceNodeId": "purchase_request", "targetNodeId": "purchase_order"},
-    {"id": "edge_3", "type": "polyline", "sourceNodeId": "purchase_order", "targetNodeId": "purchase_inbound"},
-    {"id": "edge_4", "type": "polyline", "sourceNodeId": "purchase_inbound", "targetNodeId": "purchase_invoice"},
-    {"id": "edge_5", "type": "polyline", "sourceNodeId": "purchase_invoice", "targetNodeId": "payment"},
-    {"id": "edge_6", "type": "polyline", "sourceNodeId": "payment", "targetNodeId": "end"}
+    {"id": "edge_1", "source": "start", "target": "purchase_request"},
+    {"id": "edge_2", "source": "purchase_request", "target": "purchase_order"},
+    {"id": "edge_3", "source": "purchase_order", "target": "purchase_inbound"},
+    {"id": "edge_4", "source": "purchase_inbound", "target": "purchase_invoice"},
+    {"id": "edge_5", "source": "purchase_invoice", "target": "payment"},
+    {"id": "edge_6", "source": "payment", "target": "end"}
   ]
 }
 \`\`\`
@@ -163,8 +160,8 @@ export async function POST(request: NextRequest) {
 
     // 构建消息
     const messages = [
-      { role: 'system' as const, content: LOGICFLOW_PROMPT },
-      { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（LogicFlow JSON格式）：\n\n${description}` }
+      { role: 'system' as const, content: REACTFLOW_PROMPT },
+      { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（React Flow JSON格式）：\n\n${description}` }
     ];
 
     // 调用LLM生成
@@ -211,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     // 验证每个节点
     for (const node of flowData.nodes) {
-      if (!node.id || !node.type || typeof node.x !== 'number' || typeof node.y !== 'number') {
+      if (!node.id || !node.type || !node.position || !node.data) {
         console.error('节点数据不完整:', node);
         return NextResponse.json({ 
           error: '生成的节点数据不完整，请重新描述业务流程'

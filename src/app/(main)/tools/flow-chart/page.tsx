@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { 
   GitBranch, 
@@ -9,18 +10,29 @@ import {
   FileText, 
   Sparkles,
   AlertCircle,
-  CheckCircle2,
-  Edit3,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  Save,
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Edit3,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import FlowEditorCanvas, { FlowData } from '@/components/flow-editor/FlowEditorCanvas';
+import type { FlowData, FlowEditorRef } from '@/components/flow-editor/FlowEditor';
+
+// 动态导入编辑器组件，禁用 SSR
+const FlowEditor = dynamic(
+  () => import('@/components/flow-editor/FlowEditor'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full bg-slate-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-2" />
+          <p className="text-sm text-slate-500">正在加载编辑器...</p>
+        </div>
+      </div>
+    ),
+  }
+);
 
 // 示例业务流程
 const EXAMPLE_FLOWS = [
@@ -48,27 +60,10 @@ export default function FlowChartPage() {
   const [flowData, setFlowData] = useState<FlowData | null>(null);
   const [error, setError] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [editorReady, setEditorReady] = useState(false);
   
-  // 使用 FlowEditorCanvas hook
-  const {
-    containerRef,
-    isReady,
-    exportAsImage,
-    exportAsJson,
-    getData,
-    setData,
-    clearCanvas,
-    zoomIn,
-    zoomOut,
-    resetZoom,
-  } = FlowEditorCanvas({
-    data: flowData || undefined,
-    onDataChange: (data) => {
-      console.log('流程图数据已更新:', data);
-    },
-    readOnly: false,
-  });
+  const editorRef = useRef<FlowEditorRef>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -106,10 +101,10 @@ export default function FlowChartPage() {
         console.log('流程图生成成功:', data.flowData);
         setFlowData(data.flowData);
         
-        // 等待编辑器准备好后设置数据
+        // 设置编辑器数据
         setTimeout(() => {
-          if (setData) {
-            setData(data.flowData);
+          if (editorRef.current) {
+            editorRef.current.setData(data.flowData);
           }
         }, 100);
       } else {
@@ -125,18 +120,24 @@ export default function FlowChartPage() {
 
   // 导出 PNG
   const handleExportPng = async () => {
-    await exportAsImage('业务流程图');
+    if (editorRef.current) {
+      await editorRef.current.exportAsImage('业务流程图');
+    }
   };
 
   // 导出 JSON
   const handleExportJson = () => {
-    exportAsJson('业务流程图');
+    if (editorRef.current) {
+      editorRef.current.exportAsJson('业务流程图');
+    }
   };
 
   // 清空画布
   const handleClear = () => {
     if (confirm('确定要清空画布吗？')) {
-      clearCanvas();
+      if (editorRef.current) {
+        editorRef.current.clearCanvas();
+      }
       setFlowData(null);
     }
   };
@@ -248,8 +249,12 @@ export default function FlowChartPage() {
       {/* 折叠按钮 */}
       <button
         onClick={() => setShowSidebar(!showSidebar)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white border border-slate-200 rounded-r-lg p-1 shadow-sm hover:bg-slate-50 transition-colors"
-        style={{ left: showSidebar ? '320px' : '0' }}
+        className="absolute z-10 bg-white border border-slate-200 rounded-r-lg p-1 shadow-sm hover:bg-slate-50 transition-colors"
+        style={{ 
+          left: showSidebar ? '320px' : '0',
+          top: '50%',
+          transform: 'translateY(-50%)'
+        }}
       >
         {showSidebar ? (
           <ChevronLeft className="w-4 h-4 text-slate-500" />
@@ -265,36 +270,11 @@ export default function FlowChartPage() {
           <div className="flex items-center gap-2">
             <Edit3 className="w-4 h-4 text-slate-400" />
             <span className="text-sm font-medium text-slate-700">流程图编辑器</span>
-            {isReady && (
+            {editorReady && (
               <span className="text-xs text-green-500 ml-2">● 已就绪</span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* 缩放按钮 */}
-            <div className="flex items-center gap-1 border-r border-slate-200 pr-2 mr-2">
-              <button
-                onClick={zoomOut}
-                className="p-1.5 rounded hover:bg-slate-100 transition-colors"
-                title="缩小"
-              >
-                <ZoomOut className="w-4 h-4 text-slate-500" />
-              </button>
-              <button
-                onClick={resetZoom}
-                className="p-1.5 rounded hover:bg-slate-100 transition-colors"
-                title="重置缩放"
-              >
-                <RotateCcw className="w-4 h-4 text-slate-500" />
-              </button>
-              <button
-                onClick={zoomIn}
-                className="p-1.5 rounded hover:bg-slate-100 transition-colors"
-                title="放大"
-              >
-                <ZoomIn className="w-4 h-4 text-slate-500" />
-              </button>
-            </div>
-            
             {/* 清空按钮 */}
             <button
               onClick={handleClear}
@@ -324,14 +304,17 @@ export default function FlowChartPage() {
 
         {/* LogicFlow 编辑器容器 */}
         <div className="flex-1 relative">
-          <div 
-            ref={containerRef}
-            className="absolute inset-0"
-            style={{ width: '100%', height: '100%' }}
+          <FlowEditor
+            ref={editorRef}
+            data={flowData || undefined}
+            onReady={() => setEditorReady(true)}
+            onDataChange={(data) => {
+              console.log('流程图数据已更新');
+            }}
           />
           
           {/* 空状态提示 */}
-          {!flowData && (
+          {!flowData && editorReady && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center text-slate-400">
                 <GitBranch className="w-16 h-16 mx-auto mb-4 opacity-30" />
