@@ -97,6 +97,15 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
   const colors = COLOR_PRESETS[colorKey as keyof typeof COLOR_PRESETS] || COLOR_PRESETS.blue;
   const isRound = type === 'start' || type === 'end';
   
+  // Handle 样式
+  const handleStyle: React.CSSProperties = {
+    width: 10,
+    height: 10,
+    background: colors.stroke,
+    border: '2px solid #fff',
+    borderRadius: '50%',
+  };
+
   const nodeStyle: React.CSSProperties = {
     background: colors.fill,
     border: `2px solid ${colors.stroke}`,
@@ -135,13 +144,25 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
       onDoubleClick={handleDoubleClick}
       className="react-flow__node-custom"
     >
+      {/* 上方 Handle - 输入 */}
       <Handle 
         type="target" 
         position={Position.Top} 
-        style={{ width: 8, height: 8, background: colors.stroke, border: '2px solid #fff' }}
+        id="top"
+        style={handleStyle}
         isConnectable={true}
       />
       
+      {/* 左侧 Handle - 输入/输出 */}
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        id="left"
+        style={handleStyle}
+        isConnectable={true}
+      />
+      
+      {/* 内容区域 */}
       {isEditing ? (
         <input
           type="text"
@@ -157,10 +178,21 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
         <span>{label}</span>
       )}
       
+      {/* 右侧 Handle - 输入/输出 */}
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        id="right"
+        style={handleStyle}
+        isConnectable={true}
+      />
+      
+      {/* 下方 Handle - 输出 */}
       <Handle 
         type="source" 
         position={Position.Bottom} 
-        style={{ width: 8, height: 8, background: colors.stroke, border: '2px solid #fff' }}
+        id="bottom"
+        style={handleStyle}
         isConnectable={true}
       />
     </div>
