@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -124,7 +124,7 @@ function getDateStatus(date: Date): {
   return { isHoliday: false, isWorkday: true, holidayName: null, isWeekend: false };
 }
 
-function generateCalendarData(centerDate: Date, weekOffset: number = 0): Date[] {
+function generateCalendarData(centerDate: Date): Date[] {
   const dates: Date[] = [];
   const today = new Date(centerDate);
   today.setHours(0, 0, 0, 0);
@@ -133,10 +133,10 @@ function generateCalendarData(centerDate: Date, weekOffset: number = 0): Date[] 
   const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
   const monday = new Date(today);
-  monday.setDate(today.getDate() - adjustedDayOfWeek + (weekOffset * 7));
+  monday.setDate(today.getDate() - adjustedDayOfWeek);
   
-  // 生成7周（49天）的日历数据，比显示多1行用于动画
-  for (let i = 0; i < 49; i++) {
+  // 生成6周（42天）的日历数据
+  for (let i = 0; i < 42; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
     dates.push(date);
@@ -149,7 +149,7 @@ export default function SchedulePage() {
   const { session } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [centerDate] = useState(new Date());
+  const [centerDate, setCenterDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -158,66 +158,6 @@ export default function SchedulePage() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
-  
-  // 翻页状态
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [translateY, setTranslateY] = useState(0);
-  const [animating, setAnimating] = useState(false);
-  const calendarRef = useRef<HTMLDivElement>(null);
-  const rowHeightRef = useRef(0);
-  
-  // 获取一行的高度（用于计算动画距离）
-  const updateRowHeight = () => {
-    if (calendarRef.current) {
-      const firstRow = calendarRef.current.querySelector('.calendar-row');
-      if (firstRow) {
-        rowHeightRef.current = firstRow.clientHeight;
-      }
-    }
-  };
-  
-  // 翻页函数 - 整体平滑移动，无闪烁
-  const goUp = () => {
-    if (animating) return;
-    updateRowHeight();
-    
-    const rowHeight = rowHeightRef.current || 100;
-    setAnimating(true);
-    
-    // 向下移动一行（显示上一周）
-    setTranslateY(rowHeight);
-    
-    // 动画结束后切换数据并重置位置
-    setTimeout(() => {
-      setWeekOffset(prev => prev - 1);
-      setTranslateY(0);
-      // 延迟重置动画状态，确保DOM更新完成
-      requestAnimationFrame(() => {
-        setAnimating(false);
-      });
-    }, 300);
-  };
-
-  const goDown = () => {
-    if (animating) return;
-    updateRowHeight();
-    
-    const rowHeight = rowHeightRef.current || 100;
-    setAnimating(true);
-    
-    // 向上移动一行（显示下一周）
-    setTranslateY(-rowHeight);
-    
-    // 动画结束后切换数据并重置位置
-    setTimeout(() => {
-      setWeekOffset(prev => prev + 1);
-      setTranslateY(0);
-      // 延迟重置动画状态，确保DOM更新完成
-      requestAnimationFrame(() => {
-        setAnimating(false);
-      });
-    }, 300);
-  };
   
   // 会议相关状态
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
@@ -234,7 +174,7 @@ export default function SchedulePage() {
     duration: number;
   } | null>(null);
 
-  const calendarDates = useMemo(() => generateCalendarData(centerDate, weekOffset), [centerDate, weekOffset]);
+  const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
 
   // 获取客户列表
   useEffect(() => {
@@ -447,38 +387,26 @@ export default function SchedulePage() {
       </div>
 
       {/* 日历区域 */}
-      <div className="flex-1 flex gap-4 px-6 pb-6">
-        <div className="flex-1 flex flex-col">
-          <div className="max-w-6xl mx-auto flex-1 flex flex-col">
-            {/* 星期标题 */}
-            <div className="grid grid-cols-7 mb-2 shrink-0">
-              {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
-                <div
-                  key={day}
-                  className={`text-center py-2 text-sm font-medium ${
-                    index >= 5 ? 'text-gray-400' : 'text-gray-500'
-                  }`}
-                >
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* 日历网格容器 - 固定高度显示6行，overflow-hidden 裁剪多余内容 */}
-            <div className="flex-1 overflow-hidden">
-              <div 
-                ref={calendarRef}
-                className="grid grid-cols-7 gap-1"
-                style={{
-                  transform: `translateY(${translateY}px)`,
-                  transition: animating ? 'transform 300ms ease-out' : 'none',
-                }}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* 星期标题 */}
+          <div className="grid grid-cols-7 mb-2">
+            {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
+              <div
+                key={day}
+                className={`text-center py-2 text-sm font-medium ${
+                  index >= 5 ? 'text-gray-400' : 'text-gray-500'
+                }`}
               >
-                {calendarDates.map((date, index) => {
-                  // 为每行第一个元素添加 calendar-row 类（用于计算行高）
-                  const isFirstInRow = index % 7 === 0;
-                  
-                const dateStr = formatDate(date);
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* 日历网格 */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDates.map((date, index) => {
+              const dateStr = formatDate(date);
               const dateStatus = getDateStatus(date);
               const todayClass = isToday(date);
               const { isFirst, month } = isFirstOfMonth(date);
@@ -488,7 +416,7 @@ export default function SchedulePage() {
               return (
                 <div
                   key={index}
-                  className={`relative min-h-[100px] border rounded-lg transition-colors cursor-pointer group ${isFirstInRow ? 'calendar-row' : ''} ${
+                  className={`relative min-h-[100px] border rounded-lg transition-colors cursor-pointer group ${
                     (dateStatus.isHoliday || dateStatus.isWeekend)
                       ? 'bg-gray-100 border-gray-300'
                       : dateStatus.isWorkday
@@ -560,31 +488,7 @@ export default function SchedulePage() {
                 </div>
               );
             })}
-              </div>
-            </div>
           </div>
-        </div>
-
-        {/* 右侧上下翻页按钮 */}
-        <div className="flex flex-col justify-center gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-12 w-12 rounded-full shadow-md bg-white hover:bg-gray-100"
-            onClick={goUp}
-            disabled={animating}
-          >
-            <ChevronUp className="h-6 w-6" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-12 w-12 rounded-full shadow-md bg-white hover:bg-gray-100"
-            onClick={goDown}
-            disabled={animating}
-          >
-            <ChevronDown className="h-6 w-6" />
-          </Button>
         </div>
       </div>
 
