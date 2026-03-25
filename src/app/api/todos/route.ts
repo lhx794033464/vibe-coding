@@ -1,12 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// 获取今天的日期字符串（北京时间，用于前端筛选）
+// 获取今天的日期字符串（北京时间）
 function getTodayDateString(): string {
   const now = new Date();
   // 使用北京时间 (UTC+8)
   const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   return beijingTime.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+// 自动延期未完成的待办到今天
+async function autoDelayTodos(client: ReturnType<typeof getSupabaseClient>, userId: string) {
+  const today = getTodayDateString();
+  
+  // 查找截止日期早于今天且未完成的待办
+  const { data: overdueTodos, error: fetchError } = await client
+    .from('todos')
+    .select('id, due_date')
+    .eq('user_id', userId)
+    .eq('completed', false)
+    .lt('due_date', `${today}T00:00:00.000Z`);
+  
+  if (fetchError) {
+    console.error('获取逾期待办失败:', fetchError);
+    return;
+  }
+  
+  // 如果有逾期未完成的待办，延期到今天
+  if (overdueTodos && overdueTodos.length > 0) {
+    const todayStart = `${today}T00:00:00.000Z`;
+    
+    const { error: updateError } = await client
+      .from('todos')
+      .update({ 
+        due_date: todayStart,
+        updated_at: new Date().toISOString()
+      })
+      .in('id', overdueTodos.map(t => t.id));
+    
+    if (updateError) {
+      console.error('自动延期待办失败:', updateError);
+    } else {
+      console.log(`已自动延期 ${overdueTodos.length} 个待办到 ${today}`);
+    }
+  }
 }
 
 // 获取待办列表
@@ -28,8 +65,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status'); // 'pending' | 'completed' | 'all'
     const date = searchParams.get('date'); // ISO date string
 
-    // 调用 RPC 函数自动延期
-    await client.rpc('auto_delay_todos', { user_id: user.id });
+    // 自动延期未完成的待办到今天（替代 RPC 函数）
+    await autoDelayTodos(client, user.id);
 
     let query = client
       .from('todos')
