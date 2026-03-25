@@ -37,84 +37,114 @@ const KINGDEE_DOCUMENTS = `
 1. 订货订单 → 订货发货 → 收货确认
 `;
 
-// draw.io XML 生成提示词
-const DRAWIO_PROMPT = `
+// LogicFlow JSON 生成提示词
+const LOGICFLOW_PROMPT = `
 你是一个专业的业务流程图生成专家，精通金蝶云星辰ERP系统的业务流程。
 
 ## 任务
-根据用户描述的业务场景，生成符合 draw.io (mxGraph) 格式的 XML 流程图代码。
+根据用户描述的业务场景，生成 LogicFlow 流程图编辑器可用的 JSON 数据格式。
 
-## draw.io XML 格式规范
+## LogicFlow JSON 格式规范
 
 基础结构：
-\`\`\`xml
-<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.0" type="device">
-  <diagram name="业务流程图" id="flow-chart">
-    <mxGraphModel dx="1426" dy="797" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-        <!-- 节点和连线放这里 -->
-      </root>
-    </mxGraphModel>
-  </diagram>
-</mxfile>
+\`\`\`json
+{
+  "nodes": [
+    {
+      "id": "node_unique_id",
+      "type": "节点类型",
+      "x": 横坐标数字,
+      "y": 纵坐标数字,
+      "text": "节点显示文字"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_unique_id",
+      "type": "polyline",
+      "sourceNodeId": "源节点id",
+      "targetNodeId": "目标节点id",
+      "text": "连线文字（可选）"
+    }
+  ]
+}
 \`\`\`
 
-## 节点样式
+## 节点类型说明
 
-### 开始/结束节点（椭圆）
-<mxCell id="start" value="开始" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1">
-  <mxGeometry x="340" y="40" width="80" height="40" as="geometry" />
-</mxCell>
+1. **开始节点**: type = "start"
+   - 用于流程开始，圆形绿色节点
+   - text 通常为 "开始"
 
-### 流程节点（圆角矩形）
-<mxCell id="node1" value="采购申请单" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
-  <mxGeometry x="300" y="120" width="160" height="50" as="geometry" />
-</mxCell>
+2. **结束节点**: type = "end"  
+   - 用于流程结束，圆形红色节点
+   - text 通常为 "结束"
 
-### 判断节点（菱形）
-<mxCell id="decision1" value="审批通过?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
-  <mxGeometry x="300" y="200" width="160" height="80" as="geometry" />
-</mxCell>
+3. **通用流程节点**: type = "process"
+   - 圆角矩形，蓝色
 
-### 连线
-<mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;fontSize=12;" edge="1" parent="1" source="start" target="node1">
-  <mxGeometry relative="1" as="geometry" />
-</mxCell>
+4. **采购类节点**: type = "purchase"
+   - 圆角矩形，蓝色
+   - 用于采购申请单、采购订单、采购入库单、采购发票、付款单等
 
-### 带标签的连线
-<mxCell id="edge2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;fontSize=12;" edge="1" parent="1" source="decision1" target="node2">
-  <mxGeometry relative="1" as="geometry" />
-  <mxCell value="是" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edge2">
-    <mxGeometry x="-0.2" relative="1" as="geometry">
-      <mxPoint as="offset" />
-    </mxGeometry>
-  </mxCell>
-</mxCell>
+5. **销售类节点**: type = "sale"
+   - 圆角矩形，橙色
+   - 用于销售报价单、销售订单、销售出库单、销售发票、收款单等
 
-## 节点颜色规范
-- 开始：绿色 (#d5e8d4, stroke #82b366)
-- 结束：红色 (#f8cecc, stroke #b85450)
-- 采购相关：蓝色 (#dae8fc, stroke #6c8ebf)
-- 销售相关：橙色 (#ffe6cc, stroke #d79b00)
-- 库存相关：紫色 (#e1d5e7, stroke #9673a6)
-- 财务相关：绿色 (#d5e8d4, stroke #82b366)
-- 生产相关：灰色 (#f5f5f5, stroke #666666)
-- 判断节点：黄色 (#fff2cc, stroke #d6b656)
+6. **库存类节点**: type = "inventory"
+   - 圆角矩形，紫色
+   - 用于其他入库单、其他出库单、调拨单、盘点单等
 
-## 布局要求
-1. 从上到下垂直布局，起始 y=40，每个节点间隔 y=80
-2. 居中布局，x 坐标以 400 为中心
-3. 节点宽度统一 160，高度 50（判断节点高度 80）
-4. 使用 orthogonalEdgeStyle 直角连线
-5. id 使用有意义的名称如 start, end, purchase_request, approve_check 等
+7. **财务类节点**: type = "finance"
+   - 圆角矩形，绿色
+   - 用于收款单、付款单、费用报销单、转账单、凭证等
 
-## 输出格式
-直接输出完整的 draw.io XML 代码，不要有任何其他说明文字。
+8. **判断节点**: type = "decision"
+   - 菱形，黄色
+   - 用于审批判断、条件分支
+   - text 示例: "审批通过?", "库存充足?", "信用额度够?"
+
+## 布局规则
+
+1. 使用从上到下的垂直布局
+2. 起始 y 坐标为 100，每个节点垂直间距 100
+3. 居中布局，x 坐标以 400 为中心
+4. 节点 id 使用有意义的英文，如: start, purchase_request, purchase_order, end 等
+5. 边 id 使用 edge_ 前缀，如: edge_1, edge_2 等
+6. 连线类型统一使用 "polyline"（折线）
+
+## 生成示例
+
+用户输入：商贸企业标准采购流程
+
+输出：
+\`\`\`json
+{
+  "nodes": [
+    {"id": "start", "type": "start", "x": 400, "y": 100, "text": "开始"},
+    {"id": "purchase_request", "type": "purchase", "x": 400, "y": 200, "text": "采购申请单"},
+    {"id": "purchase_order", "type": "purchase", "x": 400, "y": 300, "text": "采购订单"},
+    {"id": "purchase_inbound", "type": "purchase", "x": 400, "y": 400, "text": "采购入库单"},
+    {"id": "purchase_invoice", "type": "purchase", "x": 400, "y": 500, "text": "采购发票"},
+    {"id": "payment", "type": "finance", "x": 400, "y": 600, "text": "付款单"},
+    {"id": "end", "type": "end", "x": 400, "y": 700, "text": "结束"}
+  ],
+  "edges": [
+    {"id": "edge_1", "type": "polyline", "sourceNodeId": "start", "targetNodeId": "purchase_request"},
+    {"id": "edge_2", "type": "polyline", "sourceNodeId": "purchase_request", "targetNodeId": "purchase_order"},
+    {"id": "edge_3", "type": "polyline", "sourceNodeId": "purchase_order", "targetNodeId": "purchase_inbound"},
+    {"id": "edge_4", "type": "polyline", "sourceNodeId": "purchase_inbound", "targetNodeId": "purchase_invoice"},
+    {"id": "edge_5", "type": "polyline", "sourceNodeId": "purchase_invoice", "targetNodeId": "payment"},
+    {"id": "edge_6", "type": "polyline", "sourceNodeId": "payment", "targetNodeId": "end"}
+  ]
+}
+\`\`\`
 
 ## 金蝶云星辰单据参考
 ${KINGDEE_DOCUMENTS}
+
+## 输出格式要求
+直接输出 JSON 对象，不要包含任何其他说明文字或代码块标记。
 `;
 
 export async function POST(request: NextRequest) {
@@ -133,12 +163,12 @@ export async function POST(request: NextRequest) {
 
     // 构建消息
     const messages = [
-      { role: 'system' as const, content: DRAWIO_PROMPT },
-      { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（draw.io XML格式）：\n\n${description}` }
+      { role: 'system' as const, content: LOGICFLOW_PROMPT },
+      { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（LogicFlow JSON格式）：\n\n${description}` }
     ];
 
     // 调用LLM生成
-    let xmlContent = '';
+    let jsonContent = '';
     const stream = client.stream(messages, {
       model: 'doubao-seed-2-0-lite-260215',
       temperature: 0.3,
@@ -146,37 +176,59 @@ export async function POST(request: NextRequest) {
 
     for await (const chunk of stream) {
       if (chunk.content) {
-        xmlContent += chunk.content.toString();
+        jsonContent += chunk.content.toString();
       }
     }
 
-    // 清理输出，提取XML部分
-    xmlContent = xmlContent.trim();
+    // 清理输出
+    jsonContent = jsonContent.trim();
     
     // 如果输出包含代码块标记，提取其中的内容
-    const xmlMatch = xmlContent.match(/```xml\s*([\s\S]*?)```/);
-    if (xmlMatch) {
-      xmlContent = xmlMatch[1].trim();
-    } else {
-      // 尝试直接提取mxfile标签内容
-      const mxfileMatch = xmlContent.match(/<mxfile[\s\S]*<\/mxfile>/);
-      if (mxfileMatch) {
-        xmlContent = mxfileMatch[0];
-      }
+    const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonContent = jsonMatch[1].trim();
     }
 
-    // 验证XML格式
-    if (!xmlContent.includes('<mxfile') || !xmlContent.includes('</mxfile>')) {
-      console.error('生成的XML格式不正确:', xmlContent.substring(0, 500));
+    // 尝试解析 JSON
+    let flowData;
+    try {
+      flowData = JSON.parse(jsonContent);
+    } catch (parseError) {
+      console.error('JSON 解析失败:', jsonContent.substring(0, 500));
       return NextResponse.json({ 
         error: '生成的流程图格式不正确，请重新描述业务流程',
-        rawContent: xmlContent.substring(0, 1000)
+        rawContent: jsonContent.substring(0, 1000)
       }, { status: 500 });
     }
 
+    // 验证数据结构
+    if (!flowData.nodes || !Array.isArray(flowData.nodes)) {
+      console.error('缺少 nodes 数组:', flowData);
+      return NextResponse.json({ 
+        error: '生成的流程图缺少节点数据，请重新描述业务流程'
+      }, { status: 500 });
+    }
+
+    // 验证每个节点
+    for (const node of flowData.nodes) {
+      if (!node.id || !node.type || typeof node.x !== 'number' || typeof node.y !== 'number') {
+        console.error('节点数据不完整:', node);
+        return NextResponse.json({ 
+          error: '生成的节点数据不完整，请重新描述业务流程'
+        }, { status: 500 });
+      }
+    }
+
+    // 如果没有 edges，创建空的数组
+    if (!flowData.edges) {
+      flowData.edges = [];
+    }
+
+    console.log('流程图生成成功:', flowData.nodes.length, '个节点,', flowData.edges.length, '条连线');
+
     return NextResponse.json({ 
       success: true, 
-      xml: xmlContent 
+      flowData: flowData 
     });
 
   } catch (error) {
