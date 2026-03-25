@@ -124,7 +124,7 @@ function getDateStatus(date: Date): {
   return { isHoliday: false, isWorkday: true, holidayName: null, isWeekend: false };
 }
 
-function generateCalendarData(centerDate: Date, weekOffset: number = 0, extraRows: number = 0): Date[] {
+function generateCalendarData(centerDate: Date, weekOffset: number = 0): Date[] {
   const dates: Date[] = [];
   const today = new Date(centerDate);
   today.setHours(0, 0, 0, 0);
@@ -135,8 +135,8 @@ function generateCalendarData(centerDate: Date, weekOffset: number = 0, extraRow
   const monday = new Date(today);
   monday.setDate(today.getDate() - adjustedDayOfWeek + (weekOffset * 7));
   
-  // 生成日历数据（默认6周 + 额外行数）
-  for (let i = 0; i < 42 + extraRows * 7; i++) {
+  // 生成7周（49天）的日历数据，比显示多1行用于动画
+  for (let i = 0; i < 49; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
     dates.push(date);
@@ -161,19 +161,62 @@ export default function SchedulePage() {
   
   // 翻页状态
   const [weekOffset, setWeekOffset] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
   const [translateY, setTranslateY] = useState(0);
+  const [animating, setAnimating] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const rowHeightRef = useRef(0);
   
   // 获取一行的高度（用于计算动画距离）
-  const getRowHeight = () => {
+  const updateRowHeight = () => {
     if (calendarRef.current) {
       const firstRow = calendarRef.current.querySelector('.calendar-row');
       if (firstRow) {
-        return firstRow.clientHeight;
+        rowHeightRef.current = firstRow.clientHeight;
       }
     }
-    return 100; // 默认值
+  };
+  
+  // 翻页函数 - 整体平滑移动，无闪烁
+  const goUp = () => {
+    if (animating) return;
+    updateRowHeight();
+    
+    const rowHeight = rowHeightRef.current || 100;
+    setAnimating(true);
+    
+    // 向下移动一行（显示上一周）
+    setTranslateY(rowHeight);
+    
+    // 动画结束后切换数据并重置位置
+    setTimeout(() => {
+      setWeekOffset(prev => prev - 1);
+      setTranslateY(0);
+      // 延迟重置动画状态，确保DOM更新完成
+      requestAnimationFrame(() => {
+        setAnimating(false);
+      });
+    }, 300);
+  };
+
+  const goDown = () => {
+    if (animating) return;
+    updateRowHeight();
+    
+    const rowHeight = rowHeightRef.current || 100;
+    setAnimating(true);
+    
+    // 向上移动一行（显示下一周）
+    setTranslateY(-rowHeight);
+    
+    // 动画结束后切换数据并重置位置
+    setTimeout(() => {
+      setWeekOffset(prev => prev + 1);
+      setTranslateY(0);
+      // 延迟重置动画状态，确保DOM更新完成
+      requestAnimationFrame(() => {
+        setAnimating(false);
+      });
+    }, 300);
   };
   
   // 会议相关状态
@@ -191,7 +234,7 @@ export default function SchedulePage() {
     duration: number;
   } | null>(null);
 
-  const calendarDates = useMemo(() => generateCalendarData(centerDate, weekOffset, 1), [centerDate, weekOffset]); // 多生成1行用于动画
+  const calendarDates = useMemo(() => generateCalendarData(centerDate, weekOffset), [centerDate, weekOffset]);
 
   // 获取客户列表
   useEffect(() => {
@@ -395,41 +438,6 @@ export default function SchedulePage() {
     };
   };
 
-  // 翻页函数 - 参考手机下拉动作，整体平滑移动
-  const goUp = () => {
-    if (isAnimating) return;
-    
-    const rowHeight = getRowHeight();
-    setIsAnimating(true);
-    
-    // 先向下移动一行（显示上一周的数据）
-    setTranslateY(rowHeight);
-    
-    // 动画结束后切换数据并重置位置（无动画）
-    setTimeout(() => {
-      setIsAnimating(false); // 先禁用动画
-      setWeekOffset(prev => prev - 1);
-      setTranslateY(0);
-    }, 300);
-  };
-
-  const goDown = () => {
-    if (isAnimating) return;
-    
-    const rowHeight = getRowHeight();
-    setIsAnimating(true);
-    
-    // 先向上移动一行（显示下一周的数据）
-    setTranslateY(-rowHeight);
-    
-    // 动画结束后切换数据并重置位置（无动画）
-    setTimeout(() => {
-      setIsAnimating(false); // 先禁用动画
-      setWeekOffset(prev => prev + 1);
-      setTranslateY(0);
-    }, 300);
-  };
-
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* 页面标题 */}
@@ -439,11 +447,11 @@ export default function SchedulePage() {
       </div>
 
       {/* 日历区域 */}
-      <div className="flex-1 overflow-hidden flex gap-4 px-6 pb-6">
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-6xl mx-auto">
+      <div className="flex-1 flex gap-4 px-6 pb-6">
+        <div className="flex-1 flex flex-col">
+          <div className="max-w-6xl mx-auto flex-1 flex flex-col">
             {/* 星期标题 */}
-            <div className="grid grid-cols-7 mb-2">
+            <div className="grid grid-cols-7 mb-2 shrink-0">
               {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
                 <div
                   key={day}
@@ -456,14 +464,14 @@ export default function SchedulePage() {
               ))}
             </div>
 
-            {/* 日历网格容器 - 使用 overflow-hidden 裁剪多余内容 */}
-            <div className="overflow-hidden">
+            {/* 日历网格容器 - 固定高度显示6行，overflow-hidden 裁剪多余内容 */}
+            <div className="flex-1 overflow-hidden">
               <div 
                 ref={calendarRef}
                 className="grid grid-cols-7 gap-1"
                 style={{
                   transform: `translateY(${translateY}px)`,
-                  transition: isAnimating ? 'transform 300ms ease-out' : 'none',
+                  transition: animating ? 'transform 300ms ease-out' : 'none',
                 }}
               >
                 {calendarDates.map((date, index) => {
@@ -558,13 +566,13 @@ export default function SchedulePage() {
         </div>
 
         {/* 右侧上下翻页按钮 */}
-        <div className="flex flex-col justify-center gap-2">
+        <div className="flex flex-col justify-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="icon"
             className="h-12 w-12 rounded-full shadow-md bg-white hover:bg-gray-100"
             onClick={goUp}
-            disabled={isAnimating}
+            disabled={animating}
           >
             <ChevronUp className="h-6 w-6" />
           </Button>
@@ -573,7 +581,7 @@ export default function SchedulePage() {
             size="icon"
             className="h-12 w-12 rounded-full shadow-md bg-white hover:bg-gray-100"
             onClick={goDown}
-            disabled={isAnimating}
+            disabled={animating}
           >
             <ChevronDown className="h-6 w-6" />
           </Button>
