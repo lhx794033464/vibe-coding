@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckSquare,
-  Calendar
+  Calendar,
+  Wrench
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
   { href: '/commissions', label: '提成管理', icon: DollarSign },
+  { href: '/tools', label: '交付工具', icon: Wrench },
 ];
 
 export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: SidebarProps) {
@@ -85,6 +87,10 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: Sid
             }
             // 特殊处理：commissions路径
             if (item.href === '/commissions' && pathname.startsWith('/commissions')) {
+              isActive = true;
+            }
+            // 特殊处理：tools路径
+            if (item.href === '/tools' && pathname.startsWith('/tools')) {
               isActive = true;
             }
             

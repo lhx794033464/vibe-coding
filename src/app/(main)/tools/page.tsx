@@ -1,0 +1,84 @@
+'use client';
+
+import { useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { GitBranch, ArrowRight, Loader2, Download, FileText } from 'lucide-react';
+import Link from 'next/link';
+
+// 交付工具列表
+const tools = [
+  {
+    id: 'flow-chart',
+    title: '业务流程图',
+    description: '根据业务描述自动生成金蝶云星辰业务流程图，支持draw.io编辑导出',
+    icon: GitBranch,
+    href: '/tools/flow-chart',
+    color: 'bg-blue-50 text-blue-600',
+    iconBg: 'bg-blue-100',
+  },
+  // 未来可扩展更多工具
+  // {
+  //   id: 'doc-generator',
+  //   title: '实施文档生成',
+  //   description: '自动生成实施计划、培训文档等',
+  //   icon: FileText,
+  //   href: '/tools/doc-generator',
+  //   color: 'bg-green-50 text-green-600',
+  //   iconBg: 'bg-green-100',
+  // },
+];
+
+export default function ToolsPage() {
+  return (
+    <div className="h-full bg-slate-50">
+      <div className="p-6">
+        {/* 页面标题 */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-800">交付工具</h1>
+          <p className="text-slate-500 mt-1">提升交付效率的专业工具集</p>
+        </div>
+
+        {/* 工具卡片网格 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {tools.map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <Link key={tool.id} href={tool.href}>
+                <Card className="h-full cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-200 group rounded-2xl overflow-hidden">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col items-center text-center">
+                      {/* 图标 */}
+                      <div className={`w-16 h-16 rounded-2xl ${tool.iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
+                        <Icon className={`w-8 h-8 ${tool.color.replace('bg-', 'text-')}`} />
+                      </div>
+                      {/* 标题 */}
+                      <h3 className="font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
+                        {tool.title}
+                      </h3>
+                      {/* 描述 */}
+                      <p className="text-sm text-slate-500 line-clamp-2">
+                        {tool.description}
+                      </p>
+                      {/* 箭头 */}
+                      <div className="mt-4 flex items-center gap-1 text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        点击使用
+                        <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* 提示信息 */}
+        <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <p className="text-sm text-blue-700">
+            💡 更多交付工具正在开发中，如有需求建议请联系产品团队
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
