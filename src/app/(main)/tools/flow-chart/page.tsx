@@ -11,11 +11,11 @@ import {
   AlertCircle,
   CheckCircle2,
   Copy,
-  Edit3,
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  ExternalLink
+  Code2,
+  Eye
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import mermaid from 'mermaid';
@@ -58,13 +58,18 @@ export default function FlowChartPage() {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [mermaidCode, setMermaidCode] = useState('');
+  const [editableCode, setEditableCode] = useState(''); // 可编辑的代码
   const [drawioXml, setDrawioXml] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [editMode, setEditMode] = useState(false); // 编辑模式
+  const [renderError, setRenderError] = useState(false);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mermaidRef = useRef<HTMLDivElement>(null);
-  const [renderError, setRenderError] = useState(false);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 渲染 mermaid 图表
   const renderMermaid = useCallback(async (code: string) => {
@@ -81,19 +86,54 @@ export default function FlowChartPage() {
       setRenderError(true);
       mermaidRef.current.innerHTML = `
         <div class="text-center text-red-500 p-4">
-          <p class="font-medium">流程图渲染失败</p>
-          <p class="text-sm text-slate-500 mt-2">请尝试重新生成或修改描述</p>
+          <p class="font-medium">流程图语法错误</p>
+          <p class="text-sm text-slate-500 mt-2">请检查代码格式是否正确</p>
         </div>
       `;
     }
   }, []);
 
-  // 当 mermaidCode 变化时渲染
+  // 编辑模式下实时渲染（防抖）
   useEffect(() => {
-    if (mermaidCode) {
-      renderMermaid(mermaidCode);
+    if (!editMode || !editableCode) return;
+    
+    // 清除之前的定时器
+    if (renderTimeoutRef.current) {
+      clearTimeout(renderTimeoutRef.current);
     }
-  }, [mermaidCode, renderMermaid]);
+    
+    // 防抖：500ms 后渲染
+    renderTimeoutRef.current = setTimeout(() => {
+      renderMermaid(editableCode);
+    }, 500);
+    
+    return () => {
+      if (renderTimeoutRef.current) {
+        clearTimeout(renderTimeoutRef.current);
+      }
+    };
+  }, [editableCode, editMode, renderMermaid]);
+
+  // 切换编辑模式
+  const handleToggleEdit = () => {
+    if (!editMode) {
+      // 进入编辑模式
+      setEditableCode(mermaidCode);
+      setEditMode(true);
+    } else {
+      // 退出编辑模式，应用更改
+      setMermaidCode(editableCode);
+      renderMermaid(editableCode);
+      setEditMode(false);
+    }
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setEditableCode(mermaidCode);
+    setEditMode(false);
+    renderMermaid(mermaidCode);
+  };
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -105,7 +145,8 @@ export default function FlowChartPage() {
     setLoading(true);
     setError('');
     setMermaidCode('');
-    setDrawioXml('');
+    setEditableCode('');
+    setEditMode(false);
 
     try {
       const headers: Record<string, string> = {
@@ -131,6 +172,7 @@ export default function FlowChartPage() {
 
       if (data.success && data.mermaid) {
         setMermaidCode(data.mermaid);
+        setEditableCode(data.mermaid);
         setDrawioXml(data.drawio || '');
       } else {
         setError('生成的流程图格式不正确');
@@ -141,16 +183,6 @@ export default function FlowChartPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 打开 Mermaid Live Editor 在线编辑
-  const handleOpenMermaidLive = () => {
-    if (!mermaidCode) return;
-    
-    // 使用 base64 编码传递代码
-    const encoded = btoa(unescape(encodeURIComponent(mermaidCode)));
-    const url = `https://mermaid.live/edit#base64:${encoded}`;
-    window.open(url, '_blank');
   };
 
   // 下载 .drawio 文件
@@ -231,10 +263,11 @@ export default function FlowChartPage() {
 
   // 复制代码
   const handleCopy = async () => {
-    if (!mermaidCode) return;
+    const codeToCopy = editMode ? editableCode : mermaidCode;
+    if (!codeToCopy) return;
     
     try {
-      await navigator.clipboard.writeText(mermaidCode);
+      await navigator.clipboard.writeText(codeToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -264,7 +297,7 @@ export default function FlowChartPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-800">业务流程图</h1>
-              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图，支持在线编辑</p>
+              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图，支持实时编辑</p>
             </div>
           </div>
         </div>
@@ -348,58 +381,91 @@ export default function FlowChartPage() {
               <h3 className="text-sm font-medium text-amber-700 mb-2">💡 使用说明</h3>
               <ul className="text-xs text-amber-600 space-y-1.5">
                 <li>• 生成的流程图会直接显示在右侧预览区</li>
-                <li>• 点击"在线编辑"可在 Mermaid Live Editor 中修改</li>
-                <li>• 支持金蝶云星辰标准单据：采购、销售、库存、财务、生产</li>
-                <li>• 可导出为 PNG、SVG 图片或 .drawio 文件</li>
+                <li>• 点击"编辑代码"可直接修改流程图</li>
+                <li>• 编辑时实时预览，修改即时生效</li>
+                <li>• 支持导出 PNG、SVG 图片</li>
               </ul>
             </div>
           </div>
 
-          {/* 右侧：预览区域 */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {/* 右侧：预览和编辑区域 */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
               <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-slate-400" />
-                流程图预览
+                {editMode ? (
+                  <>
+                    <Code2 className="w-4 h-4 text-blue-500" />
+                    编辑模式
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4 text-slate-400" />
+                    流程图预览
+                  </>
+                )}
               </h3>
               {mermaidCode && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* 在线编辑按钮 - 主要操作 */}
+                  {/* 编辑模式切换 */}
                   <button
-                    onClick={handleOpenMermaidLive}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                    onClick={handleToggleEdit}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                      editMode 
+                        ? 'bg-green-500 text-white hover:bg-green-600' 
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                    }`}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    在线编辑
+                    {editMode ? (
+                      <>
+                        <Eye className="w-3.5 h-3.5" />
+                        完成编辑
+                      </>
+                    ) : (
+                      <>
+                        <Code2 className="w-3.5 h-3.5" />
+                        编辑代码
+                      </>
+                    )}
                   </button>
                   
-                  {/* 缩放控制 */}
-                  <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                  {editMode && (
                     <button
-                      onClick={handleZoomOut}
-                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
-                      title="缩小"
+                      onClick={handleCancelEdit}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                     >
-                      <ZoomOut className="w-4 h-4" />
+                      取消
                     </button>
-                    <span className="text-xs text-slate-500 min-w-[40px] text-center">
-                      {Math.round(zoom * 100)}%
-                    </span>
-                    <button
-                      onClick={handleZoomIn}
-                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
-                      title="放大"
-                    >
-                      <ZoomIn className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleZoomReset}
-                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
-                      title="重置"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
-                  </div>
+                  )}
+                  
+                  {/* 缩放控制 - 仅非编辑模式显示 */}
+                  {!editMode && (
+                    <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                      <button
+                        onClick={handleZoomOut}
+                        className="p-1 rounded hover:bg-slate-200 text-slate-500"
+                        title="缩小"
+                      >
+                        <ZoomOut className="w-4 h-4" />
+                      </button>
+                      <span className="text-xs text-slate-500 min-w-[40px] text-center">
+                        {Math.round(zoom * 100)}%
+                      </span>
+                      <button
+                        onClick={handleZoomIn}
+                        className="p-1 rounded hover:bg-slate-200 text-slate-500"
+                        title="放大"
+                      >
+                        <ZoomIn className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleZoomReset}
+                        className="p-1 rounded hover:bg-slate-200 text-slate-500"
+                        title="重置"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                   
                   {/* 操作按钮 */}
                   <button
@@ -433,93 +499,95 @@ export default function FlowChartPage() {
               )}
             </div>
 
-            {/* 流程图渲染区域 */}
-            <div className="h-[500px] overflow-auto bg-slate-50 p-4">
-              {!mermaidCode ? (
-                <div className="h-full flex items-center justify-center text-slate-400">
-                  <div className="text-center">
-                    <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">输入业务流程描述后点击生成</p>
-                    <p className="text-xs mt-1">流程图将在此显示</p>
+            {/* 内容区域 */}
+            <div className="flex-1 min-h-[500px] overflow-hidden flex flex-col">
+              {editMode ? (
+                /* 编辑模式：左右分栏 */
+                <div className="flex-1 flex">
+                  {/* 代码编辑区 */}
+                  <div className="w-1/2 border-r border-slate-200 flex flex-col">
+                    <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs text-slate-500">
+                      Mermaid 代码
+                    </div>
+                    <textarea
+                      ref={editorRef}
+                      value={editableCode}
+                      onChange={(e) => setEditableCode(e.target.value)}
+                      className="flex-1 p-3 font-mono text-sm bg-slate-900 text-green-400 resize-none focus:outline-none"
+                      placeholder="在此编辑 Mermaid 代码..."
+                      spellCheck={false}
+                    />
                   </div>
-                </div>
-              ) : renderError ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-400" />
-                    <p className="text-sm text-red-500">流程图渲染失败</p>
-                    <Button
-                      onClick={handleGenerate}
-                      variant="outline"
-                      className="mt-3"
-                    >
-                      重新生成
-                    </Button>
+                  {/* 实时预览区 */}
+                  <div className="w-1/2 flex flex-col">
+                    <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs text-slate-500">
+                      实时预览
+                    </div>
+                    <div className="flex-1 overflow-auto p-4 bg-slate-50">
+                      <div 
+                        ref={mermaidRef}
+                        className="flex items-center justify-center min-h-full"
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div 
-                  ref={mermaidRef}
-                  className="flex items-center justify-center min-h-full"
-                  style={{ 
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'center center',
-                    transition: 'transform 0.2s ease'
-                  }}
-                />
+                /* 预览模式 */
+                <div className="flex-1 overflow-auto bg-slate-50 p-4">
+                  {!mermaidCode ? (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm">输入业务流程描述后点击生成</p>
+                        <p className="text-xs mt-1">流程图将在此显示</p>
+                      </div>
+                    </div>
+                  ) : renderError ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-400" />
+                        <p className="text-sm text-red-500">流程图渲染失败</p>
+                        <Button
+                          onClick={handleGenerate}
+                          variant="outline"
+                          className="mt-3"
+                        >
+                          重新生成
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      ref={mermaidRef}
+                      className="flex items-center justify-center min-h-full"
+                      style={{ 
+                        transform: `scale(${zoom})`,
+                        transformOrigin: 'center center',
+                        transition: 'transform 0.2s ease'
+                      }}
+                    />
+                  )}
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Mermaid 源码展示 */}
-        {mermaidCode && (
-          <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-slate-700">Mermaid 源码</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleOpenMermaidLive}
-                  className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  在 mermaid.live 中打开
-                </button>
-                <button
-                  onClick={handleCopy}
-                  className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                      已复制
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      复制
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            <pre className="bg-slate-900 text-slate-300 p-4 rounded-lg text-xs overflow-auto max-h-48 font-mono">
-              {mermaidCode}
-            </pre>
-            <div className="flex items-center gap-4 mt-2">
-              <p className="text-xs text-slate-500">
-                💡 点击"在线编辑"按钮在 Mermaid Live Editor 中可视化编辑流程图
-              </p>
-              {drawioXml && (
-                <button
-                  onClick={handleDownloadDrawio}
-                  className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  下载 .drawio 文件
-                </button>
-              )}
-            </div>
+        {/* 底部提示 */}
+        {mermaidCode && !editMode && (
+          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+            <p>
+              💡 点击"编辑代码"按钮可直接修改流程图，支持实时预览
+            </p>
+            {drawioXml && (
+              <button
+                onClick={handleDownloadDrawio}
+                className="flex items-center gap-1 hover:text-blue-600"
+              >
+                <Download className="w-3.5 h-3.5" />
+                下载 .drawio 文件
+              </button>
+            )}
           </div>
         )}
       </div>
