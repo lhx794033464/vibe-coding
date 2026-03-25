@@ -236,12 +236,11 @@ export default function FlowChartPage() {
             <div className="bg-amber-50 rounded-lg border border-amber-200 p-3">
               <h3 className="text-xs font-medium text-amber-700 mb-1.5">💡 编辑操作说明</h3>
               <ul className="text-xs text-amber-600 space-y-1">
-                <li>• <strong>选中节点</strong>：单击节点</li>
+                <li>• <strong>添加节点</strong>：点击左侧节点面板</li>
                 <li>• <strong>编辑文字</strong>：双击节点后输入</li>
-                <li>• <strong>移动节点</strong>：拖拽节点</li>
-                <li>• <strong>连接节点</strong>：从节点下方圆点拖到另一节点上方圆点</li>
-                <li>• <strong>删除</strong>：选中后按 Delete/Backspace</li>
-                <li>• <strong>缩放/平移</strong>：滚轮缩放，拖拽空白平移</li>
+                <li>• <strong>修改颜色</strong>：选中节点后点击右侧颜色</li>
+                <li>• <strong>连接节点</strong>：拖拽节点上下圆点</li>
+                <li>• <strong>删除</strong>：选中后按 Delete 键</li>
               </ul>
             </div>
           </div>
