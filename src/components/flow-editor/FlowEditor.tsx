@@ -194,7 +194,7 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
       onDoubleClick={handleDoubleClick}
       className="react-flow__node-custom"
     >
-      {/* 上方 Handle - 输入 */}
+      {/* 上方 Handle - 可输入可输出 */}
       <Handle 
         type="target" 
         position={Position.Top} 
@@ -202,8 +202,22 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
         style={handleStyle}
         isConnectable={true}
       />
+      <Handle 
+        type="source" 
+        position={Position.Top} 
+        id="top-out"
+        style={{ ...handleStyle, top: -4 }}
+        isConnectable={true}
+      />
       
-      {/* 左侧 Handle - 输入/输出 */}
+      {/* 左侧 Handle - 可输入可输出 */}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="left-in"
+        style={{ ...handleStyle, left: -4 }}
+        isConnectable={true}
+      />
       <Handle 
         type="source" 
         position={Position.Left} 
@@ -228,7 +242,14 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
         <span>{label}</span>
       )}
       
-      {/* 右侧 Handle - 输入/输出 */}
+      {/* 右侧 Handle - 可输入可输出 */}
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        id="right-in"
+        style={{ ...handleStyle, right: -4 }}
+        isConnectable={true}
+      />
       <Handle 
         type="source" 
         position={Position.Right} 
@@ -237,7 +258,14 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
         isConnectable={true}
       />
       
-      {/* 下方 Handle - 输出 */}
+      {/* 下方 Handle - 可输入可输出 */}
+      <Handle 
+        type="target" 
+        position={Position.Bottom} 
+        id="bottom-in"
+        style={{ ...handleStyle, bottom: -4 }}
+        isConnectable={true}
+      />
       <Handle 
         type="source" 
         position={Position.Bottom} 
@@ -277,6 +305,36 @@ const nodeTypes: NodeTypes = {
   process: (props: NodeProps) => <CustomNode {...props} type="process" />,
 };
 
+// 根据节点位置自动选择最佳 Handle
+const getBestHandles = (
+  sourcePos: { x: number; y: number },
+  targetPos: { x: number; y: number }
+): { sourceHandle: string; targetHandle: string } => {
+  const dx = targetPos.x - sourcePos.x;
+  const dy = targetPos.y - sourcePos.y;
+  
+  // 判断主要方向
+  if (Math.abs(dy) > Math.abs(dx)) {
+    // 垂直方向为主
+    if (dy > 0) {
+      // 目标在下方：从 source 的 bottom 到 target 的 top
+      return { sourceHandle: 'bottom', targetHandle: 'top' };
+    } else {
+      // 目标在上方：从 source 的 top 到 target 的 bottom
+      return { sourceHandle: 'top', targetHandle: 'bottom' };
+    }
+  } else {
+    // 水平方向为主
+    if (dx > 0) {
+      // 目标在右侧：从 source 的 right 到 target 的 left
+      return { sourceHandle: 'right', targetHandle: 'left' };
+    } else {
+      // 目标在左侧：从 source 的 left 到 target 的 right
+      return { sourceHandle: 'left', targetHandle: 'right' };
+    }
+  }
+};
+
 // 自定义边样式 - 直线连接
 const defaultEdgeOptions = {
   type: 'straight',
@@ -305,18 +363,34 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
     }, [data?.nodes]);
 
     const initialEdges: Edge[] = useMemo(() => {
-      if (!data?.edges) return [];
-      return data.edges.map(edge => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        label: edge.label,
-        type: 'straight',
-        animated: false,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: '#666', strokeWidth: 2 },
-      }));
-    }, [data?.edges]);
+      if (!data?.edges || !data?.nodes) return [];
+      
+      // 创建节点位置映射
+      const nodePositions = new Map(data.nodes.map(n => [n.id, n.position]));
+      
+      return data.edges.map(edge => {
+        const sourcePos = nodePositions.get(edge.source);
+        const targetPos = nodePositions.get(edge.target);
+        
+        // 自动选择最佳 Handle
+        const handles = sourcePos && targetPos 
+          ? getBestHandles(sourcePos, targetPos)
+          : { sourceHandle: 'bottom', targetHandle: 'top' };
+        
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
+          label: edge.label,
+          type: 'straight',
+          animated: false,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: '#666', strokeWidth: 2 },
+        };
+      });
+    }, [data?.edges, data?.nodes]);
 
     const [nodes, setLocalNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setLocalEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -334,15 +408,37 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
     // 连接处理
     const onConnect = useCallback(
       (params: Connection) => {
+        // 获取节点位置
+        const nodes = getNodes();
+        const sourceNode = nodes.find(n => n.id === params.source);
+        const targetNode = nodes.find(n => n.id === params.target);
+        
+        // 如果用户没有指定 Handle，自动选择最佳 Handle
+        let sourceHandle = params.sourceHandle;
+        let targetHandle = params.targetHandle;
+        
+        if (!sourceHandle || !targetHandle) {
+          if (sourceNode && targetNode) {
+            const handles = getBestHandles(sourceNode.position, targetNode.position);
+            sourceHandle = sourceHandle || handles.sourceHandle;
+            targetHandle = targetHandle || handles.targetHandle;
+          } else {
+            sourceHandle = sourceHandle || 'bottom';
+            targetHandle = targetHandle || 'top';
+          }
+        }
+        
         setLocalEdges((eds) => addEdge({
           ...params,
+          sourceHandle,
+          targetHandle,
           type: 'straight',
           animated: false,
           markerEnd: { type: MarkerType.ArrowClosed },
           style: { stroke: '#666', strokeWidth: 2 },
         }, eds));
       },
-      [setLocalEdges]
+      [setLocalEdges, getNodes]
     );
 
     // 添加新节点
@@ -408,16 +504,33 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
           color: node.type === 'start' ? 'green' : node.type === 'end' ? 'red' : 'blue',
         },
       }));
-      const convertedEdges: Edge[] = newData.edges.map(edge => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        label: edge.label,
-        type: 'straight',
-        animated: false,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: '#666', strokeWidth: 2 },
-      }));
+      
+      // 创建节点位置映射
+      const nodePositions = new Map(newData.nodes.map(n => [n.id, n.position]));
+      
+      const convertedEdges: Edge[] = newData.edges.map(edge => {
+        const sourcePos = nodePositions.get(edge.source);
+        const targetPos = nodePositions.get(edge.target);
+        
+        // 自动选择最佳 Handle
+        const handles = sourcePos && targetPos 
+          ? getBestHandles(sourcePos, targetPos)
+          : { sourceHandle: 'bottom', targetHandle: 'top' };
+        
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
+          label: edge.label,
+          type: 'straight',
+          animated: false,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: '#666', strokeWidth: 2 },
+        };
+      });
+      
       setLocalNodes(convertedNodes);
       setLocalEdges(convertedEdges);
       setTimeout(() => fitView({ padding: 0.2 }), 50);
