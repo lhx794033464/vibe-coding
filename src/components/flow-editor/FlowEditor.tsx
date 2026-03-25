@@ -144,13 +144,17 @@ const CustomNode = memo(({
   const colorKey = (data.color as string) || 'blue';
   const colors = COLOR_PRESETS[colorKey as keyof typeof COLOR_PRESETS] || COLOR_PRESETS.blue;
   
+  // 统一节点宽度，确保所有节点垂直对齐
+  const NODE_WIDTH = 140;
+  const NODE_HEIGHT = 50;
+  
   // 根据节点类型确定形状
   const getShapeStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
       background: colors.fill,
       border: `2px solid ${colors.stroke}`,
-      minWidth: typeof data.width === 'number' ? data.width : 120,
-      minHeight: typeof data.height === 'number' ? data.height : 50,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
       padding: '10px 16px',
       fontSize: '14px',
       fontWeight: 500,
@@ -164,22 +168,25 @@ const CustomNode = memo(({
         ? `0 0 0 2px ${colors.stroke}, 0 2px 8px rgba(0,0,0,0.15)` 
         : '0 1px 3px rgba(0,0,0,0.1)',
       transition: dragging ? 'none' : 'box-shadow 0.2s',
+      boxSizing: 'border-box',
     };
 
     switch (type) {
       case 'start':
       case 'end':
-        return { ...baseStyle, borderRadius: '50%', minWidth: 80, minHeight: 40, padding: '8px 20px' };
+        // 椭圆形，宽度与其他节点一致
+        return { ...baseStyle, borderRadius: '50%' };
       case 'ellipse':
-        return { ...baseStyle, borderRadius: '50%', minWidth: 100, minHeight: 50 };
+        return { ...baseStyle, borderRadius: '50%' };
       case 'diamond':
       case 'decision':
       case 'approval':
+        // 菱形，保持正方形后旋转
         return { 
           ...baseStyle, 
+          width: 80,
+          height: 80,
           transform: 'rotate(45deg)', 
-          minWidth: 70, 
-          minHeight: 70,
           padding: '15px',
         };
       case 'rounded':
