@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useRef, forwardRef, useImperativeHandle, useMemo, useState, memo } from 'react';
+import { 
+  useCallback, 
+  useRef, 
+  forwardRef, 
+  useImperativeHandle, 
+  useMemo, 
+  useState, 
+  memo,
+} from 'react';
 import {
   ReactFlow,
   Controls,
@@ -20,8 +28,10 @@ import {
   Panel,
   useReactFlow,
   ReactFlowProvider,
+  NodeChange,
+  applyNodeChanges,
 } from '@xyflow/react';
-import type { NodeTypes, EdgeTypes } from '@xyflow/react';
+import type { NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 // 流程图数据类型
@@ -29,13 +39,17 @@ export interface FlowNode {
   id: string;
   type: string;
   position: { x: number; y: number };
-  data: { label: string };
+  data: { label: string; color?: string };
+  width?: number;
+  height?: number;
 }
 
 export interface FlowEdge {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
   label?: string;
 }
 
@@ -44,7 +58,6 @@ export interface FlowData {
   edges: FlowEdge[];
 }
 
-// 暴露给父组件的方法
 export interface FlowEditorRef {
   getData: () => FlowData;
   setData: (data: FlowData) => void;
@@ -63,112 +76,144 @@ interface FlowEditorProps {
   onReady?: () => void;
 }
 
-// 预设颜色方案 - 按业务部门区分
+// ============= 颜色预设 =============
 const COLOR_PRESETS = {
-  // 通用颜色
-  blue: { fill: '#E3F2FD', stroke: '#1976D2', text: '#1565C0' },
-  green: { fill: '#E8F5E9', stroke: '#388E3C', text: '#2E7D32' },
-  orange: { fill: '#FFF3E0', stroke: '#F57C00', text: '#E65100' },
-  purple: { fill: '#F3E5F5', stroke: '#7B1FA2', text: '#6A1B9A' },
-  red: { fill: '#FFEBEE', stroke: '#D32F2F', text: '#C62828' },
-  teal: { fill: '#E0F2F1', stroke: '#00796B', text: '#00695C' },
-  gray: { fill: '#ECEFF1', stroke: '#546E7A', text: '#455A64' },
-  yellow: { fill: '#FFFDE7', stroke: '#F9A825', text: '#F57F17' },
-  cyan: { fill: '#E0F7FA', stroke: '#00ACC1', text: '#00838F' },
-  indigo: { fill: '#E8EAF6', stroke: '#3949AB', text: '#303F9F' },
+  blue: { fill: '#DBEEF3', stroke: '#0066CC', text: '#0052A3', name: '蓝色' },
+  green: { fill: '#D5E8D4', stroke: '#82B366', text: '#3D7C47', name: '绿色' },
+  orange: { fill: '#FFE6CC', stroke: '#D79B00', text: '#B35900', name: '橙色' },
+  purple: { fill: '#E1D5E7', stroke: '#9673A6', text: '#6B4C7A', name: '紫色' },
+  red: { fill: '#F8CECC', stroke: '#B85450', text: '#8C3D3A', name: '红色' },
+  teal: { fill: '#D5DDDE', stroke: '#607D8B', text: '#3F5B66', name: '青色' },
+  yellow: { fill: '#FFF2CC', stroke: '#D6B656', text: '#B38F00', name: '黄色' },
+  gray: { fill: '#F5F5F5', stroke: '#666666', text: '#333333', name: '灰色' },
+  white: { fill: '#FFFFFF', stroke: '#000000', text: '#000000', name: '白色' },
 };
 
-// 部门节点类型配置 - 按部门分类
-const DEPARTMENT_NODES: Record<string, {
-  name: string;
-  color?: string;
-  nodes: { type: string; label: string; color: string; icon: string }[];
-}> = {
-  basic: {
-    name: '基础',
-    nodes: [
-      { type: 'start', label: '开始', color: 'green', icon: '○' },
-      { type: 'end', label: '结束', color: 'red', icon: '●' },
+// ============= 形状库配置 =============
+const SHAPE_LIBRARIES = {
+  general: {
+    name: '通用',
+    shapes: [
+      { type: 'rectangle', label: '矩形', color: 'blue' },
+      { type: 'rounded', label: '圆角矩形', color: 'blue' },
+      { type: 'ellipse', label: '椭圆', color: 'blue' },
+      { type: 'diamond', label: '菱形', color: 'yellow' },
+      { type: 'parallelogram', label: '平行四边形', color: 'blue' },
+      { type: 'hexagon', label: '六边形', color: 'blue' },
     ],
   },
-  purchase: {
-    name: '采购部',
-    color: 'blue',
-    nodes: [
-      { type: 'purchase', label: '采购申请', color: 'blue', icon: '□' },
-      { type: 'purchase_order', label: '采购订单', color: 'blue', icon: '□' },
-      { type: 'purchase_in', label: '采购入库', color: 'blue', icon: '□' },
+  flowchart: {
+    name: '流程图',
+    shapes: [
+      { type: 'start', label: '开始', color: 'green' },
+      { type: 'end', label: '结束', color: 'red' },
+      { type: 'process', label: '流程', color: 'blue' },
+      { type: 'decision', label: '判断', color: 'yellow' },
+      { type: 'data', label: '数据', color: 'blue' },
+      { type: 'document', label: '文档', color: 'blue' },
     ],
   },
-  sales: {
-    name: '销售部',
-    color: 'orange',
-    nodes: [
-      { type: 'sales', label: '销售订单', color: 'orange', icon: '□' },
-      { type: 'sales_out', label: '销售出库', color: 'orange', icon: '□' },
-      { type: 'sales_return', label: '销售退货', color: 'orange', icon: '□' },
-    ],
-  },
-  inventory: {
-    name: '仓储部',
-    color: 'purple',
-    nodes: [
-      { type: 'inventory', label: '库存管理', color: 'purple', icon: '□' },
-      { type: 'inventory_check', label: '库存盘点', color: 'purple', icon: '□' },
-      { type: 'inventory_transfer', label: '库存调拨', color: 'purple', icon: '□' },
-    ],
-  },
-  finance: {
-    name: '财务部',
-    color: 'teal',
-    nodes: [
-      { type: 'finance', label: '财务核算', color: 'teal', icon: '□' },
-      { type: 'payment', label: '付款结算', color: 'teal', icon: '□' },
-      { type: 'invoice', label: '发票管理', color: 'teal', icon: '□' },
-    ],
-  },
-  decision: {
-    name: '流程控制',
-    color: 'yellow',
-    nodes: [
-      { type: 'decision', label: '判断', color: 'yellow', icon: '◇' },
-      { type: 'process', label: '通用流程', color: 'gray', icon: '□' },
+  business: {
+    name: '业务',
+    shapes: [
+      { type: 'purchase', label: '采购', color: 'blue' },
+      { type: 'sales', label: '销售', color: 'orange' },
+      { type: 'inventory', label: '库存', color: 'purple' },
+      { type: 'finance', label: '财务', color: 'teal' },
+      { type: 'hr', label: '人事', color: 'green' },
+      { type: 'service', label: '服务', color: 'yellow' },
     ],
   },
 };
 
-// 自定义可编辑节点组件
-const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: string }) => {
+// ============= 连线样式 =============
+const EDGE_STYLES = {
+  straight: { name: '直线', type: 'straight' },
+  smooth: { name: '曲线', type: 'default' },
+  step: { name: '折线', type: 'step' },
+  smoothstep: { name: '平滑折线', type: 'smoothstep' },
+};
+
+// ============= 自定义节点组件 =============
+const CustomNode = memo(({ 
+  id, 
+  data, 
+  type, 
+  selected, 
+  dragging 
+}: NodeProps & { type: string }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [label, setLabel] = useState<string>(data.label as string || '');
   
-  // 从 data 中获取样式或使用默认
   const colorKey = (data.color as string) || 'blue';
   const colors = COLOR_PRESETS[colorKey as keyof typeof COLOR_PRESETS] || COLOR_PRESETS.blue;
-  const isRound = type === 'start' || type === 'end';
   
-  // Handle 样式
-  const handleStyle: React.CSSProperties = {
-    width: 10,
-    height: 10,
-    background: colors.stroke,
-    border: '2px solid #fff',
-    borderRadius: '50%',
+  // 根据节点类型确定形状
+  const getShapeStyle = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      background: colors.fill,
+      border: `2px solid ${colors.stroke}`,
+      minWidth: typeof data.width === 'number' ? data.width : 120,
+      minHeight: typeof data.height === 'number' ? data.height : 50,
+      padding: '10px 16px',
+      fontSize: '14px',
+      fontWeight: 500,
+      color: colors.text,
+      cursor: 'move',
+      textAlign: 'center',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: selected 
+        ? `0 0 0 2px ${colors.stroke}, 0 2px 8px rgba(0,0,0,0.15)` 
+        : '0 1px 3px rgba(0,0,0,0.1)',
+      transition: dragging ? 'none' : 'box-shadow 0.2s',
+    };
+
+    switch (type) {
+      case 'start':
+      case 'end':
+      case 'ellipse':
+        return { ...baseStyle, borderRadius: '50%', minWidth: 100, minHeight: 50 };
+      case 'diamond':
+      case 'decision':
+        return { 
+          ...baseStyle, 
+          transform: 'rotate(45deg)', 
+          minWidth: 80, 
+          minHeight: 80,
+          padding: '20px',
+        };
+      case 'parallelogram':
+      case 'data':
+        return { ...baseStyle, transform: 'skewX(-10deg)' };
+      case 'rounded':
+      case 'process':
+      case 'purchase':
+      case 'sales':
+      case 'inventory':
+      case 'finance':
+      case 'hr':
+      case 'service':
+        return { ...baseStyle, borderRadius: '8px' };
+      case 'hexagon':
+        return { ...baseStyle, borderRadius: '8px', clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
+      case 'document':
+        return { ...baseStyle, borderRadius: '8px', borderBottomLeftRadius: '20px', borderBottomRightRadius: '20px' };
+      default:
+        return { ...baseStyle, borderRadius: '4px' };
+    }
   };
 
-  const nodeStyle: React.CSSProperties = {
-    background: colors.fill,
-    border: `2px solid ${colors.stroke}`,
-    borderRadius: isRound ? '50%' : '8px',
-    padding: isRound ? '12px 24px' : '12px 24px',
-    fontSize: '14px',
-    fontWeight: 500,
-    color: colors.text,
-    cursor: 'pointer',
-    minWidth: isRound ? 'auto' : '120px',
-    textAlign: 'center',
-    boxShadow: selected ? `0 0 0 3px ${colors.stroke}40` : '0 2px 8px rgba(0,0,0,0.1)',
-    transition: 'box-shadow 0.2s',
+  // Handle 样式
+  const handleStyle: React.CSSProperties = {
+    width: 8,
+    height: 8,
+    background: colors.stroke,
+    border: '2px solid white',
+    borderRadius: '50%',
+    opacity: selected ? 1 : 0.5,
+    transition: 'opacity 0.2s',
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -186,126 +231,129 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
       setIsEditing(false);
       data.label = label;
     }
+    if (e.key === 'Escape') {
+      setIsEditing(false);
+      setLabel(data.label as string || '');
+    }
   };
+
+  const shapeStyle = getShapeStyle();
+  const isRotated = type === 'diamond' || type === 'decision';
 
   return (
     <div 
-      style={nodeStyle}
+      style={shapeStyle}
       onDoubleClick={handleDoubleClick}
-      className="react-flow__node-custom"
+      className="react-flow__node-custom group"
     >
-      {/* 上方 Handle - 可输入可输出 */}
-      <Handle 
-        type="target" 
-        position={Position.Top} 
-        id="top"
-        style={handleStyle}
-        isConnectable={true}
-      />
+      {/* 四个方向的连接点 */}
       <Handle 
         type="source" 
         position={Position.Top} 
-        id="top-out"
+        id="top"
         style={{ ...handleStyle, top: -4 }}
         isConnectable={true}
       />
-      
-      {/* 左侧 Handle - 可输入可输出 */}
       <Handle 
         type="target" 
-        position={Position.Left} 
-        id="left-in"
-        style={{ ...handleStyle, left: -4 }}
-        isConnectable={true}
-      />
-      <Handle 
-        type="source" 
-        position={Position.Left} 
-        id="left"
-        style={handleStyle}
+        position={Position.Top} 
+        id="top-in"
+        style={{ ...handleStyle, top: -4, left: '30%' }}
         isConnectable={true}
       />
       
-      {/* 内容区域 */}
-      {isEditing ? (
-        <input
-          type="text"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          autoFocus
-          className="bg-transparent border-none outline-none text-center w-full"
-          style={{ fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit' }}
-        />
-      ) : (
-        <span>{label}</span>
-      )}
-      
-      {/* 右侧 Handle - 可输入可输出 */}
-      <Handle 
-        type="target" 
-        position={Position.Right} 
-        id="right-in"
-        style={{ ...handleStyle, right: -4 }}
-        isConnectable={true}
-      />
       <Handle 
         type="source" 
         position={Position.Right} 
         id="right"
-        style={handleStyle}
+        style={{ ...handleStyle, right: -4 }}
+        isConnectable={true}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        id="right-in"
+        style={{ ...handleStyle, right: -4, top: '30%' }}
         isConnectable={true}
       />
       
-      {/* 下方 Handle - 可输入可输出 */}
-      <Handle 
-        type="target" 
-        position={Position.Bottom} 
-        id="bottom-in"
-        style={{ ...handleStyle, bottom: -4 }}
-        isConnectable={true}
-      />
       <Handle 
         type="source" 
         position={Position.Bottom} 
         id="bottom"
-        style={handleStyle}
+        style={{ ...handleStyle, bottom: -4 }}
         isConnectable={true}
       />
+      <Handle 
+        type="target" 
+        position={Position.Bottom} 
+        id="bottom-in"
+        style={{ ...handleStyle, bottom: -4, left: '30%' }}
+        isConnectable={true}
+      />
+      
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        id="left"
+        style={{ ...handleStyle, left: -4 }}
+        isConnectable={true}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="left-in"
+        style={{ ...handleStyle, left: -4, top: '30%' }}
+        isConnectable={true}
+      />
+      
+      {/* 内容区域 */}
+      <div style={{ transform: isRotated ? 'rotate(-45deg)' : 'none' }}>
+        {isEditing ? (
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            className="bg-transparent border-none outline-none text-center w-full"
+            style={{ 
+              fontSize: 'inherit', 
+              fontWeight: 'inherit', 
+              color: 'inherit',
+              minWidth: 60,
+            }}
+          />
+        ) : (
+          <span className="select-none">{label}</span>
+        )}
+      </div>
     </div>
   );
 });
 
 CustomNode.displayName = 'CustomNode';
 
-// 节点类型定义 - 包含所有部门节点
-const nodeTypes: NodeTypes = {
-  // 基础
-  start: (props: NodeProps) => <CustomNode {...props} type="start" />,
-  end: (props: NodeProps) => <CustomNode {...props} type="end" />,
-  // 采购部
-  purchase: (props: NodeProps) => <CustomNode {...props} type="purchase" />,
-  purchase_order: (props: NodeProps) => <CustomNode {...props} type="purchase_order" />,
-  purchase_in: (props: NodeProps) => <CustomNode {...props} type="purchase_in" />,
-  // 销售部
-  sales: (props: NodeProps) => <CustomNode {...props} type="sales" />,
-  sales_out: (props: NodeProps) => <CustomNode {...props} type="sales_out" />,
-  sales_return: (props: NodeProps) => <CustomNode {...props} type="sales_return" />,
-  // 仓储部
-  inventory: (props: NodeProps) => <CustomNode {...props} type="inventory" />,
-  inventory_check: (props: NodeProps) => <CustomNode {...props} type="inventory_check" />,
-  inventory_transfer: (props: NodeProps) => <CustomNode {...props} type="inventory_transfer" />,
-  // 财务部
-  finance: (props: NodeProps) => <CustomNode {...props} type="finance" />,
-  payment: (props: NodeProps) => <CustomNode {...props} type="payment" />,
-  invoice: (props: NodeProps) => <CustomNode {...props} type="invoice" />,
-  // 流程控制
-  decision: (props: NodeProps) => <CustomNode {...props} type="decision" />,
-  process: (props: NodeProps) => <CustomNode {...props} type="process" />,
+// ============= 节点类型定义 =============
+const createNodeTypes = (): NodeTypes => {
+  const types: NodeTypes = {};
+  const allTypes = [
+    'rectangle', 'rounded', 'ellipse', 'diamond', 'parallelogram', 'hexagon',
+    'start', 'end', 'process', 'decision', 'data', 'document',
+    'purchase', 'sales', 'inventory', 'finance', 'hr', 'service',
+  ];
+  
+  allTypes.forEach(type => {
+    types[type] = (props: NodeProps) => <CustomNode {...props} type={type} />;
+  });
+  
+  return types;
 };
 
-// 根据节点位置自动选择最佳 Handle
+const nodeTypes = createNodeTypes();
+
+// ============= 根据位置自动选择 Handle =============
 const getBestHandles = (
   sourcePos: { x: number; y: number },
   targetPos: { x: number; y: number }
@@ -313,80 +361,93 @@ const getBestHandles = (
   const dx = targetPos.x - sourcePos.x;
   const dy = targetPos.y - sourcePos.y;
   
-  // 判断主要方向
   if (Math.abs(dy) > Math.abs(dx)) {
-    // 垂直方向为主
     if (dy > 0) {
-      // 目标在下方：从 source 的 bottom 到 target 的 top
-      return { sourceHandle: 'bottom', targetHandle: 'top' };
+      return { sourceHandle: 'bottom', targetHandle: 'top-in' };
     } else {
-      // 目标在上方：从 source 的 top 到 target 的 bottom
-      return { sourceHandle: 'top', targetHandle: 'bottom' };
+      return { sourceHandle: 'top', targetHandle: 'bottom-in' };
     }
   } else {
-    // 水平方向为主
     if (dx > 0) {
-      // 目标在右侧：从 source 的 right 到 target 的 left
-      return { sourceHandle: 'right', targetHandle: 'left' };
+      return { sourceHandle: 'right', targetHandle: 'left-in' };
     } else {
-      // 目标在左侧：从 source 的 left 到 target 的 right
-      return { sourceHandle: 'left', targetHandle: 'right' };
+      return { sourceHandle: 'left', targetHandle: 'right-in' };
     }
   }
 };
 
-// 自定义边样式 - 直线连接
-const defaultEdgeOptions = {
-  type: 'straight',
-  animated: false,
-  markerEnd: { type: MarkerType.ArrowClosed },
-  style: { stroke: '#666', strokeWidth: 2 },
-};
-
-// 内部编辑器组件
+// ============= 主编辑器组件 =============
 const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
   ({ data, onDataChange, readOnly = false, onReady }, ref) => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-    const { addNodes, setNodes, setEdges, getNodes, getEdges, fitView } = useReactFlow();
-    const [selectedNode, setSelectedNode] = useState<string | null>(null);
-    const [nodeColor, setNodeColor] = useState<string>('blue');
-
-    // 将 FlowNode 转换为 ReactFlow Node 格式
+    const { 
+      addNodes, 
+      setNodes, 
+      setEdges, 
+      getNodes, 
+      getEdges, 
+      fitView,
+      zoomIn,
+      zoomOut,
+    } = useReactFlow();
+    
+    const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
+    const [selectedEdges, setSelectedEdges] = useState<Edge[]>([]);
+    const [currentEdgeStyle, setCurrentEdgeStyle] = useState<string>('straight');
+    const [showFormatPanel, setShowFormatPanel] = useState(true);
+    const [showShapePanel, setShowShapePanel] = useState(true);
+    const [expandedLibraries, setExpandedLibraries] = useState<string[]>(['general', 'flowchart', 'business']);
+    
+    // 初始化节点
     const initialNodes: Node[] = useMemo(() => {
       if (!data?.nodes) return [];
       return data.nodes.map(node => ({
         id: node.id,
-        type: node.type || 'process',
+        type: node.type || 'rectangle',
         position: node.position,
-        data: { label: node.data.label, color: node.type === 'start' ? 'green' : node.type === 'end' ? 'red' : 'blue' },
+        data: { 
+          label: node.data.label, 
+          color: node.data.color || 'blue',
+          width: node.width,
+          height: node.height,
+        },
       }));
     }, [data?.nodes]);
 
+    // 初始化边
     const initialEdges: Edge[] = useMemo(() => {
       if (!data?.edges || !data?.nodes) return [];
       
-      // 创建节点位置映射
       const nodePositions = new Map(data.nodes.map(n => [n.id, n.position]));
       
       return data.edges.map(edge => {
         const sourcePos = nodePositions.get(edge.source);
         const targetPos = nodePositions.get(edge.target);
         
-        // 自动选择最佳 Handle
-        const handles = sourcePos && targetPos 
-          ? getBestHandles(sourcePos, targetPos)
-          : { sourceHandle: 'bottom', targetHandle: 'top' };
+        let sourceHandle = edge.sourceHandle;
+        let targetHandle = edge.targetHandle;
+        
+        if (!sourceHandle || !targetHandle) {
+          if (sourcePos && targetPos) {
+            const handles = getBestHandles(sourcePos, targetPos);
+            sourceHandle = handles.sourceHandle;
+            targetHandle = handles.targetHandle;
+          } else {
+            sourceHandle = 'bottom';
+            targetHandle = 'top-in';
+          }
+        }
         
         return {
           id: edge.id,
           source: edge.source,
           target: edge.target,
-          sourceHandle: handles.sourceHandle,
-          targetHandle: handles.targetHandle,
+          sourceHandle,
+          targetHandle,
           label: edge.label,
           type: 'straight',
           animated: false,
-          markerEnd: { type: MarkerType.ArrowClosed },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#666' },
           style: { stroke: '#666', strokeWidth: 2 },
         };
       });
@@ -395,25 +456,19 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
     const [nodes, setLocalNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setLocalEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-    // 监听选中变化
-    const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
-      if (selectedNodes.length === 1) {
-        setSelectedNode(selectedNodes[0].id);
-        setNodeColor(String(selectedNodes[0].data.color || 'blue'));
-      } else {
-        setSelectedNode(null);
-      }
+    // 选中变化处理
+    const onSelectionChange = useCallback(({ nodes: selected, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
+      setSelectedNodes(selected);
+      setSelectedEdges(selectedEdges);
     }, []);
 
     // 连接处理
     const onConnect = useCallback(
       (params: Connection) => {
-        // 获取节点位置
         const nodes = getNodes();
         const sourceNode = nodes.find(n => n.id === params.source);
         const targetNode = nodes.find(n => n.id === params.target);
         
-        // 如果用户没有指定 Handle，自动选择最佳 Handle
         let sourceHandle = params.sourceHandle;
         let targetHandle = params.targetHandle;
         
@@ -423,8 +478,8 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
             sourceHandle = sourceHandle || handles.sourceHandle;
             targetHandle = targetHandle || handles.targetHandle;
           } else {
-            sourceHandle = sourceHandle || 'bottom';
-            targetHandle = targetHandle || 'top';
+            sourceHandle = 'bottom';
+            targetHandle = 'top-in';
           }
         }
         
@@ -432,62 +487,127 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
           ...params,
           sourceHandle,
           targetHandle,
-          type: 'straight',
+          type: currentEdgeStyle,
           animated: false,
-          markerEnd: { type: MarkerType.ArrowClosed },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#666' },
           style: { stroke: '#666', strokeWidth: 2 },
         }, eds));
       },
-      [setLocalEdges, getNodes]
+      [setLocalEdges, getNodes, currentEdgeStyle]
     );
 
-    // 添加新节点
-    const handleAddNode = useCallback((nodeType: string) => {
-      // 从部门节点配置中查找节点信息
-      let nodeConfig: { type: string; label: string; color: string } | undefined;
-      for (const dept of Object.values(DEPARTMENT_NODES)) {
-        nodeConfig = dept.nodes.find(n => n.type === nodeType);
-        if (nodeConfig) break;
+    // 添加节点
+    const handleAddShape = useCallback((shapeType: string, color?: string) => {
+      // 查找形状配置
+      let shapeConfig: { type: string; label: string; color: string } | undefined;
+      for (const lib of Object.values(SHAPE_LIBRARIES)) {
+        const found = lib.shapes.find(s => s.type === shapeType);
+        if (found) {
+          shapeConfig = found;
+          break;
+        }
       }
+      
+      // 计算位置：在画布中心附近
+      const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
+      const centerX = reactFlowBounds ? reactFlowBounds.width / 2 : 300;
+      const centerY = reactFlowBounds ? reactFlowBounds.height / 2 : 200;
       
       const newNode: Node = {
         id: `node_${Date.now()}`,
-        type: nodeType,
-        position: { x: 300 + Math.random() * 200, y: 200 + Math.random() * 200 },
+        type: shapeType,
+        position: { 
+          x: centerX - 60 + Math.random() * 40, 
+          y: centerY - 25 + Math.random() * 40 
+        },
         data: { 
-          label: nodeConfig?.label || '新节点',
-          color: nodeConfig?.color || 'blue',
+          label: shapeConfig?.label || '新节点',
+          color: color || shapeConfig?.color || 'blue',
         },
       };
+      
       addNodes([newNode]);
     }, [addNodes]);
 
     // 修改节点颜色
-    const handleChangeColor = useCallback((colorKey: string) => {
-      if (!selectedNode) return;
+    const handleChangeNodeColor = useCallback((colorKey: string) => {
+      if (selectedNodes.length === 0) return;
+      
       setNodes(
         getNodes().map(node => 
-          node.id === selectedNode 
+          selectedNodes.find(n => n.id === node.id)
             ? { ...node, data: { ...node.data, color: colorKey } }
             : node
         )
       );
-      setNodeColor(colorKey);
-    }, [selectedNode, setNodes, getNodes]);
+    }, [selectedNodes, setNodes, getNodes]);
+
+    // 修改连线样式
+    const handleChangeEdgeStyle = useCallback((styleKey: string) => {
+      setCurrentEdgeStyle(styleKey);
+      
+      if (selectedEdges.length > 0) {
+        setLocalEdges(
+          getEdges().map(edge => 
+            selectedEdges.find(e => e.id === edge.id)
+              ? { ...edge, type: styleKey }
+              : edge
+          )
+        );
+      }
+    }, [selectedEdges, setLocalEdges, getEdges]);
+
+    // 删除选中元素
+    const handleDelete = useCallback(() => {
+      setNodes(getNodes().filter(node => !selectedNodes.find(n => n.id === node.id)));
+      setEdges(getEdges().filter(edge => !selectedEdges.find(e => e.id === edge.id)));
+    }, [selectedNodes, selectedEdges, setNodes, setEdges, getNodes, getEdges]);
+
+    // 层级调整
+    const handleBringToFront = useCallback(() => {
+      // React Flow 通过节点顺序控制层级
+      const selectedIds = selectedNodes.map(n => n.id);
+      const unselected = getNodes().filter(n => !selectedIds.includes(n.id));
+      const selected = getNodes().filter(n => selectedIds.includes(n.id));
+      setNodes([...unselected, ...selected]);
+    }, [selectedNodes, setNodes, getNodes]);
+
+    const handleSendToBack = useCallback(() => {
+      const selectedIds = selectedNodes.map(n => n.id);
+      const unselected = getNodes().filter(n => !selectedIds.includes(n.id));
+      const selected = getNodes().filter(n => selectedIds.includes(n.id));
+      setNodes([...selected, ...unselected]);
+    }, [selectedNodes, setNodes, getNodes]);
+
+    // 切换形状库展开状态
+    const toggleLibrary = useCallback((libKey: string) => {
+      setExpandedLibraries(prev => 
+        prev.includes(libKey) 
+          ? prev.filter(k => k !== libKey)
+          : [...prev, libKey]
+      );
+    }, []);
 
     // 获取当前数据
     const getCurrentData = useCallback((): FlowData => {
       return {
         nodes: getNodes().map(node => ({
           id: node.id,
-          type: (node.type as string) || 'process',
+          type: (node.type as string) || 'rectangle',
           position: node.position,
-          data: { label: String(node.data.label || '') },
+          data: { 
+            label: String(node.data.label || ''),
+            color: String(node.data.color || 'blue'),
+          },
+          width: typeof node.data.width === 'number' ? node.data.width : undefined,
+          height: typeof node.data.height === 'number' ? node.data.height : undefined,
         })),
         edges: getEdges().map(edge => ({
           id: edge.id,
           source: edge.source,
           target: edge.target,
+          sourceHandle: edge.sourceHandle ?? undefined,
+          targetHandle: edge.targetHandle ?? undefined,
           label: edge.label ? String(edge.label) : undefined,
         })),
       };
@@ -495,38 +615,48 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
 
     // 设置数据
     const setDataInternal = useCallback((newData: FlowData) => {
+      const nodePositions = new Map(newData.nodes.map(n => [n.id, n.position]));
+      
       const convertedNodes: Node[] = newData.nodes.map(node => ({
         id: node.id,
-        type: node.type || 'process',
+        type: node.type || 'rectangle',
         position: node.position,
         data: { 
           label: node.data.label,
-          color: node.type === 'start' ? 'green' : node.type === 'end' ? 'red' : 'blue',
+          color: node.data.color || 'blue',
+          width: node.width,
+          height: node.height,
         },
       }));
-      
-      // 创建节点位置映射
-      const nodePositions = new Map(newData.nodes.map(n => [n.id, n.position]));
       
       const convertedEdges: Edge[] = newData.edges.map(edge => {
         const sourcePos = nodePositions.get(edge.source);
         const targetPos = nodePositions.get(edge.target);
         
-        // 自动选择最佳 Handle
-        const handles = sourcePos && targetPos 
-          ? getBestHandles(sourcePos, targetPos)
-          : { sourceHandle: 'bottom', targetHandle: 'top' };
+        let sourceHandle = edge.sourceHandle;
+        let targetHandle = edge.targetHandle;
+        
+        if (!sourceHandle || !targetHandle) {
+          if (sourcePos && targetPos) {
+            const handles = getBestHandles(sourcePos, targetPos);
+            sourceHandle = handles.sourceHandle;
+            targetHandle = handles.targetHandle;
+          } else {
+            sourceHandle = 'bottom';
+            targetHandle = 'top-in';
+          }
+        }
         
         return {
           id: edge.id,
           source: edge.source,
           target: edge.target,
-          sourceHandle: handles.sourceHandle,
-          targetHandle: handles.targetHandle,
+          sourceHandle,
+          targetHandle,
           label: edge.label,
           type: 'straight',
           animated: false,
-          markerEnd: { type: MarkerType.ArrowClosed },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#666' },
           style: { stroke: '#666', strokeWidth: 2 },
         };
       });
@@ -537,12 +667,12 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
     }, [setLocalNodes, setLocalEdges, fitView]);
 
     // 导出为图片
-    const exportAsImage = useCallback(async (fileName = '业务流程图') => {
+    const exportAsImage = useCallback(async (fileName = '流程图') => {
       alert('请使用浏览器截图功能或按 Ctrl+P 打印保存');
     }, []);
 
     // 导出为 JSON
-    const exportAsJson = useCallback((fileName = '业务流程图') => {
+    const exportAsJson = useCallback((fileName = '流程图') => {
       const data = getCurrentData();
       const jsonStr = JSON.stringify(data, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -556,7 +686,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
       URL.revokeObjectURL(url);
     }, [getCurrentData]);
 
-    // 暴露方法给父组件
+    // 暴露方法
     useImperativeHandle(ref, () => ({
       getData: getCurrentData,
       setData: setDataInternal,
@@ -566,106 +696,317 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
       },
       exportAsImage,
       exportAsJson,
-      zoomIn: () => {},
-      zoomOut: () => {},
+      zoomIn: () => zoomIn(),
+      zoomOut: () => zoomOut(),
       fitView: () => fitView({ padding: 0.2 }),
-    }), [getCurrentData, setDataInternal, exportAsImage, exportAsJson, setNodes, setEdges, fitView]);
+    }), [getCurrentData, setDataInternal, exportAsImage, exportAsJson, setNodes, setEdges, zoomIn, zoomOut, fitView]);
 
     return (
-      <div ref={reactFlowWrapper} className="w-full h-full relative">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onSelectionChange={onSelectionChange}
-          nodeTypes={nodeTypes}
-          defaultEdgeOptions={defaultEdgeOptions}
-          fitView
-          attributionPosition="bottom-left"
-          nodesDraggable={!readOnly}
-          nodesConnectable={!readOnly}
-          elementsSelectable={!readOnly}
-          selectNodesOnDrag={false}
-          panOnDrag={true}
-          selectionOnDrag={false}
-          zoomOnScroll={true}
-          zoomOnPinch={true}
-          preventScrolling={true}
-          snapToGrid={true}
-          snapGrid={[20, 20]}
-        >
-          <Controls showInteractive={false} />
-          <MiniMap 
-            nodeStrokeWidth={3}
-            pannable
-            zoomable
-            style={{ background: '#f5f5f5' }}
-          />
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e0e0e0" />
+      <div className="w-full h-full flex flex-col bg-gray-50">
+        {/* 顶部工具栏 */}
+        <div className="bg-white border-b border-gray-200 px-2 py-1.5 flex items-center gap-1 flex-shrink-0">
+          {/* 文件操作 */}
+          <div className="flex items-center gap-1 px-2 border-r border-gray-200">
+            <button
+              onClick={() => setDataInternal({ nodes: [], edges: [] })}
+              className="p-1.5 hover:bg-gray-100 rounded text-xs"
+              title="新建"
+            >
+              📄 新建
+            </button>
+          </div>
           
-          {/* 节点面板 - 按部门分组 */}
-          <Panel position="top-left" className="!m-0">
-            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 w-52 max-h-[70vh] overflow-y-auto">
-              <div className="text-xs font-semibold text-gray-700 mb-2 px-1 border-b pb-1">添加节点</div>
-              {Object.entries(DEPARTMENT_NODES).map(([deptKey, dept]) => (
-                <div key={deptKey} className="mb-2">
-                  <div 
-                    className="text-xs font-medium px-1 mb-1 flex items-center gap-1"
-                    style={{ color: dept.color ? COLOR_PRESETS[dept.color as keyof typeof COLOR_PRESETS]?.text : '#666' }}
+          {/* 编辑操作 */}
+          <div className="flex items-center gap-1 px-2 border-r border-gray-200">
+            <button
+              onClick={handleDelete}
+              disabled={selectedNodes.length === 0 && selectedEdges.length === 0}
+              className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              title="删除 (Delete)"
+            >
+              🗑️
+            </button>
+            <div className="w-px h-4 bg-gray-200 mx-1" />
+            <button
+              onClick={handleBringToFront}
+              disabled={selectedNodes.length === 0}
+              className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              title="置于顶层"
+            >
+              ⬆️
+            </button>
+            <button
+              onClick={handleSendToBack}
+              disabled={selectedNodes.length === 0}
+              className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              title="置于底层"
+            >
+              ⬇️
+            </button>
+          </div>
+          
+          {/* 缩放 */}
+          <div className="flex items-center gap-1 px-2 border-r border-gray-200">
+            <button
+              onClick={() => zoomOut()}
+              className="p-1.5 hover:bg-gray-100 rounded"
+              title="缩小"
+            >
+              ➖
+            </button>
+            <button
+              onClick={() => fitView({ padding: 0.2 })}
+              className="p-1.5 hover:bg-gray-100 rounded text-xs"
+              title="适应窗口"
+            >
+              适应
+            </button>
+            <button
+              onClick={() => zoomIn()}
+              className="p-1.5 hover:bg-gray-100 rounded"
+              title="放大"
+            >
+              ➕
+            </button>
+          </div>
+          
+          {/* 连线样式 */}
+          <div className="flex items-center gap-1 px-2 border-r border-gray-200">
+            <span className="text-xs text-gray-500">连线:</span>
+            {Object.entries(EDGE_STYLES).map(([key, { name }]) => (
+              <button
+                key={key}
+                onClick={() => handleChangeEdgeStyle(key)}
+                className={`px-2 py-1 text-xs rounded ${
+                  currentEdgeStyle === key 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'hover:bg-gray-100'
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          
+          {/* 视图切换 */}
+          <div className="flex items-center gap-1 px-2">
+            <button
+              onClick={() => setShowShapePanel(!showShapePanel)}
+              className={`px-2 py-1 text-xs rounded ${showShapePanel ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}
+              title="形状面板"
+            >
+              📦 形状
+            </button>
+            <button
+              onClick={() => setShowFormatPanel(!showFormatPanel)}
+              className={`px-2 py-1 text-xs rounded ${showFormatPanel ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}
+              title="格式面板"
+            >
+              🎨 格式
+            </button>
+          </div>
+          
+          {/* 导出 */}
+          <div className="flex items-center gap-1 px-2 ml-auto">
+            <button
+              onClick={() => exportAsJson()}
+              className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+            >
+              导出 JSON
+            </button>
+          </div>
+        </div>
+
+        {/* 主体区域 */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 左侧形状面板 */}
+          {showShapePanel && (
+            <div className="w-56 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
+              <div className="p-2 border-b border-gray-200 bg-gray-50">
+                <span className="text-xs font-medium text-gray-600">形状库</span>
+              </div>
+              
+              {Object.entries(SHAPE_LIBRARIES).map(([libKey, lib]) => (
+                <div key={libKey} className="border-b border-gray-100">
+                  <button
+                    onClick={() => toggleLibrary(libKey)}
+                    className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 text-left"
                   >
-                    {dept.name}
-                  </div>
-                  <div className="grid grid-cols-2 gap-1">
-                    {dept.nodes.map(({ type, label, color, icon }) => (
-                      <button
-                        key={type}
-                        onClick={() => handleAddNode(type)}
-                        className="flex items-center gap-1 px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition-colors text-left border border-transparent hover:border-gray-200"
-                        style={{ color: COLOR_PRESETS[color as keyof typeof COLOR_PRESETS]?.text }}
-                      >
-                        <span 
-                          className="w-3 h-3 rounded-sm flex-shrink-0"
-                          style={{ 
-                            background: COLOR_PRESETS[color as keyof typeof COLOR_PRESETS]?.fill,
-                            border: `1px solid ${COLOR_PRESETS[color as keyof typeof COLOR_PRESETS]?.stroke}`
-                          }}
-                        />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                    <span className="text-xs font-medium text-gray-700">{lib.name}</span>
+                    <span className="text-gray-400 text-xs">
+                      {expandedLibraries.includes(libKey) ? '▼' : '▶'}
+                    </span>
+                  </button>
+                  
+                  {expandedLibraries.includes(libKey) && (
+                    <div className="grid grid-cols-2 gap-1 p-2">
+                      {lib.shapes.map(shape => {
+                        const colors = COLOR_PRESETS[shape.color as keyof typeof COLOR_PRESETS];
+                        return (
+                          <button
+                            key={shape.type}
+                            onClick={() => handleAddShape(shape.type, shape.color)}
+                            className="flex flex-col items-center gap-1 p-2 rounded border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                          >
+                            <div 
+                              className="w-8 h-6 rounded flex items-center justify-center text-xs"
+                              style={{ 
+                                background: colors.fill, 
+                                border: `1px solid ${colors.stroke}` 
+                              }}
+                            >
+                              {shape.type === 'start' || shape.type === 'end' ? (
+                                <div 
+                                  className="w-4 h-3 rounded-full"
+                                  style={{ background: colors.stroke }}
+                                />
+                              ) : shape.type === 'diamond' || shape.type === 'decision' ? (
+                                <div 
+                                  className="w-3 h-3 rotate-45"
+                                  style={{ background: colors.stroke }}
+                                />
+                              ) : (
+                                <div 
+                                  className="w-4 h-3"
+                                  style={{ background: colors.stroke, opacity: 0.5 }}
+                                />
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-600">{shape.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          </Panel>
-          
-          {/* 颜色面板 */}
-          {selectedNode && (
-            <Panel position="top-right" className="!m-0">
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-44">
-                <div className="text-xs font-medium text-gray-600 mb-2">节点颜色</div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {Object.entries(COLOR_PRESETS).map(([key, colors]) => (
-                    <button
-                      key={key}
-                      onClick={() => handleChangeColor(key)}
-                      className={`w-8 h-8 rounded border-2 transition-all ${
-                        nodeColor === key ? 'border-gray-800 scale-110' : 'border-gray-300 hover:border-gray-500'
-                      }`}
-                      style={{ background: colors.fill, borderColor: nodeColor === key ? colors.stroke : colors.stroke + '60' }}
-                      title={key}
-                    />
-                  ))}
-                </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  选中节点后点击更改颜色
+          )}
+
+          {/* 画布 */}
+          <div ref={reactFlowWrapper} className="flex-1">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onSelectionChange={onSelectionChange}
+              nodeTypes={nodeTypes}
+              fitView
+              attributionPosition="bottom-left"
+              nodesDraggable={!readOnly}
+              nodesConnectable={!readOnly}
+              elementsSelectable={!readOnly}
+              selectNodesOnDrag={false}
+              panOnDrag={true}
+              selectionOnDrag={false}
+              zoomOnScroll={true}
+              zoomOnPinch={true}
+              preventScrolling={true}
+              snapToGrid={true}
+              snapGrid={[15, 15]}
+              deleteKeyCode="Delete"
+              multiSelectionKeyCode="Shift"
+            >
+              <Controls showInteractive={false} />
+              <MiniMap 
+                nodeStrokeWidth={3}
+                pannable
+                zoomable
+                style={{ background: '#f5f5f5' }}
+              />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#ddd" />
+            </ReactFlow>
+          </div>
+
+          {/* 右侧格式面板 */}
+          {showFormatPanel && (
+            <div className="w-60 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
+              {/* 样式标签 */}
+              <div className="p-3 border-b border-gray-200">
+                <div className="text-xs font-medium text-gray-700 mb-3">样式</div>
+                
+                {selectedNodes.length > 0 ? (
+                  <>
+                    {/* 填充颜色 */}
+                    <div className="mb-3">
+                      <div className="text-xs text-gray-500 mb-1.5">填充颜色</div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {Object.entries(COLOR_PRESETS).map(([key, colors]) => (
+                          <button
+                            key={key}
+                            onClick={() => handleChangeNodeColor(key)}
+                            className="w-8 h-8 rounded border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                            style={{ background: colors.fill }}
+                            title={colors.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* 选中节点信息 */}
+                    <div className="text-xs text-gray-500 mt-3 p-2 bg-gray-50 rounded">
+                      已选中 {selectedNodes.length} 个节点
+                    </div>
+                  </>
+                ) : selectedEdges.length > 0 ? (
+                  <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
+                    已选中 {selectedEdges.length} 条连线
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
+                    选择节点或连线以编辑样式
+                  </div>
+                )}
+              </div>
+              
+              {/* 文本标签 */}
+              <div className="p-3 border-b border-gray-200">
+                <div className="text-xs font-medium text-gray-700 mb-3">文本</div>
+                {selectedNodes.length > 0 && (
+                  <div className="text-xs text-gray-500">
+                    双击节点编辑文本
+                  </div>
+                )}
+              </div>
+              
+              {/* 排列标签 */}
+              <div className="p-3 border-b border-gray-200">
+                <div className="text-xs font-medium text-gray-700 mb-3">排列</div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleBringToFront}
+                    disabled={selectedNodes.length === 0}
+                    className="p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    置于顶层
+                  </button>
+                  <button
+                    onClick={handleSendToBack}
+                    disabled={selectedNodes.length === 0}
+                    className="p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    置于底层
+                  </button>
                 </div>
               </div>
-            </Panel>
+              
+              {/* 帮助 */}
+              <div className="p-3">
+                <div className="text-xs font-medium text-gray-700 mb-2">快捷键</div>
+                <div className="space-y-1 text-xs text-gray-500">
+                  <div>• Delete: 删除选中</div>
+                  <div>• Shift+点击: 多选</div>
+                  <div>• 滚轮: 缩放</div>
+                  <div>• 拖拽空白: 平移</div>
+                  <div>• 双击节点: 编辑文本</div>
+                </div>
+              </div>
+            </div>
           )}
-        </ReactFlow>
+        </div>
       </div>
     );
   }
@@ -673,7 +1014,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
 
 FlowEditorInner.displayName = 'FlowEditorInner';
 
-// 包装组件，提供 ReactFlowProvider
+// 包装组件
 const FlowEditor = forwardRef<FlowEditorRef, FlowEditorProps>(
   (props, ref) => {
     return (
