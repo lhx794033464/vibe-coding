@@ -56,6 +56,22 @@ async function getUserBusinessData(token: string, userId: string) {
     const overdueTodos = allTodos?.filter(t => t.due_date < todayStr) || [];
     const futureTodos = allTodos?.filter(t => t.due_date > todayStr).slice(0, 5) || [];
 
+    // 获取日程排期 - 今天和未来7天
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const nextWeekStr = `${nextWeek.getFullYear()}-${String(nextWeek.getMonth() + 1).padStart(2, '0')}-${String(nextWeek.getDate()).padStart(2, '0')}`;
+
+    const { data: schedules } = await client
+      .from('schedules')
+      .select('*')
+      .gte('schedule_date', todayStr)
+      .lte('schedule_date', nextWeekStr)
+      .order('schedule_date', { ascending: true });
+
+    // 分类日程：今天、未来7天
+    const todaySchedules = schedules?.filter(s => s.schedule_date.split('T')[0] === todayStr) || [];
+    const futureSchedules = schedules?.filter(s => s.schedule_date.split('T')[0] > todayStr) || [];
+
     // 创建客户ID到名称的映射
     const customerNameMap: Record<string, string> = {};
     customers?.forEach(c => {
@@ -139,6 +155,21 @@ async function getUserBusinessData(token: string, userId: string) {
       })),
     };
 
+    // 日程排期 - 分类返回
+    const scheduleData = {
+      today: todaySchedules.map(s => ({
+        id: s.id,
+        customerName: s.customer_id ? customerNameMap[s.customer_id] : '未知客户',
+        notes: s.notes,
+      })),
+      future: futureSchedules.map(s => ({
+        id: s.id,
+        customerName: s.customer_id ? customerNameMap[s.customer_id] : '未知客户',
+        scheduleDate: s.schedule_date,
+        notes: s.notes,
+      })),
+    };
+
     return {
       totalCustomers,
       onlineCustomers,
@@ -149,6 +180,7 @@ async function getUserBusinessData(token: string, userId: string) {
       customersByStatus,
       recentFollowUps: recentFollowUpsList,
       todos: todoData,
+      schedules: scheduleData,
       todayDate: todayStr,
     };
   } catch (error) {
@@ -450,6 +482,21 @@ ${businessData.todos.future.length > 0
       `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}，截止：${t.dueDate || '无截止日期'}`
     ).join('\n')
   : '- 暂无未来待办'}
+
+【日程排期】
+🗓️ 今日日程（${businessData.schedules.today.length}项）：
+${businessData.schedules.today.length > 0 
+  ? businessData.schedules.today.map(s => 
+      `- ${s.customerName}${s.notes ? `：${s.notes}` : ''}`
+    ).join('\n')
+  : '- 暂无今日日程'}
+
+📅 未来7天日程（${businessData.schedules.future.length}项）：
+${businessData.schedules.future.length > 0 
+  ? businessData.schedules.future.map(s => 
+      `- ${s.customerName}，日期：${s.scheduleDate.split('T')[0]}${s.notes ? `，备注：${s.notes}` : ''}`
+    ).join('\n')
+  : '- 暂无未来日程'}
 `;
           }
         }
@@ -555,15 +602,56 @@ ${searchResult.results.map((r, i) =>
 
 过期的待办记得及时处理哦~需要我帮你完成待办或者修改内容吗? 😉
 
+## 日程排期回复格式
+
+当汇报日程排期时，请严格按照以下格式回复：
+
+**回复示例（直接输出，不要用代码块包裹）：**
+
+小蝶帮你查看了一下今天的日程安排📅:
+
+🗓️ **今日日程**：X项
+● 客户A：项目实施沟通
+● 客户B：系统培训
+
+📅 **未来7天日程**：X项
+● 客户C，日期：2024-01-15，备注：蓝图确认
+● 客户D，日期：2024-01-16，备注：上线培训
+
+今天的工作安排挺充实的，加油哦！💪 需要我帮你查看具体客户的详细信息吗？
+
+## 工作计划回复格式
+
+当用户询问"今天有什么工作计划"、"今天安排"等问题时，需要**结合待办和日程**一起回复：
+
+**回复示例（直接输出，不要用代码块包裹）：**
+
+小蝶帮你整理了一下今天的工作计划📋:
+
+🗓️ **今日日程**：X项
+● 客户A：项目实施沟通
+● 客户B：系统培训
+
+🎀 **今日待办**：X项
+● 完成客户C的蓝图设计文档 ⚠️重要
+● 跟进客户D的上线进度
+
+⚠️ **已过期待办**：X项需要处理
+● 提交上周工作周报，过期2天 📅
+
+今天有X项日程和X项待办，记得优先处理重要和过期的任务哦！💪 需要我帮你查看详情或调整安排吗？
+
 **格式要点：**
 1. 开头使用亲切的引导语+表情
 2. 三个类别必须**换行分隔**，每个类别独立成段
-3. 使用不同的emoji区分：🎀今日、⚠️过期、📅未来
+3. 使用不同的emoji区分：🗓️日程、🎀今日待办、⚠️过期待办
 4. 类别标题使用**加粗**格式
 5. 具体事项用 ● 符号开头，每项独立一行
-6. 过期待办要显示过期天数并加📅提醒
-7. 结尾提供行动建议和关怀
-8. **禁止使用代码块格式**，直接输出普通文本即可
+6. 日程要显示客户名称和备注信息
+7. 待办要显示关联客户和优先级
+8. 过期待办要显示过期天数并加📅提醒
+9. 结尾提供行动建议和关怀
+10. **禁止使用代码块格式**，直接输出普通文本即可
 
 ## 特殊场景处理
 
