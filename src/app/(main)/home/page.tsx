@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Send, Loader2, Search, User, Mic, MicOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -69,6 +70,7 @@ interface Message {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const { session } = useAuth();
   const { messages: savedMessages, addMessage, clearMessages } = useChat();
   const [input, setInput] = useState('');
@@ -295,6 +297,8 @@ export default function HomePage() {
           setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
           addMessage({ role: 'user', content: userMessage });
           addMessage({ role: 'assistant', content: assistantMessage });
+          // 刷新页面数据，确保待办列表等其他组件能获取最新数据
+          router.refresh();
         } else {
           const errorMessage = actionData.error || actionData.message || '操作失败';
           setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);

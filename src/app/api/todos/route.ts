@@ -89,10 +89,13 @@ export async function GET(request: NextRequest) {
       query = query.eq('completed', true);
     }
 
-    // 日期筛选
+    // 日期筛选 - 使用日期范围查询，避免 ::date 类型转换问题
     if (date) {
       const targetDate = date.split('T')[0]; // 取日期部分 YYYY-MM-DD
-      query = query.filter('due_date::date', 'eq', targetDate);
+      // 使用 gte 和 lt 筛选整天的待办
+      const dayStart = `${targetDate}T00:00:00`;
+      const dayEnd = `${targetDate}T23:59:59`;
+      query = query.gte('due_date', dayStart).lte('due_date', dayEnd);
     }
 
     // 按优先级和日期排序

@@ -86,6 +86,15 @@ async function getUserBusinessData(token: string, userId: string) {
       return datePart && datePart > todayStr;
     }).slice(0, 5) || [];
 
+    console.log('待办查询结果:', {
+      todayStr,
+      allTodosCount: allTodos?.length || 0,
+      todayTodosCount: todayTodos.length,
+      overdueTodosCount: overdueTodos.length,
+      futureTodosCount: futureTodos.length,
+      todayTodos: todayTodos.map(t => ({ content: t.content, due_date: t.due_date })),
+    });
+
     // 获取日程排期 - 今天和未来7天
     // 日程存储的是 UTC 时间，需要计算对应的 UTC 时间范围
     const todayBeijingStart = new Date(`${todayStr}T00:00:00+08:00`);
