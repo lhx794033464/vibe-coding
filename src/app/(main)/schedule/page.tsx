@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Loader2 } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -15,6 +15,20 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 import { format, addHours } from 'date-fns';
 
 // 类型定义
@@ -138,6 +152,8 @@ export default function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -377,6 +393,12 @@ export default function SchedulePage() {
     }
   };
 
+  const filteredCustomers = customers.filter(c => 
+    c.name.toLowerCase().includes(customerSearch.toLowerCase())
+  );
+
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
   const isToday = (date: Date): boolean => {
     const today = new Date();
     return formatDate(date) === formatDate(today);
@@ -458,6 +480,7 @@ export default function SchedulePage() {
                   onClick={() => {
                     setSelectedDate(date);
                     setSelectedCustomerId('');
+                    setCustomerSearch('');
                     setNotes('');
                     setShowAddDialog(true);
                   }}
@@ -530,27 +553,55 @@ export default function SchedulePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* 客户选择 - 下拉菜单 */}
+            {/* 客户选择 - 可搜索下拉菜单 */}
             <div className="space-y-2">
               <Label>选择客户</Label>
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="请选择客户" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.length === 0 ? (
-                    <div className="px-2 py-4 text-center text-gray-500 text-sm">
-                      暂无客户数据
-                    </div>
-                  ) : (
-                    customers.map(customer => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={customerPopoverOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedCustomer ? selectedCustomer.name : "请选择客户..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="搜索客户..." 
+                      value={customerSearch}
+                      onValueChange={setCustomerSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>未找到客户</CommandEmpty>
+                      <CommandGroup>
+                        {filteredCustomers.map((customer) => (
+                          <CommandItem
+                            key={customer.id}
+                            value={customer.name}
+                            onSelect={() => {
+                              setSelectedCustomerId(customer.id === selectedCustomerId ? '' : customer.id);
+                              setCustomerPopoverOpen(false);
+                              setCustomerSearch('');
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedCustomerId === customer.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {customer.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* 备注 */}
