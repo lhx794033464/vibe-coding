@@ -63,8 +63,9 @@ interface FlowEditorProps {
   onReady?: () => void;
 }
 
-// 预设颜色方案
+// 预设颜色方案 - 按业务部门区分
 const COLOR_PRESETS = {
+  // 通用颜色
   blue: { fill: '#E3F2FD', stroke: '#1976D2', text: '#1565C0' },
   green: { fill: '#E8F5E9', stroke: '#388E3C', text: '#2E7D32' },
   orange: { fill: '#FFF3E0', stroke: '#F57C00', text: '#E65100' },
@@ -73,19 +74,68 @@ const COLOR_PRESETS = {
   teal: { fill: '#E0F2F1', stroke: '#00796B', text: '#00695C' },
   gray: { fill: '#ECEFF1', stroke: '#546E7A', text: '#455A64' },
   yellow: { fill: '#FFFDE7', stroke: '#F9A825', text: '#F57F17' },
+  cyan: { fill: '#E0F7FA', stroke: '#00ACC1', text: '#00838F' },
+  indigo: { fill: '#E8EAF6', stroke: '#3949AB', text: '#303F9F' },
 };
 
-// 节点类型配置
-const NODE_TYPES = [
-  { type: 'start', label: '开始', color: 'green', icon: '○' },
-  { type: 'end', label: '结束', color: 'red', icon: '●' },
-  { type: 'process', label: '流程', color: 'blue', icon: '□' },
-  { type: 'purchase', label: '采购', color: 'blue', icon: '□' },
-  { type: 'sale', label: '销售', color: 'orange', icon: '□' },
-  { type: 'inventory', label: '库存', color: 'purple', icon: '□' },
-  { type: 'finance', label: '财务', color: 'green', icon: '□' },
-  { type: 'decision', label: '判断', color: 'yellow', icon: '◇' },
-];
+// 部门节点类型配置 - 按部门分类
+const DEPARTMENT_NODES: Record<string, {
+  name: string;
+  color?: string;
+  nodes: { type: string; label: string; color: string; icon: string }[];
+}> = {
+  basic: {
+    name: '基础',
+    nodes: [
+      { type: 'start', label: '开始', color: 'green', icon: '○' },
+      { type: 'end', label: '结束', color: 'red', icon: '●' },
+    ],
+  },
+  purchase: {
+    name: '采购部',
+    color: 'blue',
+    nodes: [
+      { type: 'purchase', label: '采购申请', color: 'blue', icon: '□' },
+      { type: 'purchase_order', label: '采购订单', color: 'blue', icon: '□' },
+      { type: 'purchase_in', label: '采购入库', color: 'blue', icon: '□' },
+    ],
+  },
+  sales: {
+    name: '销售部',
+    color: 'orange',
+    nodes: [
+      { type: 'sales', label: '销售订单', color: 'orange', icon: '□' },
+      { type: 'sales_out', label: '销售出库', color: 'orange', icon: '□' },
+      { type: 'sales_return', label: '销售退货', color: 'orange', icon: '□' },
+    ],
+  },
+  inventory: {
+    name: '仓储部',
+    color: 'purple',
+    nodes: [
+      { type: 'inventory', label: '库存管理', color: 'purple', icon: '□' },
+      { type: 'inventory_check', label: '库存盘点', color: 'purple', icon: '□' },
+      { type: 'inventory_transfer', label: '库存调拨', color: 'purple', icon: '□' },
+    ],
+  },
+  finance: {
+    name: '财务部',
+    color: 'teal',
+    nodes: [
+      { type: 'finance', label: '财务核算', color: 'teal', icon: '□' },
+      { type: 'payment', label: '付款结算', color: 'teal', icon: '□' },
+      { type: 'invoice', label: '发票管理', color: 'teal', icon: '□' },
+    ],
+  },
+  decision: {
+    name: '流程控制',
+    color: 'yellow',
+    nodes: [
+      { type: 'decision', label: '判断', color: 'yellow', icon: '◇' },
+      { type: 'process', label: '通用流程', color: 'gray', icon: '□' },
+    ],
+  },
+};
 
 // 自定义可编辑节点组件
 const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: string }) => {
@@ -201,21 +251,35 @@ const CustomNode = memo(({ id, data, type, selected }: NodeProps & { type: strin
 
 CustomNode.displayName = 'CustomNode';
 
-// 节点类型定义
+// 节点类型定义 - 包含所有部门节点
 const nodeTypes: NodeTypes = {
+  // 基础
   start: (props: NodeProps) => <CustomNode {...props} type="start" />,
   end: (props: NodeProps) => <CustomNode {...props} type="end" />,
-  process: (props: NodeProps) => <CustomNode {...props} type="process" />,
+  // 采购部
   purchase: (props: NodeProps) => <CustomNode {...props} type="purchase" />,
-  sale: (props: NodeProps) => <CustomNode {...props} type="sale" />,
+  purchase_order: (props: NodeProps) => <CustomNode {...props} type="purchase_order" />,
+  purchase_in: (props: NodeProps) => <CustomNode {...props} type="purchase_in" />,
+  // 销售部
+  sales: (props: NodeProps) => <CustomNode {...props} type="sales" />,
+  sales_out: (props: NodeProps) => <CustomNode {...props} type="sales_out" />,
+  sales_return: (props: NodeProps) => <CustomNode {...props} type="sales_return" />,
+  // 仓储部
   inventory: (props: NodeProps) => <CustomNode {...props} type="inventory" />,
+  inventory_check: (props: NodeProps) => <CustomNode {...props} type="inventory_check" />,
+  inventory_transfer: (props: NodeProps) => <CustomNode {...props} type="inventory_transfer" />,
+  // 财务部
   finance: (props: NodeProps) => <CustomNode {...props} type="finance" />,
+  payment: (props: NodeProps) => <CustomNode {...props} type="payment" />,
+  invoice: (props: NodeProps) => <CustomNode {...props} type="invoice" />,
+  // 流程控制
   decision: (props: NodeProps) => <CustomNode {...props} type="decision" />,
+  process: (props: NodeProps) => <CustomNode {...props} type="process" />,
 };
 
-// 自定义边样式 - 折线
+// 自定义边样式 - 直线连接
 const defaultEdgeOptions = {
-  type: 'smoothstep',
+  type: 'straight',
   animated: false,
   markerEnd: { type: MarkerType.ArrowClosed },
   style: { stroke: '#666', strokeWidth: 2 },
@@ -247,7 +311,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
         source: edge.source,
         target: edge.target,
         label: edge.label,
-        type: 'smoothstep',
+        type: 'straight',
         animated: false,
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { stroke: '#666', strokeWidth: 2 },
@@ -272,7 +336,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
       (params: Connection) => {
         setLocalEdges((eds) => addEdge({
           ...params,
-          type: 'smoothstep',
+          type: 'straight',
           animated: false,
           markerEnd: { type: MarkerType.ArrowClosed },
           style: { stroke: '#666', strokeWidth: 2 },
@@ -283,14 +347,20 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
 
     // 添加新节点
     const handleAddNode = useCallback((nodeType: string) => {
-      const colorKey = nodeType === 'start' ? 'green' : nodeType === 'end' ? 'red' : 'blue';
+      // 从部门节点配置中查找节点信息
+      let nodeConfig: { type: string; label: string; color: string } | undefined;
+      for (const dept of Object.values(DEPARTMENT_NODES)) {
+        nodeConfig = dept.nodes.find(n => n.type === nodeType);
+        if (nodeConfig) break;
+      }
+      
       const newNode: Node = {
         id: `node_${Date.now()}`,
         type: nodeType,
         position: { x: 300 + Math.random() * 200, y: 200 + Math.random() * 200 },
         data: { 
-          label: NODE_TYPES.find(n => n.type === nodeType)?.label || '新节点',
-          color: colorKey,
+          label: nodeConfig?.label || '新节点',
+          color: nodeConfig?.color || 'blue',
         },
       };
       addNodes([newNode]);
@@ -343,7 +413,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
         source: edge.source,
         target: edge.target,
         label: edge.label,
-        type: 'smoothstep',
+        type: 'straight',
         animated: false,
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { stroke: '#666', strokeWidth: 2 },
@@ -422,23 +492,39 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
           />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e0e0e0" />
           
-          {/* 节点面板 */}
+          {/* 节点面板 - 按部门分组 */}
           <Panel position="top-left" className="!m-0">
-            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 w-48">
-              <div className="text-xs font-medium text-gray-600 mb-2 px-1">添加节点</div>
-              <div className="grid grid-cols-2 gap-1">
-                {NODE_TYPES.map(({ type, label, color, icon }) => (
-                  <button
-                    key={type}
-                    onClick={() => handleAddNode(type)}
-                    className="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition-colors text-left"
-                    style={{ color: COLOR_PRESETS[color as keyof typeof COLOR_PRESETS].text }}
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 w-52 max-h-[70vh] overflow-y-auto">
+              <div className="text-xs font-semibold text-gray-700 mb-2 px-1 border-b pb-1">添加节点</div>
+              {Object.entries(DEPARTMENT_NODES).map(([deptKey, dept]) => (
+                <div key={deptKey} className="mb-2">
+                  <div 
+                    className="text-xs font-medium px-1 mb-1 flex items-center gap-1"
+                    style={{ color: dept.color ? COLOR_PRESETS[dept.color as keyof typeof COLOR_PRESETS]?.text : '#666' }}
                   >
-                    <span className="w-4 h-4 flex items-center justify-center text-sm">{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
+                    {dept.name}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {dept.nodes.map(({ type, label, color, icon }) => (
+                      <button
+                        key={type}
+                        onClick={() => handleAddNode(type)}
+                        className="flex items-center gap-1 px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition-colors text-left border border-transparent hover:border-gray-200"
+                        style={{ color: COLOR_PRESETS[color as keyof typeof COLOR_PRESETS]?.text }}
+                      >
+                        <span 
+                          className="w-3 h-3 rounded-sm flex-shrink-0"
+                          style={{ 
+                            background: COLOR_PRESETS[color as keyof typeof COLOR_PRESETS]?.fill,
+                            border: `1px solid ${COLOR_PRESETS[color as keyof typeof COLOR_PRESETS]?.stroke}`
+                          }}
+                        />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </Panel>
           
