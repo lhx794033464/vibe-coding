@@ -257,22 +257,21 @@ export default function FlowChartPage() {
         </button>
       </div>
 
-      {/* 展开按钮 - 当左侧面板折叠时显示在右上角 */}
-      {!showSidebar && (
-        <button
-          onClick={() => setShowSidebar(true)}
-          className="absolute top-4 left-4 z-10 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-        >
-          <ChevronRight className="w-4 h-4 text-slate-500" />
-          <span className="text-xs text-slate-600">展开面板</span>
-        </button>
-      )}
-
       {/* 右侧编辑器区域 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 工具栏 */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-2">
+            {/* 展开按钮 - 当左侧面板折叠时显示 */}
+            {!showSidebar && (
+              <button
+                onClick={() => setShowSidebar(true)}
+                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+                <span className="text-slate-600">展开面板</span>
+              </button>
+            )}
             <Edit3 className="w-4 h-4 text-slate-400" />
             <span className="text-sm font-medium text-slate-700">流程图编辑器</span>
             {editorReady && (
