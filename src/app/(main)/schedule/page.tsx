@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Video, ExternalLink, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -135,8 +135,8 @@ function generateCalendarData(centerDate: Date): Date[] {
   const monday = new Date(today);
   monday.setDate(today.getDate() - adjustedDayOfWeek);
   
-  // 生成5周（35天）的日历数据
-  for (let i = 0; i < 35; i++) {
+  // 生成6周（42天）的日历数据
+  for (let i = 0; i < 42; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
     dates.push(date);
@@ -144,9 +144,6 @@ function generateCalendarData(centerDate: Date): Date[] {
   
   return dates;
 }
-
-// 翻页方向类型
-type SlideDirection = 'left' | 'right' | 'none';
 
 export default function SchedulePage() {
   const { session } = useAuth();
@@ -161,10 +158,6 @@ export default function SchedulePage() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
-  
-  // 翻页动画状态
-  const [slideDirection, setSlideDirection] = useState<SlideDirection>('none');
-  const [isAnimating, setIsAnimating] = useState(false);
   
   // 会议相关状态
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
@@ -365,86 +358,6 @@ export default function SchedulePage() {
     }
   };
 
-  // 导航
-  const goToPrevMonth = () => {
-    if (isAnimating) return;
-    
-    setIsAnimating(true);
-    setSlideDirection('right');
-    
-    setTimeout(() => {
-      const newDate = new Date(centerDate);
-      newDate.setMonth(newDate.getMonth() - 1);
-      setCenterDate(newDate);
-      
-      setTimeout(() => {
-        setSlideDirection('none');
-        setIsAnimating(false);
-      }, 50);
-    }, 150);
-  };
-
-  const goToNextMonth = () => {
-    if (isAnimating) return;
-    
-    setIsAnimating(true);
-    setSlideDirection('left');
-    
-    setTimeout(() => {
-      const newDate = new Date(centerDate);
-      newDate.setMonth(newDate.getMonth() + 1);
-      setCenterDate(newDate);
-      
-      setTimeout(() => {
-        setSlideDirection('none');
-        setIsAnimating(false);
-      }, 50);
-    }, 150);
-  };
-
-  const goToToday = () => {
-    if (isAnimating) return;
-    
-    setIsAnimating(true);
-    const today = new Date();
-    const todayCenter = new Date(centerDate);
-    
-    // 判断今天是往前还是往后
-    if (today < todayCenter) {
-      setSlideDirection('right');
-    } else if (today > todayCenter) {
-      setSlideDirection('left');
-    }
-    
-    setTimeout(() => {
-      setCenterDate(new Date());
-      
-      setTimeout(() => {
-        setSlideDirection('none');
-        setIsAnimating(false);
-      }, 50);
-    }, 150);
-  };
-
-  const getDisplayMonthRange = (): string => {
-    const months = new Set<number>();
-    const years = new Set<number>();
-    
-    calendarDates.forEach(date => {
-      months.add(date.getMonth() + 1);
-      years.add(date.getFullYear());
-    });
-    
-    const yearList = Array.from(years).sort();
-    const monthList = Array.from(months).sort((a, b) => a - b);
-    
-    if (yearList.length === 1) {
-      return `${yearList[0]}年 ${monthList.map(m => `${m}月`).join(' - ')}`;
-    } else {
-      return `${yearList[0]}年${monthList[0]}月 - ${yearList[yearList.length - 1]}年${monthList[monthList.length - 1]}月`;
-    }
-  };
-
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase())
   );
@@ -473,26 +386,6 @@ export default function SchedulePage() {
         <p className="text-gray-500 mt-1">安排你的交付日程</p>
       </div>
 
-      {/* 头部导航 */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-500">{getDisplayMonthRange()}</span>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goToToday}>
-              今天
-            </Button>
-            <div className="flex items-center border border-gray-200 rounded-lg">
-              <Button variant="ghost" size="sm" onClick={goToPrevMonth}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={goToNextMonth}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* 日历区域 */}
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-6xl mx-auto">
@@ -511,14 +404,7 @@ export default function SchedulePage() {
           </div>
 
           {/* 日历网格 */}
-          <div 
-            className={cn(
-              "grid grid-cols-7 gap-1 transition-transform duration-300 ease-out",
-              slideDirection === 'left' && "translate-x-[-100%] opacity-0",
-              slideDirection === 'right' && "translate-x-[100%] opacity-0",
-              slideDirection === 'none' && "translate-x-0 opacity-100"
-            )}
-          >
+          <div className="grid grid-cols-7 gap-1">
             {calendarDates.map((date, index) => {
               const dateStr = formatDate(date);
               const dateStatus = getDateStatus(date);
