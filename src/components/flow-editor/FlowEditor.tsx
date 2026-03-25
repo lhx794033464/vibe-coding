@@ -195,17 +195,6 @@ const CustomNode = memo(({
     }
   };
 
-  // Handle 样式
-  const handleStyle: React.CSSProperties = {
-    width: 8,
-    height: 8,
-    background: colors.stroke,
-    border: '2px solid white',
-    borderRadius: '50%',
-    opacity: selected ? 1 : 0.5,
-    transition: 'opacity 0.2s',
-  };
-
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditing(true);
@@ -230,70 +219,84 @@ const CustomNode = memo(({
   const shapeStyle = getShapeStyle();
   const isRotated = type === 'diamond' || type === 'decision' || type === 'approval';
 
+  // Handle 样式 - 选中时更明显
+  const handleStyleVisible: React.CSSProperties = {
+    width: 10,
+    height: 10,
+    background: colors.stroke,
+    border: '2px solid white',
+    borderRadius: '50%',
+    opacity: selected ? 1 : 0,
+    transition: 'opacity 0.2s',
+  };
+
   return (
     <div 
       style={shapeStyle}
       onDoubleClick={handleDoubleClick}
       className="react-flow__node-custom group"
+      onMouseEnter={(e) => {
+        const handles = e.currentTarget.querySelectorAll('.react-flow__handle');
+        handles.forEach((h) => {
+          (h as HTMLElement).style.opacity = '1';
+        });
+      }}
+      onMouseLeave={(e) => {
+        if (!selected) {
+          const handles = e.currentTarget.querySelectorAll('.react-flow__handle');
+          handles.forEach((h) => {
+            (h as HTMLElement).style.opacity = '0';
+          });
+        }
+      }}
     >
-      {/* 四个方向的连接点 */}
-      <Handle 
-        type="source" 
-        position={Position.Top} 
-        id="top"
-        style={{ ...handleStyle, top: -4 }}
-        isConnectable={true}
-      />
+      {/* 上方 Handle - 作为输入（target）用于接收来自上方节点的连接 */}
       <Handle 
         type="target" 
         position={Position.Top} 
         id="top-in"
-        style={{ ...handleStyle, top: -4, left: '30%' }}
+        style={{ ...handleStyleVisible, top: -5 }}
         isConnectable={true}
       />
       
+      {/* 右侧 Handle - 作为输出/输入 */}
       <Handle 
         type="source" 
         position={Position.Right} 
         id="right"
-        style={{ ...handleStyle, right: -4 }}
+        style={{ ...handleStyleVisible, right: -5 }}
         isConnectable={true}
       />
       <Handle 
         type="target" 
         position={Position.Right} 
         id="right-in"
-        style={{ ...handleStyle, right: -4, top: '30%' }}
+        style={{ ...handleStyleVisible, right: -5, top: '30%' }}
         isConnectable={true}
       />
       
+      {/* 下方 Handle - 作为输出（source）用于连接到下方节点 */}
       <Handle 
         type="source" 
         position={Position.Bottom} 
         id="bottom"
-        style={{ ...handleStyle, bottom: -4 }}
-        isConnectable={true}
-      />
-      <Handle 
-        type="target" 
-        position={Position.Bottom} 
-        id="bottom-in"
-        style={{ ...handleStyle, bottom: -4, left: '30%' }}
+        style={{ ...handleStyleVisible, bottom: -5 }}
         isConnectable={true}
       />
       
+      {/* 左侧 Handle - 作为输出/输入 */}
       <Handle 
         type="source" 
         position={Position.Left} 
         id="left"
-        style={{ ...handleStyle, left: -4 }}
+        style={{ ...handleStyleVisible, left: -5 }}
         isConnectable={true}
       />
       <Handle 
         type="target" 
         position={Position.Left} 
         id="left-in"
-        style={{ ...handleStyle, left: -4, top: '30%' }}
+        style={{ ...handleStyleVisible, left: -5, top: '30%' }}
         isConnectable={true}
       />
       

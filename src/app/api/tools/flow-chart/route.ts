@@ -44,6 +44,15 @@ const REACTFLOW_PROMPT = `
 ## 任务
 根据用户描述的业务场景，生成 React Flow 流程图编辑器可用的 JSON 数据格式。
 
+## 重要：布局规则（必须严格遵守）
+
+**必须采用垂直布局（从上到下），所有节点垂直对齐：**
+
+1. **所有节点的 x 坐标必须相同**，统一使用 x = 350
+2. **y 坐标按固定间隔递增**，起始 y = 80，每个节点间距 90
+3. **连线必须是垂直直线**，使用 sourceHandle = "bottom", targetHandle = "top-in"
+4. **禁止斜线连接**，确保相邻节点上下对齐
+
 ## React Flow JSON 格式规范
 
 基础结构：
@@ -53,7 +62,7 @@ const REACTFLOW_PROMPT = `
     {
       "id": "唯一标识符",
       "type": "节点类型",
-      "position": { "x": 横坐标, "y": 纵坐标 },
+      "position": { "x": 350, "y": 递增坐标 },
       "data": { "label": "节点显示文字", "color": "颜色标识" }
     }
   ],
@@ -62,8 +71,8 @@ const REACTFLOW_PROMPT = `
       "id": "边唯一标识符",
       "source": "源节点id",
       "target": "目标节点id",
-      "sourceHandle": "源连接点",
-      "targetHandle": "目标连接点"
+      "sourceHandle": "bottom",
+      "targetHandle": "top-in"
     }
   ]
 }
@@ -83,52 +92,29 @@ const REACTFLOW_PROMPT = `
 | 审核/判断 | process | yellow | 黄色 | 审批、判断、条件分支 |
 | 通用流程 | process | blue | 蓝色 | 其他通用业务节点 |
 
-**重要**: data 中必须包含 color 字段，根据节点所属业务类型设置对应颜色！
+**重要**: 
+1. data 中必须包含 color 字段，根据节点所属业务类型设置对应颜色
+2. 所有节点的 x 坐标必须为 350
+3. 所有边的 sourceHandle = "bottom", targetHandle = "top-in"
 
-## 连接点说明
+## 垂直布局示例
 
-每个节点有四个方向的连接点：
-- **top**: 上方连接点（输入）
-- **top-in**: 上方连接点（输入备用）
-- **bottom**: 下方连接点（输出）
-- **right**: 右侧连接点（输出）
-- **left**: 左侧连接点（输出）
-
-**垂直流程连接规则**：
-- 从上往下的流程：sourceHandle = "bottom", targetHandle = "top-in"
-- 从下往上的流程（如退回）：sourceHandle = "top", targetHandle = "bottom-in"
-
-## 布局规则
-
-1. 使用从上到下的垂直布局
-2. 起始 y 坐标为 80，每个节点垂直间距 90
-3. 居中布局，x 坐标以 350 为中心
-4. 节点 id 使用有意义的英文，如: start, purchase_request, purchase_order, end 等
-5. 边 id 使用 edge_ 前缀，如: edge_1, edge_2 等
-
-## 生成示例
-
-用户输入：商贸企业标准采购流程
-
-输出：
 \`\`\`json
 {
   "nodes": [
     {"id": "start", "type": "start", "position": {"x": 350, "y": 80}, "data": {"label": "开始", "color": "gray"}},
-    {"id": "purchase_request", "type": "process", "position": {"x": 350, "y": 170}, "data": {"label": "采购申请单", "color": "blue"}},
-    {"id": "purchase_order", "type": "process", "position": {"x": 350, "y": 260}, "data": {"label": "采购订单", "color": "blue"}},
-    {"id": "purchase_inbound", "type": "process", "position": {"x": 350, "y": 350}, "data": {"label": "采购入库单", "color": "blue"}},
-    {"id": "purchase_invoice", "type": "process", "position": {"x": 350, "y": 440}, "data": {"label": "采购发票", "color": "blue"}},
-    {"id": "payment", "type": "process", "position": {"x": 350, "y": 530}, "data": {"label": "付款结算", "color": "teal"}},
-    {"id": "end", "type": "end", "position": {"x": 350, "y": 620}, "data": {"label": "结束", "color": "gray"}}
+    {"id": "node_1", "type": "process", "position": {"x": 350, "y": 170}, "data": {"label": "采购申请单", "color": "blue"}},
+    {"id": "node_2", "type": "process", "position": {"x": 350, "y": 260}, "data": {"label": "采购订单", "color": "blue"}},
+    {"id": "node_3", "type": "process", "position": {"x": 350, "y": 350}, "data": {"label": "采购入库单", "color": "blue"}},
+    {"id": "node_4", "type": "process", "position": {"x": 350, "y": 440}, "data": {"label": "付款结算", "color": "teal"}},
+    {"id": "end", "type": "end", "position": {"x": 350, "y": 530}, "data": {"label": "结束", "color": "gray"}}
   ],
   "edges": [
-    {"id": "edge_1", "source": "start", "target": "purchase_request", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_2", "source": "purchase_request", "target": "purchase_order", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_3", "source": "purchase_order", "target": "purchase_inbound", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_4", "source": "purchase_inbound", "target": "purchase_invoice", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_5", "source": "purchase_invoice", "target": "payment", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_6", "source": "payment", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in"}
+    {"id": "edge_1", "source": "start", "target": "node_1", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_2", "source": "node_1", "target": "node_2", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_3", "source": "node_2", "target": "node_3", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_4", "source": "node_3", "target": "node_4", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_5", "source": "node_4", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in"}
   ]
 }
 \`\`\`
@@ -138,10 +124,12 @@ ${KINGDEE_DOCUMENTS}
 
 ## 输出格式要求
 直接输出 JSON 对象，不要包含任何其他说明文字或代码块标记。
-必须确保：
-1. 每个节点的 data 中包含 color 字段
-2. 每条边包含 sourceHandle 和 targetHandle 字段
-3. 垂直流程使用 bottom -> top-in 的连接方式
+
+**验证清单**（生成后必须满足）：
+1. 所有节点的 position.x 都是 350
+2. 所有节点的 position.y 从 80 开始，依次递增 90
+3. 所有边的 sourceHandle 都是 "bottom"，targetHandle 都是 "top-in"
+4. 每个节点的 data 都包含 color 字段
 `;
 
 export async function POST(request: NextRequest) {
