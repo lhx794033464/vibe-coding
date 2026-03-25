@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, ArrowRight, Loader2, Download, FileText } from 'lucide-react';
+import { GitBranch, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+
+// localStorage 键名
+const LAST_TOOL_KEY = 'last-active-tool';
 
 // 交付工具列表
 const tools = [
@@ -29,6 +33,19 @@ const tools = [
 ];
 
 export default function ToolsPage() {
+  const router = useRouter();
+
+  // 页面加载时检查是否有活跃的工具
+  useEffect(() => {
+    const lastTool = localStorage.getItem(LAST_TOOL_KEY);
+    if (lastTool) {
+      // 如果有活跃工具，自动跳转到该工具
+      const tool = tools.find(t => t.id === lastTool);
+      if (tool) {
+        router.replace(tool.href);
+      }
+    }
+  }, [router]);
   return (
     <div className="h-full bg-slate-50">
       <div className="p-6">

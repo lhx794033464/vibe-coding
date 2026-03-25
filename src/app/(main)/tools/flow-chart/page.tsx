@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { 
   GitBranch, 
@@ -14,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit3,
+  LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { FlowData, FlowEditorRef } from '@/components/flow-editor/FlowEditor';
@@ -53,8 +55,13 @@ const EXAMPLE_FLOWS = [
   },
 ];
 
+// localStorage 键名
+const STORAGE_KEY = 'flow-chart-state';
+const LAST_TOOL_KEY = 'last-active-tool';
+
 export default function FlowChartPage() {
   const { session } = useAuth();
+  const router = useRouter();
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [flowData, setFlowData] = useState<FlowData | null>(null);
@@ -64,6 +71,77 @@ export default function FlowChartPage() {
   
   const editorRef = useRef<FlowEditorRef>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 页面加载时恢复状态
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem(STORAGE_KEY);
+      if (savedState) {
+        const state = JSON.parse(savedState);
+        if (state.description) {
+          setDescription(state.description);
+        }
+        if (state.flowData) {
+          setFlowData(state.flowData);
+          // 编辑器就绪后设置数据
+          setTimeout(() => {
+            if (editorRef.current && state.flowData) {
+              editorRef.current.setData(state.flowData);
+            }
+          }, 500);
+        }
+      }
+    } catch (e) {
+      console.error('恢复流程图状态失败:', e);
+    }
+  }, []);
+
+  // 定期保存状态到 localStorage
+  const saveState = useCallback(() => {
+    try {
+      const currentData = editorRef.current?.getData();
+      const state = {
+        description,
+        flowData: currentData || flowData,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error('保存流程图状态失败:', e);
+    }
+  }, [description, flowData]);
+
+  // 监听数据变化，延迟保存
+  useEffect(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveState();
+    }, 1000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [description, flowData, saveState]);
+
+  // 记录当前工具为活跃工具
+  useEffect(() => {
+    localStorage.setItem(LAST_TOOL_KEY, 'flow-chart');
+  }, []);
+
+  // 退出业务流程图
+  const handleExit = () => {
+    // 保存当前状态
+    saveState();
+    // 清除活跃工具标记
+    localStorage.removeItem(LAST_TOOL_KEY);
+    // 返回工具列表
+    router.push('/tools');
+  };
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -260,6 +338,18 @@ export default function FlowChartPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* 退出按钮 */}
+            <button
+              onClick={handleExit}
+              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded text-slate-500 hover:bg-slate-100 transition-colors"
+              title="返回工具列表"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              退出
+            </button>
+            
+            <div className="w-px h-4 bg-slate-200" />
+            
             {/* 展开/折叠面板按钮 */}
             <button
               onClick={() => setShowSidebar(!showSidebar)}
