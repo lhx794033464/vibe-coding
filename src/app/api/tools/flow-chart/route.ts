@@ -54,7 +54,7 @@ const REACTFLOW_PROMPT = `
       "id": "唯一标识符",
       "type": "节点类型",
       "position": { "x": 横坐标, "y": 纵坐标 },
-      "data": { "label": "节点显示文字" }
+      "data": { "label": "节点显示文字", "color": "颜色标识" }
     }
   ],
   "edges": [
@@ -62,51 +62,47 @@ const REACTFLOW_PROMPT = `
       "id": "边唯一标识符",
       "source": "源节点id",
       "target": "目标节点id",
-      "label": "连线文字（可选）"
+      "sourceHandle": "源连接点",
+      "targetHandle": "目标连接点"
     }
   ]
 }
 \`\`\`
 
-## 节点类型说明
+## 节点类型与颜色对照表
 
-1. **开始节点**: type = "start"
-   - 圆形绿色节点
-   - label 通常为 "开始"
+| 节点类型 | type值 | color值 | 节点颜色 | 适用场景 |
+|---------|-------|---------|---------|---------|
+| 开始节点 | start | gray | 灰色 | 流程开始 |
+| 结束节点 | end | gray | 灰色 | 流程结束 |
+| 采购类 | process | blue | 蓝色 | 采购申请、采购订单、采购入库、采购发票 |
+| 销售类 | process | orange | 橙色 | 销售报价、销售订单、销售出库、销售发票 |
+| 库存类 | process | purple | 紫色 | 库存管理、盘点、调拨、出入库 |
+| 财务类 | process | teal | 青色 | 收款、付款、结算、发票、财务核算 |
+| 退货/退款 | process | red | 红色 | 退货申请、退货审核、退款处理 |
+| 审核/判断 | process | yellow | 黄色 | 审批、判断、条件分支 |
+| 通用流程 | process | blue | 蓝色 | 其他通用业务节点 |
 
-2. **结束节点**: type = "end"  
-   - 圆形红色节点
-   - label 通常为 "结束"
+**重要**: data 中必须包含 color 字段，根据节点所属业务类型设置对应颜色！
 
-3. **通用流程节点**: type = "process"
-   - 圆角矩形，蓝色
+## 连接点说明
 
-4. **采购类节点**: type = "purchase"
-   - 圆角矩形，蓝色
-   - 用于采购申请单、采购订单、采购入库单、采购发票、付款单等
+每个节点有四个方向的连接点：
+- **top**: 上方连接点（输入）
+- **top-in**: 上方连接点（输入备用）
+- **bottom**: 下方连接点（输出）
+- **right**: 右侧连接点（输出）
+- **left**: 左侧连接点（输出）
 
-5. **销售类节点**: type = "sale"
-   - 圆角矩形，橙色
-   - 用于销售报价单、销售订单、销售出库单、销售发票、收款单等
-
-6. **库存类节点**: type = "inventory"
-   - 圆角矩形，紫色
-   - 用于其他入库单、其他出库单、调拨单、盘点单等
-
-7. **财务类节点**: type = "finance"
-   - 圆角矩形，绿色
-   - 用于收款单、付款单、费用报销单、转账单、凭证等
-
-8. **判断节点**: type = "decision"
-   - 黄色节点
-   - 用于审批判断、条件分支
-   - label 示例: "审批通过?", "库存充足?", "信用额度够?"
+**垂直流程连接规则**：
+- 从上往下的流程：sourceHandle = "bottom", targetHandle = "top-in"
+- 从下往上的流程（如退回）：sourceHandle = "top", targetHandle = "bottom-in"
 
 ## 布局规则
 
 1. 使用从上到下的垂直布局
-2. 起始 y 坐标为 100，每个节点垂直间距 100
-3. 居中布局，x 坐标以 400 为中心
+2. 起始 y 坐标为 80，每个节点垂直间距 90
+3. 居中布局，x 坐标以 350 为中心
 4. 节点 id 使用有意义的英文，如: start, purchase_request, purchase_order, end 等
 5. 边 id 使用 edge_ 前缀，如: edge_1, edge_2 等
 
@@ -118,21 +114,21 @@ const REACTFLOW_PROMPT = `
 \`\`\`json
 {
   "nodes": [
-    {"id": "start", "type": "start", "position": {"x": 400, "y": 100}, "data": {"label": "开始"}},
-    {"id": "purchase_request", "type": "purchase", "position": {"x": 400, "y": 200}, "data": {"label": "采购申请单"}},
-    {"id": "purchase_order", "type": "purchase", "position": {"x": 400, "y": 300}, "data": {"label": "采购订单"}},
-    {"id": "purchase_inbound", "type": "purchase", "position": {"x": 400, "y": 400}, "data": {"label": "采购入库单"}},
-    {"id": "purchase_invoice", "type": "purchase", "position": {"x": 400, "y": 500}, "data": {"label": "采购发票"}},
-    {"id": "payment", "type": "finance", "position": {"x": 400, "y": 600}, "data": {"label": "付款单"}},
-    {"id": "end", "type": "end", "position": {"x": 400, "y": 700}, "data": {"label": "结束"}}
+    {"id": "start", "type": "start", "position": {"x": 350, "y": 80}, "data": {"label": "开始", "color": "gray"}},
+    {"id": "purchase_request", "type": "process", "position": {"x": 350, "y": 170}, "data": {"label": "采购申请单", "color": "blue"}},
+    {"id": "purchase_order", "type": "process", "position": {"x": 350, "y": 260}, "data": {"label": "采购订单", "color": "blue"}},
+    {"id": "purchase_inbound", "type": "process", "position": {"x": 350, "y": 350}, "data": {"label": "采购入库单", "color": "blue"}},
+    {"id": "purchase_invoice", "type": "process", "position": {"x": 350, "y": 440}, "data": {"label": "采购发票", "color": "blue"}},
+    {"id": "payment", "type": "process", "position": {"x": 350, "y": 530}, "data": {"label": "付款结算", "color": "teal"}},
+    {"id": "end", "type": "end", "position": {"x": 350, "y": 620}, "data": {"label": "结束", "color": "gray"}}
   ],
   "edges": [
-    {"id": "edge_1", "source": "start", "target": "purchase_request"},
-    {"id": "edge_2", "source": "purchase_request", "target": "purchase_order"},
-    {"id": "edge_3", "source": "purchase_order", "target": "purchase_inbound"},
-    {"id": "edge_4", "source": "purchase_inbound", "target": "purchase_invoice"},
-    {"id": "edge_5", "source": "purchase_invoice", "target": "payment"},
-    {"id": "edge_6", "source": "payment", "target": "end"}
+    {"id": "edge_1", "source": "start", "target": "purchase_request", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_2", "source": "purchase_request", "target": "purchase_order", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_3", "source": "purchase_order", "target": "purchase_inbound", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_4", "source": "purchase_inbound", "target": "purchase_invoice", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_5", "source": "purchase_invoice", "target": "payment", "sourceHandle": "bottom", "targetHandle": "top-in"},
+    {"id": "edge_6", "source": "payment", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in"}
   ]
 }
 \`\`\`
@@ -142,6 +138,10 @@ ${KINGDEE_DOCUMENTS}
 
 ## 输出格式要求
 直接输出 JSON 对象，不要包含任何其他说明文字或代码块标记。
+必须确保：
+1. 每个节点的 data 中包含 color 字段
+2. 每条边包含 sourceHandle 和 targetHandle 字段
+3. 垂直流程使用 bottom -> top-in 的连接方式
 `;
 
 export async function POST(request: NextRequest) {

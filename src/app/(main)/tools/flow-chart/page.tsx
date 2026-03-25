@@ -234,14 +234,14 @@ export default function FlowChartPage() {
 
             {/* 使用说明 */}
             <div className="bg-amber-50 rounded-lg border border-amber-200 p-3">
-              <h3 className="text-xs font-medium text-amber-700 mb-1.5">💡 编辑操作说明</h3>
+              <h3 className="text-xs font-medium text-amber-700 mb-1.5">💡 使用说明</h3>
               <ul className="text-xs text-amber-600 space-y-1">
-                <li>• <strong>添加节点</strong>：点击左上角节点面板</li>
+                <li>• <strong>生成流程图</strong>：输入业务描述后点击生成</li>
+                <li>• <strong>颜色区分</strong>：采购-蓝色、销售-橙色、财务-青色、退货-红色</li>
+                <li>• <strong>添加节点</strong>：点击左侧形状面板</li>
                 <li>• <strong>编辑文字</strong>：双击节点后输入</li>
-                <li>• <strong>修改颜色</strong>：选中节点后点击右上角颜色</li>
-                <li>• <strong>连接节点</strong>：拖拽节点四周圆点（上下左右）</li>
+                <li>• <strong>连接节点</strong>：拖拽节点圆点到另一节点</li>
                 <li>• <strong>删除</strong>：选中后按 Delete 键</li>
-                <li>• <strong>移动</strong>：拖拽节点到目标位置</li>
               </ul>
             </div>
           </div>

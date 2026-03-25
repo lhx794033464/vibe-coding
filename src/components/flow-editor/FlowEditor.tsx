@@ -78,14 +78,14 @@ interface FlowEditorProps {
 
 // ============= 颜色预设 =============
 const COLOR_PRESETS = {
-  blue: { fill: '#DBEEF3', stroke: '#0066CC', text: '#0052A3', name: '蓝色' },
-  green: { fill: '#D5E8D4', stroke: '#82B366', text: '#3D7C47', name: '绿色' },
-  orange: { fill: '#FFE6CC', stroke: '#D79B00', text: '#B35900', name: '橙色' },
-  purple: { fill: '#E1D5E7', stroke: '#9673A6', text: '#6B4C7A', name: '紫色' },
-  red: { fill: '#F8CECC', stroke: '#B85450', text: '#8C3D3A', name: '红色' },
-  teal: { fill: '#D5DDDE', stroke: '#607D8B', text: '#3F5B66', name: '青色' },
-  yellow: { fill: '#FFF2CC', stroke: '#D6B656', text: '#B38F00', name: '黄色' },
-  gray: { fill: '#F5F5F5', stroke: '#666666', text: '#333333', name: '灰色' },
+  blue: { fill: '#DBEEF3', stroke: '#0066CC', text: '#0052A3', name: '采购/订单' },
+  green: { fill: '#D5E8D4', stroke: '#82B366', text: '#3D7C47', name: '生产' },
+  orange: { fill: '#FFE6CC', stroke: '#D79B00', text: '#B35900', name: '销售' },
+  purple: { fill: '#E1D5E7', stroke: '#9673A6', text: '#6B4C7A', name: '库存' },
+  red: { fill: '#F8CECC', stroke: '#B85450', text: '#8C3D3A', name: '退货/退款' },
+  teal: { fill: '#D5DDDE', stroke: '#607D8B', text: '#3F5B66', name: '财务' },
+  yellow: { fill: '#FFF2CC', stroke: '#D6B656', text: '#B38F00', name: '审核/判断' },
+  gray: { fill: '#F5F5F5', stroke: '#666666', text: '#333333', name: '开始/结束' },
   white: { fill: '#FFFFFF', stroke: '#000000', text: '#000000', name: '白色' },
 };
 
@@ -98,30 +98,26 @@ const SHAPE_LIBRARIES = {
       { type: 'rounded', label: '圆角矩形', color: 'blue' },
       { type: 'ellipse', label: '椭圆', color: 'blue' },
       { type: 'diamond', label: '菱形', color: 'yellow' },
-      { type: 'parallelogram', label: '平行四边形', color: 'blue' },
-      { type: 'hexagon', label: '六边形', color: 'blue' },
     ],
   },
   flowchart: {
     name: '流程图',
     shapes: [
-      { type: 'start', label: '开始', color: 'green' },
-      { type: 'end', label: '结束', color: 'red' },
+      { type: 'start', label: '开始', color: 'gray' },
+      { type: 'end', label: '结束', color: 'gray' },
       { type: 'process', label: '流程', color: 'blue' },
       { type: 'decision', label: '判断', color: 'yellow' },
-      { type: 'data', label: '数据', color: 'blue' },
-      { type: 'document', label: '文档', color: 'blue' },
     ],
   },
   business: {
-    name: '业务',
+    name: '业务节点',
     shapes: [
       { type: 'purchase', label: '采购', color: 'blue' },
       { type: 'sales', label: '销售', color: 'orange' },
       { type: 'inventory', label: '库存', color: 'purple' },
       { type: 'finance', label: '财务', color: 'teal' },
-      { type: 'hr', label: '人事', color: 'green' },
-      { type: 'service', label: '服务', color: 'yellow' },
+      { type: 'return', label: '退货', color: 'red' },
+      { type: 'approval', label: '审批', color: 'yellow' },
     ],
   },
 };
@@ -173,33 +169,27 @@ const CustomNode = memo(({
     switch (type) {
       case 'start':
       case 'end':
+        return { ...baseStyle, borderRadius: '50%', minWidth: 80, minHeight: 40, padding: '8px 20px' };
       case 'ellipse':
         return { ...baseStyle, borderRadius: '50%', minWidth: 100, minHeight: 50 };
       case 'diamond':
       case 'decision':
+      case 'approval':
         return { 
           ...baseStyle, 
           transform: 'rotate(45deg)', 
-          minWidth: 80, 
-          minHeight: 80,
-          padding: '20px',
+          minWidth: 70, 
+          minHeight: 70,
+          padding: '15px',
         };
-      case 'parallelogram':
-      case 'data':
-        return { ...baseStyle, transform: 'skewX(-10deg)' };
       case 'rounded':
       case 'process':
       case 'purchase':
       case 'sales':
       case 'inventory':
       case 'finance':
-      case 'hr':
-      case 'service':
+      case 'return':
         return { ...baseStyle, borderRadius: '8px' };
-      case 'hexagon':
-        return { ...baseStyle, borderRadius: '8px', clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
-      case 'document':
-        return { ...baseStyle, borderRadius: '8px', borderBottomLeftRadius: '20px', borderBottomRightRadius: '20px' };
       default:
         return { ...baseStyle, borderRadius: '4px' };
     }
@@ -238,7 +228,7 @@ const CustomNode = memo(({
   };
 
   const shapeStyle = getShapeStyle();
-  const isRotated = type === 'diamond' || type === 'decision';
+  const isRotated = type === 'diamond' || type === 'decision' || type === 'approval';
 
   return (
     <div 
@@ -339,9 +329,9 @@ CustomNode.displayName = 'CustomNode';
 const createNodeTypes = (): NodeTypes => {
   const types: NodeTypes = {};
   const allTypes = [
-    'rectangle', 'rounded', 'ellipse', 'diamond', 'parallelogram', 'hexagon',
-    'start', 'end', 'process', 'decision', 'data', 'document',
-    'purchase', 'sales', 'inventory', 'finance', 'hr', 'service',
+    'rectangle', 'rounded', 'ellipse', 'diamond',
+    'start', 'end', 'process', 'decision',
+    'purchase', 'sales', 'inventory', 'finance', 'return', 'approval',
   ];
   
   allTypes.forEach(type => {
