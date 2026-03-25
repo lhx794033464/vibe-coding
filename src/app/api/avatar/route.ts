@@ -28,21 +28,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    // 使用 RPC 函数查询用户配置
+    // 直接查询 user_profiles 表
     const { data: profile, error } = await supabase
-      .rpc('get_user_profile', { user_id: user.id });
+      .from('user_profiles')
+      .select('avatar_url')
+      .eq('user_id', user.id)
+      .single();
 
-    if (error) {
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 是 "没有找到数据" 的错误，可以忽略
       console.error('查询用户配置失败:', error);
       return NextResponse.json({ avatarUrl: null });
     }
 
     // 如果有头像key，生成签名URL
     let avatarUrl = null;
-    if (profile && profile.length > 0 && profile[0].avatar_url) {
+    if (profile?.avatar_url) {
       try {
         avatarUrl = await storage.generatePresignedUrl({
-          key: profile[0].avatar_url,
+          key: profile.avatar_url,
           expireTime: 86400, // 1天有效期
         });
       } catch {
@@ -108,11 +112,15 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
     });
 
-    // 使用 RPC 函数更新用户配置
+    // 使用 upsert 更新或插入用户配置
     const { error: upsertError } = await supabase
-      .rpc('upsert_user_profile', {
+      .from('user_profiles')
+      .upsert({
         user_id: user.id,
-        p_avatar_url: fileKey,
+        avatar_url: fileKey,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id'
       });
 
     if (upsertError) {

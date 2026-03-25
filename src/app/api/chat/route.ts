@@ -41,10 +41,20 @@ async function getUserBusinessData(token: string, userId: string) {
 
     // 获取今天的日期（北京时间 UTC+8）
     const now = new Date();
-    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    // 北京时间 = UTC时间 + 8小时
+    const beijingOffset = 8 * 60 * 60 * 1000;
+    const beijingTime = new Date(now.getTime() + beijingOffset);
     const todayStr = `${beijingTime.getFullYear()}-${String(beijingTime.getMonth() + 1).padStart(2, '0')}-${String(beijingTime.getDate()).padStart(2, '0')}`; // YYYY-MM-DD in Beijing time
 
     console.log('当前北京时间:', todayStr, '原始UTC时间:', now.toISOString());
+
+    // 辅助函数：从日期时间字符串中提取日期部分
+    const getDatePart = (dateStr: string | null): string => {
+      if (!dateStr) return '';
+      // 处理多种格式：2026-03-26T00:00:00.000Z 或 2026-03-26 08:00:00 +0800 CST
+      const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+      return match ? match[1] : dateStr.substring(0, 10);
+    };
 
     // 获取待办事项 - 分别获取今天和所有未完成的
     const { data: allTodos } = await client
@@ -55,20 +65,36 @@ async function getUserBusinessData(token: string, userId: string) {
       .limit(20);
 
     // 分类待办：今天、已过期、未来
-    const todayTodos = allTodos?.filter(t => t.due_date && t.due_date.startsWith(todayStr)) || [];
-    const overdueTodos = allTodos?.filter(t => t.due_date && t.due_date < todayStr) || [];
-    const futureTodos = allTodos?.filter(t => t.due_date && t.due_date > todayStr).slice(0, 5) || [];
+    const todayTodos = allTodos?.filter(t => {
+      const datePart = getDatePart(t.due_date);
+      return datePart === todayStr;
+    }) || [];
+    const overdueTodos = allTodos?.filter(t => {
+      const datePart = getDatePart(t.due_date);
+      return datePart && datePart < todayStr;
+    }) || [];
+    const futureTodos = allTodos?.filter(t => {
+      const datePart = getDatePart(t.due_date);
+      return datePart && datePart > todayStr;
+    }).slice(0, 5) || [];
 
     // 获取日程排期 - 今天和未来7天
-    const nextWeek = new Date(beijingTime);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const nextWeekStr = `${nextWeek.getFullYear()}-${String(nextWeek.getMonth() + 1).padStart(2, '0')}-${String(nextWeek.getDate()).padStart(2, '0')}`;
+    // 日程存储的是 UTC 时间，需要计算对应的 UTC 时间范围
+    // 北京时间 todayStr 00:00:00 = UTC (todayStr - 1天) 16:00:00
+    // 北京时间 todayStr 23:59:59 = UTC todayStr 15:59:59
+    const todayBeijingStart = new Date(`${todayStr}T00:00:00+08:00`);
+    const todayBeijingEnd = new Date(`${todayStr}T23:59:59+08:00`);
+    
+    const nextWeekBeijing = new Date(todayBeijingStart);
+    nextWeekBeijing.setDate(nextWeekBeijing.getDate() + 7);
+    const nextWeekStr = `${nextWeekBeijing.getFullYear()}-${String(nextWeekBeijing.getMonth() + 1).padStart(2, '0')}-${String(nextWeekBeijing.getDate()).padStart(2, '0')}`;
+    const nextWeekBeijingEnd = new Date(`${nextWeekStr}T23:59:59+08:00`);
 
     const { data: schedules, error: scheduleError } = await client
       .from('schedules')
       .select('*')
-      .gte('schedule_date', `${todayStr}T00:00:00.000Z`)
-      .lte('schedule_date', `${nextWeekStr}T23:59:59.999Z`)
+      .gte('schedule_date', todayBeijingStart.toISOString())
+      .lte('schedule_date', nextWeekBeijingEnd.toISOString())
       .order('schedule_date', { ascending: true });
 
     if (scheduleError) {
@@ -77,19 +103,21 @@ async function getUserBusinessData(token: string, userId: string) {
 
     console.log('日程排期查询结果:', { 
       todayStr, 
+      todayBeijingStart: todayBeijingStart.toISOString(),
       nextWeekStr, 
+      nextWeekBeijingEnd: nextWeekBeijingEnd.toISOString(),
       schedulesCount: schedules?.length || 0,
       schedules 
     });
 
     // 分类日程：今天、未来7天
     const todaySchedules = schedules?.filter(s => {
-      const scheduleDate = s.schedule_date.split('T')[0];
+      const scheduleDate = getDatePart(s.schedule_date);
       return scheduleDate === todayStr;
     }) || [];
     const futureSchedules = schedules?.filter(s => {
-      const scheduleDate = s.schedule_date.split('T')[0];
-      return scheduleDate > todayStr;
+      const scheduleDate = getDatePart(s.schedule_date);
+      return scheduleDate && scheduleDate > todayStr;
     }) || [];
 
     console.log('日程分类结果:', {
