@@ -246,15 +246,6 @@ export default function FlowChartPage() {
             </div>
           </div>
         </div>
-        
-        {/* 折叠按钮 - 在左侧面板内部，贴合右侧边框 */}
-        <button
-          onClick={() => setShowSidebar(false)}
-          className="absolute top-1/2 -right-3 z-10 bg-white border border-slate-200 rounded-r py-6 px-0.5 shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center"
-          style={{ transform: 'translateY(-50%)' }}
-        >
-          <ChevronLeft className="w-4 h-4 text-slate-500" />
-        </button>
       </div>
 
       {/* 右侧编辑器区域 */}
@@ -262,16 +253,6 @@ export default function FlowChartPage() {
         {/* 工具栏 */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-2">
-            {/* 展开按钮 - 当左侧面板折叠时显示 */}
-            {!showSidebar && (
-              <button
-                onClick={() => setShowSidebar(true)}
-                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
-              >
-                <ChevronRight className="w-4 h-4 text-slate-500" />
-                <span className="text-slate-600">展开面板</span>
-              </button>
-            )}
             <Edit3 className="w-4 h-4 text-slate-400" />
             <span className="text-sm font-medium text-slate-700">流程图编辑器</span>
             {editorReady && (
@@ -279,6 +260,24 @@ export default function FlowChartPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* 展开/折叠面板按钮 */}
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+            >
+              {showSidebar ? (
+                <>
+                  <ChevronLeft className="w-4 h-4 text-slate-500" />
+                  <span className="text-slate-600">收起面板</span>
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                  <span className="text-slate-600">展开面板</span>
+                </>
+              )}
+            </button>
+            
             {/* 清空按钮 */}
             <button
               onClick={handleClear}
