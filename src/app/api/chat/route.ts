@@ -41,12 +41,20 @@ async function getUserBusinessData(token: string, userId: string) {
 
     // 获取今天的日期（北京时间 UTC+8）
     const now = new Date();
-    // 北京时间 = UTC时间 + 8小时
-    const beijingOffset = 8 * 60 * 60 * 1000;
-    const beijingTime = new Date(now.getTime() + beijingOffset);
-    const todayStr = `${beijingTime.getFullYear()}-${String(beijingTime.getMonth() + 1).padStart(2, '0')}-${String(beijingTime.getDate()).padStart(2, '0')}`; // YYYY-MM-DD in Beijing time
+    // 使用 Intl.DateTimeFormat 获取北京时间日期
+    const beijingFormatter = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const beijingParts = beijingFormatter.formatToParts(now);
+    const yearPart = beijingParts.find(p => p.type === 'year')?.value || '';
+    const monthPart = beijingParts.find(p => p.type === 'month')?.value || '';
+    const dayPart = beijingParts.find(p => p.type === 'day')?.value || '';
+    const todayStr = `${yearPart}-${monthPart}-${dayPart}`; // YYYY-MM-DD in Beijing time
 
-    console.log('当前北京时间:', todayStr, '原始UTC时间:', now.toISOString());
+    console.log('当前北京时间日期:', todayStr, '原始UTC时间:', now.toISOString());
 
     // 辅助函数：从日期时间字符串中提取日期部分
     const getDatePart = (dateStr: string | null): string => {
@@ -80,15 +88,25 @@ async function getUserBusinessData(token: string, userId: string) {
 
     // 获取日程排期 - 今天和未来7天
     // 日程存储的是 UTC 时间，需要计算对应的 UTC 时间范围
-    // 北京时间 todayStr 00:00:00 = UTC (todayStr - 1天) 16:00:00
-    // 北京时间 todayStr 23:59:59 = UTC todayStr 15:59:59
     const todayBeijingStart = new Date(`${todayStr}T00:00:00+08:00`);
     const todayBeijingEnd = new Date(`${todayStr}T23:59:59+08:00`);
     
-    const nextWeekBeijing = new Date(todayBeijingStart);
-    nextWeekBeijing.setDate(nextWeekBeijing.getDate() + 7);
-    const nextWeekStr = `${nextWeekBeijing.getFullYear()}-${String(nextWeekBeijing.getMonth() + 1).padStart(2, '0')}-${String(nextWeekBeijing.getDate()).padStart(2, '0')}`;
-    const nextWeekBeijingEnd = new Date(`${nextWeekStr}T23:59:59+08:00`);
+    // 计算下周的日期（北京时间）
+    const nextWeekDate = new Date(todayBeijingStart);
+    nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+    const nextWeekStr = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(nextWeekDate).reduce((acc, part) => {
+      if (part.type === 'year') acc.year = part.value;
+      if (part.type === 'month') acc.month = part.value;
+      if (part.type === 'day') acc.day = part.value;
+      return acc;
+    }, { year: '', month: '', day: '' });
+    const nextWeekDateStr = `${nextWeekStr.year}-${nextWeekStr.month}-${nextWeekStr.day}`;
+    const nextWeekBeijingEnd = new Date(`${nextWeekDateStr}T23:59:59+08:00`);
 
     const { data: schedules, error: scheduleError } = await client
       .from('schedules')
@@ -104,7 +122,7 @@ async function getUserBusinessData(token: string, userId: string) {
     console.log('日程排期查询结果:', { 
       todayStr, 
       todayBeijingStart: todayBeijingStart.toISOString(),
-      nextWeekStr, 
+      nextWeekDateStr, 
       nextWeekBeijingEnd: nextWeekBeijingEnd.toISOString(),
       schedulesCount: schedules?.length || 0,
       schedules 

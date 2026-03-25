@@ -4,9 +4,18 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 // 获取今天的日期字符串（北京时间）
 function getTodayDateString(): string {
   const now = new Date();
-  // 使用北京时间 (UTC+8)
-  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  return beijingTime.toISOString().split('T')[0]; // YYYY-MM-DD
+  // 使用 Intl.DateTimeFormat 获取北京时间日期
+  const beijingFormatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const beijingParts = beijingFormatter.formatToParts(now);
+  const yearPart = beijingParts.find(p => p.type === 'year')?.value || '';
+  const monthPart = beijingParts.find(p => p.type === 'month')?.value || '';
+  const dayPart = beijingParts.find(p => p.type === 'day')?.value || '';
+  return `${yearPart}-${monthPart}-${dayPart}`; // YYYY-MM-DD in Beijing time
 }
 
 // 自动延期未完成的待办到今天
@@ -95,6 +104,13 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 调试日志：返回待办数量
+    console.log(`[待办API] 查询条件: status=${status}, date=${date}, 用户=${user.id}`);
+    console.log(`[待办API] 返回 ${data?.length || 0} 条待办, 总数 ${count}`);
+    if (data && data.length > 0) {
+      console.log(`[待办API] 待办内容:`, data.slice(0, 3).map(t => ({ content: t.content, due_date: t.due_date, completed: t.completed })));
     }
 
     return NextResponse.json({ data, count });
