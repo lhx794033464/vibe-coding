@@ -38,8 +38,8 @@ const EXAMPLE_FLOWS = [
   },
 ];
 
-// draw.io embed 编辑器 URL
-const DRAWIO_EMBED_URL = 'https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=minimal&splash=0';
+// draw.io embed 编辑器 URL - 使用 HTTPS 和必要参数
+const DRAWIO_EMBED_URL = 'https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=minimal&splash=0&libraries=0';
 
 export default function FlowChartPage() {
   const { session } = useAuth();
@@ -61,15 +61,24 @@ export default function FlowChartPage() {
   // 监听 draw.io 编辑器的消息
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // 验证消息来源
-      if (event.origin !== 'https://embed.diagrams.net') return;
+      // 验证消息来源 - 必须是 draw.io 官方域名
+      if (event.origin !== 'https://embed.diagrams.net') {
+        console.log('忽略非 draw.io 来源的消息:', event.origin);
+        return;
+      }
 
       const msg = event.data;
-      console.log('收到 draw.io 消息:', msg);
+      
+      // 忽略非对象消息
+      if (!msg || typeof msg !== 'object') {
+        return;
+      }
+
+      console.log('收到 draw.io 消息:', msg.event || msg.action, msg);
 
       // draw.io 初始化完成
       if (msg.event === 'init') {
-        console.log('draw.io 编辑器初始化完成');
+        console.log('draw.io 编辑器初始化完成，准备加载内容');
         setEditorReady(true);
         editorReadyRef.current = true;
         setLoadError(false);
@@ -80,21 +89,42 @@ export default function FlowChartPage() {
           timeoutRef.current = null;
         }
         
-        // 如果已有 XML 内容，加载它
+        // 如果已有 XML 内容，延迟加载
         const currentXml = xmlRef.current;
-        if (currentXml) {
-          console.log('加载已存在的 XML');
+        if (currentXml && iframeRef.current?.contentWindow) {
+          console.log('延迟加载已存在的 XML, 长度:', currentXml.length);
           setTimeout(() => {
-            sendXmlToEditor(currentXml);
-          }, 100);
+            if (iframeRef.current?.contentWindow) {
+              console.log('发送 load 消息到编辑器');
+              iframeRef.current.contentWindow.postMessage(
+                {
+                  action: 'load',
+                  xml: currentXml,
+                  autosave: 0,
+                },
+                'https://embed.diagrams.net'
+              );
+            }
+          }, 200);
+        } else {
+          console.log('无 XML 内容或编辑器窗口不可用');
         }
+      }
+      
+      // 自动保存事件
+      if (msg.event === 'autosave') {
+        console.log('自动保存触发');
+        setXmlContent(msg.xml);
+        xmlRef.current = msg.xml;
       }
       
       // 保存事件 - 用户在编辑器中点击保存
       if (msg.event === 'save') {
-        console.log('收到保存的 XML');
-        setXmlContent(msg.xml);
-        xmlRef.current = msg.xml;
+        console.log('收到保存的 XML, 长度:', msg.xml?.length || 0);
+        if (msg.xml) {
+          setXmlContent(msg.xml);
+          xmlRef.current = msg.xml;
+        }
         // 关闭编辑器
         setShowEditor(false);
       }
@@ -102,17 +132,27 @@ export default function FlowChartPage() {
       // 导出完成事件
       if (msg.event === 'export') {
         console.log('导出完成');
-        // 下载导出的文件
-        const link = document.createElement('a');
-        link.href = msg.data;
-        link.download = `业务流程图_${new Date().toISOString().slice(0, 10)}.png`;
-        link.click();
+        if (msg.data) {
+          // 下载导出的文件
+          const link = document.createElement('a');
+          link.href = msg.data;
+          link.download = `业务流程图_${new Date().toISOString().slice(0, 10)}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       }
 
       // 退出事件
       if (msg.event === 'exit') {
         console.log('用户退出编辑器');
         setShowEditor(false);
+      }
+      
+      // 错误事件
+      if (msg.event === 'error') {
+        console.error('draw.io 错误:', msg.message || msg.error);
+        setError('编辑器发生错误: ' + (msg.message || msg.error || '未知错误'));
       }
     };
 
@@ -130,7 +170,7 @@ export default function FlowChartPage() {
 
   // iframe 加载完成
   const handleIframeLoad = useCallback(() => {
-    console.log('iframe 加载完成');
+    console.log('iframe onLoad 触发，开始等待 init 消息');
     setIframeLoaded(true);
     
     // 清除之前的超时定时器
@@ -138,13 +178,13 @@ export default function FlowChartPage() {
       clearTimeout(timeoutRef.current);
     }
     
-    // 5秒后如果还没收到 init 事件，认为加载失败
+    // 10秒后如果还没收到 init 事件，认为加载失败（增加超时时间）
     timeoutRef.current = setTimeout(() => {
       if (!editorReadyRef.current && showEditor) {
-        console.log('编辑器加载超时');
+        console.log('编辑器加载超时（10秒未收到 init 消息）');
         setLoadError(true);
       }
-    }, 5000);
+    }, 10000);
   }, [showEditor]);
 
   // 发送 XML 到编辑器
@@ -358,6 +398,7 @@ export default function FlowChartPage() {
                 className="w-full h-full border-0"
                 title="Draw.io 编辑器"
                 onLoad={handleIframeLoad}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-top-navigation"
                 allow="clipboard-read; clipboard-write;"
               />
               
@@ -378,7 +419,8 @@ export default function FlowChartPage() {
                     <AlertCircle className="w-12 h-12 mx-auto mb-3 text-amber-500" />
                     <p className="text-sm font-medium text-slate-700 mb-2">编辑器加载失败</p>
                     <p className="text-xs text-slate-500 mb-4">
-                      可能是网络原因导致编辑器无法加载
+                      可能是网络限制导致编辑器无法加载。<br/>
+                      您可以下载 .drawio 文件后使用本地 draw.io 应用打开编辑。
                     </p>
                     <div className="space-y-2">
                       <button
@@ -396,6 +438,14 @@ export default function FlowChartPage() {
                           下载 .drawio 文件
                         </button>
                       )}
+                      <a
+                        href="https://www.drawio.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                      >
+                        下载 draw.io 桌面版
+                      </a>
                     </div>
                   </div>
                 </div>
