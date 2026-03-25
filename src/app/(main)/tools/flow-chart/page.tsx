@@ -154,7 +154,7 @@ export default function FlowChartPage() {
       <div 
         className={`${
           showSidebar ? 'w-80' : 'w-0'
-        } flex-shrink-0 border-r border-slate-200 bg-white transition-all duration-300 overflow-hidden`}
+        } flex-shrink-0 border-r border-slate-200 bg-white transition-all duration-300 overflow-hidden relative`}
       >
         <div className="h-full flex flex-col w-80">
           {/* 左侧标题 */}
@@ -246,24 +246,27 @@ export default function FlowChartPage() {
             </div>
           </div>
         </div>
+        
+        {/* 折叠按钮 - 在左侧面板内部，贴合右侧边框 */}
+        <button
+          onClick={() => setShowSidebar(false)}
+          className="absolute top-1/2 -right-3 z-10 bg-white border border-slate-200 rounded-r py-6 px-0.5 shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center"
+          style={{ transform: 'translateY(-50%)' }}
+        >
+          <ChevronLeft className="w-4 h-4 text-slate-500" />
+        </button>
       </div>
 
-      {/* 折叠按钮 - 贴合左侧面板右侧边框 */}
-      <button
-        onClick={() => setShowSidebar(!showSidebar)}
-        className="absolute z-10 bg-white border border-slate-200 rounded-r-lg py-3 px-0.5 shadow-sm hover:bg-slate-50 transition-all duration-300"
-        style={{ 
-          left: showSidebar ? '320px' : '0',
-          top: '50%',
-          transform: 'translateY(-50%)'
-        }}
-      >
-        {showSidebar ? (
-          <ChevronLeft className="w-4 h-4 text-slate-500" />
-        ) : (
+      {/* 展开按钮 - 当左侧面板折叠时显示 */}
+      {!showSidebar && (
+        <button
+          onClick={() => setShowSidebar(true)}
+          className="absolute left-0 top-1/2 z-10 bg-white border border-slate-200 rounded-r py-6 px-0.5 shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center"
+          style={{ transform: 'translateY(-50%)' }}
+        >
           <ChevronRight className="w-4 h-4 text-slate-500" />
-        )}
-      </button>
+        </button>
+      )}
 
       {/* 右侧编辑器区域 */}
       <div className="flex-1 flex flex-col min-w-0">
