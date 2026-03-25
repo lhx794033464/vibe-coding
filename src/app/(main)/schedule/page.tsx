@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -124,7 +124,7 @@ function getDateStatus(date: Date): {
   return { isHoliday: false, isWorkday: true, holidayName: null, isWeekend: false };
 }
 
-function generateCalendarData(centerDate: Date): Date[] {
+function generateCalendarData(centerDate: Date, weekOffset: number = 0): Date[] {
   const dates: Date[] = [];
   const today = new Date(centerDate);
   today.setHours(0, 0, 0, 0);
@@ -133,7 +133,7 @@ function generateCalendarData(centerDate: Date): Date[] {
   const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
   const monday = new Date(today);
-  monday.setDate(today.getDate() - adjustedDayOfWeek);
+  monday.setDate(today.getDate() - adjustedDayOfWeek + (weekOffset * 7));
   
   // 生成6周（42天）的日历数据
   for (let i = 0; i < 42; i++) {
@@ -149,7 +149,7 @@ export default function SchedulePage() {
   const { session } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [centerDate, setCenterDate] = useState(new Date());
+  const [centerDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -158,6 +158,11 @@ export default function SchedulePage() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  
+  // 翻页状态
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<'up' | 'down' | 'none'>('none');
   
   // 会议相关状态
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
@@ -174,7 +179,7 @@ export default function SchedulePage() {
     duration: number;
   } | null>(null);
 
-  const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
+  const calendarDates = useMemo(() => generateCalendarData(centerDate, weekOffset), [centerDate, weekOffset]);
 
   // 获取客户列表
   useEffect(() => {
@@ -378,6 +383,39 @@ export default function SchedulePage() {
     };
   };
 
+  // 翻页函数
+  const goUp = () => {
+    if (isAnimating) return;
+    
+    setIsAnimating(true);
+    setSlideDirection('down');
+    
+    setTimeout(() => {
+      setWeekOffset(prev => prev - 1);
+      
+      setTimeout(() => {
+        setSlideDirection('none');
+        setIsAnimating(false);
+      }, 50);
+    }, 200);
+  };
+
+  const goDown = () => {
+    if (isAnimating) return;
+    
+    setIsAnimating(true);
+    setSlideDirection('up');
+    
+    setTimeout(() => {
+      setWeekOffset(prev => prev + 1);
+      
+      setTimeout(() => {
+        setSlideDirection('none');
+        setIsAnimating(false);
+      }, 50);
+    }, 200);
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* 页面标题 */}
@@ -387,25 +425,32 @@ export default function SchedulePage() {
       </div>
 
       {/* 日历区域 */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-6xl mx-auto">
-          {/* 星期标题 */}
-          <div className="grid grid-cols-7 mb-2">
-            {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
-              <div
-                key={day}
-                className={`text-center py-2 text-sm font-medium ${
-                  index >= 5 ? 'text-gray-400' : 'text-gray-500'
-                }`}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
+      <div className="flex-1 overflow-hidden flex gap-4 px-6 pb-6">
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-6xl mx-auto">
+            {/* 星期标题 */}
+            <div className="grid grid-cols-7 mb-2">
+              {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
+                <div
+                  key={day}
+                  className={`text-center py-2 text-sm font-medium ${
+                    index >= 5 ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
 
-          {/* 日历网格 */}
-          <div className="grid grid-cols-7 gap-1">
-            {calendarDates.map((date, index) => {
+            {/* 日历网格 */}
+            <div 
+              className={cn(
+                "grid grid-cols-7 gap-1 transition-transform duration-300 ease-out",
+                slideDirection === 'up' && "translate-y-[16.67%]",
+                slideDirection === 'down' && "translate-y-[-16.67%]"
+              )}
+            >
+              {calendarDates.map((date, index) => {
               const dateStr = formatDate(date);
               const dateStatus = getDateStatus(date);
               const todayClass = isToday(date);
@@ -489,6 +534,29 @@ export default function SchedulePage() {
               );
             })}
           </div>
+        </div>
+      </div>
+
+        {/* 右侧上下翻页按钮 */}
+        <div className="flex flex-col justify-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 rounded-full shadow-md bg-white hover:bg-gray-100"
+            onClick={goUp}
+            disabled={isAnimating}
+          >
+            <ChevronUp className="h-6 w-6" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 rounded-full shadow-md bg-white hover:bg-gray-100"
+            onClick={goDown}
+            disabled={isAnimating}
+          >
+            <ChevronDown className="h-6 w-6" />
+          </Button>
         </div>
       </div>
 
