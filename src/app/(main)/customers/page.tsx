@@ -118,7 +118,7 @@ export default function CustomersPage() {
             <SelectTrigger className="w-40">
               <SelectValue placeholder="状态筛选" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" side="bottom" align="start">
               <SelectItem value="all">全部状态</SelectItem>
               {Object.entries(STATUS_CONFIG).map(([key, value]) => (
                 <SelectItem key={key} value={key}>{value.label}</SelectItem>

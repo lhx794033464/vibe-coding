@@ -658,7 +658,7 @@ export default function SchedulePage() {
                     <SelectTrigger>
                       <SelectValue placeholder="选择会议时长" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" side="bottom" align="start">
                       <SelectItem value="30">30 分钟</SelectItem>
                       <SelectItem value="60">1 小时</SelectItem>
                       <SelectItem value="90">1.5 小时</SelectItem>

@@ -219,7 +219,7 @@ export default function NewCustomerPage() {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" side="bottom" align="start">
                         {Object.entries(STATUS_CONFIG).map(([key, value]) => (
                           <SelectItem key={key} value={key}>{value.label}</SelectItem>
                         ))}
@@ -291,7 +291,7 @@ export default function NewCustomerPage() {
                       <SelectTrigger>
                         <SelectValue placeholder="请选择版本" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" side="bottom" align="start">
                         {Object.entries(VERSION_CONFIG).map(([key, value]) => (
                           <SelectItem key={key} value={key}>{value.label}</SelectItem>
                         ))}
@@ -338,7 +338,7 @@ export default function NewCustomerPage() {
                       <SelectTrigger>
                         <SelectValue placeholder="请选择行业" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" side="bottom" align="start">
                         {INDUSTRY_OPTIONS.map((option) => (
                           <SelectItem key={option} value={option}>{option}</SelectItem>
                         ))}
