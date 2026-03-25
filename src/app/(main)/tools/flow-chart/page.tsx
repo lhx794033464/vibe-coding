@@ -16,9 +16,6 @@ import {
   ChevronRight,
   Edit3,
   LogOut,
-  LayoutTemplate,
-  ArrowDown,
-  ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { FlowData, FlowEditorRef } from '@/components/flow-editor/FlowEditor';
@@ -47,19 +44,9 @@ const EXAMPLE_FLOWS = [
     detail: '商贸企业标准采购流程：业务员发起采购申请，审批后生成采购订单，供应商送货后做采购入库，收到发票后做采购发票，最后付款结算。',
   },
   {
-    title: '采购流程含退货分支',
-    description: '主线流程 + 采购退货分支（从入库单分出）',
-    detail: '商贸企业采购流程包含退货处理：业务员发起采购申请，审批后生成采购订单，供应商送货后做采购入库。如果货物有问题，从采购入库单分支出采购退货申请，进行采购退货出库处理。正常流程继续到采购发票和付款结算。',
-  },
-  {
     title: '商贸企业销售流程',
     description: '销售报价 → 销售订单 → 销售出库 → 销售发票 → 收款',
     detail: '商贸企业标准销售流程：客户询价后做销售报价单，确认后生成销售订单，仓库发货做销售出库，开票后做销售发票，最后收款结算。',
-  },
-  {
-    title: '销售流程含退货分支',
-    description: '主线流程 + 销售退货分支（从出库单分出）',
-    detail: '商贸企业销售流程包含退货处理：客户询价后做销售报价单，确认后生成销售订单，仓库发货做销售出库。如果客户退货，从销售出库单分支出销售退货申请，进行销售退货入库处理。正常流程继续到销售发票和收款结算。',
   },
   {
     title: '工贸企业生产流程',
@@ -81,7 +68,6 @@ export default function FlowChartPage() {
   const [error, setError] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [editorReady, setEditorReady] = useState(false);
-  const [layout, setLayout] = useState<'vertical' | 'horizontal'>('vertical');
   
   const editorRef = useRef<FlowEditorRef>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,9 +81,6 @@ export default function FlowChartPage() {
         const state = JSON.parse(savedState);
         if (state.description) {
           setDescription(state.description);
-        }
-        if (state.layout) {
-          setLayout(state.layout);
         }
         if (state.flowData) {
           setFlowData(state.flowData);
@@ -121,14 +104,13 @@ export default function FlowChartPage() {
       const state = {
         description,
         flowData: currentData || flowData,
-        layout,
         timestamp: Date.now(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
       console.error('保存流程图状态失败:', e);
     }
-  }, [description, flowData, layout]);
+  }, [description, flowData]);
 
   // 监听数据变化，延迟保存
   useEffect(() => {
@@ -144,7 +126,7 @@ export default function FlowChartPage() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [description, flowData, layout, saveState]);
+  }, [description, flowData, saveState]);
 
   // 记录当前工具为活跃工具
   useEffect(() => {
@@ -183,10 +165,7 @@ export default function FlowChartPage() {
       const response = await fetch('/api/tools/flow-chart', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ 
-          description: description.trim(),
-          layout,
-        }),
+        body: JSON.stringify({ description: description.trim() }),
       });
 
       const data = await response.json();
@@ -311,40 +290,6 @@ export default function FlowChartPage() {
                 </div>
               )}
 
-              {/* 布局偏好选择 */}
-              <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-                <span className="text-xs text-slate-500 flex items-center gap-1">
-                  <LayoutTemplate className="w-3.5 h-3.5" />
-                  布局方向：
-                </span>
-                <div className="flex-1 flex gap-1">
-                  <button
-                    onClick={() => setLayout('vertical')}
-                    className={`flex-1 flex items-center justify-center gap-1 text-xs px-2 py-1.5 rounded transition-colors ${
-                      layout === 'vertical'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                    title="纵向布局（从上到下）"
-                  >
-                    <ArrowDown className="w-3 h-3" />
-                    纵向
-                  </button>
-                  <button
-                    onClick={() => setLayout('horizontal')}
-                    className={`flex-1 flex items-center justify-center gap-1 text-xs px-2 py-1.5 rounded transition-colors ${
-                      layout === 'horizontal'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                    title="横向布局（从左到右）"
-                  >
-                    <ArrowRight className="w-3 h-3" />
-                    横向
-                  </button>
-                </div>
-              </div>
-
               {/* 生成按钮 */}
               <Button
                 onClick={handleGenerate}
@@ -370,11 +315,11 @@ export default function FlowChartPage() {
               <h3 className="text-xs font-medium text-amber-700 mb-1.5">💡 使用说明</h3>
               <ul className="text-xs text-amber-600 space-y-1">
                 <li>• <strong>生成流程图</strong>：输入业务描述后点击生成</li>
-                <li>• <strong>布局方向</strong>：可选择纵向（从上到下）或横向（从左到右）</li>
-                <li>• <strong>分支流程</strong>：描述"包含退货分支"等可生成分支流程</li>
                 <li>• <strong>颜色区分</strong>：采购-蓝色、销售-橙色、财务-青色、退货-红色</li>
+                <li>• <strong>添加节点</strong>：点击左侧形状面板</li>
                 <li>• <strong>编辑文字</strong>：双击节点后输入</li>
                 <li>• <strong>连接节点</strong>：拖拽节点圆点到另一节点</li>
+                <li>• <strong>删除</strong>：选中后按 Delete 键</li>
               </ul>
             </div>
           </div>
