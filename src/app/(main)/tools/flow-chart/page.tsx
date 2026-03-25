@@ -268,12 +268,12 @@ export default function FlowChartPage() {
               {showSidebar ? (
                 <>
                   <ChevronLeft className="w-4 h-4 text-slate-500" />
-                  <span className="text-slate-600">收起面板</span>
+                  <span className="text-slate-600">展开面板</span>
                 </>
               ) : (
                 <>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
-                  <span className="text-slate-600">展开面板</span>
+                  <span className="text-slate-600">收起面板</span>
                 </>
               )}
             </button>
