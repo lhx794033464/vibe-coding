@@ -79,12 +79,20 @@ export default function HomePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const greeting = getGreeting();
+  const abortControllerRef = useRef<AbortController | null>(null); // 用于中断流式请求
   
   // 清除对话（带动画）
   const handleClearChat = () => {
     if (isClearing) return;
     
+    // 中断正在进行的流式请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
     setIsClearing(true);
+    setLoading(false); // 立即停止加载状态
     
     // 动画结束后清除数据
     setTimeout(() => {
@@ -327,6 +335,10 @@ export default function HomePage() {
     setMessages(prev => [...prev, { role: 'assistant', content: '', isStreaming: true }]);
     setLoading(true);
 
+    // 创建 AbortController 用于中断请求
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -343,6 +355,7 @@ export default function HomePage() {
           messages: [...savedMessages, { role: 'user', content: userMessage }],
           enableSearch: true,
         }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -366,7 +379,8 @@ export default function HomePage() {
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage.role === 'assistant') {
+            // 检查 lastMessage 是否存在且为助手消息
+            if (lastMessage && lastMessage.role === 'assistant') {
               lastMessage.content = assistantMessage;
             }
             return newMessages;
@@ -377,7 +391,8 @@ export default function HomePage() {
         setMessages(prev => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage.role === 'assistant') {
+          // 检查 lastMessage 是否存在且为助手消息
+          if (lastMessage && lastMessage.role === 'assistant') {
             lastMessage.isStreaming = false;
           }
           return newMessages;
@@ -388,11 +403,17 @@ export default function HomePage() {
         addMessage({ role: 'assistant', content: assistantMessage });
       }
     } catch (error) {
+      // 如果是中断请求导致的错误，不显示错误信息
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      
       console.error('对话失败:', error);
       setMessages(prev => {
         const newMessages = [...prev];
         const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage.role === 'assistant') {
+        // 检查 lastMessage 是否存在且为助手消息
+        if (lastMessage && lastMessage.role === 'assistant') {
           lastMessage.content = '抱歉，我遇到了一些问题，请稍后再试。如果问题持续，可以联系金蝶官方技术支持。';
           lastMessage.isStreaming = false;
         }
@@ -400,6 +421,7 @@ export default function HomePage() {
       });
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
