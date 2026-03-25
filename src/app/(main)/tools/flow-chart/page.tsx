@@ -14,10 +14,10 @@ import {
   Edit3,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  Save
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import mermaid from 'mermaid';
 
 // 示例业务流程
 const EXAMPLE_FLOWS = [
@@ -38,60 +38,137 @@ const EXAMPLE_FLOWS = [
   },
 ];
 
-// 初始化 mermaid
-if (typeof window !== 'undefined') {
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    flowchart: {
-      useMaxWidth: true,
-      htmlLabels: true,
-      curve: 'basis',
-    },
-    securityLevel: 'loose',
-  });
-}
+// draw.io embed 编辑器 URL
+const DRAWIO_EMBED_URL = 'https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=minimal&splash=0';
 
 export default function FlowChartPage() {
   const { session } = useAuth();
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mermaidCode, setMermaidCode] = useState('');
-  const [drawioXml, setDrawioXml] = useState('');
+  const [xmlContent, setXmlContent] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [copiedType, setCopiedType] = useState<'mermaid' | 'drawio' | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const mermaidRef = useRef<HTMLDivElement>(null);
-  const [renderError, setRenderError] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const xmlRef = useRef<string>('');
 
-  // 渲染 mermaid 图表
-  const renderMermaid = useCallback(async (code: string) => {
-    if (!mermaidRef.current || !code) return;
+  // 监听 draw.io 编辑器的消息
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // 验证消息来源
+      if (event.origin !== 'https://embed.diagrams.net') return;
+
+      const msg = event.data;
+      console.log('收到 draw.io 消息:', msg);
+
+      // draw.io 初始化完成
+      if (msg.event === 'init') {
+        console.log('draw.io 编辑器初始化完成');
+        setEditorReady(true);
+        setLoadError(false);
+        
+        // 如果已有 XML 内容，加载它
+        const currentXml = xmlRef.current;
+        if (currentXml) {
+          console.log('加载已存在的 XML');
+          setTimeout(() => {
+            sendXmlToEditor(currentXml);
+          }, 100);
+        }
+      }
+      
+      // 保存事件 - 用户在编辑器中点击保存
+      if (msg.event === 'save') {
+        console.log('收到保存的 XML');
+        setXmlContent(msg.xml);
+        xmlRef.current = msg.xml;
+        // 关闭编辑器
+        setShowEditor(false);
+      }
+      
+      // 导出完成事件
+      if (msg.event === 'export') {
+        console.log('导出完成');
+        // 下载导出的文件
+        const link = document.createElement('a');
+        link.href = msg.data;
+        link.download = `业务流程图_${new Date().toISOString().slice(0, 10)}.png`;
+        link.click();
+      }
+
+      // 退出事件
+      if (msg.event === 'exit') {
+        console.log('用户退出编辑器');
+        setShowEditor(false);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    console.log('已添加 draw.io 消息监听器');
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  // iframe 加载完成
+  const handleIframeLoad = useCallback(() => {
+    console.log('iframe 加载完成');
+    setIframeLoaded(true);
     
-    try {
-      setRenderError(false);
-      const { svg } = await mermaid.render('mermaid-svg', code);
-      mermaidRef.current.innerHTML = svg;
-    } catch (err) {
-      console.error('Mermaid 渲染错误:', err);
-      setRenderError(true);
-      mermaidRef.current.innerHTML = `
-        <div class="text-center text-red-500 p-4">
-          <p class="font-medium">流程图渲染失败</p>
-          <p class="text-sm text-slate-500 mt-2">请尝试重新生成或修改描述</p>
-        </div>
-      `;
+    // 5秒后如果还没收到 init 事件，认为加载失败
+    setTimeout(() => {
+      if (!editorReady && showEditor) {
+        console.log('编辑器加载超时');
+        setLoadError(true);
+      }
+    }, 5000);
+  }, [editorReady, showEditor]);
+
+  // 发送 XML 到编辑器
+  const sendXmlToEditor = useCallback((xml: string) => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      console.log('发送 XML 到编辑器');
+      iframeRef.current.contentWindow.postMessage(
+        {
+          action: 'load',
+          xml: xml,
+          autosave: 0, // 禁用自动保存，使用手动保存
+        },
+        'https://embed.diagrams.net'
+      );
     }
   }, []);
 
-  // 当 mermaidCode 变化时渲染
-  useEffect(() => {
-    if (mermaidCode) {
-      renderMermaid(mermaidCode);
+  // 发送导出命令
+  const handleExportPng = useCallback(() => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          action: 'export',
+          format: 'png',
+          embedXml: true, // 将 XML 嵌入到 PNG 中，方便后续编辑
+        },
+        'https://embed.diagrams.net'
+      );
     }
-  }, [mermaidCode, renderMermaid]);
+  }, []);
+
+  // 发送保存命令
+  const handleSave = useCallback(() => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          action: 'save',
+        },
+        'https://embed.diagrams.net'
+      );
+    }
+  }, []);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -102,8 +179,6 @@ export default function FlowChartPage() {
 
     setLoading(true);
     setError('');
-    setMermaidCode('');
-    setDrawioXml('');
 
     try {
       const headers: Record<string, string> = {
@@ -127,9 +202,16 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (data.success && data.mermaid) {
-        setMermaidCode(data.mermaid);
-        setDrawioXml(data.drawio || '');
+      if (data.success && data.xml) {
+        console.log('流程图生成成功');
+        setXmlContent(data.xml);
+        xmlRef.current = data.xml;
+        
+        // 直接打开编辑器
+        setShowEditor(true);
+        setEditorReady(false);
+        setIframeLoaded(false);
+        setLoadError(false);
       } else {
         setError('生成的流程图格式不正确');
       }
@@ -143,9 +225,9 @@ export default function FlowChartPage() {
 
   // 下载 .drawio 文件
   const handleDownloadDrawio = () => {
-    if (!drawioXml) return;
+    if (!xmlContent) return;
 
-    const blob = new Blob([drawioXml], { type: 'application/xml' });
+    const blob = new Blob([xmlContent], { type: 'application/xml' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -156,70 +238,33 @@ export default function FlowChartPage() {
     URL.revokeObjectURL(url);
   };
 
-  // 下载 PNG 图片
-  const handleDownloadPng = async () => {
-    if (!mermaidRef.current) return;
-    
-    const svgElement = mermaidRef.current.querySelector('svg');
-    if (!svgElement) return;
-
-    // 创建 canvas
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 获取 SVG 尺寸
-    const svgRect = svgElement.getBoundingClientRect();
-    const scale = 2; // 2x 分辨率
-    canvas.width = svgRect.width * scale;
-    canvas.height = svgRect.height * scale;
-    ctx.scale(scale, scale);
-
-    // 将 SVG 转换为图片
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    
-    const img = new Image();
-    img.onload = () => {
-      // 绘制白色背景
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, svgRect.width, svgRect.height);
-      
-      // 下载
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `业务流程图_${new Date().toISOString().slice(0, 10)}.png`;
-      link.click();
-      
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  };
-
-  // 复制代码
-  const handleCopy = async (type: 'mermaid' | 'drawio') => {
-    const content = type === 'mermaid' ? mermaidCode : drawioXml;
-    if (!content) return;
+  // 复制 XML
+  const handleCopy = async () => {
+    if (!xmlContent) return;
     
     try {
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(xmlContent);
       setCopied(true);
-      setCopiedType(type);
-      setTimeout(() => {
-        setCopied(false);
-        setCopiedType(null);
-      }, 2000);
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('复制失败:', err);
     }
   };
 
-  // 缩放控制
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
-  const handleZoomReset = () => setZoom(1);
+  // 重新加载编辑器
+  const handleRetryEditor = () => {
+    setLoadError(false);
+    setEditorReady(false);
+    setIframeLoaded(false);
+    if (iframeRef.current) {
+      iframeRef.current.src = DRAWIO_EMBED_URL;
+    }
+  };
+
+  // 关闭编辑器
+  const handleCloseEditor = () => {
+    setShowEditor(false);
+  };
 
   // 使用示例
   const useExample = (example: typeof EXAMPLE_FLOWS[0]) => {
@@ -238,235 +283,270 @@ export default function FlowChartPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-800">业务流程图</h1>
-              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图</p>
+              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图，支持在线编辑</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 左侧：输入区域 */}
-          <div className="space-y-4">
-            {/* 示例卡片 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                快速示例
-              </h3>
-              <div className="space-y-2">
-                {EXAMPLE_FLOWS.map((example, index) => (
-                  <button
-                    key={index}
-                    onClick={() => useExample(example)}
-                    className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-slate-700 group-hover:text-blue-600">
-                        {example.title}
-                      </span>
-                      <span className="text-xs text-slate-400 group-hover:text-blue-500">
-                        点击使用
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">{example.description}</p>
-                  </button>
-                ))}
+        {/* 编辑器模式 - 全屏显示 */}
+        {showEditor ? (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {/* 编辑器工具栏 */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <Edit3 className="w-4 h-4 text-slate-400" />
+                <span className="text-sm font-medium text-slate-700">流程图编辑器</span>
+                {editorReady && (
+                  <span className="text-xs text-green-500">● 已就绪</span>
+                )}
+                {iframeLoaded && !editorReady && !loadError && (
+                  <span className="text-xs text-amber-500">● 初始化中...</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {editorReady && (
+                  <>
+                    <button
+                      onClick={handleExportPng}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      导出PNG
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      保存
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={handleCloseEditor}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  关闭编辑器
+                </button>
               </div>
             </div>
 
-            {/* 输入框 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-slate-400" />
-                业务流程描述
-              </h3>
-              <textarea
-                ref={textareaRef}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="请描述业务流程，例如：&#10;&#10;商贸企业标准采购流程：业务员发起采购申请，审批后生成采购订单，供应商送货后做采购入库，收到发票后做采购发票，最后付款结算。&#10;&#10;支持的单据：采购申请单、采购订单、采购入库单、采购发票、付款单等"
-                className="w-full h-40 p-3 border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-slate-700 placeholder:text-slate-400"
+            {/* draw.io 编辑器 iframe */}
+            <div className="relative" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
+              <iframe
+                ref={iframeRef}
+                src={DRAWIO_EMBED_URL}
+                className="w-full h-full border-0"
+                title="Draw.io 编辑器"
+                onLoad={handleIframeLoad}
+                allow="clipboard-read; clipboard-write;"
               />
               
-              {/* 错误提示 */}
-              {error && (
-                <div className="mt-3 flex items-center gap-2 text-red-500 text-sm">
-                  <AlertCircle className="w-4 h-4" />
-                  {error}
+              {/* 加载状态 */}
+              {iframeLoaded && !editorReady && !loadError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
+                  <div className="flex flex-col items-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <p className="mt-2 text-sm text-slate-500">正在初始化编辑器...</p>
+                  </div>
                 </div>
               )}
-
-              {/* 生成按钮 */}
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={handleGenerate}
-                  disabled={loading || !description.trim()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      生成中...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      生成流程图
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* 使用说明 */}
-            <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
-              <h3 className="text-sm font-medium text-amber-700 mb-2">💡 使用说明</h3>
-              <ul className="text-xs text-amber-600 space-y-1.5">
-                <li>• 生成的流程图会直接显示在右侧预览区</li>
-                <li>• 支持金蝶云星辰标准单据：采购、销售、库存、财务、生产等模块</li>
-                <li>• 描述越详细，生成的流程图越准确</li>
-                <li>• 可导出为 PNG 图片或 .drawio 文件</li>
-              </ul>
+              
+              {/* 加载失败 */}
+              {loadError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-95 z-10">
+                  <div className="text-center px-6 max-w-md">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-3 text-amber-500" />
+                    <p className="text-sm font-medium text-slate-700 mb-2">编辑器加载失败</p>
+                    <p className="text-xs text-slate-500 mb-4">
+                      可能是网络原因导致编辑器无法加载
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleRetryEditor}
+                        className="w-full px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        重试加载
+                      </button>
+                      {xmlContent && (
+                        <button
+                          onClick={handleDownloadDrawio}
+                          className="w-full px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          下载 .drawio 文件
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+        ) : (
+          /* 正常模式 - 输入和预览 */
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 左侧：输入区域 */}
+            <div className="space-y-4">
+              {/* 示例卡片 */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  快速示例
+                </h3>
+                <div className="space-y-2">
+                  {EXAMPLE_FLOWS.map((example, index) => (
+                    <button
+                      key={index}
+                      onClick={() => useExample(example)}
+                      className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-slate-700 group-hover:text-blue-600">
+                          {example.title}
+                        </span>
+                        <span className="text-xs text-slate-400 group-hover:text-blue-500">
+                          点击使用
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">{example.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* 右侧：预览区域 */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
-              <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-slate-400" />
-                流程图预览
-              </h3>
-              {mermaidCode && (
-                <div className="flex items-center gap-2">
-                  {/* 缩放控制 */}
-                  <div className="flex items-center gap-1 mr-2">
-                    <button
-                      onClick={handleZoomOut}
-                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
-                      title="缩小"
-                    >
-                      <ZoomOut className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs text-slate-500 min-w-[40px] text-center">
-                      {Math.round(zoom * 100)}%
-                    </span>
-                    <button
-                      onClick={handleZoomIn}
-                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
-                      title="放大"
-                    >
-                      <ZoomIn className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleZoomReset}
-                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
-                      title="重置"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
+              {/* 输入框 */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-slate-400" />
+                  业务流程描述
+                </h3>
+                <textarea
+                  ref={textareaRef}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="请描述业务流程，例如：&#10;&#10;商贸企业标准采购流程：业务员发起采购申请，审批后生成采购订单，供应商送货后做采购入库，收到发票后做采购发票，最后付款结算。&#10;&#10;支持的单据：采购申请单、采购订单、采购入库单、采购发票、付款单等"
+                  className="w-full h-40 p-3 border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-slate-700 placeholder:text-slate-400"
+                />
+                
+                {/* 错误提示 */}
+                {error && (
+                  <div className="mt-3 flex items-center gap-2 text-red-500 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
                   </div>
-                  {/* 操作按钮 */}
-                  <button
-                    onClick={() => handleCopy('mermaid')}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                )}
+
+                {/* 生成按钮 */}
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={loading || !description.trim()}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-6"
                   >
-                    {copied && copiedType === 'mermaid' ? (
+                    {loading ? (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                        已复制
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        生成中...
                       </>
                     ) : (
                       <>
-                        <Copy className="w-3.5 h-3.5" />
-                        复制代码
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        生成流程图
                       </>
                     )}
-                  </button>
-                  <button
-                    onClick={handleDownloadPng}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    PNG
-                  </button>
-                  <button
-                    onClick={handleDownloadDrawio}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    .drawio
-                  </button>
+                  </Button>
                 </div>
-              )}
+              </div>
+
+              {/* 使用说明 */}
+              <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                <h3 className="text-sm font-medium text-amber-700 mb-2">💡 使用说明</h3>
+                <ul className="text-xs text-amber-600 space-y-1.5">
+                  <li>• 生成流程图后会自动打开在线编辑器</li>
+                  <li>• 支持金蝶云星辰标准单据：采购、销售、库存、财务、生产等模块</li>
+                  <li>• 描述越详细，生成的流程图越准确</li>
+                  <li>• 可在编辑器中修改后导出 PNG 或保存</li>
+                </ul>
+              </div>
             </div>
 
-            {/* 流程图渲染区域 */}
-            <div className="h-[500px] overflow-auto bg-slate-50 p-4">
-              {!mermaidCode ? (
-                <div className="h-full flex items-center justify-center text-slate-400">
-                  <div className="text-center">
-                    <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">输入业务流程描述后点击生成</p>
-                    <p className="text-xs mt-1">流程图将在此显示</p>
-                  </div>
-                </div>
-              ) : renderError ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-400" />
-                    <p className="text-sm text-red-500">流程图渲染失败</p>
-                    <Button
-                      onClick={handleGenerate}
-                      variant="outline"
-                      className="mt-3"
+            {/* 右侧：已生成的流程图 */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+                <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-slate-400" />
+                  已生成的流程图
+                </h3>
+                {xmlContent && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                     >
-                      重新生成
-                    </Button>
+                      {copied ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                          已复制
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          复制XML
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleDownloadDrawio}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      .drawio
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowEditor(true);
+                        setEditorReady(false);
+                        setIframeLoaded(false);
+                        setLoadError(false);
+                      }}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      编辑
+                    </button>
                   </div>
-                </div>
-              ) : (
-                <div 
-                  ref={mermaidRef}
-                  className="flex items-center justify-center min-h-full"
-                  style={{ 
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'center center',
-                    transition: 'transform 0.2s ease'
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Mermaid 源码展示 */}
-        {mermaidCode && (
-          <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-slate-700">Mermaid 源码</h3>
-              <button
-                onClick={() => handleCopy('mermaid')}
-                className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
-              >
-                {copied && copiedType === 'mermaid' ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                    已复制
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    复制
-                  </>
                 )}
-              </button>
+              </div>
+
+              <div className="h-[500px] overflow-auto p-4">
+                {!xmlContent ? (
+                  <div className="h-full flex items-center justify-center text-slate-400">
+                    <div className="text-center">
+                      <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p className="text-sm">输入业务流程描述后点击生成</p>
+                      <p className="text-xs mt-1">流程图将在此显示并可编辑</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* 成功提示 */}
+                    <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-lg p-3">
+                      <CheckCircle2 className="w-4 h-4" />
+                      流程图已生成！点击右上角"编辑"按钮可在线编辑
+                    </div>
+
+                    {/* XML 预览 */}
+                    <div className="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[350px]">
+                      <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">
+                        {xmlContent.substring(0, 3000)}
+                        {xmlContent.length > 3000 && '\n... (已截断)'}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <pre className="bg-slate-900 text-slate-300 p-4 rounded-lg text-xs overflow-auto max-h-48 font-mono">
-              {mermaidCode}
-            </pre>
-            <p className="text-xs text-slate-500 mt-2">
-              💡 可将此代码粘贴到 <a href="https://mermaid.live" target="_blank" className="text-blue-500 hover:underline">mermaid.live</a> 进一步编辑
-            </p>
           </div>
         )}
       </div>

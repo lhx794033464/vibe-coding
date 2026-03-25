@@ -37,70 +37,81 @@ const KINGDEE_DOCUMENTS = `
 1. 订货订单 → 订货发货 → 收货确认
 `;
 
-// Mermaid 流程图生成提示词
-const MERMAID_PROMPT = `
+// draw.io XML 生成提示词
+const DRAWIO_PROMPT = `
 你是一个专业的业务流程图生成专家，精通金蝶云星辰ERP系统的业务流程。
 
 ## 任务
-根据用户描述的业务场景，生成 Mermaid 格式的流程图代码。
+根据用户描述的业务场景，生成符合 draw.io (mxGraph) 格式的 XML 流程图代码。
 
-## Mermaid 语法规范
-使用 flowchart TD（从上到下）或 flowchart LR（从左到右）语法：
+## draw.io XML 格式规范
 
-\`\`\`mermaid
-flowchart TD
-    A[开始] --> B[采购申请单]
-    B --> C{审批通过?}
-    C -->|是| D[采购订单]
-    C -->|否| E[驳回修改]
-    E --> B
-    D --> F[采购入库单]
-    F --> G[采购发票]
-    G --> H[付款单]
-    H --> I[结束]
+基础结构：
+\`\`\`xml
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.0" type="device">
+  <diagram name="业务流程图" id="flow-chart">
+    <mxGraphModel dx="1426" dy="797" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- 节点和连线放这里 -->
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
 \`\`\`
 
-## 样式类定义（可选）
-可以定义样式类使图表更美观：
+## 节点样式
 
-\`\`\`mermaid
-flowchart TD
-    classDef startEnd fill:#d5e8d4,stroke:#82b366,stroke-width:2px
-    classDef purchase fill:#dae8fc,stroke:#6c8ebf
-    classDef sales fill:#ffe6cc,stroke:#d79b00
-    classDef inventory fill:#e1d5e7,stroke:#9673a6
-    classDef finance fill:#d5e8d4,stroke:#82b366
-    classDef decision fill:#fff2cc,stroke:#d6b656
-    
-    A[开始]:::startEnd --> B[采购申请单]:::purchase
-    B --> C{审批通过?}:::decision
-\`\`\`
+### 开始/结束节点（椭圆）
+<mxCell id="start" value="开始" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+  <mxGeometry x="340" y="40" width="80" height="40" as="geometry" />
+</mxCell>
 
-## 节点类型
-- 方框：[文本] 或 id[文本]
-- 圆角方框：([文本])
-- 菱形判断：{文本}
-- 圆形：((文本))
+### 流程节点（圆角矩形）
+<mxCell id="node1" value="采购申请单" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+  <mxGeometry x="300" y="120" width="160" height="50" as="geometry" />
+</mxCell>
 
-## 连线类型
-- 实线箭头：-->
-- 虚线箭头：-.->
-- 带文字：-->|文字|
+### 判断节点（菱形）
+<mxCell id="decision1" value="审批通过?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+  <mxGeometry x="300" y="200" width="160" height="80" as="geometry" />
+</mxCell>
 
-## 要求
-1. 严格按照金蝶云星辰的单据流程生成
-2. 使用中文节点名称
-3. 合理使用判断节点处理分支流程
-4. 使用样式类区分不同类型的单据：
-   - 采购相关：蓝色 purchase
-   - 销售相关：橙色 sales
-   - 库存相关：紫色 inventory
-   - 财务相关：绿色 finance
-   - 判断节点：黄色 decision
-   - 开始/结束：浅绿色 startEnd
+### 连线
+<mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;fontSize=12;" edge="1" parent="1" source="start" target="node1">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+
+### 带标签的连线
+<mxCell id="edge2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;fontSize=12;" edge="1" parent="1" source="decision1" target="node2">
+  <mxGeometry relative="1" as="geometry" />
+  <mxCell value="是" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edge2">
+    <mxGeometry x="-0.2" relative="1" as="geometry">
+      <mxPoint as="offset" />
+    </mxGeometry>
+  </mxCell>
+</mxCell>
+
+## 节点颜色规范
+- 开始：绿色 (#d5e8d4, stroke #82b366)
+- 结束：红色 (#f8cecc, stroke #b85450)
+- 采购相关：蓝色 (#dae8fc, stroke #6c8ebf)
+- 销售相关：橙色 (#ffe6cc, stroke #d79b00)
+- 库存相关：紫色 (#e1d5e7, stroke #9673a6)
+- 财务相关：绿色 (#d5e8d4, stroke #82b366)
+- 生产相关：灰色 (#f5f5f5, stroke #666666)
+- 判断节点：黄色 (#fff2cc, stroke #d6b656)
+
+## 布局要求
+1. 从上到下垂直布局，起始 y=40，每个节点间隔 y=80
+2. 居中布局，x 坐标以 400 为中心
+3. 节点宽度统一 160，高度 50（判断节点高度 80）
+4. 使用 orthogonalEdgeStyle 直角连线
+5. id 使用有意义的名称如 start, end, purchase_request, approve_check 等
 
 ## 输出格式
-直接输出 mermaid 代码块，不要有任何其他说明文字。
+直接输出完整的 draw.io XML 代码，不要有任何其他说明文字。
 
 ## 金蝶云星辰单据参考
 ${KINGDEE_DOCUMENTS}
@@ -122,12 +133,12 @@ export async function POST(request: NextRequest) {
 
     // 构建消息
     const messages = [
-      { role: 'system' as const, content: MERMAID_PROMPT },
-      { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（Mermaid格式）：\n\n${description}` }
+      { role: 'system' as const, content: DRAWIO_PROMPT },
+      { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（draw.io XML格式）：\n\n${description}` }
     ];
 
     // 调用LLM生成
-    let mermaidContent = '';
+    let xmlContent = '';
     const stream = client.stream(messages, {
       model: 'doubao-seed-2-0-lite-260215',
       temperature: 0.3,
@@ -135,41 +146,37 @@ export async function POST(request: NextRequest) {
 
     for await (const chunk of stream) {
       if (chunk.content) {
-        mermaidContent += chunk.content.toString();
+        xmlContent += chunk.content.toString();
       }
     }
 
-    // 清理输出，提取 mermaid 代码
-    mermaidContent = mermaidContent.trim();
+    // 清理输出，提取XML部分
+    xmlContent = xmlContent.trim();
     
     // 如果输出包含代码块标记，提取其中的内容
-    const mermaidMatch = mermaidContent.match(/```mermaid\s*([\s\S]*?)```/);
-    if (mermaidMatch) {
-      mermaidContent = mermaidMatch[1].trim();
+    const xmlMatch = xmlContent.match(/```xml\s*([\s\S]*?)```/);
+    if (xmlMatch) {
+      xmlContent = xmlMatch[1].trim();
     } else {
-      // 尝试直接提取 flowchart 内容
-      const flowchartMatch = mermaidContent.match(/flowchart[\s\S]*/);
-      if (flowchartMatch) {
-        mermaidContent = flowchartMatch[0];
+      // 尝试直接提取mxfile标签内容
+      const mxfileMatch = xmlContent.match(/<mxfile[\s\S]*<\/mxfile>/);
+      if (mxfileMatch) {
+        xmlContent = mxfileMatch[0];
       }
     }
 
-    // 验证 mermaid 格式
-    if (!mermaidContent.includes('flowchart') && !mermaidContent.includes('graph')) {
-      console.error('生成的 Mermaid 格式不正确:', mermaidContent.substring(0, 500));
+    // 验证XML格式
+    if (!xmlContent.includes('<mxfile') || !xmlContent.includes('</mxfile>')) {
+      console.error('生成的XML格式不正确:', xmlContent.substring(0, 500));
       return NextResponse.json({ 
         error: '生成的流程图格式不正确，请重新描述业务流程',
-        rawContent: mermaidContent.substring(0, 1000)
+        rawContent: xmlContent.substring(0, 1000)
       }, { status: 500 });
     }
 
-    // 生成简单的 draw.io XML（用于下载）
-    const drawioXml = generateSimpleDrawioXml(mermaidContent, description);
-
     return NextResponse.json({ 
       success: true, 
-      mermaid: mermaidContent,
-      drawio: drawioXml
+      xml: xmlContent 
     });
 
   } catch (error) {
@@ -179,69 +186,4 @@ export async function POST(request: NextRequest) {
       details: error instanceof Error ? error.message : '未知错误'
     }, { status: 500 });
   }
-}
-
-// 生成简单的 draw.io XML
-function generateSimpleDrawioXml(mermaid: string, description: string): string {
-  // 从 mermaid 中提取节点
-  const nodes: { id: string; label: string }[] = [];
-  const edges: { from: string; to: string; label?: string }[] = [];
-  
-  const lines = mermaid.split('\n');
-  let y = 40;
-  const nodeMap: Record<string, string> = {};
-  
-  lines.forEach(line => {
-    // 提取节点定义
-    const nodeMatch = line.match(/^\s*(\w+)\[(.*?)\]/);
-    if (nodeMatch) {
-      nodeMap[nodeMatch[1]] = nodeMatch[2];
-      nodes.push({ id: nodeMatch[1], label: nodeMatch[2] });
-    }
-    
-    // 提取连接
-    const edgeMatch = line.match(/^\s*(\w+).*?-->\s*(?:\|(.*?)\|)?\s*(\w+)/);
-    if (edgeMatch) {
-      edges.push({ 
-        from: edgeMatch[1], 
-        to: edgeMatch[3],
-        label: edgeMatch[2]
-      });
-    }
-  });
-
-  // 构建 XML
-  let cellXml = `
-    <mxCell id="0" />
-    <mxCell id="1" parent="0" />`;
-
-  // 添加节点
-  nodes.forEach((node, index) => {
-    const nodeId = `node_${index}`;
-    y = 40 + index * 80;
-    cellXml += `
-    <mxCell id="${nodeId}" value="${escapeXml(node.label)}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-      <mxGeometry x="280" y="${y}" width="140" height="50" as="geometry" />
-    </mxCell>`;
-  });
-
-  // 生成基础的 draw.io XML
-  return `<mxfile host="app.diagrams.net" modified="${new Date().toISOString()}" agent="Generated" version="22.1.0" type="device">
-  <diagram name="${escapeXml(description.substring(0, 20))}" id="flow-chart">
-    <mxGraphModel dx="1426" dy="797" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
-      <root>
-${cellXml}
-      </root>
-    </mxGraphModel>
-  </diagram>
-</mxfile>`;
-}
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
