@@ -64,13 +64,20 @@ async function getUserBusinessData(token: string, userId: string) {
       return match ? match[1] : dateStr.substring(0, 10);
     };
 
-    // 获取待办事项 - 分别获取今天和所有未完成的
+    // 获取待办事项 - 分别获取今天和所有未完成的（按用户筛选）
     const { data: allTodos } = await client
       .from('todos')
       .select('*')
+      .eq('user_id', userId)
       .eq('completed', false)
       .order('due_date', { ascending: true })
       .limit(20);
+
+    console.log('待办原始查询结果:', {
+      userId,
+      allTodosCount: allTodos?.length || 0,
+      allTodos: allTodos?.map(t => ({ content: t.content, due_date: t.due_date }))
+    });
 
     // 分类待办：今天、已过期、未来
     const todayTodos = allTodos?.filter(t => {
@@ -120,6 +127,7 @@ async function getUserBusinessData(token: string, userId: string) {
     const { data: schedules, error: scheduleError } = await client
       .from('schedules')
       .select('*')
+      .eq('user_id', userId)
       .gte('schedule_date', todayBeijingStart.toISOString())
       .lte('schedule_date', nextWeekBeijingEnd.toISOString())
       .order('schedule_date', { ascending: true });
