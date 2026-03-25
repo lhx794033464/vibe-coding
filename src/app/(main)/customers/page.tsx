@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, Download, MessageSquare, Loader2 } from 'lucide-react';
+import { Search, Plus, AlertCircle, MessageSquare, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -62,31 +62,6 @@ export default function CustomersPage() {
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // 导出数据
-  const handleExport = async () => {
-    if (!session?.access_token) return;
-    
-    try {
-      const response = await fetch('/api/export', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `customers_${Date.now()}.xlsx`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error('导出失败:', error);
-    }
-  };
-
   // 检查是否长时间未跟进（超过7天）
   const isStaleFollowUp = (customer: CustomerWithDays) => {
     if (!customer.last_follow_up_at) return true; // 从未跟进
@@ -121,10 +96,6 @@ export default function CustomersPage() {
             <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              导出
-            </Button>
             <Button onClick={() => router.push('/customers/new')}>
               <Plus className="w-4 h-4 mr-2" />
               添加客户
