@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   GitBranch, 
@@ -10,7 +10,9 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
-  Copy
+  Copy,
+  ExternalLink,
+  Edit3
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -40,7 +42,67 @@ export default function FlowChartPage() {
   const [xmlContent, setXmlContent] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 监听 draw.io 编辑器的消息
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // 验证消息来源
+      if (event.origin !== 'https://embed.diagrams.net') return;
+
+      const msg = event.data;
+      
+      // draw.io 初始化完成
+      if (msg.event === 'init') {
+        setEditorReady(true);
+        
+        // 如果已有 XML 内容，加载它
+        if (xmlContent) {
+          sendXmlToEditor(xmlContent);
+        }
+      }
+      
+      // 导出完成
+      if (msg.event === 'export') {
+        // 下载导出的文件
+        const link = document.createElement('a');
+        link.href = msg.data;
+        link.download = `业务流程图_${new Date().toISOString().slice(0, 10)}.png`;
+        link.click();
+      }
+      
+      // 保存事件
+      if (msg.event === 'save') {
+        // 更新 XML 内容
+        setXmlContent(msg.xml);
+      }
+    };
+
+    if (showEditor) {
+      window.addEventListener('message', handleMessage);
+    }
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [showEditor, xmlContent]);
+
+  // 发送 XML 到编辑器
+  const sendXmlToEditor = useCallback((xml: string) => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          action: 'load',
+          xml: xml,
+          autosave: 1,
+        },
+        'https://embed.diagrams.net'
+      );
+    }
+  }, []);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -77,6 +139,11 @@ export default function FlowChartPage() {
 
       if (data.success && data.xml) {
         setXmlContent(data.xml);
+        
+        // 如果编辑器已打开，加载新的 XML
+        if (showEditor && editorReady) {
+          sendXmlToEditor(data.xml);
+        }
       } else {
         setError('生成的流程图格式不正确');
       }
@@ -86,6 +153,12 @@ export default function FlowChartPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 打开编辑器
+  const handleOpenEditor = () => {
+    setShowEditor(true);
+    setEditorReady(false);
   };
 
   // 下载.drawio文件
@@ -101,6 +174,20 @@ export default function FlowChartPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  // 导出为图片
+  const handleExportPng = () => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          action: 'export',
+          format: 'png',
+          embedXml: false,
+        },
+        'https://embed.diagrams.net'
+      );
+    }
   };
 
   // 复制XML
@@ -133,7 +220,7 @@ export default function FlowChartPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-800">业务流程图</h1>
-              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图</p>
+              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图，支持在线编辑</p>
             </div>
           </div>
         </div>
@@ -216,20 +303,20 @@ export default function FlowChartPage() {
             <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
               <h3 className="text-sm font-medium text-amber-700 mb-2">💡 使用说明</h3>
               <ul className="text-xs text-amber-600 space-y-1.5">
-                <li>• 生成的流程图为 .drawio 格式，可使用 draw.io 打开编辑</li>
+                <li>• 生成的流程图可直接在右侧编辑器中编辑</li>
                 <li>• 支持金蝶云星辰标准单据：采购、销售、库存、财务、生产等模块</li>
                 <li>• 描述越详细，生成的流程图越准确</li>
-                <li>• 可在 draw.io 中进一步调整样式和布局</li>
+                <li>• 可导出为 .drawio 文件或 PNG 图片</li>
               </ul>
             </div>
           </div>
 
-          {/* 右侧：结果区域 */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 min-h-[500px]">
-            <div className="flex items-center justify-between mb-4">
+          {/* 右侧：编辑器区域 */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
               <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                <GitBranch className="w-4 h-4 text-slate-400" />
-                生成结果
+                <Edit3 className="w-4 h-4 text-slate-400" />
+                流程图编辑器
               </h3>
               {xmlContent && (
                 <div className="flex items-center gap-2">
@@ -245,52 +332,69 @@ export default function FlowChartPage() {
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5" />
-                        复制XML
+                        复制
                       </>
                     )}
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    下载 .drawio
+                    .drawio
                   </button>
+                  {showEditor && editorReady && (
+                    <button
+                      onClick={handleExportPng}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      导出PNG
+                    </button>
+                  )}
                 </div>
               )}
             </div>
 
-            {!xmlContent ? (
-              <div className="h-80 flex flex-col items-center justify-center text-slate-400">
-                <GitBranch className="w-12 h-12 mb-3 opacity-30" />
-                <p className="text-sm">输入业务流程描述后点击生成</p>
-                <p className="text-xs mt-1">生成的流程图将在此显示</p>
+            {!showEditor ? (
+              <div className="h-[500px] flex flex-col items-center justify-center text-slate-400">
+                {!xmlContent ? (
+                  <>
+                    <GitBranch className="w-12 h-12 mb-3 opacity-30" />
+                    <p className="text-sm">输入业务流程描述后点击生成</p>
+                    <p className="text-xs mt-1">生成的流程图将在此显示</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-12 h-12 mb-3 text-green-500" />
+                    <p className="text-sm text-slate-600 font-medium">流程图生成成功！</p>
+                    <Button
+                      onClick={handleOpenEditor}
+                      className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      打开编辑器
+                    </Button>
+                    <p className="text-xs mt-2">可在编辑器中修改、导出流程图</p>
+                  </>
+                )}
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* 成功提示 */}
-                <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-lg p-3">
-                  <CheckCircle2 className="w-4 h-4" />
-                  流程图生成成功！点击下载按钮保存为 .drawio 文件
-                </div>
-
-                {/* XML预览 */}
-                <div className="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[400px]">
-                  <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">
-                    {xmlContent.substring(0, 2000)}
-                    {xmlContent.length > 2000 && '\n... (已截断，完整内容请下载)'}
-                  </pre>
-                </div>
-
-                {/* 下一步提示 */}
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-blue-700 mb-2">📋 下一步操作</h4>
-                  <ol className="text-xs text-blue-600 space-y-1">
-                    <li>1. 点击"下载 .drawio"按钮保存文件</li>
-                    <li>2. 访问 <a href="https://app.diagrams.net" target="_blank" className="underline hover:text-blue-800">draw.io</a> 或使用桌面版打开</li>
-                    <li>3. 在 draw.io 中编辑、调整布局、导出为图片或PDF</li>
-                  </ol>
-                </div>
+              <div className="h-[500px] relative">
+                <iframe
+                  ref={iframeRef}
+                  src="https://embed.diagrams.net/?embed=1&proto=json&ui=minimal&spin=1&splash=0"
+                  className="w-full h-full border-0"
+                  title="Draw.io 编辑器"
+                />
+                {!editorReady && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80">
+                    <div className="flex flex-col items-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                      <p className="mt-2 text-sm text-slate-500">加载编辑器...</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

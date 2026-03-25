@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config } from 'coze-coding-dev-sdk';
+import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 // 金蝶云星辰单据知识库
 const KINGDEE_DOCUMENTS = `
@@ -107,12 +107,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入业务流程描述' }, { status: 400 });
     }
 
-    // 获取认证头
-    const customHeaders: Record<string, string> = {};
-    const authHeader = request.headers.get('Authorization');
-    if (authHeader) {
-      customHeaders['Authorization'] = authHeader;
-    }
+    // 使用 HeaderUtils 正确提取认证头
+    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
 
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
