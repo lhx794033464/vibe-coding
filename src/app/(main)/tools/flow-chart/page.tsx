@@ -248,10 +248,10 @@ export default function FlowChartPage() {
         </div>
       </div>
 
-      {/* 折叠按钮 */}
+      {/* 折叠按钮 - 贴合左侧面板右侧边框 */}
       <button
         onClick={() => setShowSidebar(!showSidebar)}
-        className="absolute z-10 bg-white border border-slate-200 rounded-r-lg p-1 shadow-sm hover:bg-slate-50 transition-colors"
+        className="absolute z-10 bg-white border border-slate-200 rounded-r-lg py-3 px-0.5 shadow-sm hover:bg-slate-50 transition-all duration-300"
         style={{ 
           left: showSidebar ? '320px' : '0',
           top: '50%',
