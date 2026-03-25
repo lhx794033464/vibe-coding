@@ -234,12 +234,14 @@ export default function FlowChartPage() {
 
             {/* 使用说明 */}
             <div className="bg-amber-50 rounded-lg border border-amber-200 p-3">
-              <h3 className="text-xs font-medium text-amber-700 mb-1.5">💡 使用说明</h3>
+              <h3 className="text-xs font-medium text-amber-700 mb-1.5">💡 编辑操作说明</h3>
               <ul className="text-xs text-amber-600 space-y-1">
-                <li>• 从左侧拖拽节点到画布进行编辑</li>
-                <li>• 点击节点可编辑文字内容</li>
-                <li>• 支持金蝶云星辰标准单据</li>
-                <li>• 可导出PNG图片或JSON数据</li>
+                <li>• <strong>选中节点</strong>：单击节点</li>
+                <li>• <strong>编辑文字</strong>：双击节点后输入</li>
+                <li>• <strong>移动节点</strong>：拖拽节点</li>
+                <li>• <strong>连接节点</strong>：从节点下方圆点拖到另一节点上方圆点</li>
+                <li>• <strong>删除</strong>：选中后按 Delete/Backspace</li>
+                <li>• <strong>缩放/平移</strong>：滚轮缩放，拖拽空白平移</li>
               </ul>
             </div>
           </div>

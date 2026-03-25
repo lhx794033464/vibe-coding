@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { useCallback, useRef, forwardRef, useImperativeHandle, useMemo, useState, memo } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -14,6 +14,9 @@ import {
   MarkerType,
   Node,
   Edge,
+  Handle,
+  Position,
+  NodeProps,
 } from '@xyflow/react';
 import type { NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -66,6 +69,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     padding: '10px 20px',
     fontSize: '14px',
     fontWeight: 500,
+    cursor: 'pointer',
   },
   end: {
     background: '#f8cecc',
@@ -74,6 +78,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     padding: '10px 20px',
     fontSize: '14px',
     fontWeight: 500,
+    cursor: 'pointer',
   },
   process: {
     background: '#dae8fc',
@@ -84,6 +89,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     minWidth: '120px',
     textAlign: 'center',
+    cursor: 'pointer',
   },
   purchase: {
     background: '#dae8fc',
@@ -94,6 +100,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     minWidth: '120px',
     textAlign: 'center',
+    cursor: 'pointer',
   },
   sale: {
     background: '#ffe6cc',
@@ -104,6 +111,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     minWidth: '120px',
     textAlign: 'center',
+    cursor: 'pointer',
   },
   inventory: {
     background: '#e1d5e7',
@@ -114,6 +122,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     minWidth: '120px',
     textAlign: 'center',
+    cursor: 'pointer',
   },
   finance: {
     background: '#d5e8d4',
@@ -124,6 +133,7 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     minWidth: '120px',
     textAlign: 'center',
+    cursor: 'pointer',
   },
   decision: {
     background: '#fff2cc',
@@ -134,18 +144,86 @@ const nodeStyles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     minWidth: '100px',
     textAlign: 'center',
+    cursor: 'pointer',
   },
 };
 
-// 自定义节点组件
-const CustomNode = ({ data, type }: { data: { label: string }; type: string }) => {
+// Handle 样式
+const handleStyle: React.CSSProperties = {
+  width: 10,
+  height: 10,
+  background: '#555',
+  border: '2px solid #fff',
+};
+
+// 自定义可编辑节点组件
+const CustomNode = memo(({ data, type, selected }: NodeProps & { type: string }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [label, setLabel] = useState<string>(data.label as string || '');
   const style = nodeStyles[type] || nodeStyles.process;
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(true);
+  };
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    data.label = label;
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      setIsEditing(false);
+      data.label = label;
+    }
+  };
+
   return (
-    <div style={style}>
-      {data.label}
+    <div 
+      style={{ 
+        ...style, 
+        boxShadow: selected ? '0 0 0 2px #1890ff' : 'none',
+        position: 'relative',
+      }}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* 输入 Handle */}
+      <Handle 
+        type="target" 
+        position={Position.Top} 
+        style={handleStyle}
+        isConnectable={true}
+      />
+      
+      {/* 内容区域 */}
+      {isEditing ? (
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          autoFocus
+          className="bg-transparent border-none outline-none text-center w-full"
+          style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
+        />
+      ) : (
+        <span>{label}</span>
+      )}
+      
+      {/* 输出 Handle */}
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        style={handleStyle}
+        isConnectable={true}
+      />
     </div>
   );
-};
+});
+
+CustomNode.displayName = 'CustomNode';
 
 // 转换节点类型映射
 const nodeTypeMap: Record<string, string> = {
@@ -161,14 +239,14 @@ const nodeTypeMap: Record<string, string> = {
 
 // 节点类型定义
 const nodeTypes: NodeTypes = {
-  start: (props: any) => <CustomNode {...props} type="start" />,
-  end: (props: any) => <CustomNode {...props} type="end" />,
-  process: (props: any) => <CustomNode {...props} type="process" />,
-  purchase: (props: any) => <CustomNode {...props} type="purchase" />,
-  sale: (props: any) => <CustomNode {...props} type="sale" />,
-  inventory: (props: any) => <CustomNode {...props} type="inventory" />,
-  finance: (props: any) => <CustomNode {...props} type="finance" />,
-  decision: (props: any) => <CustomNode {...props} type="decision" />,
+  start: (props: NodeProps) => <CustomNode {...props} type="start" />,
+  end: (props: NodeProps) => <CustomNode {...props} type="end" />,
+  process: (props: NodeProps) => <CustomNode {...props} type="process" />,
+  purchase: (props: NodeProps) => <CustomNode {...props} type="purchase" />,
+  sale: (props: NodeProps) => <CustomNode {...props} type="sale" />,
+  inventory: (props: NodeProps) => <CustomNode {...props} type="inventory" />,
+  finance: (props: NodeProps) => <CustomNode {...props} type="finance" />,
+  decision: (props: NodeProps) => <CustomNode {...props} type="decision" />,
 };
 
 const FlowEditor = forwardRef<FlowEditorRef, FlowEditorProps>(
@@ -182,7 +260,7 @@ const FlowEditor = forwardRef<FlowEditorRef, FlowEditorProps>(
         id: node.id,
         type: nodeTypeMap[node.type] || 'process',
         position: node.position,
-        data: node.data,
+        data: { ...node.data }, // 确保数据是新的对象
       }));
     }, [data?.nodes]);
 
@@ -222,13 +300,13 @@ const FlowEditor = forwardRef<FlowEditorRef, FlowEditorProps>(
           id: node.id,
           type: (node.type as string) || 'process',
           position: node.position,
-          data: node.data as { label: string },
+          data: { label: String(node.data.label || '') },
         })),
         edges: edges.map(edge => ({
           id: edge.id,
           source: edge.source,
           target: edge.target,
-          label: edge.label as string | undefined,
+          label: edge.label ? String(edge.label) : undefined,
         })),
       };
     }, [nodes, edges]);
@@ -239,7 +317,7 @@ const FlowEditor = forwardRef<FlowEditorRef, FlowEditorProps>(
         id: node.id,
         type: nodeTypeMap[node.type] || 'process',
         position: node.position,
-        data: node.data,
+        data: { ...node.data },
       }));
       const convertedEdges: Edge[] = newData.edges.map(edge => ({
         id: edge.id,
@@ -303,9 +381,19 @@ const FlowEditor = forwardRef<FlowEditorRef, FlowEditorProps>(
           nodesDraggable={!readOnly}
           nodesConnectable={!readOnly}
           elementsSelectable={!readOnly}
+          selectNodesOnDrag={false}
+          panOnDrag={true}
+          selectionOnDrag={false}
+          zoomOnScroll={true}
+          zoomOnPinch={true}
+          preventScrolling={true}
         >
-          <Controls />
-          <MiniMap />
+          <Controls showInteractive={false} />
+          <MiniMap 
+            nodeStrokeWidth={3}
+            pannable
+            zoomable
+          />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         </ReactFlow>
       </div>
