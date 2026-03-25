@@ -199,7 +199,7 @@ body {
 }
 
 /* 欢迎页淡入动画 */
-@keyframes drawer-slide-down {
+@keyframes welcome-fade-in {
   from {
     opacity: 0;
   }
@@ -208,8 +208,8 @@ body {
   }
 }
 
-.drawer-slide-down {
-  animation: drawer-slide-down 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.welcome-fade-in {
+  animation: welcome-fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* 流式文字渐变效果 */

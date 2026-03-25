@@ -454,7 +454,7 @@ export default function HomePage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6">
           {messages.length === 0 ? (
-            <div className={`space-y-8 py-8 ${showWelcome ? 'drawer-slide-down' : ''}`}>
+            <div className={`space-y-8 py-8 ${showWelcome ? 'welcome-fade-in' : ''}`}>
               {/* 欢迎信息 */}
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
