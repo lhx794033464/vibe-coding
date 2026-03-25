@@ -163,8 +163,8 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 生成简单的 draw.io XML（用于下载）
-    const drawioXml = generateSimpleDrawioXml(mermaidContent, description);
+    // 生成完整的 draw.io XML（用于下载和导入）
+    const drawioXml = generateDrawioXml(mermaidContent, description);
 
     return NextResponse.json({ 
       success: true, 
@@ -181,53 +181,170 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 生成简单的 draw.io XML
-function generateSimpleDrawioXml(mermaid: string, description: string): string {
-  // 从 mermaid 中提取节点
-  const nodes: { id: string; label: string }[] = [];
-  const edges: { from: string; to: string; label?: string }[] = [];
+// 生成完整的 draw.io XML
+function generateDrawioXml(mermaid: string, description: string): string {
+  // 从 mermaid 中提取节点和连接
+  const nodes: Map<string, { id: string; label: string; type: string }> = new Map();
+  const edges: Array<{ from: string; to: string; label?: string }> = [];
   
   const lines = mermaid.split('\n');
-  let y = 40;
-  const nodeMap: Record<string, string> = {};
   
-  lines.forEach(line => {
-    // 提取节点定义
-    const nodeMatch = line.match(/^\s*(\w+)\[(.*?)\]/);
-    if (nodeMatch) {
-      nodeMap[nodeMatch[1]] = nodeMatch[2];
-      nodes.push({ id: nodeMatch[1], label: nodeMatch[2] });
+  // 解析每一行
+  for (const line of lines) {
+    // 先清理样式类 :::xxx
+    const cleanedLine = line.replace(/:::\w+/g, '').trim();
+    
+    // 跳过空行、classDef 定义和流程图类型声明
+    if (!cleanedLine || 
+        cleanedLine.startsWith('classDef') || 
+        cleanedLine.startsWith('flowchart') || 
+        cleanedLine.startsWith('graph') ||
+        cleanedLine.startsWith('class ')) {
+      continue;
     }
     
-    // 提取连接
-    const edgeMatch = line.match(/^\s*(\w+).*?-->\s*(?:\|(.*?)\|)?\s*(\w+)/);
-    if (edgeMatch) {
-      edges.push({ 
-        from: edgeMatch[1], 
-        to: edgeMatch[3],
-        label: edgeMatch[2]
-      });
+    // 提取所有节点定义
+    // 圆形节点: A((文本))
+    const circleMatches = cleanedLine.matchAll(/([A-Z]\w*)\s*\(\(([^()]+)\)\)/g);
+    for (const match of circleMatches) {
+      const nodeId = match[1];
+      const label = match[2].replace(/<br\/?>/g, '\n');
+      if (!nodes.has(nodeId)) {
+        nodes.set(nodeId, { id: nodeId, label, type: 'circle' });
+      }
     }
-  });
+    
+    // 菱形节点: A{文本}
+    const diamondMatches = cleanedLine.matchAll(/([A-Z]\w*)\s*\{([^}]+)\}/g);
+    for (const match of diamondMatches) {
+      const nodeId = match[1];
+      const label = match[2].replace(/<br\/?>/g, '\n');
+      if (!nodes.has(nodeId)) {
+        nodes.set(nodeId, { id: nodeId, label, type: 'diamond' });
+      }
+    }
+    
+    // 方框节点: A[文本]
+    const rectMatches = cleanedLine.matchAll(/([A-Z]\w*)\s*\[([^\]]+)\]/g);
+    for (const match of rectMatches) {
+      const nodeId = match[1];
+      const label = match[2].replace(/<br\/?>/g, '\n');
+      if (!nodes.has(nodeId)) {
+        nodes.set(nodeId, { id: nodeId, label, type: 'rect' });
+      }
+    }
+    
+    // 提取连接关系
+    // 匹配格式: A --> B 或 A -->|文字| B 或 A -.-> B
+    const edgeMatches = cleanedLine.matchAll(/([A-Z]\w*)\s*(-?\.?->|-->)\s*\|?([^|]*)\|?\s*([A-Z]\w*)/g);
+    for (const match of edgeMatches) {
+      const fromId = match[1];
+      const toId = match[4];
+      const edgeLabel = match[3]?.trim();
+      
+      // 确保节点存在
+      if (!nodes.has(fromId)) {
+        nodes.set(fromId, { id: fromId, label: fromId, type: 'rect' });
+      }
+      if (!nodes.has(toId)) {
+        nodes.set(toId, { id: toId, label: toId, type: 'rect' });
+      }
+      
+      // 添加连线（避免重复）
+      const exists = edges.some(e => e.from === fromId && e.to === toId);
+      if (!exists && fromId !== toId) {
+        edges.push({
+          from: fromId,
+          to: toId,
+          label: edgeLabel || undefined
+        });
+      }
+    }
+  }
 
+  // 如果没有解析到节点，添加提示
+  if (nodes.size === 0) {
+    nodes.set('placeholder', { 
+      id: 'placeholder', 
+      label: '流程图已生成，请下载后在 draw.io 中查看', 
+      type: 'rect' 
+    });
+  }
+
+  // 布局参数
+  const startX = 280;
+  const startY = 40;
+  const nodeWidth = 140;
+  const nodeHeight = 50;
+  const verticalGap = 80;
+  
+  // 构建节点位置和数组
+  const nodeArray = Array.from(nodes.values());
+  
   // 构建 XML
   let cellXml = `
     <mxCell id="0" />
     <mxCell id="1" parent="0" />`;
 
   // 添加节点
-  nodes.forEach((node, index) => {
-    const nodeId = `node_${index}`;
-    y = 40 + index * 80;
+  nodeArray.forEach((node, index) => {
+    const x = startX;
+    const y = startY + index * verticalGap;
+    const cellId = `node_${index}`;
+    let style = '';
+    
+    switch (node.type) {
+      case 'diamond':
+        style = 'rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;';
+        break;
+      case 'circle':
+        style = 'ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;';
+        break;
+      default:
+        // 根据标签内容判断颜色
+        if (node.label.includes('采购') || node.label.includes('订货')) {
+          style = 'rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;';
+        } else if (node.label.includes('销售') || node.label.includes('零售')) {
+          style = 'rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;';
+        } else if (node.label.includes('库存') || node.label.includes('入库') || node.label.includes('出库') || node.label.includes('调拨')) {
+          style = 'rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;';
+        } else if (node.label.includes('财务') || node.label.includes('付款') || node.label.includes('收款') || node.label.includes('发票')) {
+          style = 'rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;';
+        } else if (node.label.includes('生产') || node.label.includes('领料') || node.label.includes('工单')) {
+          style = 'rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;';
+        } else if (node.label === '开始' || node.label === '结束') {
+          style = 'ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;';
+        } else {
+          style = 'rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;';
+        }
+    }
+    
     cellXml += `
-    <mxCell id="${nodeId}" value="${escapeXml(node.label)}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-      <mxGeometry x="280" y="${y}" width="140" height="50" as="geometry" />
+    <mxCell id="${cellId}" value="${escapeXml(node.label)}" style="${style}" vertex="1" parent="1">
+      <mxGeometry x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" as="geometry" />
     </mxCell>`;
   });
 
-  // 生成基础的 draw.io XML
-  return `<mxfile host="app.diagrams.net" modified="${new Date().toISOString()}" agent="Generated" version="22.1.0" type="device">
-  <diagram name="${escapeXml(description.substring(0, 20))}" id="flow-chart">
+  // 添加连线
+  edges.forEach((edge, index) => {
+    const sourceIndex = nodeArray.findIndex(n => n.id === edge.from);
+    const targetIndex = nodeArray.findIndex(n => n.id === edge.to);
+    
+    if (sourceIndex >= 0 && targetIndex >= 0) {
+      const sourceId = `node_${sourceIndex}`;
+      const targetId = `node_${targetIndex}`;
+      const edgeStyle = 'edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6c8ebf;';
+      
+      cellXml += `
+    <mxCell id="edge_${index}" value="${edge.label ? escapeXml(edge.label) : ''}" style="${edgeStyle}" edge="1" parent="1" source="${sourceId}" target="${targetId}">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>`;
+    }
+  });
+
+  // 生成完整的 draw.io XML
+  return `<mxfile host="app.diagrams.net" modified="${new Date().toISOString()}" agent="Kingdee Cloud Xingchen Flow Generator" version="22.1.0" type="device">
+  <diagram name="${escapeXml(description.substring(0, 30))}" id="flow-chart">
     <mxGraphModel dx="1426" dy="797" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
 ${cellXml}

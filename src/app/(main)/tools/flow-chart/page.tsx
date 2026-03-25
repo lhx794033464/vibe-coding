@@ -61,7 +61,9 @@ export default function FlowChartPage() {
   const [drawioXml, setDrawioXml] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedType, setCopiedType] = useState<'mermaid' | 'drawio' | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [showDrawioTip, setShowDrawioTip] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mermaidRef = useRef<HTMLDivElement>(null);
   const [renderError, setRenderError] = useState(false);
@@ -72,7 +74,6 @@ export default function FlowChartPage() {
     
     try {
       setRenderError(false);
-      // 使用随机 ID 避免缓存问题
       const id = `mermaid-${Date.now()}`;
       const { svg } = await mermaid.render(id, code);
       mermaidRef.current.innerHTML = svg;
@@ -143,14 +144,15 @@ export default function FlowChartPage() {
     }
   };
 
-  // 打开 Mermaid Live Editor 在线编辑
-  const handleOpenMermaidLive = () => {
-    if (!mermaidCode) return;
-    
-    // 使用 base64 编码传递代码
-    const encoded = btoa(unescape(encodeURIComponent(mermaidCode)));
-    const url = `https://mermaid.live/edit#base64:${encoded}`;
-    window.open(url, '_blank');
+  // 打开 draw.io 网页版编辑
+  const handleOpenDrawio = () => {
+    setShowDrawioTip(true);
+    // 先复制 XML 到剪贴板
+    if (drawioXml) {
+      navigator.clipboard.writeText(drawioXml);
+    }
+    // 打开 draw.io
+    window.open('https://app.diagrams.net/', '_blank');
   };
 
   // 下载 .drawio 文件
@@ -175,31 +177,26 @@ export default function FlowChartPage() {
     const svgElement = mermaidRef.current.querySelector('svg');
     if (!svgElement) return;
 
-    // 创建 canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 获取 SVG 尺寸
     const svgRect = svgElement.getBoundingClientRect();
-    const scale = 2; // 2x 分辨率
+    const scale = 2;
     canvas.width = svgRect.width * scale;
     canvas.height = svgRect.height * scale;
     ctx.scale(scale, scale);
 
-    // 将 SVG 转换为图片
     const svgData = new XMLSerializer().serializeToString(svgElement);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
     
     const img = new Image();
     img.onload = () => {
-      // 绘制白色背景
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, svgRect.width, svgRect.height);
       
-      // 下载
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
       link.download = `业务流程图_${new Date().toISOString().slice(0, 10)}.png`;
@@ -230,13 +227,18 @@ export default function FlowChartPage() {
   };
 
   // 复制代码
-  const handleCopy = async () => {
-    if (!mermaidCode) return;
+  const handleCopy = async (type: 'mermaid' | 'drawio') => {
+    const content = type === 'mermaid' ? mermaidCode : drawioXml;
+    if (!content) return;
     
     try {
-      await navigator.clipboard.writeText(mermaidCode);
+      await navigator.clipboard.writeText(content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedType(type);
+      setTimeout(() => {
+        setCopied(false);
+        setCopiedType(null);
+      }, 2000);
     } catch (err) {
       console.error('复制失败:', err);
     }
@@ -264,7 +266,7 @@ export default function FlowChartPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-800">业务流程图</h1>
-              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图，支持在线编辑</p>
+              <p className="text-slate-500 text-sm">根据业务描述自动生成金蝶云星辰业务流程图，支持 draw.io 编辑</p>
             </div>
           </div>
         </div>
@@ -348,9 +350,9 @@ export default function FlowChartPage() {
               <h3 className="text-sm font-medium text-amber-700 mb-2">💡 使用说明</h3>
               <ul className="text-xs text-amber-600 space-y-1.5">
                 <li>• 生成的流程图会直接显示在右侧预览区</li>
-                <li>• 点击"在线编辑"可在 Mermaid Live Editor 中修改</li>
+                <li>• 点击"draw.io编辑"可直接跳转到 draw.io 网页版编辑</li>
                 <li>• 支持金蝶云星辰标准单据：采购、销售、库存、财务、生产</li>
-                <li>• 可导出为 PNG、SVG 图片或 .drawio 文件</li>
+                <li>• 可导出为 PNG、SVG 图片或下载 .drawio 文件</li>
               </ul>
             </div>
           </div>
@@ -364,13 +366,13 @@ export default function FlowChartPage() {
               </h3>
               {mermaidCode && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* 在线编辑按钮 - 主要操作 */}
+                  {/* draw.io 编辑按钮 - 主要操作 */}
                   <button
-                    onClick={handleOpenMermaidLive}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                    onClick={handleOpenDrawio}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    在线编辑
+                    draw.io 编辑
                   </button>
                   
                   {/* 缩放控制 */}
@@ -401,18 +403,7 @@ export default function FlowChartPage() {
                     </button>
                   </div>
                   
-                  {/* 操作按钮 */}
-                  <button
-                    onClick={handleCopy}
-                    className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                    title="复制代码"
-                  >
-                    {copied ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                  </button>
+                  {/* 导出按钮 */}
                   <button
                     onClick={handleDownloadPng}
                     className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg text-slate-500 hover:text-green-600 hover:bg-green-50 transition-colors"
@@ -472,53 +463,116 @@ export default function FlowChartPage() {
           </div>
         </div>
 
-        {/* Mermaid 源码展示 */}
+        {/* draw.io 使用提示 */}
+        {showDrawioTip && drawioXml && (
+          <div className="mt-6 bg-blue-50 rounded-xl border border-blue-200 p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-blue-700 mb-2">已为您打开 draw.io，请按以下步骤导入流程图：</h3>
+                <ol className="text-xs text-blue-600 space-y-1.5 list-decimal list-inside">
+                  <li>在 draw.io 中，点击菜单 <strong>文件</strong> → <strong>从设备导入</strong></li>
+                  <li>选择刚才下载的 <strong>.drawio 文件</strong>（或按下方按钮重新下载）</li>
+                  <li>流程图将加载到编辑器中，您可以自由编辑</li>
+                </ol>
+                <div className="flex items-center gap-3 mt-3">
+                  <button
+                    onClick={handleDownloadDrawio}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    下载 .drawio 文件
+                  </button>
+                  <button
+                    onClick={() => handleCopy('drawio')}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-100 transition-colors"
+                  >
+                    {copied && copiedType === 'drawio' ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        已复制
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        复制 XML
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowDrawioTip(false)}
+                    className="text-xs text-blue-400 hover:text-blue-600"
+                  >
+                    关闭提示
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 操作区域 */}
         {mermaidCode && (
           <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-slate-700">Mermaid 源码</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleOpenMermaidLive}
-                  className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  在 mermaid.live 中打开
-                </button>
-                <button
-                  onClick={handleCopy}
-                  className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                      已复制
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      复制
-                    </>
-                  )}
-                </button>
-              </div>
+              <h3 className="text-sm font-medium text-slate-700">导出选项</h3>
             </div>
-            <pre className="bg-slate-900 text-slate-300 p-4 rounded-lg text-xs overflow-auto max-h-48 font-mono">
-              {mermaidCode}
-            </pre>
-            <div className="flex items-center gap-4 mt-2">
-              <p className="text-xs text-slate-500">
-                💡 点击"在线编辑"按钮在 Mermaid Live Editor 中可视化编辑流程图
-              </p>
-              {drawioXml && (
-                <button
-                  onClick={handleDownloadDrawio}
-                  className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  下载 .drawio 文件
-                </button>
-              )}
+            <div className="flex items-center gap-4 flex-wrap">
+              <button
+                onClick={handleDownloadDrawio}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:border-orange-300 hover:bg-orange-50 transition-all"
+              >
+                <div className="w-6 h-6 rounded bg-orange-100 flex items-center justify-center">
+                  <FileText className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-slate-700">.drawio 文件</p>
+                  <p className="text-xs text-slate-400">可在 draw.io 中编辑</p>
+                </div>
+              </button>
+              
+              <button
+                onClick={handleDownloadPng}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:border-green-300 hover:bg-green-50 transition-all"
+              >
+                <div className="w-6 h-6 rounded bg-green-100 flex items-center justify-center">
+                  <Download className="w-3.5 h-3.5 text-green-600" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-slate-700">PNG 图片</p>
+                  <p className="text-xs text-slate-400">高清位图格式</p>
+                </div>
+              </button>
+              
+              <button
+                onClick={handleDownloadSvg}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:border-purple-300 hover:bg-purple-50 transition-all"
+              >
+                <div className="w-6 h-6 rounded bg-purple-100 flex items-center justify-center">
+                  <Download className="w-3.5 h-3.5 text-purple-600" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-slate-700">SVG 矢量图</p>
+                  <p className="text-xs text-slate-400">可无损缩放</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleCopy('mermaid')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all"
+              >
+                <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center">
+                  <Copy className="w-3.5 h-3.5 text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-slate-700">
+                    {copied && copiedType === 'mermaid' ? '已复制' : '复制 Mermaid 代码'}
+                  </p>
+                  <p className="text-xs text-slate-400">可粘贴到 mermaid.live</p>
+                </div>
+              </button>
             </div>
           </div>
         )}
