@@ -97,6 +97,7 @@ export default function TodosPage() {
   const [newPriority, setNewPriority] = useState<'high' | 'medium' | 'low'>('low');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
   
   // 当前选中日期
   const [currentDate, setCurrentDate] = useState(startOfDay(new Date()));
@@ -584,7 +585,7 @@ export default function TodosPage() {
                                     <SelectTrigger className="w-[80px] h-7 text-xs">
                                       <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent position="popper" side="bottom" align="start">
                                       <SelectItem value="high">重要</SelectItem>
                                       <SelectItem value="medium">次要</SelectItem>
                                       <SelectItem value="low">常规</SelectItem>
@@ -642,7 +643,7 @@ export default function TodosPage() {
                                   <SelectTrigger className="w-[80px] h-7 text-xs">
                                     <SelectValue />
                                   </SelectTrigger>
-                                  <SelectContent>
+                                  <SelectContent position="popper" side="bottom" align="start">
                                     <SelectItem value="high">重要</SelectItem>
                                     <SelectItem value="medium">次要</SelectItem>
                                     <SelectItem value="low">常规</SelectItem>
@@ -883,7 +884,7 @@ export default function TodosPage() {
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">
                     截止日期
                   </label>
-                  <Popover>
+                  <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full justify-start">
                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -894,7 +895,12 @@ export default function TodosPage() {
                       <Calendar
                         mode="single"
                         selected={newDueDate}
-                        onSelect={(date: Date | undefined) => date && setNewDueDate(date)}
+                        onSelect={(date: Date | undefined) => {
+                          if (date) {
+                            setNewDueDate(date);
+                            setDueDatePopoverOpen(false);
+                          }
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
@@ -909,7 +915,7 @@ export default function TodosPage() {
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" side="bottom" align="start">
                       <SelectItem value="high">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-red-500"></span>
