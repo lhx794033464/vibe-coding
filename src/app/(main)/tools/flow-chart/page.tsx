@@ -55,6 +55,8 @@ export default function FlowChartPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const xmlRef = useRef<string>('');
+  const editorReadyRef = useRef(false); // 用 ref 跟踪 editorReady 避免闭包问题
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 监听 draw.io 编辑器的消息
   useEffect(() => {
@@ -69,7 +71,14 @@ export default function FlowChartPage() {
       if (msg.event === 'init') {
         console.log('draw.io 编辑器初始化完成');
         setEditorReady(true);
+        editorReadyRef.current = true;
         setLoadError(false);
+        
+        // 清除超时定时器
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
         
         // 如果已有 XML 内容，加载它
         const currentXml = xmlRef.current;
@@ -112,6 +121,10 @@ export default function FlowChartPage() {
 
     return () => {
       window.removeEventListener('message', handleMessage);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -120,14 +133,19 @@ export default function FlowChartPage() {
     console.log('iframe 加载完成');
     setIframeLoaded(true);
     
+    // 清除之前的超时定时器
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
     // 5秒后如果还没收到 init 事件，认为加载失败
-    setTimeout(() => {
-      if (!editorReady && showEditor) {
+    timeoutRef.current = setTimeout(() => {
+      if (!editorReadyRef.current && showEditor) {
         console.log('编辑器加载超时');
         setLoadError(true);
       }
     }, 5000);
-  }, [editorReady, showEditor]);
+  }, [showEditor]);
 
   // 发送 XML 到编辑器
   const sendXmlToEditor = useCallback((xml: string) => {
@@ -210,6 +228,7 @@ export default function FlowChartPage() {
         // 直接打开编辑器
         setShowEditor(true);
         setEditorReady(false);
+        editorReadyRef.current = false;
         setIframeLoaded(false);
         setLoadError(false);
       } else {
@@ -507,6 +526,7 @@ export default function FlowChartPage() {
                       onClick={() => {
                         setShowEditor(true);
                         setEditorReady(false);
+                        editorReadyRef.current = false;
                         setIframeLoaded(false);
                         setLoadError(false);
                       }}
