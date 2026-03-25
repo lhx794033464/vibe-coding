@@ -74,14 +74,25 @@ export default function HomePage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isClearing, setIsClearing] = useState(false); // 清除动画状态
+  const [showWelcome, setShowWelcome] = useState(true); // 是否显示欢迎页动画
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const greeting = getGreeting();
   
-  // 清除对话
+  // 清除对话（带动画）
   const handleClearChat = () => {
-    clearMessages();
-    setMessages([]);
+    if (isClearing) return;
+    
+    setIsClearing(true);
+    
+    // 动画结束后清除数据
+    setTimeout(() => {
+      clearMessages();
+      setMessages([]);
+      setIsClearing(false);
+      setShowWelcome(true); // 重置欢迎页动画状态
+    }, 400); // 与动画时长一致
   };
   
   // 语音相关状态
@@ -227,6 +238,7 @@ export default function HomePage() {
     if (!session?.access_token) return;
     
     setIsProcessing(true);
+    setShowWelcome(false); // 发送消息时关闭欢迎页动画
     
     try {
       // 将音频转为base64
@@ -305,6 +317,7 @@ export default function HomePage() {
     }
     
     setInput('');
+    setShowWelcome(false); // 发送消息时关闭欢迎页动画
     
     // 添加用户消息
     const newUserMessage: Message = { role: 'user', content: userMessage };
@@ -441,7 +454,7 @@ export default function HomePage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6">
           {messages.length === 0 ? (
-            <div className="space-y-8 py-8">
+            <div className={`space-y-8 py-8 ${showWelcome ? 'drawer-slide-down' : ''}`}>
               {/* 欢迎信息 */}
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
@@ -489,7 +502,7 @@ export default function HomePage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className={`space-y-6 ${isClearing ? 'message-fade-out' : ''}`}>
               {messages.map((message, index) => (
                 <div
                   key={index}
