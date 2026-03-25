@@ -277,9 +277,9 @@ const nodeTypes: NodeTypes = {
   process: (props: NodeProps) => <CustomNode {...props} type="process" />,
 };
 
-// 自定义边样式 - 直线连接
+// 自定义边样式 - 水平+垂直折线（无圆角，相邻节点直接垂直/水平连接）
 const defaultEdgeOptions = {
-  type: 'straight',
+  type: 'smoothstep',
   animated: false,
   markerEnd: { type: MarkerType.ArrowClosed },
   style: { stroke: '#666', strokeWidth: 2 },
@@ -311,7 +311,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
         source: edge.source,
         target: edge.target,
         label: edge.label,
-        type: 'straight',
+        type: 'smoothstep',
         animated: false,
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { stroke: '#666', strokeWidth: 2 },
@@ -336,7 +336,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
       (params: Connection) => {
         setLocalEdges((eds) => addEdge({
           ...params,
-          type: 'straight',
+          type: 'smoothstep',
           animated: false,
           markerEnd: { type: MarkerType.ArrowClosed },
           style: { stroke: '#666', strokeWidth: 2 },
@@ -413,7 +413,7 @@ const FlowEditorInner = forwardRef<FlowEditorRef, FlowEditorProps>(
         source: edge.source,
         target: edge.target,
         label: edge.label,
-        type: 'straight',
+        type: 'smoothstep',
         animated: false,
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { stroke: '#666', strokeWidth: 2 },
