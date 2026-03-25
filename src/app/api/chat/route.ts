@@ -505,7 +505,18 @@ export async function POST(request: NextRequest) {
         if (user) {
           const businessData = await getUserBusinessData(token, user.id);
           
+          console.log('Chat API - 业务数据获取结果:', {
+            hasBusinessData: !!businessData,
+            todayTodosCount: businessData?.todos?.today?.length || 0,
+            schedulesCount: businessData?.schedules?.today?.length || 0,
+          });
+          
           if (businessData) {
+            console.log('Chat API - 待办数据:', {
+              todayCount: businessData.todos.today.length,
+              todayItems: businessData.todos.today.map(t => t.content),
+            });
+            
             const now = new Date();
             const todayStr = now.toLocaleDateString('zh-CN', { 
               year: 'numeric', 
@@ -787,6 +798,12 @@ ${searchResultText}
     };
 
     const fullMessages = [systemMessage, ...messages];
+    
+    console.log('Chat API - 请求信息:', {
+      messagesCount: messages.length,
+      lastUserMessage: messages.length > 0 ? messages[messages.length - 1]?.content?.substring(0, 50) : 'none',
+      businessDataTextLength: businessDataText.length,
+    });
 
     // 创建流式响应
     const encoder = new TextEncoder();
