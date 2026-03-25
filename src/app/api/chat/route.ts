@@ -39,9 +39,12 @@ async function getUserBusinessData(token: string, userId: string) {
       .order('follow_up_at', { ascending: false })
       .limit(10);
 
-    // 获取今天的日期（本地时间）
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; // YYYY-MM-DD in local time
+    // 获取今天的日期（北京时间 UTC+8）
+    const now = new Date();
+    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const todayStr = `${beijingTime.getFullYear()}-${String(beijingTime.getMonth() + 1).padStart(2, '0')}-${String(beijingTime.getDate()).padStart(2, '0')}`; // YYYY-MM-DD in Beijing time
+
+    console.log('当前北京时间:', todayStr, '原始UTC时间:', now.toISOString());
 
     // 获取待办事项 - 分别获取今天和所有未完成的
     const { data: allTodos } = await client
@@ -52,25 +55,49 @@ async function getUserBusinessData(token: string, userId: string) {
       .limit(20);
 
     // 分类待办：今天、已过期、未来
-    const todayTodos = allTodos?.filter(t => t.due_date === todayStr) || [];
-    const overdueTodos = allTodos?.filter(t => t.due_date < todayStr) || [];
-    const futureTodos = allTodos?.filter(t => t.due_date > todayStr).slice(0, 5) || [];
+    const todayTodos = allTodos?.filter(t => t.due_date && t.due_date.startsWith(todayStr)) || [];
+    const overdueTodos = allTodos?.filter(t => t.due_date && t.due_date < todayStr) || [];
+    const futureTodos = allTodos?.filter(t => t.due_date && t.due_date > todayStr).slice(0, 5) || [];
 
     // 获取日程排期 - 今天和未来7天
-    const nextWeek = new Date(today);
+    const nextWeek = new Date(beijingTime);
     nextWeek.setDate(nextWeek.getDate() + 7);
     const nextWeekStr = `${nextWeek.getFullYear()}-${String(nextWeek.getMonth() + 1).padStart(2, '0')}-${String(nextWeek.getDate()).padStart(2, '0')}`;
 
-    const { data: schedules } = await client
+    const { data: schedules, error: scheduleError } = await client
       .from('schedules')
       .select('*')
-      .gte('schedule_date', todayStr)
-      .lte('schedule_date', nextWeekStr)
+      .gte('schedule_date', `${todayStr}T00:00:00.000Z`)
+      .lte('schedule_date', `${nextWeekStr}T23:59:59.999Z`)
       .order('schedule_date', { ascending: true });
 
+    if (scheduleError) {
+      console.error('获取日程排期失败:', scheduleError);
+    }
+
+    console.log('日程排期查询结果:', { 
+      todayStr, 
+      nextWeekStr, 
+      schedulesCount: schedules?.length || 0,
+      schedules 
+    });
+
     // 分类日程：今天、未来7天
-    const todaySchedules = schedules?.filter(s => s.schedule_date.split('T')[0] === todayStr) || [];
-    const futureSchedules = schedules?.filter(s => s.schedule_date.split('T')[0] > todayStr) || [];
+    const todaySchedules = schedules?.filter(s => {
+      const scheduleDate = s.schedule_date.split('T')[0];
+      return scheduleDate === todayStr;
+    }) || [];
+    const futureSchedules = schedules?.filter(s => {
+      const scheduleDate = s.schedule_date.split('T')[0];
+      return scheduleDate > todayStr;
+    }) || [];
+
+    console.log('日程分类结果:', {
+      todaySchedulesCount: todaySchedules.length,
+      futureSchedulesCount: futureSchedules.length,
+      todaySchedules,
+      futureSchedules
+    });
 
     // 创建客户ID到名称的映射
     const customerNameMap: Record<string, string> = {};
@@ -144,7 +171,7 @@ async function getUserBusinessData(token: string, userId: string) {
         dueDate: t.due_date,
         priority: t.priority,
         customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
-        overdueDays: Math.floor((today.getTime() - new Date(t.due_date).getTime()) / (1000 * 60 * 60 * 24)),
+        overdueDays: Math.floor((now.getTime() - new Date(t.due_date).getTime()) / (1000 * 60 * 60 * 24)),
       })),
       future: futureTodos.map(t => ({
         id: t.id,
