@@ -1,0 +1,191 @@
+
+## 📌 任务目标
+
+在“交付工具”中新增一个模块，实现：
+1. **自然语言生成流程图**：用户输入需求描述，调用 DeepSeek API（原生）生成流程图数据。密钥为：sk-a576af7e052748d9a5a64f5171adaaa6
+2. **可编辑流程图**：嵌入 draw.io 编辑器，支持用户在线编辑、保存。
+
+要求最终代码可集成到原有项目中，前端使用 HTML/CSS/JS，后端可用云函数或服务器端（根据 Coze 能力选择）。
+
+---
+
+## 🧱 整体实现路径
+
+### 1. 前端界面设计
+- 在原有页面合适位置添加一个卡片区域，包含：
+  - 文本框（输入自然语言需求）
+  - “生成流程图”按钮
+  - draw.io 编辑器容器（iframe）
+  - “保存”按钮（可选，用于获取编辑后的数据）
+- 布局自适应，风格与原有应用保持一致。
+
+### 2. 嵌入 draw.io 编辑器
+- 使用官方嵌入模式：`https://embed.diagrams.net/?embed=1&proto=json`
+- 设置 iframe 高度、宽度，并监听 `message` 事件实现与父页面的通信。
+- 流程图数据格式：draw.io 原生使用 XML（mxGraphModel）。为简化，可先使用 Mermaid 生成，但 draw.io 原生加载需要 XML。建议让 DeepSeek 直接输出 draw.io 兼容的 XML，或在前端将 Mermaid 转换为 draw.io XML（需额外库）。**更稳妥**：让 DeepSeek 返回 Mermaid 代码，前端利用 `draw.io` 的 `load` 方法加载时，需要将 Mermaid 转为 XML？实际上 draw.io 支持加载 Mermaid 语法吗？官方嵌入模式支持 `mermaid` 参数，可以在 URL 中指定格式。但为了稳定，建议让 DeepSeek 直接输出 draw.io 的 XML 格式（即 mxGraphModel 的 XML 字符串）。可以通过提示词约束。
+
+### 3. 自然语言生成流程图
+- **后端**（或云函数）：
+  - 接收用户描述。
+  - 调用 DeepSeek API（需使用 API Key，建议通过环境变量存储）。
+  - 提示词设计：要求 DeepSeek 返回一个完整的 draw.io 兼容的 XML（mxGraphModel），并且布局为自上而下的垂直流程图，连线正交。
+  - 将 API 返回的 XML 返回给前端。
+- **前端**：
+  - 点击“生成流程图”后，发送 POST 请求到后端，带用户输入。
+  - 收到 XML 后，通过 `postMessage` 向 draw.io iframe 发送 `load` 消息，将 XML 加载到编辑器中。
+
+### 4. 与 draw.io 通信
+- 监听 iframe 的 `message` 事件，当收到 `init` 消息时，表示编辑器已准备好。
+- 发送加载数据：
+```javascript
+iframe.contentWindow.postMessage({
+  action: 'load',
+  xml: generatedXml,
+  autosave: 1
+}, 'https://embed.diagrams.net');
+```
+- 如果需要获取用户编辑后的数据，监听 `save` 消息，在回调中保存 XML 或显示预览。
+
+### 5. 安全与性能
+- DeepSeek API Key 必须放在后端，不可暴露在前端。
+- 对生成的 XML 进行简单的合法性校验（非空、含基本标签）。
+- 设置超时处理，防止 API 长时间无响应。
+
+---
+
+## 📝 详细代码结构（示例）
+
+### 前端部分（HTML + JS）
+```html
+<div class="flowchart-container">
+  <div class="input-area">
+    <textarea id="prompt" placeholder="请描述流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."></textarea>
+    <button id="generateBtn">生成流程图</button>
+  </div>
+  <iframe id="drawioFrame" src="https://embed.diagrams.net/?embed=1&proto=json" style="width:100%; height:600px; border:1px solid #ccc;"></iframe>
+</div>
+
+<script>
+  const iframe = document.getElementById('drawioFrame');
+  let drawioReady = false;
+
+  // 监听 draw.io 消息
+  window.addEventListener('message', function(event) {
+    if (event.origin !== 'https://embed.diagrams.net') return;
+    const data = event.data;
+    if (data === 'init') {
+      drawioReady = true;
+      console.log('draw.io 已就绪');
+    }
+    // 如果需要保存编辑结果
+    if (data && data.action === 'save') {
+      console.log('保存的XML:', data.xml);
+      // 可以保存到后端或本地存储
+    }
+  });
+
+  // 生成流程图
+  document.getElementById('generateBtn').addEventListener('click', async function() {
+    const prompt = document.getElementById('prompt').value;
+    if (!prompt.trim()) return alert('请输入流程图描述');
+
+    // 调用后端生成接口
+    const response = await fetch('/api/generate-flowchart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const result = await response.json();
+    if (result.xml) {
+      if (drawioReady) {
+        iframe.contentWindow.postMessage({
+          action: 'load',
+          xml: result.xml,
+          autosave: 1
+        }, 'https://embed.diagrams.net');
+      } else {
+        alert('编辑器尚未就绪，请稍后重试');
+      }
+    } else {
+      alert('生成失败：' + (result.error || '未知错误'));
+    }
+  });
+</script>
+```
+
+### 后端（Node.js 示例，使用 Express）
+```javascript
+const express = require('express');
+const axios = require('axios');
+const app = express();
+app.use(express.json());
+
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
+
+app.post('/api/generate-flowchart', async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: '缺少描述' });
+
+  const systemPrompt = `你是一个专业的流程图生成助手。根据用户描述，生成 draw.io 可加载的 mxGraphModel XML 格式的流程图代码。要求：
+- 布局为自上而下垂直排列，连线正交（无斜线）。
+- 节点名称清晰，流程逻辑正确。
+- 只输出 XML 内容，不要任何额外解释。`;
+
+  try {
+    const response = await axios.post(DEEPSEEK_URL, {
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 4000
+    }, {
+      headers: {
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    let xml = response.data.choices[0].message.content;
+    // 简单清理：去除可能的 markdown 代码块标记
+    xml = xml.replace(/```xml\s*|\s*```/g, '');
+    res.json({ xml });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: '生成失败，请稍后重试' });
+  }
+});
+
+app.listen(3000, () => console.log('Server running'));
+```
+
+---
+
+## ⚠️ 关键注意事项
+
+1. **DeepSeek API 调用**：需确保在 Coze 环境中能发起外部 HTTP 请求（如果使用云函数需开通外网访问）。API Key 应通过环境变量配置，切勿硬编码。
+2. **draw.io XML 格式**：如果 DeepSeek 生成的 XML 不符合 draw.io 要求，可以先用示例 XML 测试。必要时可在提示词中加入示例 XML 片段。
+3. **跨域问题**：iframe 与父页面通信需确保协议一致（都使用 HTTPS）。
+4. **Coze 平台集成**：如果原应用是 Coze 工作流或 Bot，可能需要将前端部分嵌入到 Bot 的 Webview 或自定义页面中。本方案提供的是纯前端+后端接口，适合在 Coze 的“网页应用”或“自定义组件”中使用。
+5. **保存编辑**：若需要将用户编辑后的流程图保存到数据库，可在 `save` 消息中通过后端接口存储。
+
+---
+
+## 🧪 测试建议
+
+1. 先用静态 XML 测试 draw.io 嵌入是否能正常加载。
+2. 使用简单描述（如“开始→判断条件→结束”）测试 DeepSeek 生成效果。
+3. 检查生成的 XML 是否包含 `<mxGraphModel>` 根元素，必要时增加后处理校验。
+
+---
+
+## 📦 集成到现有应用的步骤
+
+1. 将前端 HTML 代码片段添加到需要展示流程图的位置。
+2. 在现有后端服务中添加 `/api/generate-flowchart` 路由（如使用云函数则新建函数）。
+3. 配置环境变量 `DEEPSEEK_API_KEY`。
+4. 测试整体流程，确保无报错。
+
+如果遇到任何具体问题（如 draw.io 加载失败、API 调用超时等），请提供详细错误信息以便进一步调试。
