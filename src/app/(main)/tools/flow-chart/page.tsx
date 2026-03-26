@@ -8,6 +8,7 @@ import {
   GitBranch, 
   Loader2, 
   Download, 
+  Upload,
   FileText, 
   Sparkles,
   AlertCircle,
@@ -16,6 +17,8 @@ import {
   ChevronRight,
   Edit3,
   LogOut,
+  Undo,
+  Redo,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { FlowData, FlowEditorRef } from '@/components/flow-editor/FlowEditor';
@@ -220,6 +223,45 @@ export default function FlowChartPage() {
     }
   };
 
+  // 撤销
+  const handleUndo = () => {
+    if (editorRef.current) {
+      editorRef.current.undo();
+    }
+  };
+
+  // 重做
+  const handleRedo = () => {
+    if (editorRef.current) {
+      editorRef.current.redo();
+    }
+  };
+
+  // 导入 JSON
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const data = JSON.parse(event.target?.result as string);
+            if (editorRef.current) {
+              editorRef.current.importData(data);
+            }
+          } catch (err) {
+            alert('文件格式错误，请上传有效的 JSON 文件');
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
   // 使用示例
   const useExample = (example: typeof EXAMPLE_FLOWS[0]) => {
     setDescription(example.detail);
@@ -320,6 +362,9 @@ export default function FlowChartPage() {
                 <li>• <strong>编辑文字</strong>：双击节点后输入</li>
                 <li>• <strong>连接节点</strong>：拖拽节点圆点到另一节点</li>
                 <li>• <strong>删除</strong>：选中后按 Delete 键</li>
+                <li>• <strong>撤销/重做</strong>：Ctrl+Z 撤销，Ctrl+Y 重做</li>
+                <li>• <strong>导入/导出</strong>：支持 JSON 导入导出和 PNG 导出</li>
+                <li>• <strong>状态保持</strong>：切换功能区后自动恢复流程图</li>
               </ul>
             </div>
           </div>
@@ -358,14 +403,41 @@ export default function FlowChartPage() {
               {showSidebar ? (
                 <>
                   <ChevronLeft className="w-4 h-4 text-slate-500" />
-                  <span className="text-slate-600">展开面板</span>
+                  <span className="text-slate-600">收起面板</span>
                 </>
               ) : (
                 <>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
-                  <span className="text-slate-600">收起面板</span>
+                  <span className="text-slate-600">展开面板</span>
                 </>
               )}
+            </button>
+            
+            {/* 撤销/重做按钮 */}
+            <button
+              onClick={handleUndo}
+              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded text-slate-500 hover:bg-slate-100 transition-colors"
+              title="撤销 (Ctrl+Z)"
+            >
+              <Undo className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleRedo}
+              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded text-slate-500 hover:bg-slate-100 transition-colors"
+              title="重做 (Ctrl+Y)"
+            >
+              <Redo className="w-3.5 h-3.5" />
+            </button>
+            
+            <div className="w-px h-4 bg-slate-200" />
+            
+            {/* 导入按钮 */}
+            <button
+              onClick={handleImport}
+              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              导入
             </button>
             
             {/* 清空按钮 */}
