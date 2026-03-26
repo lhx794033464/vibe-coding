@@ -42,8 +42,12 @@ export async function POST(request: NextRequest) {
    - 主流程居中对齐（x=400）
    - 分支流程左右对称分布（左分支x=200，右分支x=600）
    - 每个节点垂直间距 80-100px
-   - 连线使用正交路由（edgeStyle=orthogonalEdgeStyle）
-3. 分支对齐规则（关键）：
+3. **连接线路由规则（关键 - 防止线路重叠）**：
+   - 所有连线edge的style必须包含：edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;
+   - **严禁在edge中定义points数组**（禁止<Array as=\"points\">标签）
+   - 让draw.io自动计算正交路由，不要手动指定中间点
+   - 连接线只能是水平或垂直线段，不允许斜线
+4. 分支对齐规则：
    - 若存在分支，两个分支的节点数必须相等
    - 节点少的分支添加"等待"或"自动过渡"节点补齐
    - 两个分支最终必须汇聚到同一节点
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
       <mxGeometry x="400" y="740" width="80" height="80" as="geometry" />
     </mxCell>
     
-    <!-- 连线：主干 -->
+    <!-- 连线：主干（简洁格式，无points数组） -->
     <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="start" target="mrp">
       <mxGeometry relative="1" as="geometry" />
     </mxCell>
@@ -119,11 +123,9 @@ export async function POST(request: NextRequest) {
       <mxGeometry relative="1" as="geometry" />
     </mxCell>
     
-    <!-- 连线：左分支 -->
+    <!-- 连线：左分支（无points数组，让系统自动路由） -->
     <mxCell id="e3" value="缺料" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="check" target="purchase_apply">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points"><mxPoint x="440" y="405"/></Array>
-      </mxGeometry>
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
     <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="purchase_apply" target="purchase_order">
       <mxGeometry relative="1" as="geometry" />
@@ -132,16 +134,12 @@ export async function POST(request: NextRequest) {
       <mxGeometry relative="1" as="geometry" />
     </mxCell>
     <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="purchase_in" target="issue">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points"><mxPoint x="230" y="670"/></Array>
-      </mxGeometry>
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
     
-    <!-- 连线：右分支 -->
+    <!-- 连线：右分支（无points数组） -->
     <mxCell id="e7" value="充足" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="check" target="direct">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points"><mxPoint x="440" y="405"/></Array>
-      </mxGeometry>
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
     <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="direct" target="wait1">
       <mxGeometry relative="1" as="geometry" />
@@ -150,9 +148,7 @@ export async function POST(request: NextRequest) {
       <mxGeometry relative="1" as="geometry" />
     </mxCell>
     <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="wait2" target="issue">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points"><mxPoint x="650" y="670"/></Array>
-      </mxGeometry>
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
     
     <!-- 连线：结束 -->
