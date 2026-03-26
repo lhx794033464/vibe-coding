@@ -11,6 +11,8 @@ import {
   RotateCcw,
   ArrowDown,
   ArrowRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -28,6 +30,7 @@ export default function FlowChartPage() {
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -190,9 +193,10 @@ export default function FlowChartPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧面板 */}
-        <div className="w-96 bg-white border-r border-slate-200 flex flex-col">
-          {/* 输入区域 */}
-          <div className="p-4 border-b border-slate-200">
+        {isLeftPanelOpen && (
+          <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
+            {/* 输入区域 */}
+            <div className="p-4 border-b border-slate-200">
             {/* 方向选择 */}
             <div className="mb-3">
               <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
@@ -294,13 +298,28 @@ export default function FlowChartPage() {
               </span>
             </div>
           </div>
-        </div>
+        </div>)}
 
         {/* 右侧编辑器区域 */}
         <div className="flex-1 flex flex-col">
           {/* 工具栏 */}
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+                className="h-8 w-8 p-0"
+                title={isLeftPanelOpen ? '收起侧边栏' : '展开侧边栏'}
+              >
+                {isLeftPanelOpen ? (
+                  <PanelLeftClose className="w-4 h-4" />
+                ) : (
+                  <PanelLeftOpen className="w-4 h-4" />
+                )}
+              </Button>
+              <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
