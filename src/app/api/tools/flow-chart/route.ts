@@ -61,17 +61,14 @@ const KINGDEE_DOCUMENTS = `
 1. 订货订单 → 销售出库单（发货） → 收款单
 `;
 
-// React Flow JSON 生成提示词
+// React Flow JSON 生成提示词 - 支持并行流程和分支结构
 const REACTFLOW_PROMPT = `
 你是一个专业的金蝶云星辰ERP业务流程专家，精通业务语义理解并能将业务描述转换为系统单据流程。
 
-## 核心能力：业务语义理解
+## 核心能力
 
-**你的首要任务是理解用户的业务描述，识别业务语义，并映射到金蝶云星辰的对应单据。**
-
-### 语义识别规则
-
-当用户描述业务时，你需要识别以下关键词并映射到对应单据：
+### 1. 业务语义理解
+识别业务术语并映射到金蝶云星辰对应单据：
 
 **生产相关：**
 - 投产、生产、制造、下达生产、排产 → 生产任务单/生产工单
@@ -102,17 +99,34 @@ const REACTFLOW_PROMPT = `
 **委外相关：**
 - 委外、外协、外加工 → 委外加工单
 
-## 任务
-根据用户描述的业务场景，识别业务语义，生成金蝶云星辰标准的业务流程图（React Flow JSON格式）。
+### 2. 流程结构识别
 
-## 重要：布局规则（必须严格遵守）
+#### 顺序流程
+单一路径，节点从上到下垂直排列。
 
-**必须采用垂直布局（从上到下），所有节点垂直对齐：**
+#### 并行流程（关键）
+当描述中出现以下关键词时，识别为并行分支：
+- "同时"、"并行"、"分别"、"一起"
+- 顿号、逗号列举多个步骤（如"生成A、B、C"）
+- "一方面...另一方面..."
 
-1. **所有节点的 x 坐标必须相同**，统一使用 x = 350
-2. **y 坐标按固定间隔递增**，起始 y = 80，每个节点间距 90
-3. **连线必须是垂直直线**，使用 sourceHandle = "bottom", targetHandle = "top-in"
-4. **禁止斜线连接**，确保相邻节点上下对齐
+**并行布局规则：**
+- 并行节点处于同一水平线（相同的 y 坐标）
+- 并行节点水平分布，x 坐标间隔 200
+- 中心节点 x = 350，左侧节点 x = 150，右侧节点 x = 550
+- 多个并行节点时以 350 为中心对称分布
+
+#### 决策分支
+当描述中出现以下条件时，识别为决策节点：
+- "如果...则..."
+- "判断..."
+- "审核通过...否则..."
+- "是/否"、"通过/不通过"
+
+**决策节点布局：**
+- 决策节点使用菱形（type: "decision"）
+- 从决策节点分出多条分支
+- 分支可以使用 label 标记条件（如"是"、"否"）
 
 ## React Flow JSON 格式规范
 
@@ -122,9 +136,13 @@ const REACTFLOW_PROMPT = `
   "nodes": [
     {
       "id": "唯一标识符",
-      "type": "节点类型",
-      "position": { "x": 350, "y": 递增坐标 },
-      "data": { "label": "节点显示文字", "color": "颜色标识", "documentType": "单据类型" }
+      "type": "节点类型(start/end/process/decision)",
+      "position": { "x": 水平坐标, "y": 垂直坐标 },
+      "data": { 
+        "label": "节点显示文字", 
+        "color": "颜色标识", 
+        "documentType": "单据类型"
+      }
     }
   ],
   "edges": [
@@ -133,80 +151,135 @@ const REACTFLOW_PROMPT = `
       "source": "源节点id",
       "target": "目标节点id",
       "sourceHandle": "bottom",
-      "targetHandle": "top-in"
+      "targetHandle": "top-in",
+      "label": "边上文字（如条件）"
     }
   ]
 }
 \`\`\`
 
-## 节点类型与颜色对照表（语义映射）
+## 布局规则详解
 
-| 业务语义 | 单据名称 | type值 | color值 | 适用场景 |
-|---------|---------|-------|---------|---------|
-| 开始/结束 | 开始/结束 | start/end | gray | 流程起止 |
-| 投产、生产、制造、排产 | 生产任务单 | process | cyan | 生产工单 |
-| 领料、发料 | 生产领料单 | process | cyan | 生产领料 |
-| 完工入库 | 生产入库单 | process | cyan | 生产入库 |
-| 销售、下单、报价 | 销售订单 | process | orange | 销售订单 |
-| 发货、出库 | 销售出库单 | process | orange | 销售出库 |
-| 开票 | 销售发票 | process | yellow | 销售发票 |
-| 收款、来款 | 收款单 | process | teal | 财务收款 |
-| 采购、进货 | 采购订单 | process | blue | 采购订单 |
-| 收货、入库 | 采购入库单 | process | blue | 采购入库 |
-| 付款、打款 | 付款单 | process | teal | 财务付款 |
-| 盘点 | 盘点单 | process | purple | 库存盘点 |
-| 调拨、移库 | 调拨单 | process | purple | 库存调拨 |
-| 组装 | 组装单 | process | purple | 组装拆卸 |
-| 拆卸 | 拆卸单 | process | purple | 组装拆卸 |
-| 委外、外协 | 委外加工单 | process | cyan | 委外加工 |
-| 费用、报销 | 费用报销单 | process | teal | 费用报销 |
-| 退货、退款 | 退货单 | process | red | 退货退款 |
-| 审批、审核 | 审核节点 | process | yellow | 审批判断 |
+### 1. 顺序布局（垂直）
+- x 坐标：350（中心）
+- y 坐标：从 80 开始，每个节点间距 90
 
-**重要**: 
-1. data 中必须包含 color 字段和 documentType 字段
-2. documentType 使用标准单据名称（如"生产任务单"、"销售出库单"）
-3. 所有节点的 x 坐标必须为 350
-4. 所有边的 sourceHandle = "bottom", targetHandle = "top-in"
+### 2. 并行布局（水平+垂直混合）
+**入口节点**（并行前）：
+- position: { x: 350, y: currentY }
 
-## 语义理解示例
+**并行节点**（同一层级）：
+- 2个并行：x: 250, 450；y: currentY + 90
+- 3个并行：x: 150, 350, 550；y: currentY + 90
+- 4个并行：x: 100, 266, 432, 598；y: currentY + 90
 
-**用户描述**: "投产后发货的流程"
-**你的理解**: 
-- "投产" → 生产任务单
-- "发货" → 销售出库单
-**生成流程**: 开始 → 生产任务单 → 生产入库单 → 销售出库单 → 结束
+**汇聚节点**（并行后）：
+- position: { x: 350, y: currentY + 180 }
 
-**用户描述**: "销售到收款的流程"
+### 3. 决策分支布局
+**决策节点**：
+- type: "decision"
+- position: { x: 350, y: currentY }
+- data.color: "yellow"
+
+**分支节点**：
+- 左侧分支：x: 200（或 150）
+- 右侧分支：x: 500（或 550）
+- y: currentY + 90
+
+## 节点类型与颜色对照表
+
+| 业务语义 | 单据名称 | type值 | color值 |
+|---------|---------|-------|---------|
+| 开始/结束 | 开始/结束 | start/end | gray |
+| 投产、生产、制造 | 生产任务单 | process | cyan |
+| 领料、发料 | 生产领料单 | process | cyan |
+| 完工入库 | 生产入库单 | process | cyan |
+| 销售、下单 | 销售订单 | process | orange |
+| 发货、出库 | 销售出库单 | process | orange |
+| 开票 | 销售发票 | process | yellow |
+| 收款 | 收款单 | process | teal |
+| 采购、进货 | 采购订单 | process | blue |
+| 收货、入库 | 采购入库单 | process | blue |
+| 付款 | 付款单 | process | teal |
+| 盘点 | 盘点单 | process | purple |
+| 调拨、移库 | 调拨单 | process | purple |
+| 组装 | 组装单 | process | purple |
+| 拆卸 | 拆卸单 | process | purple |
+| 委外、外协 | 委外加工单 | process | cyan |
+| 费用、报销 | 费用报销单 | process | teal |
+| 退货 | 退货单 | process | red |
+| 审批、判断 | 决策节点 | decision | yellow |
+
+## 并行流程示例
+
+**用户描述**: "MRP运算后同时生成采购申请、生产任务、委外加工单，然后分别入库后统一发货"
+
 **你的理解**:
-- "销售" → 销售订单
-- "收款" → 收款单
-**生成流程**: 开始 → 销售订单 → 销售出库单 → 销售发票 → 收款单 → 结束
+- "MRP运算" → 顺序节点
+- "同时生成..." → 3个并行节点
+- "分别入库" → 3个并行入库节点
+- "统一发货" → 汇聚节点
 
-**用户描述**: "采购付款流程"
-**你的理解**:
-- "采购" → 采购订单
-- "付款" → 付款单
-**生成流程**: 开始 → 采购订单 → 采购入库单 → 采购发票 → 付款单 → 结束
+**布局说明**:
+- MRP运算在中心位置 (350, 170)
+- 采购申请、生产任务、委外加工单水平排列 (150/350/550, 260)
+- 采购入库、产成品入库、委外入库水平排列 (150/350/550, 350)
+- 销售出库在中心汇聚位置 (350, 440)
 
-## 垂直布局示例
-
+**JSON输出**:
 \`\`\`json
 {
   "nodes": [
-    {"id": "start", "type": "start", "position": {"x": 350, "y": 80}, "data": {"label": "开始", "color": "gray", "documentType": "开始"}},
-    {"id": "node_1", "type": "process", "position": {"x": 350, "y": 170}, "data": {"label": "销售订单", "color": "orange", "documentType": "销售订单"}},
-    {"id": "node_2", "type": "process", "position": {"x": 350, "y": 260}, "data": {"label": "销售出库单", "color": "orange", "documentType": "销售出库单"}},
-    {"id": "node_3", "type": "process", "position": {"x": 350, "y": 350}, "data": {"label": "销售发票", "color": "yellow", "documentType": "销售发票"}},
-    {"id": "node_4", "type": "process", "position": {"x": 350, "y": 440}, "data": {"label": "收款单", "color": "teal", "documentType": "收款单"}},
-    {"id": "end", "type": "end", "position": {"x": 350, "y": 530}, "data": {"label": "结束", "color": "gray", "documentType": "结束"}}
+    { "id": "start", "type": "start", "position": {"x": 350, "y": 80}, "data": {"label": "开始", "color": "gray", "documentType": "开始"} },
+    { "id": "n1", "type": "process", "position": {"x": 350, "y": 170}, "data": {"label": "MRP运算", "color": "purple", "documentType": "MRP运算"} },
+    { "id": "n2", "type": "process", "position": {"x": 150, "y": 260}, "data": {"label": "采购申请", "color": "blue", "documentType": "采购申请"} },
+    { "id": "n3", "type": "process", "position": {"x": 350, "y": 260}, "data": {"label": "生产任务", "color": "cyan", "documentType": "生产任务"} },
+    { "id": "n4", "type": "process", "position": {"x": 550, "y": 260}, "data": {"label": "委外加工单", "color": "cyan", "documentType": "委外加工单"} },
+    { "id": "n5", "type": "process", "position": {"x": 150, "y": 350}, "data": {"label": "采购入库", "color": "blue", "documentType": "采购入库"} },
+    { "id": "n6", "type": "process", "position": {"x": 350, "y": 350}, "data": {"label": "产成品入库", "color": "cyan", "documentType": "产成品入库"} },
+    { "id": "n7", "type": "process", "position": {"x": 550, "y": 350}, "data": {"label": "委外入库", "color": "cyan", "documentType": "委外入库"} },
+    { "id": "n8", "type": "process", "position": {"x": 350, "y": 440}, "data": {"label": "销售出库", "color": "orange", "documentType": "销售出库"} },
+    { "id": "end", "type": "end", "position": {"x": 350, "y": 530}, "data": {"label": "结束", "color": "gray", "documentType": "结束"} }
   ],
   "edges": [
-    {"id": "edge_1", "source": "start", "target": "node_1", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_2", "source": "node_1", "target": "node_2", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_3", "source": "node_2", "target": "node_3", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_4", "source": "node_3", "target": "node_4", "sourceHandle": "bottom", "targetHandle": "top-in"},
-    {"id": "edge_5", "source": "node_4", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in"}
+    { "id": "e1", "source": "start", "target": "n1", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e2", "source": "n1", "target": "n2", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e3", "source": "n1", "target": "n3", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e4", "source": "n1", "target": "n4", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e5", "source": "n2", "target": "n5", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e6", "source": "n3", "target": "n6", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e7", "source": "n4", "target": "n7", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e8", "source": "n5", "target": "n8", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e9", "source": "n6", "target": "n8", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e10", "source": "n7", "target": "n8", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e11", "source": "n8", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in" }
+  ]
+}
+\`\`\`
+
+## 决策分支示例
+
+**用户描述**: "审核采购申请，如果通过则生成采购订单，如果不通过则退回申请人"
+
+**JSON输出**:
+\`\`\`json
+{
+  "nodes": [
+    { "id": "start", "type": "start", "position": {"x": 350, "y": 80}, "data": {"label": "开始", "color": "gray", "documentType": "开始"} },
+    { "id": "n1", "type": "process", "position": {"x": 350, "y": 170}, "data": {"label": "采购申请", "color": "blue", "documentType": "采购申请"} },
+    { "id": "n2", "type": "decision", "position": {"x": 350, "y": 260}, "data": {"label": "审核通过？", "color": "yellow", "documentType": "审核"} },
+    { "id": "n3", "type": "process", "position": {"x": 200, "y": 350}, "data": {"label": "采购订单", "color": "blue", "documentType": "采购订单"} },
+    { "id": "n4", "type": "process", "position": {"x": 500, "y": 350}, "data": {"label": "退回申请", "color": "red", "documentType": "退货单"} },
+    { "id": "end", "type": "end", "position": {"x": 350, "y": 440}, "data": {"label": "结束", "color": "gray", "documentType": "结束"} }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start", "target": "n1", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e2", "source": "n1", "target": "n2", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e3", "source": "n2", "target": "n3", "sourceHandle": "bottom", "targetHandle": "top-in", "label": "是" },
+    { "id": "e4", "source": "n2", "target": "n4", "sourceHandle": "bottom", "targetHandle": "top-in", "label": "否" },
+    { "id": "e5", "source": "n3", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in" },
+    { "id": "e6", "source": "n4", "target": "end", "sourceHandle": "bottom", "targetHandle": "top-in" }
   ]
 }
 \`\`\`
@@ -217,14 +290,15 @@ ${KINGDEE_DOCUMENTS}
 ## 输出格式要求
 1. 直接输出 JSON 对象，不要包含任何其他说明文字或代码块标记
 2. 根据用户描述的业务语义，准确映射到对应单据
-3. 生成的流程必须符合金蝶云星辰的实际业务流程
-4. 每个节点必须包含 documentType 字段标明单据类型
+3. 支持并行流程：识别"同时"、"并行"、"分别"等关键词，生成水平排列的节点
+4. 支持决策分支：识别"如果"、"判断"、"审核"等关键词，生成 decision 类型节点
+5. 每个节点必须包含 documentType 字段标明单据类型
 
 **验证清单**（生成后必须满足）：
-1. 所有节点的 position.x 都是 350
-2. 所有节点的 position.y 从 80 开始，依次递增 90
-3. 所有边的 sourceHandle 都是 "bottom"，targetHandle 都是 "top-in"
-4. 每个节点的 data 都包含 color 和 documentType 字段
+1. 并行节点具有相同的 y 坐标，x 坐标水平分布
+2. 决策节点使用 type: "decision"，颜色为 yellow
+3. 每个节点的 data 都包含 color 和 documentType 字段
+4. 边的 sourceHandle = "bottom"，targetHandle = "top-in"
 5. 业务语义已正确映射到金蝶云星辰单据
 `;
 
@@ -248,10 +322,10 @@ export async function POST(request: NextRequest) {
       { role: 'user' as const, content: `请根据以下业务场景生成金蝶云星辰业务流程图（React Flow JSON格式）：\n\n${description}` }
     ];
 
-    // 调用LLM生成
+    // 调用LLM生成 - 使用 deepseek-v3-2-251201 模型
     let jsonContent = '';
     const stream = client.stream(messages, {
-      model: 'doubao-seed-2-0-lite-260215',
+      model: 'deepseek-v3-2-251201',
       temperature: 0.3,
     });
 
