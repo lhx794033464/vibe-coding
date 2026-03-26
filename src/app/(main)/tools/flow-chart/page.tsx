@@ -13,13 +13,58 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
+// 空白画布 XML
+const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+  </root>
+</mxGraphModel>`;
+
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 向 draw.io 发送配置消息
+  const sendConfigure = useCallback(() => {
+    if (!iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'configure',
+        config: {
+          autosave: true,
+          saveAndExit: false,
+          noExitBtn: true,
+          noSaveBtn: false,
+          chrome: true,
+          toolbar: true,
+          toolbarButtons: ['save', 'export'],
+          noCloseBtn: true,
+        }
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, []);
+
+  // 向 draw.io 发送加载消息
+  const sendLoad = useCallback((xml: string) => {
+    if (!iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'load',
+        xml: xml,
+        autosave: 1
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, []);
 
   // 监听 draw.io 消息
   useEffect(() => {
@@ -27,38 +72,55 @@ export default function FlowChartPage() {
       // 验证消息来源
       if (event.origin !== 'https://embed.diagrams.net') return;
       
-      const data = event.data;
+      let data = event.data;
       
-      // 处理字符串消息
+      // 处理字符串消息（可能是 JSON 字符串）
       if (typeof data === 'string') {
-        if (data === 'init') {
-          setDrawioReady(true);
-          console.log('draw.io 编辑器已就绪');
+        try {
+          data = JSON.parse(data);
+        } catch {
+          // 如果不是 JSON，保持原样
         }
       }
       
-      // 处理对象消息
-      if (typeof data === 'object' && data !== null) {
-        if (data.event === 'init') {
-          setDrawioReady(true);
+      console.log('收到 draw.io 消息:', data);
+      
+      // 处理 init 消息 - 编辑器已准备好
+      if (data === 'init' || (typeof data === 'object' && data?.event === 'init')) {
+        console.log('draw.io 编辑器已就绪');
+        setDrawioReady(true);
+        
+        // 发送配置
+        if (!isConfigured) {
+          sendConfigure();
+          setIsConfigured(true);
         }
         
-        // 处理保存事件
-        if (data.action === 'save' || data.event === 'save') {
-          console.log('保存的 XML:', data.xml);
-          // 可以在这里保存到后端或本地存储
-        }
-        
-        // 处理导出事件
-        if (data.action === 'export') {
-          console.log('导出数据:', data.data);
-        }
+        // 加载空白画布（必须发送 load 消息才能结束转圈）
+        setTimeout(() => {
+          sendLoad(EMPTY_XML);
+        }, 100);
+      }
+      
+      // 处理保存事件
+      if (typeof data === 'object' && (data?.action === 'save' || data?.event === 'save')) {
+        console.log('保存的 XML:', data.xml);
+      }
+      
+      // 处理导出事件
+      if (typeof data === 'object' && data?.action === 'export') {
+        console.log('导出数据:', data.data);
+      }
+      
+      // 处理加载完成
+      if (typeof data === 'object' && data?.event === 'load') {
+        console.log('流程图加载完成');
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [isConfigured, sendConfigure, sendLoad]);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -91,14 +153,7 @@ export default function FlowChartPage() {
 
       if (result.xml) {
         // 向 draw.io iframe 发送加载消息
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            action: 'load',
-            xml: result.xml,
-            autosave: 1,
-          },
-          'https://embed.diagrams.net'
-        );
+        sendLoad(result.xml);
       } else {
         setError('生成的流程图数据为空');
       }
@@ -112,26 +167,24 @@ export default function FlowChartPage() {
 
   // 保存当前流程图
   const handleSave = useCallback(() => {
-    if (!drawioReady) return;
+    if (!drawioReady || !iframeRef.current?.contentWindow) return;
     
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        action: 'save',
-      },
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ action: 'save' }),
       'https://embed.diagrams.net'
     );
   }, [drawioReady]);
 
   // 导出为图片
   const handleExport = useCallback(() => {
-    if (!drawioReady) return;
+    if (!drawioReady || !iframeRef.current?.contentWindow) return;
     
-    iframeRef.current?.contentWindow?.postMessage(
-      {
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
         action: 'export',
         format: 'png',
         xml: true,
-      },
+      }),
       'https://embed.diagrams.net'
     );
   }, [drawioReady]);
@@ -140,24 +193,9 @@ export default function FlowChartPage() {
   const handleClear = useCallback(() => {
     if (!drawioReady) return;
     
-    const emptyXml = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-      </root>
-    </mxGraphModel>`;
-    
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        action: 'load',
-        xml: emptyXml,
-        autosave: 1,
-      },
-      'https://embed.diagrams.net'
-    );
-    
+    sendLoad(EMPTY_XML);
     setPrompt('');
-  }, [drawioReady]);
+  }, [drawioReady, sendLoad]);
 
   // 示例提示词
   const examples = [
@@ -303,7 +341,7 @@ export default function FlowChartPage() {
               ref={iframeRef}
               src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
               className="w-full h-full border-0"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
             />
           </div>
         </div>
