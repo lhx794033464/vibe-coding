@@ -31,6 +31,8 @@ export default function FlowChartPage() {
   const [isConfigured, setIsConfigured] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  // 保存当前流程图 XML，切换页面时不丢失
+  const [savedXml, setSavedXml] = useState<string>(EMPTY_XML);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -67,6 +69,8 @@ export default function FlowChartPage() {
       }),
       'https://embed.diagrams.net'
     );
+    // 更新保存的 XML
+    setSavedXml(xml);
   }, []);
 
   // 监听 draw.io 消息
@@ -99,15 +103,23 @@ export default function FlowChartPage() {
           setIsConfigured(true);
         }
         
-        // 加载空白画布（必须发送 load 消息才能结束转圈）
+        // 加载保存的流程图（如果有）或空白画布
         setTimeout(() => {
-          sendLoad(EMPTY_XML);
+          sendLoad(savedXml);
         }, 100);
       }
       
       // 处理加载完成
       if (typeof data === 'object' && data?.event === 'load') {
         console.log('流程图加载完成');
+      }
+      
+      // 处理自动保存 - 实时保存当前 XML
+      if (typeof data === 'object' && (data?.event === 'save' || data?.event === 'autosave')) {
+        console.log('流程图已保存');
+        if (data.xml) {
+          setSavedXml(data.xml);
+        }
       }
     };
 
