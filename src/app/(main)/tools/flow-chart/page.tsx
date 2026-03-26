@@ -8,8 +8,6 @@ import {
   Loader2, 
   Sparkles,
   AlertCircle,
-  Save,
-  Download,
   RotateCcw,
 } from 'lucide-react';
 
@@ -38,13 +36,12 @@ export default function FlowChartPage() {
       JSON.stringify({
         action: 'configure',
         config: {
-          autosave: true,
+          autosave: false,
           saveAndExit: false,
           noExitBtn: true,
-          noSaveBtn: false,
+          noSaveBtn: true,
           chrome: true,
           toolbar: true,
-          toolbarButtons: ['save', 'export'],
           noCloseBtn: true,
         }
       }),
@@ -102,16 +99,6 @@ export default function FlowChartPage() {
         }, 100);
       }
       
-      // 处理保存事件
-      if (typeof data === 'object' && (data?.action === 'save' || data?.event === 'save')) {
-        console.log('保存的 XML:', data.xml);
-      }
-      
-      // 处理导出事件
-      if (typeof data === 'object' && data?.action === 'export') {
-        console.log('导出数据:', data.data);
-      }
-      
       // 处理加载完成
       if (typeof data === 'object' && data?.event === 'load') {
         console.log('流程图加载完成');
@@ -164,30 +151,6 @@ export default function FlowChartPage() {
       setLoading(false);
     }
   };
-
-  // 保存当前流程图
-  const handleSave = useCallback(() => {
-    if (!drawioReady || !iframeRef.current?.contentWindow) return;
-    
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({ action: 'save' }),
-      'https://embed.diagrams.net'
-    );
-  }, [drawioReady]);
-
-  // 导出为图片
-  const handleExport = useCallback(() => {
-    if (!drawioReady || !iframeRef.current?.contentWindow) return;
-    
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({
-        action: 'export',
-        format: 'png',
-        xml: true,
-      }),
-      'https://embed.diagrams.net'
-    );
-  }, [drawioReady]);
 
   // 清空编辑器
   const handleClear = useCallback(() => {
@@ -283,7 +246,6 @@ export default function FlowChartPage() {
               <ul className="text-xs text-amber-600 space-y-1">
                 <li>• 输入业务流程描述，AI 将自动生成流程图</li>
                 <li>• 在编辑器中可拖拽节点、修改文本、调整布局</li>
-                <li>• 支持导出为图片保存</li>
               </ul>
             </div>
           </div>
@@ -305,24 +267,6 @@ export default function FlowChartPage() {
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSave}
-                disabled={!drawioReady}
-              >
-                <Save className="w-4 h-4 mr-1" />
-                保存
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                disabled={!drawioReady}
-              >
-                <Download className="w-4 h-4 mr-1" />
-                导出
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
