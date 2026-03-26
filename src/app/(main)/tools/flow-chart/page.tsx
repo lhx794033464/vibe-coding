@@ -169,13 +169,6 @@ export default function FlowChartPage() {
     setPrompt('');
   }, [drawioReady, sendLoad]);
 
-  // 示例提示词
-  const examples = [
-    '用户登录流程：输入账号密码 → 验证信息 → 登录成功/失败',
-    '采购审批流程：提交申请 → 部门经理审批 → 财务审批 → 通过/驳回',
-    '订单处理流程：接收订单 → 库存检查 → 发货 → 物流跟踪 → 完成',
-  ];
-
   return (
     <div className="h-full flex flex-col bg-slate-50">
       {/* 页面标题 */}
@@ -264,28 +257,13 @@ export default function FlowChartPage() {
             </Button>
           </div>
 
-          {/* 示例区域 */}
+          {/* Tips 区域 */}
           <div className="flex-1 overflow-y-auto p-4">
-            <h3 className="text-sm font-medium text-slate-700 mb-3">快速示例</h3>
-            <div className="space-y-2">
-              {examples.map((example, index) => (
-                <button
-                  key={index}
-                  onClick={() => setPrompt(example)}
-                  className="w-full text-left p-3 text-sm bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors border border-slate-200 hover:border-blue-200"
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
-
-            {/* 使用说明 */}
-            <div className="mt-6 p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <h4 className="text-xs font-medium text-amber-700 mb-2">💡 使用说明</h4>
-              <ul className="text-xs text-amber-600 space-y-1">
-                <li>• 输入业务流程描述，AI 将自动生成流程图</li>
-                <li>• 在编辑器中可拖拽节点、修改文本、调整布局</li>
-              </ul>
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="text-xs font-medium text-blue-700 mb-1">💡 Tips</h4>
+              <p className="text-xs text-blue-600">
+                空格 + 左键 实现拖拽画布
+              </p>
             </div>
           </div>
 
@@ -306,16 +284,16 @@ export default function FlowChartPage() {
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-                className="h-8 w-8 p-0"
+                className="h-9 px-2.5"
                 title={isLeftPanelOpen ? '收起侧边栏' : '展开侧边栏'}
               >
                 {isLeftPanelOpen ? (
-                  <PanelLeftClose className="w-4 h-4" />
+                  <PanelLeftClose className="w-5 h-5" />
                 ) : (
-                  <PanelLeftOpen className="w-4 h-4" />
+                  <PanelLeftOpen className="w-5 h-5" />
                 )}
               </Button>
               <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
