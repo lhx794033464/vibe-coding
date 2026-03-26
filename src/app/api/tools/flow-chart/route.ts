@@ -60,7 +60,14 @@ export async function POST(request: NextRequest) {
    - **严禁在edge中定义points数组**（禁止<Array as="points">标签）
    - 让draw.io自动计算正交路由，不要手动指定中间点
    - 连接线只能是水平或垂直线段，不允许斜线
+   - **横向布局连接规则**：单一节点分散成平行节点时，必须从分支节点的下端（source的底部）连接到目标节点的左侧
    - **纵向布局连接规则**：平行分支收束到下一节点时，必须从分支节点的下端（source的底部）连接到目标节点的侧端（左侧或右侧）
+5. **线段条件标签规则（关键）**：
+   - 判断节点的每条出边（分支连线）必须在edge的mxCell中添加value属性表示条件
+   - 例如：<mxCell edge="1" value="是" ...> 表示满足条件走此分支
+   - 例如：<mxCell edge="1" value="否" ...> 表示不满足条件走此分支
+   - 常见条件标签："是"/"否"、"通过"/"驳回"、"缺料"/"不缺料"、"成功"/"失败"
+   - 条件标签字体大小：fontSize=10，颜色与当前edge样式协调
 5. 分支对齐规则：
    - 若存在分支，两个分支的节点数必须相等
    - 节点少的分支添加"等待"或"自动过渡"节点补齐
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     const response = await client.invoke(messages, {
       model: 'doubao-seed-2-0-pro-260215',
-      temperature: 0.1,
+      temperature: 0.01,
     });
 
     const content = response.content || '';
