@@ -20,13 +20,13 @@ export async function POST(request: NextRequest) {
 - 整体从左到右水平排列
 - 主流程垂直居中对齐（y=300）
 - 分支流程上下对称分布（上分支y=150，下分支y=450）
-- 每个节点水平间距 120-150px
+- 每个节点水平间距 160-180px
 - 开始节点在左侧（x=40），结束节点在右侧（x=最右）`
       : `【纵向布局规则】
 - 整体自上而下垂直排列
 - 主流程水平居中对齐（x=400）
 - 分支流程左右对称分布（左分支x=200，右分支x=600）
-- 每个节点垂直间距 80-100px
+- 每个节点垂直间距 100-120px
 - 开始节点在顶部（y=40），结束节点在底部（y=最下）`;
 
     const systemPrompt = `【角色定位】
@@ -48,24 +48,35 @@ export async function POST(request: NextRequest) {
 2. ${layoutRules}
 3. **节点居中对齐规则（关键 - 确保直线不歪）**：
    - 所有节点必须相对于中心线对称排列
-   - 同层级节点的中心点必须对齐
-   - 节点宽度统一：标准节点160px，判断节点120px，开始/结束80px
-   - 节点高度统一：标准节点60px，判断节点80px，开始/结束80px
+   - 同层级节点的中心点必须对齐（x或y坐标相同）
+   - 节点尺寸锁定纵横比：所有节点必须包含 aspect=fixed 属性
+   - 节点宽度高度严格统一：
+     * 开始/结束节点：120x80px（椭圆）
+     * 判断节点：100x100px（菱形）
+     * 标准单据节点：160x60px（圆角矩形）
+     * 处理节点：140x60px（矩形）
 4. **连接线路由规则**：
    - 所有连线edge的style必须包含：edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;
    - **严禁在edge中定义points数组**（禁止<Array as="points">标签）
    - 让draw.io自动计算正交路由，不要手动指定中间点
    - 连接线只能是水平或垂直线段，不允许斜线
+   - **纵向布局连接规则**：平行分支收束到下一节点时，必须从分支节点的下端（source的底部）连接到目标节点的侧端（左侧或右侧）
 5. 分支对齐规则：
    - 若存在分支，两个分支的节点数必须相等
    - 节点少的分支添加"等待"或"自动过渡"节点补齐
    - 两个分支最终必须汇聚到同一节点
 
 【节点样式规范（严格遵循）】
-- 开始/结束节点：圆形，style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;"
-- 金蝶单据节点：圆角矩形，style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" 
-- 判断/分支节点：菱形，style="diamond;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;"
-- 处理/操作节点：矩形，style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;"
+- 开始/结束节点：椭圆，shape=ellipse，尺寸120x80px，style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;"
+- 金蝶单据节点：圆角矩形，shape=rounded=1，尺寸160x60px，style="rounded=1;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" 
+- 判断/分支节点：菱形，shape=rhombus/diamond，尺寸100x100px，style="diamond;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;"
+- 处理/操作节点：矩形，shape=rectangle，尺寸140x60px，style="rounded=0;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;"
+
+【层级规则（重要）】
+- 所有节点 mxCell 的 parent 必须指向 "1"（根节点）
+- 所有连线 edge 的 parent 也必须指向 "1"
+- 确保节点在 XML 中定义在连线之后，或两者parent一致以保证节点显示在顶层
+- 所有节点必须设置 vertex="1"，所有连线必须设置 edge="1"
 
 【金蝶云星辰标准单据名称（必须使用）】
 - 采购管理：采购申请单、采购订单、采购入库单、采购发票、付款单
