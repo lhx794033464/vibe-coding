@@ -65,7 +65,15 @@ export async function POST(request: NextRequest) {
      * 上分支连线：style中添加 exitX=0;exitY=0.5;（从母节点左侧中点引出）
      * 中分支连线：style中添加 exitX=0.5;exitY=1;（从母节点下边中点引出）
      * 下分支连线：style中添加 exitX=1;exitY=0.5;（从母节点右侧中点引出）
-     * 示例style：edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;
+   - **入口位置规则（关键 - 只拐一次弯）**：
+     * 上分支目标节点：style中添加 entryX=0.5;entryY=1;（连接到目标节点下边中点）
+     * 中分支目标节点：style中添加 entryX=0;entryY=0.5;（连接到目标节点左侧中点）
+     * 下分支目标节点：style中添加 entryX=0.5;entryY=1;（连接到目标节点下边中点）
+   - **线段长度规则（关键 - 只拐一次弯）**：
+     * 上分支向上伸出的线段长度 = 上方目标节点高度的1/2
+     * 下分支向下伸出的线段长度 = 下方目标节点高度的1/2
+     * 示例：上方节点高度60px，则向上延伸30px后水平转弯
+     * 通过正确设置exitX/exitY和entryX/entryY配合正交路由自动实现只拐一次弯
    - **横向布局连接规则**：单一节点分散成平行节点时，必须从分支节点的不同端点（底部不同位置）连接到目标节点的左侧不同位置
    - **纵向布局连接规则**：平行分支收束到下一节点时，必须从分支节点的不同端点（下端不同位置）连接到目标节点的侧端不同位置（上端不同位置）
 5. **线段条件标签规则（关键）**：
