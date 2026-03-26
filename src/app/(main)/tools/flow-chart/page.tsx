@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { 
@@ -8,106 +8,16 @@ import {
   Loader2, 
   Sparkles,
   AlertCircle,
-  RotateCcw,
+  Copy,
+  Check,
 } from 'lucide-react';
-
-// 空白画布 XML
-const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100">
-  <root>
-    <mxCell id="0" />
-    <mxCell id="1" parent="0" />
-  </root>
-</mxGraphModel>`;
 
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [drawioReady, setDrawioReady] = useState(false);
-  const [isConfigured, setIsConfigured] = useState(false);
-  
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // 向 draw.io 发送配置消息
-  const sendConfigure = useCallback(() => {
-    if (!iframeRef.current?.contentWindow) return;
-    
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({
-        action: 'configure',
-        config: {
-          autosave: false,
-          saveAndExit: false,
-          noExitBtn: true,
-          noSaveBtn: true,
-          chrome: true,
-          toolbar: true,
-          noCloseBtn: true,
-        }
-      }),
-      'https://embed.diagrams.net'
-    );
-  }, []);
-
-  // 向 draw.io 发送加载消息
-  const sendLoad = useCallback((xml: string) => {
-    if (!iframeRef.current?.contentWindow) return;
-    
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({
-        action: 'load',
-        xml: xml,
-        autosave: 1
-      }),
-      'https://embed.diagrams.net'
-    );
-  }, []);
-
-  // 监听 draw.io 消息
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // 验证消息来源
-      if (event.origin !== 'https://embed.diagrams.net') return;
-      
-      let data = event.data;
-      
-      // 处理字符串消息（可能是 JSON 字符串）
-      if (typeof data === 'string') {
-        try {
-          data = JSON.parse(data);
-        } catch {
-          // 如果不是 JSON，保持原样
-        }
-      }
-      
-      console.log('收到 draw.io 消息:', data);
-      
-      // 处理 init 消息 - 编辑器已准备好
-      if (data === 'init' || (typeof data === 'object' && data?.event === 'init')) {
-        console.log('draw.io 编辑器已就绪');
-        setDrawioReady(true);
-        
-        // 发送配置
-        if (!isConfigured) {
-          sendConfigure();
-          setIsConfigured(true);
-        }
-        
-        // 加载空白画布（必须发送 load 消息才能结束转圈）
-        setTimeout(() => {
-          sendLoad(EMPTY_XML);
-        }, 100);
-      }
-      
-      // 处理加载完成
-      if (typeof data === 'object' && data?.event === 'load') {
-        console.log('流程图加载完成');
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [isConfigured, sendConfigure, sendLoad]);
+  const [flowchart, setFlowchart] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -116,13 +26,9 @@ export default function FlowChartPage() {
       return;
     }
 
-    if (!drawioReady) {
-      setError('编辑器尚未就绪，请稍后重试');
-      return;
-    }
-
     setLoading(true);
     setError('');
+    setFlowchart('');
 
     try {
       const response = await fetch('/api/tools/flow-chart', {
@@ -138,11 +44,10 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (result.xml) {
-        // 向 draw.io iframe 发送加载消息
-        sendLoad(result.xml);
+      if (result.flowchart) {
+        setFlowchart(result.flowchart);
       } else {
-        setError('生成的流程图数据为空');
+        setError('生成的流程图为空');
       }
     } catch (err) {
       console.error('生成流程图错误:', err);
@@ -152,19 +57,24 @@ export default function FlowChartPage() {
     }
   };
 
-  // 清空编辑器
-  const handleClear = useCallback(() => {
-    if (!drawioReady) return;
+  // 复制到剪贴板
+  const handleCopy = async () => {
+    if (!flowchart) return;
     
-    sendLoad(EMPTY_XML);
-    setPrompt('');
-  }, [drawioReady, sendLoad]);
+    try {
+      await navigator.clipboard.writeText(flowchart);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
+    }
+  };
 
   // 示例提示词
   const examples = [
-    '用户登录流程：输入账号密码 → 验证信息 → 登录成功/失败',
-    '采购审批流程：提交申请 → 部门经理审批 → 财务审批 → 通过/驳回',
-    '订单处理流程：接收订单 → 库存检查 → 发货 → 物流跟踪 → 完成',
+    'MRP运算后，缺料走采购流程，不缺料直接领料，最终都到生产领料',
+    '销售订单下推生产任务单，物料齐套后生产入库，最后销售出库',
+    '采购申请单审批通过后下推采购订单，收货后质检，合格入库',
   ];
 
   return (
@@ -177,7 +87,7 @@ export default function FlowChartPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-800">业务流程图</h1>
-            <p className="text-sm text-slate-500">使用自然语言描述，AI 自动生成可编辑的流程图</p>
+            <p className="text-sm text-slate-500">使用自然语言描述，AI 自动生成结构化流程图</p>
           </div>
         </div>
       </div>
@@ -193,7 +103,7 @@ export default function FlowChartPage() {
             <Textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
+              placeholder="请描述您想要的流程图，例如：MRP运算后，缺料走采购流程，不缺料直接领料..."
               className="min-h-[120px] resize-none"
             />
             
@@ -245,48 +155,54 @@ export default function FlowChartPage() {
               <h4 className="text-xs font-medium text-amber-700 mb-2">💡 使用说明</h4>
               <ul className="text-xs text-amber-600 space-y-1">
                 <li>• 输入业务流程描述，AI 将自动生成流程图</li>
-                <li>• 在编辑器中可拖拽节点、修改文本、调整布局</li>
+                <li>• 支持采购、生产、MRP、委外、销售等模块</li>
+                <li>• 可描述分支逻辑（如缺料/不缺料）</li>
               </ul>
-            </div>
-          </div>
-
-          {/* 编辑器状态 */}
-          <div className="p-3 border-t border-slate-200 bg-slate-50">
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
-              <span className="text-slate-600">
-                {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
-              </span>
             </div>
           </div>
         </div>
 
-        {/* 右侧编辑器区域 */}
-        <div className="flex-1 flex flex-col">
+        {/* 右侧显示区域 */}
+        <div className="flex-1 flex flex-col bg-slate-100">
           {/* 工具栏 */}
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
-            <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-700">流程图预览</span>
+            {flowchart && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleClear}
-                disabled={!drawioReady}
+                onClick={handleCopy}
               >
-                <RotateCcw className="w-4 h-4 mr-1" />
-                清空
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 mr-1" />
+                    已复制
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 mr-1" />
+                    复制
+                  </>
+                )}
               </Button>
-            </div>
+            )}
           </div>
 
-          {/* draw.io iframe */}
-          <div className="flex-1 bg-slate-100">
-            <iframe
-              ref={iframeRef}
-              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
-              className="w-full h-full border-0"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
-            />
+          {/* 流程图显示区域 */}
+          <div className="flex-1 overflow-auto p-6">
+            {flowchart ? (
+              <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+                <pre className="whitespace-pre-wrap font-mono text-sm text-slate-700 leading-relaxed">
+                  {flowchart}
+                </pre>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                <GitBranch className="w-16 h-16 mb-4 opacity-30" />
+                <p className="text-sm">输入业务流程描述后点击生成</p>
+                <p className="text-xs mt-1">AI 将自动生成结构化流程图</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
