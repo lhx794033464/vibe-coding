@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
+import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,13 +9,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: '缺少流程图描述' },
         { status: 400 }
-      );
-    }
-
-    if (!DEEPSEEK_API_KEY) {
-      return NextResponse.json(
-        { error: '服务器配置错误，缺少 API Key' },
-        { status: 500 }
       );
     }
 
@@ -85,38 +76,28 @@ export async function POST(request: NextRequest) {
 
 请根据以下业务描述生成专业流程图 XML：`;
 
-    const response = await fetch(DEEPSEEK_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        top_p: 0.95,
-        max_tokens: 8000
-      }),
+    // 提取转发头
+    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+
+    // 初始化 SDK 客户端
+    const config = new Config();
+    const client = new LLMClient(config, customHeaders);
+
+    // 调用豆包 2.0 pro 模型
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: prompt }
+    ];
+
+    const response = await client.invoke(messages, {
+      model: 'doubao-seed-2-0-pro-260215',
+      temperature: 0.1,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('DeepSeek API 错误:', errorData);
-      return NextResponse.json(
-        { error: '生成流程图失败，请稍后重试' },
-        { status: 500 }
-      );
-    }
-
-    const data = await response.json();
-    let content = data.choices[0]?.message?.content || '';
+    const content = response.content || '';
 
     // 打印原始返回内容用于调试
-    console.log('DeepSeek 原始返回:', content.substring(0, 500) + '...');
+    console.log('豆包 2.0 pro 原始返回:', content.substring(0, 500) + '...');
 
     // 使用正则表达式提取 <mxGraphModel>...</mxGraphModel> 部分
     const mxGraphModelMatch = content.match(/<mxGraphModel[\s\S]*?<\/mxGraphModel>/);
