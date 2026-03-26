@@ -9,10 +9,6 @@ import {
   Sparkles,
   AlertCircle,
   RotateCcw,
-  Brain,
-  Workflow,
-  Layout,
-  CheckCircle2,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -26,20 +22,11 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
-  const [generatingStep, setGeneratingStep] = useState(0);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // 生成步骤配置
-  const generatingSteps = [
-    { icon: Brain, text: '理解业务语义...', duration: 800 },
-    { icon: Workflow, text: '匹配金蝶标准流程...', duration: 1200 },
-    { icon: Layout, text: '构建流程图结构...', duration: 1500 },
-    { icon: CheckCircle2, text: '优化布局与样式...', duration: 1000 },
-  ];
 
   // 向 draw.io 发送配置消息
   const sendConfigure = useCallback(() => {
@@ -135,17 +122,7 @@ export default function FlowChartPage() {
     }
 
     setLoading(true);
-    setGeneratingStep(0);
     setError('');
-
-    // 模拟步骤进度
-    let currentStep = 0;
-    const stepInterval = setInterval(() => {
-      if (currentStep < generatingSteps.length - 1) {
-        currentStep++;
-        setGeneratingStep(currentStep);
-      }
-    }, 1000);
 
     try {
       const response = await fetch('/api/tools/flow-chart', {
@@ -153,8 +130,6 @@ export default function FlowChartPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompt.trim() }),
       });
-
-      clearInterval(stepInterval);
 
       const result = await response.json();
 
@@ -164,24 +139,16 @@ export default function FlowChartPage() {
       }
 
       if (result.xml) {
-        // 完成最后一步
-        setGeneratingStep(generatingSteps.length - 1);
-        // 短暂延迟后加载，让用户看到完成状态
-        setTimeout(() => {
-          sendLoad(result.xml);
-          setLoading(false);
-          setGeneratingStep(0);
-        }, 500);
+        // 向 draw.io iframe 发送加载消息
+        sendLoad(result.xml);
       } else {
         setError('生成的流程图数据为空');
-        setLoading(false);
       }
     } catch (err) {
-      clearInterval(stepInterval);
       console.error('生成流程图错误:', err);
       setError('网络错误，请稍后重试');
+    } finally {
       setLoading(false);
-      setGeneratingStep(0);
     }
   };
 
@@ -256,55 +223,6 @@ export default function FlowChartPage() {
                 </>
               )}
             </Button>
-
-            {/* 生成进度显示 */}
-            {loading && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="space-y-3">
-                  {generatingSteps.map((step, index) => {
-                    const StepIcon = step.icon;
-                    const isActive = index === generatingStep;
-                    const isCompleted = index < generatingStep;
-                    
-                    return (
-                      <div 
-                        key={index}
-                        className={`flex items-center gap-3 transition-all duration-300 ${
-                          isActive ? 'opacity-100' : isCompleted ? 'opacity-60' : 'opacity-30'
-                        }`}
-                      >
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                          isActive ? 'bg-blue-500 text-white' : 
-                          isCompleted ? 'bg-green-500 text-white' : 'bg-slate-200'
-                        }`}>
-                          {isCompleted ? (
-                            <CheckCircle2 className="w-4 h-4" />
-                          ) : (
-                            <StepIcon className={`w-3.5 h-3.5 ${isActive ? 'animate-pulse' : ''}`} />
-                          )}
-                        </div>
-                        <span className={`text-sm ${
-                          isActive ? 'text-blue-700 font-medium' : 
-                          isCompleted ? 'text-green-700' : 'text-slate-500'
-                        }`}>
-                          {step.text}
-                        </span>
-                        {isActive && (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500 ml-auto" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* 进度条 */}
-                <div className="mt-4 h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
-                    style={{ width: `${((generatingStep + 1) / generatingSteps.length) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* 示例区域 */}
@@ -362,39 +280,13 @@ export default function FlowChartPage() {
           </div>
 
           {/* draw.io iframe */}
-          <div className="flex-1 bg-slate-100 relative">
+          <div className="flex-1 bg-slate-100">
             <iframe
               ref={iframeRef}
               src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
               className="w-full h-full border-0"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
             />
-            
-            {/* 生成中遮罩 */}
-            {loading && (
-              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
-                <div className="text-center">
-                  <div className="relative w-20 h-20 mx-auto mb-4">
-                    {/* 外圈动画 */}
-                    <div className="absolute inset-0 border-4 border-blue-100 rounded-full" />
-                    <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" />
-                    {/* 中心图标 */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      {(() => {
-                        const CurrentIcon = generatingSteps[generatingStep]?.icon || Brain;
-                        return <CurrentIcon className="w-8 h-8 text-blue-500 animate-pulse" />;
-                      })()}
-                    </div>
-                  </div>
-                  <p className="text-slate-600 font-medium">
-                    {generatingSteps[generatingStep]?.text || '生成中...'}
-                  </p>
-                  <p className="text-slate-400 text-sm mt-1">
-                    步骤 {generatingStep + 1} / {generatingSteps.length}
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
