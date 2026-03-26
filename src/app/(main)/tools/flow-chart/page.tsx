@@ -3,12 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { 
   GitBranch, 
   Loader2, 
@@ -17,9 +11,6 @@ import {
   Save,
   Download,
   RotateCcw,
-  FileJson,
-  Image as ImageIcon,
-  FileText,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -30,36 +21,12 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
   </root>
 </mxGraphModel>`;
 
-// 导出文件下载辅助函数
-const downloadFile = (content: string, filename: string, mimeType: string) => {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-// 下载 base64 图片
-const downloadBase64Image = (base64Data: string, filename: string) => {
-  const link = document.createElement('a');
-  link.href = base64Data;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [currentXml, setCurrentXml] = useState(EMPTY_XML);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -97,36 +64,7 @@ export default function FlowChartPage() {
       }),
       'https://embed.diagrams.net'
     );
-    
-    setCurrentXml(xml);
   }, []);
-
-  // 向 draw.io 发送导出消息
-  const sendExport = useCallback((format: string) => {
-    if (!drawioReady || !iframeRef.current?.contentWindow) return;
-    
-    const message: any = {
-      action: 'export',
-      format: format,
-    };
-    
-    // PNG 导出需要额外参数
-    if (format === 'png') {
-      message.border = 10;
-      message.crop = true;
-      message.dpi = 300;
-    }
-    
-    // PDF 导出需要额外参数
-    if (format === 'pdf') {
-      message.crop = true;
-    }
-    
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify(message),
-      'https://embed.diagrams.net'
-    );
-  }, [drawioReady]);
 
   // 监听 draw.io 消息
   useEffect(() => {
@@ -164,60 +102,14 @@ export default function FlowChartPage() {
         }, 100);
       }
       
-      // 处理保存事件 - 获取当前 XML
+      // 处理保存事件
       if (typeof data === 'object' && (data?.action === 'save' || data?.event === 'save')) {
         console.log('保存的 XML:', data.xml);
-        if (data.xml) {
-          setCurrentXml(data.xml);
-          // 自动下载为 JSON 格式（包含 XML）
-          const jsonData = {
-            version: '1.0',
-            createdAt: new Date().toISOString(),
-            xml: data.xml,
-          };
-          downloadFile(
-            JSON.stringify(jsonData, null, 2),
-            `流程图_${new Date().getTime()}.json`,
-            'application/json'
-          );
-        }
       }
       
-      // 处理导出事件 - 处理返回的导出数据
+      // 处理导出事件
       if (typeof data === 'object' && data?.action === 'export') {
-        console.log('导出数据:', data);
-        
-        const format = data.format;
-        const exportData = data.data;
-        
-        if (!exportData) {
-          console.error('导出数据为空');
-          return;
-        }
-        
-        const timestamp = new Date().getTime();
-        
-        if (format === 'png') {
-          // PNG 导出返回的是 base64 图片数据
-          downloadBase64Image(exportData, `流程图_${timestamp}.png`);
-        } else if (format === 'pdf') {
-          // PDF 导出返回的是 base64 数据
-          const byteCharacters = atob(exportData);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'application/pdf' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `流程图_${timestamp}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }
+        console.log('导出数据:', data.data);
       }
       
       // 处理加载完成
@@ -273,29 +165,29 @@ export default function FlowChartPage() {
     }
   };
 
-  // 保存当前流程图（JSON 格式）
-  const handleSaveJson = useCallback(() => {
-    const jsonData = {
-      version: '1.0',
-      createdAt: new Date().toISOString(),
-      xml: currentXml,
-    };
-    downloadFile(
-      JSON.stringify(jsonData, null, 2),
-      `流程图_${new Date().getTime()}.json`,
-      'application/json'
+  // 保存当前流程图
+  const handleSave = useCallback(() => {
+    if (!drawioReady || !iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ action: 'save' }),
+      'https://embed.diagrams.net'
     );
-  }, [currentXml]);
+  }, [drawioReady]);
 
-  // 导出为 PNG
-  const handleExportPng = useCallback(() => {
-    sendExport('png');
-  }, [sendExport]);
-
-  // 导出为 PDF
-  const handleExportPdf = useCallback(() => {
-    sendExport('pdf');
-  }, [sendExport]);
+  // 导出为图片
+  const handleExport = useCallback(() => {
+    if (!drawioReady || !iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'export',
+        format: 'png',
+        xml: true,
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, [drawioReady]);
 
   // 清空编辑器
   const handleClear = useCallback(() => {
@@ -391,7 +283,7 @@ export default function FlowChartPage() {
               <ul className="text-xs text-amber-600 space-y-1">
                 <li>• 输入业务流程描述，AI 将自动生成流程图</li>
                 <li>• 在编辑器中可拖拽节点、修改文本、调整布局</li>
-                <li>• 支持导出为 JSON、PNG、PDF 格式</li>
+                <li>• 支持导出为图片保存</li>
               </ul>
             </div>
           </div>
@@ -416,36 +308,21 @@ export default function FlowChartPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleSaveJson}
+                onClick={handleSave}
                 disabled={!drawioReady}
               >
-                <FileJson className="w-4 h-4 mr-1" />
-                JSON
+                <Save className="w-4 h-4 mr-1" />
+                保存
               </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!drawioReady}
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                    导出
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportPng}>
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    导出为 PNG
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdf}>
-                    <FileText className="w-4 h-4 mr-2" />
-                    导出为 PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={!drawioReady}
+              >
+                <Download className="w-4 h-4 mr-1" />
+                导出
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
