@@ -225,6 +225,12 @@ export default function FlowChartPage() {
             <Textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !loading && prompt.trim()) {
+                  e.preventDefault();
+                  handleGenerate();
+                }
+              }}
               placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
               className="min-h-[120px] resize-none"
             />
@@ -259,10 +265,10 @@ export default function FlowChartPage() {
 
           {/* Tips 区域 */}
           <div className="flex-1 overflow-y-auto p-4">
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-xs font-medium text-blue-700 mb-1">💡 Tips</h4>
-              <p className="text-xs text-blue-600">
-                空格 + 左键 实现拖拽画布
+            <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <h4 className="text-xs font-medium text-red-600 mb-1">💡 Tips</h4>
+              <p className="text-xs text-red-500">
+                拖拽画布：Space+左键
               </p>
             </div>
           </div>
