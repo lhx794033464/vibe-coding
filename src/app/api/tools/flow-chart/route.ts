@@ -73,10 +73,11 @@ export async function POST(request: NextRequest) {
 - 处理/操作节点：矩形，shape=rectangle，尺寸140x60px，style="rounded=0;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;"
 
 【层级规则（重要）】
+- **生成顺序：必须先定义所有节点 mxCell，再定义所有连线 edge**
 - 所有节点 mxCell 的 parent 必须指向 "1"（根节点）
 - 所有连线 edge 的 parent 也必须指向 "1"
-- 确保节点在 XML 中定义在连线之后，或两者parent一致以保证节点显示在顶层
 - 所有节点必须设置 vertex="1"，所有连线必须设置 edge="1"
+- **连接线不能遮盖节点**：确保连线在节点下方显示，通过正确的 XML 顺序实现（节点在前，连线在后）
 
 【金蝶云星辰标准单据名称（必须使用）】
 - 采购管理：采购申请单、采购订单、采购入库单、采购发票、付款单
