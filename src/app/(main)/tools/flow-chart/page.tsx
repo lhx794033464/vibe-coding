@@ -9,6 +9,8 @@ import {
   Sparkles,
   AlertCircle,
   RotateCcw,
+  ArrowDown,
+  ArrowRight,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -25,6 +27,7 @@ export default function FlowChartPage() {
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
+  const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -128,7 +131,10 @@ export default function FlowChartPage() {
       const response = await fetch('/api/tools/flow-chart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify({ 
+          prompt: prompt.trim(),
+          direction,
+        }),
       });
 
       const result = await response.json();
@@ -187,6 +193,35 @@ export default function FlowChartPage() {
         <div className="w-96 bg-white border-r border-slate-200 flex flex-col">
           {/* 输入区域 */}
           <div className="p-4 border-b border-slate-200">
+            {/* 方向选择 */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDirection('vertical')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    direction === 'vertical'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                  纵向
+                </button>
+                <button
+                  onClick={() => setDirection('horizontal')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    direction === 'horizontal'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <ArrowRight className="w-3.5 h-3.5" />
+                  横向
+                </button>
+              </div>
+            </div>
+
             <label className="block text-sm font-medium text-slate-700 mb-2">
               流程描述
             </label>
