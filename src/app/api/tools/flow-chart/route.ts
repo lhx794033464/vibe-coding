@@ -60,14 +60,13 @@ export async function POST(request: NextRequest) {
    - **严禁在edge中定义points数组**（禁止<Array as="points">标签）
    - 让draw.io自动计算正交路由，不要手动指定中间点
    - 连接线只能是水平或垂直线段，不允许斜线
-   - **出口位置规则（关键 - 防止重叠）**：
-     * 从判断节点引出的多条连线必须设置不同的exitX/exitY出口位置
-     * 上分支连线：style中添加 exitX=0;exitY=0.5;（从母节点左侧中点引出）
-     * 中分支连线：style中添加 exitX=0.5;exitY=1;（从母节点下边中点引出）
-     * 下分支连线：style中添加 exitX=1;exitY=0.5;（从母节点右侧中点引出）
-     * 示例style：edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;
-   - **横向布局连接规则**：单一节点分散成平行节点时，必须从分支节点的不同端点（底部不同位置）连接到目标节点的左侧不同位置
-   - **纵向布局连接规则**：平行分支收束到下一节点时，必须从分支节点的不同端点（下端不同位置）连接到目标节点的侧端不同位置（上端不同位置）
+   - **判断节点分支连线规则（关键 - 防止重叠）**：
+     * 上分支：exitX=0.5;exitY=0;entryX=0;entryY=0.5;（从判断节点上侧中点出发，进入目标节点左侧中点）
+     * 中分支：exitX=1;exitY=0.5;entryX=0;entryY=0.5;（从判断节点右侧中点出发，进入目标节点左侧中点）
+     * 下分支：exitX=0.5;exitY=1;entryX=0;entryY=0.5;（从判断节点下侧中点出发，进入目标节点左侧中点）
+     * 示例style：edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;
+   - **横向布局连接规则**：单一节点分散成平行节点时，必须从分支节点的不同端点连接到目标节点的左侧不同位置
+   - **纵向布局连接规则**：平行分支收束到下一节点时，必须从分支节点的不同端点连接到目标节点的侧端不同位置
 5. **线段条件标签规则（关键）**：
    - 判断节点的每条出边（分支连线）必须在edge的mxCell中添加value属性表示条件
    - 例如：<mxCell edge="1" value="是" ...> 表示满足条件走此分支
