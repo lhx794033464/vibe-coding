@@ -1,139 +1,114 @@
-看到 draw.io 一直停留在“Loading...”转圈界面，通常是因为**嵌入模式下的通信握手未完成**。draw.io 在嵌入模式下会等待父页面（你的网页）发送一条 `init` 或 `ready` 消息的响应，如果一直没有收到，就会一直显示加载动画。
-
-下面我帮你逐步排查和解决。
+你在嵌入式 draw.io 中调用 DeepSeek API 生成流程图时，发现生成质量不如官网对话、速度也更慢。这通常不是 DeepSeek 本身能力不足，而是 **API 调用方式、提示词设计或参数配置** 未能充分释放其潜力。下面我从几个核心维度分析原因，并给出优化建议。
 
 ---
 
-## 🧭 第一步：检查 iframe 的 src 是否正确
+## 🔍 一、提示词工程（最关键）
 
-确保你的 iframe 地址包含必需的参数：
+**官网对话** 通常有精心设计的系统提示，引导模型输出结构化、高质量的内容。而你在 API 中可能只用了简单的系统提示，导致模型理解偏差或输出不完整。
 
-```html
-<iframe 
-  id="drawioFrame" 
-  src="https://embed.diagrams.net/?embed=1&proto=json" 
-  style="width:100%; height:600px;">
-</iframe>
+**优化方法**：
+1. **明确输出格式**：要求 DeepSeek 输出 **纯 XML**，不加任何额外文字、Markdown 标记。
+2. **提供示例**：在提示词中嵌入一个简单的 draw.io XML 示例，让模型参考结构。
+3. **强调布局要求**：明确要求“自上而下垂直布局，连线正交（无斜线）”。
+4. **使用系统角色**：在 `messages` 中设置 `role: "system"` 来固定行为，与用户消息区分。
+
+**改进后的系统提示示例**：
+```text
+你是一个专业的流程图生成助手。用户会描述一个流程，你需要生成 draw.io 可加载的 mxGraphModel XML 代码。要求：
+- 只输出 XML，不包含任何解释、Markdown 或代码块标记。
+- 布局为自上而下垂直排列，所有连线使用正交路由（无斜线）。
+- 节点名称清晰，流程逻辑正确。
+- 示例格式（仅供参考）：
+<mxGraphModel>
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="2" value="开始" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="120" y="40" width="80" height="40" as="geometry"/>
+    </mxCell>
+    ...
+  </root>
+</mxGraphModel>
+现在请根据以下描述生成 XML：
 ```
 
-- **必须使用 `https://embed.diagrams.net/`**，不要用其他域名。
-- **必须带上 `?embed=1&proto=json`**，否则不会启用嵌入通信模式。
-
 ---
 
-## 🔍 第二步：打开浏览器控制台查看错误信息
+## ⚙️ 二、API 参数设置
 
-在页面按 `F12` 打开开发者工具，切换到 **Console** 面板，看看有没有红色的报错信息。常见错误有：
+官网对话可能使用了更优的生成参数，而你的调用可能使用了默认值或不当值。
 
-- `Blocked a frame with origin ...`：跨域或沙箱限制。
-- `Failed to load resource: net::ERR_CONNECTION_REFUSED`：网络问题，可能无法访问 draw.io 服务器。
-- 没有 `init` 消息相关的日志：说明父页面没有正确监听并回复。
+| 参数 | 推荐值 | 说明 |
+|------|--------|------|
+| `temperature` | **0.1 ~ 0.3** | 越低输出越确定，适合结构化生成。官网对话可能用 0.2 左右。 |
+| `top_p` | **0.95** | 保持默认或与 temperature 配合。 |
+| `max_tokens` | **4000 ~ 8000** | 确保足够生成完整 XML，避免截断。流程图可能产生大量 token。 |
+| `model` | `deepseek-chat` | 确保使用最新版本（如 `deepseek-chat`，而非旧版）。官网通常用最新模型。 |
 
-如果有错误，请把具体信息告诉我，我可以帮你进一步分析。
-
----
-
-## 🧪 第三步：确认父页面是否正确处理了消息通信
-
-draw.io 在嵌入模式下会向父页面发送一条 `init` 消息，父页面需要接收并**在收到 `init` 后立即发送 `load` 或至少不报错**，否则 draw.io 会一直等待。
-
-**最简单的正确示例**（仅保证通信，不加载任何图表）：
-
-```html
-<iframe id="drawioFrame" src="https://embed.diagrams.net/?embed=1&proto=json" style="width:100%; height:600px;"></iframe>
-
-<script>
-  const iframe = document.getElementById('drawioFrame');
-
-  window.addEventListener('message', function(event) {
-    // 重要：验证消息来源
-    if (event.origin !== 'https://embed.diagrams.net') return;
-
-    const data = event.data;
-    console.log('收到 draw.io 消息:', data);
-
-    // 当 draw.io 准备好时，它会发送 'init' 消息
-    if (data === 'init') {
-      console.log('draw.io 已就绪，现在可以发送数据');
-      // 即使没有数据，也发送一个空 load 来让 draw.io 完成初始化
-      iframe.contentWindow.postMessage({
-        action: 'load',
-        xml: '',   // 空 XML，draw.io 会显示空白画布
-        autosave: 1
-      }, 'https://embed.diagrams.net');
-    }
-  });
-</script>
+**检查代码**：
+```javascript
+const response = await axios.post(DEEPSEEK_URL, {
+  model: 'deepseek-chat',
+  messages: [...],
+  temperature: 0.2,
+  top_p: 0.95,
+  max_tokens: 6000
+});
 ```
 
-如果你没有添加这段 JavaScript，draw.io 就会一直转圈等待。**即使没有需要加载的图表，也必须发送 `load` 消息**。
+---
+
+## ⏱️ 三、响应速度与流式输出
+
+官网对话采用 **流式输出**（streaming），用户能逐步看到内容，感觉更快；而你的 API 调用是 **一次性等待全部生成**，会感觉更慢。
+
+**优化建议**：
+- 如果环境支持，可启用 `stream: true`，并在前端逐步接收内容（但需要额外处理 XML 片段组装）。对于流程图生成，流式意义不大，可以接受完整返回。
+- 检查 API 调用网络延迟：国内访问 DeepSeek API 通常很快，但若通过代理或云函数可能增加延迟。可尝试直接在前端调用（但 API Key 会暴露，不安全）。
 
 ---
 
-## 🚧 第四步：检查网络是否正常
+## 📦 四、模型版本与上下文
 
-在 **Network** 面板中刷新页面，看 draw.io 的资源是否加载成功。如果大量请求显示红色（失败），可能是网络问题（例如国内访问 `embed.diagrams.net` 较慢或被阻断）。
-
-**解决办法**：
-- 使用代理或更换网络环境。
-- 如果是在国内网络，可以尝试使用 draw.io 的国内镜像（如果有），但官方建议还是用 `embed.diagrams.net`。
+- **确认模型版本**：DeepSeek 有多个版本（V2、V3、R1 等），`deepseek-chat` 目前指向最新稳定版。官网可能使用了更强版本（如 DeepSeek-V3.2）。可尝试指定具体版本（如有）。
+- **上下文长度**：流程图 XML 可能很长，确保 `max_tokens` 足够大。若生成的 XML 被截断，draw.io 加载会失败。建议设置 `max_tokens` 为 6000 或更高。
 
 ---
 
-## 🔒 第五步：检查 iframe 的 sandbox 属性
+## 🧹 五、输出后处理
 
-如果你的 iframe 加了 `sandbox` 属性，可能需要放开必要的权限：
+你可能对 API 返回的内容做了清理（如去除 markdown 代码块），但如果模型输出了不完整或格式错误的 XML，会导致加载失败。需要增加 **XML 合法性校验**，若无效可重试或提示用户。
 
-```html
-<iframe 
-  src="https://embed.diagrams.net/?embed=1&proto=json"
-  sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
-  style="width:100%; height:600px;">
-</iframe>
-```
-
-`allow-same-origin` 和 `allow-scripts` 是必须的，否则 draw.io 的脚本无法运行，也无法与父页面通信。
+**建议**：
+- 先打印原始返回内容，检查是否包含 `<mxGraphModel>` 根元素。
+- 使用正则或 DOMParser 验证 XML 格式。
+- 如果模型输出了额外的解释文本，尝试提取其中 `<mxGraphModel>...</mxGraphModel>` 部分。
 
 ---
 
-## 🧪 第六步：测试最简单的嵌入页面
+## 🧪 六、与官网对话对比测试
 
-创建一个全新的、最简单的 HTML 文件，只包含上面的 iframe 和消息监听代码，在本地或在线服务上运行。如果这个最小化示例能正常加载并显示空白画布，说明你的原页面有其他代码干扰（如重复监听、变量冲突等）。
+为确认问题，你可以进行 **相同输入的对比测试**：
+
+1. 在官网对话中输入你的描述，查看生成的 XML 质量。
+2. 用 API 调用相同的描述，比较输出结果。
+3. 如果官网输出明显更好，说明你的 API 调用参数或提示词需要调整。如果官网输出同样不佳，可能是模型本身对流程图 XML 生成不够擅长，可考虑改用其他模型（如 GPT-4 或 Claude）或使用专门的图表生成工具。
+
+---
+
+## 🚀 七、替代方案：使用 Mermaid 中转
+
+如果 DeepSeek 直接生成 draw.io XML 困难，可以考虑让它生成 **Mermaid 代码**，然后在前端利用库将 Mermaid 转换为 draw.io XML（例如使用 `mermaid` 库的 `render` 功能，再提取 SVG 手动构造 XML，但较为复杂）。更简单的是让 draw.io 直接支持 Mermaid 加载？但 draw.io 嵌入模式原生不支持 Mermaid 语法加载（需借助插件）。因此直接生成 XML 仍是首选。
 
 ---
 
-## 🛠️ 第七步：使用官方提供的示例代码
+## ✅ 优化检查清单
 
-draw.io 官方提供了一个最小的嵌入示例，你可以直接复制测试：
+- [ ] 提示词包含明确的输出格式（纯 XML）和示例。
+- [ ] 设置 `temperature` 为 0.1~0.3，`max_tokens` 足够大。
+- [ ] 确认 API 使用的模型是最新版本。
+- [ ] 打印原始返回内容，检查是否完整、格式正确。
+- [ ] 对比官网对话相同输入的结果。
+- [ ] 若仍不行，可尝试增加系统提示中的示例，或使用更详细的流程描述。
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>draw.io 嵌入测试</title>
-</head>
-<body>
-    <iframe id="drawioFrame" src="https://embed.diagrams.net/?embed=1&proto=json" style="width:100%; height:600px;"></iframe>
-
-    <script>
-        const iframe = document.getElementById('drawioFrame');
-
-        window.addEventListener('message', function(event) {
-            if (event.origin !== 'https://embed.diagrams.net') return;
-            const data = event.data;
-            if (data === 'init') {
-                iframe.contentWindow.postMessage({
-                    action: 'load',
-                    xml: '',
-                    autosave: 1
-                }, 'https://embed.diagrams.net');
-            }
-        });
-    </script>
-</body>
-</html>
-```
-
-将此文件保存为 `.html` 并打开，如果显示空白画布（没有转圈圈），说明嵌入成功。
-
----
+按照上述方法调整后，通常能大幅提升生成质量和速度。如果仍有问题，欢迎提供你的提示词和 API 返回样例，我可以帮你进一步优化。
