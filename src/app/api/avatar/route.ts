@@ -116,12 +116,11 @@ export async function POST(request: NextRequest) {
     const { error: upsertError } = await supabase
       .from('user_profiles')
       .upsert({
-        id: user.id,
         user_id: user.id,
         avatar_url: fileKey,
         updated_at: new Date().toISOString(),
       }, {
-        onConflict: 'id'
+        onConflict: 'user_id'
       });
 
     if (upsertError) {

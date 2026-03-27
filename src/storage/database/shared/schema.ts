@@ -200,7 +200,6 @@ export const userProfiles = pgTable(
   {
     id: varchar("id", { length: 36 })
       .primaryKey(),
-    userId: varchar("user_id", { length: 36 }).notNull().unique(), // Supabase auth user id
     avatarUrl: varchar("avatar_url", { length: 500 }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -212,7 +211,6 @@ export const userProfiles = pgTable(
 // 用户配置 Zod schemas
 export const insertUserProfileSchema = createCoercedInsertSchema(userProfiles).pick({
   id: true,
-  userId: true,
   avatarUrl: true,
 });
 

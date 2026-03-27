@@ -13,17 +13,14 @@ import {
   ChevronRight,
   CheckSquare,
   Calendar,
-  Wrench,
-  User
+  Wrench
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
 
 interface SidebarProps {
   onSignOut: () => void;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  isGuest?: boolean;
 }
 
 const navItems = [
@@ -36,10 +33,9 @@ const navItems = [
   { href: '/tools', label: '交付工具', icon: Wrench },
 ];
 
-export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange, isGuest = false }: SidebarProps) {
+export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
-  const router = useRouter();
 
   return (
     <aside 
@@ -122,39 +118,22 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange, isGue
         </ul>
       </nav>
 
-      {/* Sign Out / Return to Login */}
+      {/* Sign Out */}
       <div className={`border-t border-gray-200 ${collapsed ? 'p-2' : 'p-4'}`}>
-        {isGuest ? (
-          <button
-            onClick={() => router.push('/login')}
-            className={`flex items-center gap-3 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors ${
-              collapsed ? 'justify-center px-0' : 'px-4'
-            }`}
-            title={collapsed ? "返回登录" : undefined}
-          >
-            <User className="w-5 h-5 flex-shrink-0" />
-            <span className={`whitespace-nowrap transition-opacity duration-200 ${
-              collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-            }`}>
-              返回登录
-            </span>
-          </button>
-        ) : (
-          <button
-            onClick={onSignOut}
-            className={`flex items-center gap-3 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors ${
-              collapsed ? 'justify-center px-0' : 'px-4'
-            }`}
-            title={collapsed ? "退出登录" : undefined}
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className={`whitespace-nowrap transition-opacity duration-200 ${
-              collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-            }`}>
-              退出登录
-            </span>
-          </button>
-        )}
+        <button
+          onClick={onSignOut}
+          className={`flex items-center gap-3 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors ${
+            collapsed ? 'justify-center px-0' : 'px-4'
+          }`}
+          title={collapsed ? "退出登录" : undefined}
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          <span className={`whitespace-nowrap transition-opacity duration-200 ${
+            collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
+          }`}>
+            退出登录
+          </span>
+        </button>
       </div>
 
       {/* 折叠按钮 - 悬停时显示 */}
