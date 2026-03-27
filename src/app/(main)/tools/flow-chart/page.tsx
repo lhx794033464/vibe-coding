@@ -31,7 +31,6 @@ export default function FlowChartPage() {
   const [isConfigured, setIsConfigured] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  const [simplifiedMode, setSimplifiedMode] = useState(false);
   // 保存当前流程图 XML，切换页面时不丢失
   const [savedXml, setSavedXml] = useState<string>(EMPTY_XML);
   
@@ -143,10 +142,6 @@ export default function FlowChartPage() {
     setLoading(true);
     setError('');
 
-    // 创建超时控制器
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 65000); // 65 秒超时
-
     try {
       const response = await fetch('/api/tools/flow-chart', {
         method: 'POST',
@@ -154,32 +149,15 @@ export default function FlowChartPage() {
         body: JSON.stringify({ 
           prompt: prompt.trim(),
           direction,
-          simplified: simplifiedMode,
         }),
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      const result = await response.json();
 
-      // 处理超时或网络错误
       if (!response.ok) {
-        const result = await response.json();
-        
-        if (response.status === 504 || response.status === 408) {
-          setError('生成时间过长已超时。建议：\n1. 开启"简化模式"后重试\n2. 分段描述流程，每次不超过15个节点');
-          return;
-        }
-        
-        if (result.truncated) {
-          setError('流程图内容过长被截断。建议：\n1. 开启"简化模式"后重试\n2. 分段描述流程\n3. 减少分支节点数量');
-          return;
-        }
-        
         setError(result.error || '生成失败，请稍后重试');
         return;
       }
-
-      const result = await response.json();
 
       if (result.xml) {
         // 向 draw.io iframe 发送加载消息
@@ -188,18 +166,8 @@ export default function FlowChartPage() {
         setError('生成的流程图数据为空');
       }
     } catch (err) {
-      clearTimeout(timeoutId);
       console.error('生成流程图错误:', err);
-      
-      if (err instanceof Error) {
-        if (err.name === 'AbortError' || err.message.includes('timeout')) {
-          setError('请求已超时。建议简化流程描述，或分批生成复杂流程。');
-        } else {
-          setError('网络错误，请稍后重试');
-        }
-      } else {
-        setError('网络错误，请稍后重试');
-      }
+      setError('网络错误，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -263,22 +231,6 @@ export default function FlowChartPage() {
               </div>
             </div>
 
-            {/* 简化模式 */}
-            <div className="mb-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={simplifiedMode}
-                  onChange={(e) => setSimplifiedMode(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500"
-                />
-                <span className="text-xs text-slate-600">简化模式（适合复杂流程）</span>
-              </label>
-              <p className="text-[10px] text-slate-400 mt-0.5 ml-6">
-                缩短提示词以获得更快响应，但可能降低布局精确度
-              </p>
-            </div>
-
             <label className="block text-sm font-medium text-slate-700 mb-2">
               流程描述
             </label>
@@ -326,18 +278,9 @@ export default function FlowChartPage() {
           {/* Tips 区域 */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <h4 className="text-xs font-medium text-red-600 mb-2">💡 使用提示</h4>
-              <p className="text-xs text-red-500 mb-1">
-                • 拖拽画布：Space+左键
-              </p>
-              <p className="text-xs text-red-500 mb-1">
-                • 复杂流程（20+节点）建议开启"简化模式"
-              </p>
-              <p className="text-xs text-red-500 mb-1">
-                • 生成失败时，请分段描述流程
-              </p>
+              <h4 className="text-xs font-medium text-red-600 mb-1">💡 Tips</h4>
               <p className="text-xs text-red-500">
-                • 例："先描述采购流程，再描述销售流程"
+                拖拽画布：Space+左键
               </p>
             </div>
           </div>
