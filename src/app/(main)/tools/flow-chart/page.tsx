@@ -49,16 +49,23 @@ export default function FlowChartPage() {
       }
 
       if (result.mermaid) {
-        // 构造 draw.io URL
+        // 构造 draw.io URL（添加 embed=0 强制独立模式）
         const encodedMermaid = encodeURIComponent(result.mermaid);
-        const drawioUrl = `https://app.diagrams.net/?mermaid=${encodedMermaid}&create=1`;
+        const drawioUrl = `https://app.diagrams.net/?mermaid=${encodedMermaid}&create=1&embed=0`;
         
-        // 新窗口打开（使用 a 标签防止跨域错误）
-        const link = document.createElement('a');
-        link.href = drawioUrl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.click();
+        // 方式一：使用 window.open 并手动置空 opener（最可靠）
+        const newWindow = window.open();
+        if (newWindow) {
+          newWindow.opener = null;
+          newWindow.location = drawioUrl;
+        } else {
+          // 如果弹窗被拦截，回退到 a 标签
+          const link = document.createElement('a');
+          link.href = drawioUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.click();
+        }
         
         // 保存 URL 供用户再次点击
         setGeneratedUrl(drawioUrl);
@@ -76,11 +83,19 @@ export default function FlowChartPage() {
   // 重新打开上次生成的流程图
   const handleReopen = () => {
     if (generatedUrl) {
-      const link = document.createElement('a');
-      link.href = generatedUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.click();
+      // 使用 window.open 并手动置空 opener
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.opener = null;
+        newWindow.location = generatedUrl;
+      } else {
+        // 回退到 a 标签
+        const link = document.createElement('a');
+        link.href = generatedUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.click();
+      }
     }
   };
 
