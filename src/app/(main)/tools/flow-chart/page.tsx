@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { 
@@ -8,17 +8,71 @@ import {
   Loader2, 
   Sparkles,
   AlertCircle,
+  RotateCcw,
   ArrowDown,
   ArrowRight,
-  ExternalLink,
 } from 'lucide-react';
+
+// 空白画布 XML
+const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+  </root>
+</mxGraphModel>`;
 
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [drawioReady, setDrawioReady] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 向 draw.io 发送加载消息
+  const sendLoad = useCallback((xml: string) => {
+    if (!iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'load',
+        xml: xml,
+        autosave: 1
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, []);
+
+  // 监听 draw.io 消息
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://embed.diagrams.net') return;
+      
+      let data = event.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          // 保持原样
+        }
+      }
+      
+      // 处理 init 消息
+      if (data === 'init' || (typeof data === 'object' && data?.event === 'init')) {
+        console.log('draw.io 编辑器已就绪');
+        setDrawioReady(true);
+        
+        // 加载空白画布
+        setTimeout(() => {
+          sendLoad(EMPTY_XML);
+        }, 100);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [sendLoad]);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -27,9 +81,13 @@ export default function FlowChartPage() {
       return;
     }
 
+    if (!drawioReady) {
+      setError('编辑器尚未就绪，请稍后重试');
+      return;
+    }
+
     setLoading(true);
     setError('');
-    setGeneratedUrl(null);
 
     try {
       const response = await fetch('/api/tools/flow-chart', {
@@ -48,27 +106,9 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (result.mermaid) {
-        // 构造 draw.io URL（添加 embed=0 强制独立模式）
-        const encodedMermaid = encodeURIComponent(result.mermaid);
-        const drawioUrl = `https://app.diagrams.net/?mermaid=${encodedMermaid}&create=1&embed=0`;
-        
-        // 方式一：使用 window.open 并手动置空 opener（最可靠）
-        const newWindow = window.open();
-        if (newWindow) {
-          newWindow.opener = null;
-          newWindow.location = drawioUrl;
-        } else {
-          // 如果弹窗被拦截，回退到 a 标签
-          const link = document.createElement('a');
-          link.href = drawioUrl;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.click();
-        }
-        
-        // 保存 URL 供用户再次点击
-        setGeneratedUrl(drawioUrl);
+      if (result.xml) {
+        // 向 draw.io iframe 发送加载消息
+        sendLoad(result.xml);
       } else {
         setError('生成的流程图数据为空');
       }
@@ -80,24 +120,12 @@ export default function FlowChartPage() {
     }
   };
 
-  // 重新打开上次生成的流程图
-  const handleReopen = () => {
-    if (generatedUrl) {
-      // 使用 window.open 并手动置空 opener
-      const newWindow = window.open();
-      if (newWindow) {
-        newWindow.opener = null;
-        newWindow.location = generatedUrl;
-      } else {
-        // 回退到 a 标签
-        const link = document.createElement('a');
-        link.href = generatedUrl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.click();
-      }
-    }
-  };
+  // 清空编辑器
+  const handleClear = useCallback(() => {
+    if (!drawioReady) return;
+    sendLoad(EMPTY_XML);
+    setPrompt('');
+  }, [drawioReady, sendLoad]);
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
@@ -114,39 +142,40 @@ export default function FlowChartPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-2xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-          {/* 方向选择 */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-3">布局方向</label>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDirection('vertical')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  direction === 'vertical'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <ArrowDown className="w-4 h-4" />
-                纵向（自上而下）
-              </button>
-              <button
-                onClick={() => setDirection('horizontal')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  direction === 'horizontal'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <ArrowRight className="w-4 h-4" />
-                横向（从左到右）
-              </button>
-            </div>
-          </div>
-
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左侧面板 */}
+        <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0">
           {/* 输入区域 */}
-          <div className="mb-6">
+          <div className="p-4 border-b border-slate-200">
+            {/* 方向选择 */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDirection('vertical')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    direction === 'vertical'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                  纵向
+                </button>
+                <button
+                  onClick={() => setDirection('horizontal')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    direction === 'horizontal'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <ArrowRight className="w-3.5 h-3.5" />
+                  横向
+                </button>
+              </div>
+            </div>
+
             <label className="block text-sm font-medium text-slate-700 mb-2">
               流程描述
             </label>
@@ -160,57 +189,84 @@ export default function FlowChartPage() {
                 }
               }}
               placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
-              className="min-h-[160px] resize-none text-base"
+              className="min-h-[120px] resize-none"
             />
             
             {/* 错误提示 */}
             {error && (
-              <div className="mt-3 flex items-center gap-2 text-red-500 text-sm">
+              <div className="mt-2 flex items-center gap-2 text-red-500 text-sm">
                 <AlertCircle className="w-4 h-4" />
                 {error}
               </div>
             )}
+
+            {/* 生成按钮 */}
+            <Button
+              onClick={handleGenerate}
+              disabled={loading || !prompt.trim()}
+              className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  生成流程图
+                </>
+              )}
+            </Button>
           </div>
 
-          {/* 生成按钮 */}
-          <Button
-            onClick={handleGenerate}
-            disabled={loading || !prompt.trim()}
-            className="w-full h-12 text-base bg-blue-500 hover:bg-blue-600"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                AI 生成中...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5 mr-2" />
-                生成流程图
-              </>
-            )}
-          </Button>
-
-          {/* 重新打开按钮 */}
-          {generatedUrl && !loading && (
-            <Button
-              onClick={handleReopen}
-              variant="outline"
-              className="w-full mt-3 h-12 text-base"
-            >
-              <ExternalLink className="w-5 h-5 mr-2" />
-              重新打开流程图
-            </Button>
-          )}
-
           {/* 使用说明 */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h4 className="text-sm font-medium text-blue-700 mb-2">💡 使用说明</h4>
-            <ul className="text-sm text-blue-600 space-y-1">
-              <li>• 输入业务流程描述，AI 将生成 Mermaid 流程图</li>
-              <li>• 流程图将在新窗口的 draw.io 编辑器中打开</li>
-              <li>• 您可以在 draw.io 中自由编辑、调整布局、导出图片</li>
-            </ul>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="text-xs font-medium text-blue-700 mb-2">💡 使用说明</h4>
+              <ul className="text-xs text-blue-600 space-y-1">
+                <li>• 输入业务流程描述，AI 将生成流程图</li>
+                <li>• 在编辑器中可拖拽节点、修改文本</li>
+                <li>• 使用 Space + 左键拖拽画布</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* 编辑器状态 */}
+          <div className="p-3 border-t border-slate-200 bg-slate-50">
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
+              <span className="text-slate-600">
+                {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧编辑器区域 */}
+        <div className="flex-1 flex flex-col">
+          {/* 工具栏 */}
+          <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClear}
+              disabled={!drawioReady}
+            >
+              <RotateCcw className="w-4 h-4 mr-1" />
+              清空
+            </Button>
+          </div>
+
+          {/* draw.io iframe */}
+          <div className="flex-1 bg-slate-100">
+            <iframe
+              ref={iframeRef}
+              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
+              className="w-full h-full border-0"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
+            />
           </div>
         </div>
       </div>
