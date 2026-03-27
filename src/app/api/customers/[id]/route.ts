@@ -1,5 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+// 游客用户ID
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+// 获取 supabase 客户端（支持游客模式）
+function getClient(token?: string) {
+  if (token && token !== 'guest') {
+    return getSupabaseClient(token);
+  }
+  // 游客模式使用 anon key
+  const { url, anonKey } = getSupabaseCredentials();
+  return createClient(url, anonKey, {
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// 获取用户ID（支持游客模式）
+async function getUserId(token?: string): Promise<string | null> {
+  if (!token || token === 'guest') {
+    return GUEST_USER_ID;
+  }
+  const client = getSupabaseClient(token);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  return user.id;
+}
 
 // 获取单个客户详情
 export async function GET(
@@ -8,23 +38,20 @@ export async function GET(
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const { id } = await params;
 
     const { data, error } = await client
       .from('customers')
       .select('*')
       .eq('id', id)
+      .eq('user_id', userId)  // 确保只能访问自己的客户
       .single();
 
     if (error) {
@@ -49,26 +76,27 @@ export async function PUT(
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const { id } = await params;
     const body = await request.json();
 
-    // 先获取当前客户信息
+    // 先获取当前客户信息（确保是自己的客户）
     const { data: currentCustomer } = await client
       .from('customers')
       .select('status')
       .eq('id', id)
+      .eq('user_id', userId)
       .single();
+
+    if (!currentCustomer) {
+      return NextResponse.json({ error: '客户不存在或无权操作' }, { status: 404 });
+    }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
     
@@ -106,6 +134,7 @@ export async function PUT(
       .from('customers')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', userId)  // 确保只能更新自己的客户
       .select()
       .single();
 
@@ -127,30 +156,28 @@ export async function DELETE(
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const { id } = await params;
 
-    // 先删除相关跟进记录
+    // 先删除相关跟进记录（确保是自己的客户）
     await client
       .from('follow_up_records')
       .delete()
-      .eq('customer_id', id);
+      .eq('customer_id', id)
+      .eq('user_id', userId);
 
-    // 再删除客户
+    // 再删除客户（确保是自己的客户）
     const { error } = await client
       .from('customers')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

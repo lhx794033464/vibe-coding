@@ -1,7 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
+
+// 游客用户ID
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+// 获取 supabase 客户端（支持游客模式）
+function getClient(token?: string) {
+  if (token && token !== 'guest') {
+    return getSupabaseClient(token);
+  }
+  // 游客模式使用 anon key
+  const { url, anonKey } = getSupabaseCredentials();
+  return createClient(url, anonKey, {
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// 获取用户ID（支持游客模式）
+async function getUserId(token?: string): Promise<string | null> {
+  if (!token || token === 'guest') {
+    return GUEST_USER_ID;
+  }
+  const client = getSupabaseClient(token);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  return user.id;
+}
 
 /**
  * GET /api/schedule - 获取日程列表
@@ -9,21 +39,15 @@ export const runtime = 'nodejs';
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const userId = await getUserId(token);
     
-    if (!token) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const client = getSupabaseClient(token);
+    const client = getClient(token);
     
-    // 验证用户
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
     // 获取查询参数
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('start');
@@ -40,7 +64,7 @@ export async function GET(request: NextRequest) {
         user_id,
         created_at
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('schedule_date', { ascending: true });
 
     // 添加日期范围过滤
@@ -66,7 +90,8 @@ export async function GET(request: NextRequest) {
       const { data: customers } = await client
         .from('customers')
         .select('id, name')
-        .in('id', customerIds);
+        .in('id', customerIds)
+        .eq('user_id', userId);  // 确保只查询当前用户的客户
       
       customers?.forEach(c => {
         customerNameMap[c.id] = c.name;
@@ -91,20 +116,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const userId = await getUserId(token);
     
-    if (!token) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const client = getSupabaseClient(token);
-    
-    // 验证用户
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
+    const client = getClient(token);
 
     const body = await request.json();
     const { customerId, scheduleDate, notes } = body;
@@ -120,7 +139,7 @@ export async function POST(request: NextRequest) {
         customer_id: customerId,
         schedule_date: scheduleDate,
         notes: notes || null,
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single();
@@ -135,6 +154,7 @@ export async function POST(request: NextRequest) {
       .from('customers')
       .select('name')
       .eq('id', customerId)
+      .eq('user_id', userId)  // 确保只查询当前用户的客户
       .single();
 
     return NextResponse.json({ 

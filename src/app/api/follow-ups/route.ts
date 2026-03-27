@@ -1,21 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+// 游客用户ID
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+// 获取 supabase 客户端（支持游客模式）
+function getClient(token?: string) {
+  if (token && token !== 'guest') {
+    return getSupabaseClient(token);
+  }
+  // 游客模式使用 anon key
+  const { url, anonKey } = getSupabaseCredentials();
+  return createClient(url, anonKey, {
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// 获取用户ID（支持游客模式）
+async function getUserId(token?: string): Promise<string | null> {
+  if (!token || token === 'guest') {
+    return GUEST_USER_ID;
+  }
+  const client = getSupabaseClient(token);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  return user.id;
+}
 
 // 获取跟进记录列表
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customer_id');
 
@@ -23,10 +49,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '缺少客户ID' }, { status: 400 });
     }
 
+    // 先验证客户是否属于当前用户
+    const { data: customer } = await client
+      .from('customers')
+      .select('id')
+      .eq('id', customerId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!customer) {
+      return NextResponse.json({ error: '客户不存在或无权访问' }, { status: 404 });
+    }
+
     const { data, error } = await client
       .from('follow_up_records')
       .select('*')
       .eq('customer_id', customerId)
+      .eq('user_id', userId)  // 确保只能看到自己的记录
       .order('follow_up_at', { ascending: false });
 
     if (error) {
@@ -44,17 +83,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const body = await request.json();
     const { 
       customer_id, 
@@ -68,6 +103,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少必要字段' }, { status: 400 });
     }
 
+    // 先验证客户是否属于当前用户
+    const { data: customer } = await client
+      .from('customers')
+      .select('id')
+      .eq('id', customer_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!customer) {
+      return NextResponse.json({ error: '客户不存在或无权操作' }, { status: 404 });
+    }
+
     const { data, error } = await client
       .from('follow_up_records')
       .insert({
@@ -76,7 +123,7 @@ export async function POST(request: NextRequest) {
         content,
         is_accepted: is_accepted || false,
         signature_image_url: signature_image_url || null,
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single();
@@ -85,24 +132,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 更新客户的最后跟进时间
+    // 更新客户的最后跟进时间（确保是自己的客户）
     await client
       .from('customers')
       .update({ 
         last_follow_up_at: follow_up_at,
         updated_at: new Date().toISOString()
       })
-      .eq('id', customer_id);
+      .eq('id', customer_id)
+      .eq('user_id', userId);
 
-    // 如果标记为验收，更新客户状态
+    // 如果标记为验收，更新客户状态（确保是自己的客户）
     if (is_accepted) {
       await client
         .from('customers')
         .update({ 
           status: 'accepted',
+          accepted_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-        .eq('id', customer_id);
+        .eq('id', customer_id)
+        .eq('user_id', userId);
     }
 
     return NextResponse.json({ data });

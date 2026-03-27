@@ -50,10 +50,11 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // 获取所有客户
+    // 获取当前用户的所有客户
     const { data: allCustomers, error: allCustomersError } = await client
       .from('customers')
-      .select('*');
+      .select('*')
+      .eq('user_id', user.id);  // 关键：按用户ID过滤，确保数据隔离
 
     if (allCustomersError) {
       return NextResponse.json({ error: allCustomersError.message }, { status: 500 });

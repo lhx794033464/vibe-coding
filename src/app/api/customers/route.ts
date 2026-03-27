@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     let query = client
       .from('customers')
       .select('*', { count: 'exact' })
+      .eq('user_id', userId)  // 关键：按用户ID过滤，确保数据隔离
       .order('created_at', { ascending: false });
 
     // 状态筛选

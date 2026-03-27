@@ -1,5 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+// 游客用户ID
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+// 获取 supabase 客户端（支持游客模式）
+function getClient(token?: string) {
+  if (token && token !== 'guest') {
+    return getSupabaseClient(token);
+  }
+  // 游客模式使用 anon key
+  const { url, anonKey } = getSupabaseCredentials();
+  return createClient(url, anonKey, {
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// 获取用户ID（支持游客模式）
+async function getUserId(token?: string): Promise<string | null> {
+  if (!token || token === 'guest') {
+    return GUEST_USER_ID;
+  }
+  const client = getSupabaseClient(token);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  return user.id;
+}
 
 // 获取今天的日期字符串（北京时间）
 function getTodayDateString(): string {
@@ -19,7 +49,7 @@ function getTodayDateString(): string {
 }
 
 // 自动延期未完成的待办到今天
-async function autoDelayTodos(client: ReturnType<typeof getSupabaseClient>, userId: string) {
+async function autoDelayTodos(client: ReturnType<typeof getClient>, userId: string) {
   const today = getTodayDateString();
   
   // 查找截止日期早于今天且未完成的待办
@@ -59,28 +89,24 @@ async function autoDelayTodos(client: ReturnType<typeof getSupabaseClient>, user
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status'); // 'pending' | 'completed' | 'all'
     const date = searchParams.get('date'); // ISO date string
 
     // 自动延期未完成的待办到今天（替代 RPC 函数）
-    await autoDelayTodos(client, user.id);
+    await autoDelayTodos(client, userId);
 
     let query = client
       .from('todos')
       .select('*', { count: 'exact' })
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     // 状态筛选
     if (status === 'pending') {
@@ -110,7 +136,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 调试日志：返回待办数量
-    console.log(`[待办API] 查询条件: status=${status}, date=${date}, 用户=${user.id}`);
+    console.log(`[待办API] 查询条件: status=${status}, date=${date}, 用户=${userId}`);
     console.log(`[待办API] 返回 ${data?.length || 0} 条待办, 总数 ${count}`);
     if (data && data.length > 0) {
       console.log(`[待办API] 待办内容:`, data.slice(0, 3).map(t => ({ content: t.content, due_date: t.due_date, completed: t.completed })));
@@ -127,17 +153,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const body = await request.json();
     const { content, customer_id, due_date, priority } = body;
 
@@ -169,7 +191,7 @@ export async function POST(request: NextRequest) {
         customer_id: customer_id || null,
         due_date: finalDueDate,
         priority: priority || 'low',
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single();

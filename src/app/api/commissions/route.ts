@@ -1,7 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
+import { createClient } from '@supabase/supabase-js';
 import { MODULE_CONFIG, COMMISSION_CONFIG, ProductModule } from '@/types';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
+
+// 游客用户ID
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+// 获取 supabase 客户端（支持游客模式）
+function getClient(token?: string) {
+  if (token && token !== 'guest') {
+    return getSupabaseClient(token);
+  }
+  // 游客模式使用 anon key
+  const { url, anonKey } = getSupabaseCredentials();
+  return createClient(url, anonKey, {
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// 获取用户ID（支持游客模式）
+async function getUserId(token?: string): Promise<string | null> {
+  if (!token || token === 'guest') {
+    return GUEST_USER_ID;
+  }
+  const client = getSupabaseClient(token);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  return user.id;
+}
 
 /**
  * 计算单个客户的提成
@@ -67,16 +97,13 @@ function calculateCommission(
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
+    const userId = await getUserId(token);
+    
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
+    const client = getClient(token);
 
     // 获取月份参数
     const searchParams = request.nextUrl.searchParams;
@@ -84,10 +111,11 @@ export async function GET(request: NextRequest) {
     const monthStart = startOfMonth(new Date(monthParam + '-01'));
     const monthEnd = endOfMonth(monthStart);
 
-    // 获取当月验收完成的客户
+    // 获取当月验收完成的客户（只查当前用户的）
     const { data: acceptedCustomers, error: customerError } = await client
       .from('customers')
       .select('*')
+      .eq('user_id', userId)
       .eq('status', 'accepted')
       .gte('updated_at', monthStart.toISOString())
       .lte('updated_at', monthEnd.toISOString())
@@ -97,10 +125,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: customerError.message }, { status: 500 });
     }
 
-    // 获取设置下次计提月份为当前月份的客户
+    // 获取设置下次计提月份为当前月份的客户（只查当前用户的）
     const { data: scheduledCustomers, error: scheduledError } = await client
       .from('customers')
       .select('*')
+      .eq('user_id', userId)
       .eq('status', 'accepted')
       .eq('next_commission_month', monthParam);
 
@@ -122,6 +151,7 @@ export async function GET(request: NextRequest) {
     const { data: commissionRecords } = await client
       .from('commission_records')
       .select('*')
+      .eq('user_id', userId)
       .in('customer_id', customerIds);
 
     // 按客户ID分组提成记录
@@ -225,17 +255,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
+    const userId = await getUserId(token);
     
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    const client = getClient(token);
     const body = await request.json();
     const { customer_id, amount, remark, finance_days, other_days } = body;
 
@@ -243,15 +269,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
     }
 
-    // 获取客户信息计算应提总额
+    // 获取客户信息计算应提总额（确保是自己的客户）
     const { data: customer, error: customerError } = await client
       .from('customers')
       .select('*')
       .eq('id', customer_id)
+      .eq('user_id', userId)
       .single();
 
     if (customerError || !customer) {
-      return NextResponse.json({ error: '客户不存在' }, { status: 404 });
+      return NextResponse.json({ error: '客户不存在或无权操作' }, { status: 404 });
     }
 
     const implementationFee = customer.implementation_fee || 0;
@@ -262,11 +289,12 @@ export async function POST(request: NextRequest) {
     const calculation = calculateCommission(implementationFee, implementationDays, modules);
     const originalTotalCommission = calculation.totalCommission;
     
-    // 获取已提金额
+    // 获取已提金额（只查自己的记录）
     const { data: existingRecords } = await client
       .from('commission_records')
       .select('amount')
-      .eq('customer_id', customer_id);
+      .eq('customer_id', customer_id)
+      .eq('user_id', userId);
 
     const paidCommission = existingRecords?.reduce((sum, r) => sum + parseFloat(r.amount), 0) || 0;
     
@@ -294,7 +322,7 @@ export async function POST(request: NextRequest) {
         finance_days: finance_days !== undefined ? finance_days : null,
         other_days: other_days !== undefined ? other_days : null,
         remark: remark || null,
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single();
@@ -303,7 +331,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 如果已全部计提，清空下次计提月份
+    // 如果已全部计提，清空下次计提月份（确保是自己的客户）
     const newPaidCommission = paidCommission + currentAmount;
     const newRemainingCommission = originalTotalCommission - newPaidCommission;
     
@@ -311,7 +339,8 @@ export async function POST(request: NextRequest) {
       await client
         .from('customers')
         .update({ next_commission_month: null })
-        .eq('id', customer_id);
+        .eq('id', customer_id)
+        .eq('user_id', userId);
     }
 
     return NextResponse.json({ 
@@ -333,16 +362,13 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
+    const userId = await getUserId(token);
+    
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
+    const client = getClient(token);
 
     const recordId = request.nextUrl.searchParams.get('record_id');
     if (!recordId) {
@@ -354,22 +380,19 @@ export async function DELETE(request: NextRequest) {
       .from('commission_records')
       .select('*')
       .eq('id', recordId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !record) {
-      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
-    }
-
-    // 验证记录归属当前用户
-    if (record.user_id !== user.id) {
-      return NextResponse.json({ error: '无权删除此记录' }, { status: 403 });
+      return NextResponse.json({ error: '记录不存在或无权操作' }, { status: 404 });
     }
 
     // 删除记录
     const { error: deleteError } = await client
       .from('commission_records')
       .delete()
-      .eq('id', recordId);
+      .eq('id', recordId)
+      .eq('user_id', userId);
 
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
