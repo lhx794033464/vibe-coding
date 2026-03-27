@@ -12,8 +12,8 @@ interface AuthContextType {
   avatarUrl: string | null;
   isGuest: boolean;
   setGuestMode: (enabled: boolean) => void;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateAvatar: (url: string) => void;
 }
@@ -126,33 +126,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [supabase, fetchAvatar]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string) => {
     if (!supabase) {
       return { error: new Error('系统初始化中，请稍后') };
     }
     
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (!error) {
-      router.push('/home');
+    // 使用无密码登录 API
+    try {
+      const response = await fetch('/api/auth/passwordless-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { error: new Error(data.error || '登录失败') };
+      }
+      
+      // 使用返回的 session 设置用户状态
+      if (data.session) {
+        // 手动设置 session
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        
+        if (sessionError) {
+          return { error: sessionError };
+        }
+        
+        setSession(sessionData.session);
+        setUser(sessionData.session?.user ?? null);
+        
+        if (sessionData.session?.access_token) {
+          fetchAvatar(sessionData.session.access_token);
+        }
+        
+        router.push('/home');
+        return { error: null };
+      }
+      
+      return { error: null };
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error('登录失败') };
     }
-    return { error };
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string) => {
     if (!supabase) {
       return { error: new Error('系统初始化中，请稍后') };
     }
     
-    const { error } = await supabase.auth.signUp({
+    // 生成一个随机密码
+    const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+    
+    const { data, error } = await supabase.auth.signUp({
       email,
-      password,
+      password: randomPassword,
     });
-    if (!error) {
+    
+    if (!error && data.session) {
+      setSession(data.session);
+      setUser(data.session.user);
+      fetchAvatar(data.session.access_token);
       router.push('/home');
     }
+    
     return { error };
   };
 

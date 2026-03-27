@@ -6,14 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { User } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, setGuestMode, user, loading: authLoading } = useAuth();
@@ -29,7 +27,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(email);
     if (error) {
       setError(error.message);
     }
@@ -40,11 +38,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(email);
     if (error) {
       // 如果错误是"用户已注册"，尝试直接登录
       if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
-        const { error: signInError } = await signIn(email, password);
+        const { error: signInError } = await signIn(email);
         if (!signInError) {
           setLoading(false);
           return;
@@ -96,73 +94,38 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">登录</TabsTrigger>
-              <TabsTrigger value="register">注册</TabsTrigger>
-            </TabsList>
-            <TabsContent value="login">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">邮箱</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="请输入邮箱"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">密码</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="请输入密码"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? '登录中...' : '登录'}
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="register">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="register-email">邮箱</Label>
-                  <Input
-                    id="register-email"
-                    type="email"
-                    placeholder="请输入邮箱"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-password">密码</Label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    placeholder="请输入密码（至少6位）"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? '注册中...' : '注册'}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">邮箱</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="请输入已注册的邮箱"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? '登录中...' : '登录'}
+            </Button>
+            <p className="text-xs text-center text-gray-500">
+              只需输入已注册的邮箱即可登录，无需密码
+            </p>
+          </form>
+
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-sm text-center text-gray-500 mb-2">还没有账号？</p>
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={handleSignUp}
+              disabled={loading || !email}
+            >
+              {loading ? '处理中...' : '注册新账号'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
