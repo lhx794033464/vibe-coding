@@ -15,25 +15,27 @@ export async function POST(request: NextRequest) {
     // 根据方向确定 Mermaid 方向
     const mermaidDirection = direction === 'horizontal' ? 'LR' : 'TD';
 
-    const systemPrompt = `生成 Mermaid 流程图代码。
+    const systemPrompt = `根据用户描述生成 Mermaid 流程图代码。
 
-【格式要求】
-1. 以 graph ${mermaidDirection} 开头
-2. 节点定义：
-   - 开始/结束: id(["文本"])
-   - 处理: id["文本"]
-   - 判断: id{"文本"}
-3. 连接: A --> B 或 A -->|"条件"| B
-4. 仅输出代码，不输出解释
+【语法要求】
+- 必须以大写字母 GRAPH 开头，后跟方向 TD（纵向）或 LR（横向）
+- 每个节点格式：
+  - 开始结束: ID(["文本"])  例如：start(["开始"])
+  - 处理步骤: ID["文本"]    例如：input["输入数据"]  
+  - 判断分支: ID{"文本"}    例如：check{"是否有效"}
+- 连接格式：SOURCE --> TARGET 或 SOURCE -->|"标签"| TARGET
 
 【示例】
-graph TD
-    start(["开始"]) --> input["输入数据"]
-    input --> check{"检查格式"}
-    check -->|"正确"| process["处理数据"]
-    check -->|"错误"| error["报错"]
-    process --> end1(["结束"])
-    error --> end1`;    
+GRAPH TD
+    START(["开始"]) --> INPUT["输入数据"]
+    INPUT --> CHECK{"检查格式"}
+    CHECK -->|"有效"| PROCESS["处理数据"]
+    CHECK -->|"无效"| ERROR["报错"]
+    PROCESS --> END1(["结束"])
+    ERROR --> END1
+
+【输出规则】
+仅输出 Mermaid 代码，不要任何解释、不要 Markdown 代码块标记（\`\`\`）。`;    
 
     // 提取转发头
 
@@ -60,9 +62,19 @@ graph TD
     // 打印原始返回内容用于调试
     console.log('Mermaid 代码:\n', mermaidCode.substring(0, 1000));
 
+    // 清理可能的 Markdown 代码块标记
+    let cleanedCode = mermaidCode;
+    if (cleanedCode.startsWith('```')) {
+      // 移除开头的 ```mermaid 或 ```
+      cleanedCode = cleanedCode.replace(/^```\w*\n?/, '');
+      // 移除结尾的 ```
+      cleanedCode = cleanedCode.replace(/```$/, '');
+      cleanedCode = cleanedCode.trim();
+    }
+
     // 验证 Mermaid 代码格式
-    if (!mermaidCode.startsWith('graph')) {
-      console.error('返回内容不是有效的 Mermaid 代码');
+    if (!cleanedCode.match(/^graph\s+(TD|TB|LR|RL|BT)/m)) {
+      console.error('返回内容不是有效的 Mermaid 代码:', cleanedCode.substring(0, 200));
       return NextResponse.json(
         { error: '生成的流程图格式不正确' },
         { status: 500 }
@@ -72,7 +84,7 @@ graph TD
     // 返回 Mermaid 代码，由前端通过 draw.io API 插入
     return NextResponse.json({ 
       success: true, 
-      mermaid: mermaidCode
+      mermaid: cleanedCode
     });
 
   } catch (error) {
