@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+
+// DeepSeek API 配置
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-a576af7e052748d9a5a64f5171adaaa6';
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -100,32 +103,42 @@ export async function POST(request: NextRequest) {
 
 请根据以下业务描述生成专业流程图 XML：`;
 
-    // 提取转发头
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-
-    // 初始化 SDK 客户端
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
-
-    // 调用豆包 2.0 pro 模型
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: prompt }
-    ];
-
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
-      temperature: 0.01,
+    // 调用 DeepSeek API
+    const response = await fetch(DEEPSEEK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 8192,
+      }),
     });
 
-    const content = response.content || '';
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('DeepSeek API 错误:', response.status, errorData);
+      return NextResponse.json(
+        { error: '调用 AI 服务失败，请稍后重试' },
+        { status: 500 }
+      );
+    }
 
-    // 打印原始返回内容用于调试（显示更多内容）
-    console.log('豆包 2.0 pro 原始返回长度:', content.length);
-    console.log('豆包 2.0 pro 原始返回前1000字符:', content.substring(0, 1000));
-    console.log('豆包 2.0 pro 原始返回后500字符:', content.substring(content.length - 500));
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
 
-    // 检查返回内容是否被截断（以 ... 或不完整标签结尾）
+    // 打印原始返回内容用于调试
+    console.log('DeepSeek 原始返回长度:', content.length);
+    console.log('DeepSeek 原始返回前1000字符:', content.substring(0, 1000));
+    console.log('DeepSeek 原始返回后500字符:', content.substring(content.length - 500));
+
+    // 检查返回内容是否被截断
     if (content.endsWith('...') || content.endsWith('<') || content.endsWith('</')) {
       console.error('返回内容可能被截断');
       return NextResponse.json(
