@@ -161,9 +161,9 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (result.mermaid) {
-        // 向 draw.io iframe 发送导入 Mermaid 消息
-        sendImportMermaid(result.mermaid);
+      if (result.xml) {
+        // 向 draw.io iframe 发送加载 XML 消息
+        sendLoad(result.xml);
       } else {
         setError('生成的流程图数据为空');
       }
