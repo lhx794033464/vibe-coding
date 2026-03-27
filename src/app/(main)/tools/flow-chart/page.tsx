@@ -36,7 +36,7 @@ export default function FlowChartPage() {
   
   // 保存当前 Mermaid 代码（用于优化）
   const [currentMermaid, setCurrentMermaid] = useState<string>('');
-  // 是否可以优化（已生成 Mermaid）
+  // 是否可以优化（已生成流程图）
   const [canOptimize, setCanOptimize] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -71,19 +71,6 @@ export default function FlowChartPage() {
         action: 'load',
         xml: xml,
         autosave: 1
-      }),
-      'https://embed.diagrams.net'
-    );
-  }, []);
-
-  // 向 draw.io 发送加载 Mermaid 消息
-  const sendLoadMermaid = useCallback((mermaid: string) => {
-    if (!iframeRef.current?.contentWindow) return;
-    
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({
-        action: 'mermaid',
-        xml: mermaid
       }),
       'https://embed.diagrams.net'
     );
@@ -135,7 +122,7 @@ export default function FlowChartPage() {
     return () => window.removeEventListener('message', handleMessage);
   }, [isConfigured, sendConfigure, sendLoadXml]);
 
-  // 生成流程图（第一步：生成 Mermaid）
+  // 生成流程图：生成 Mermaid -> 转为简单 XML -> 立即显示
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('请输入流程图描述');
@@ -158,7 +145,7 @@ export default function FlowChartPage() {
         body: JSON.stringify({ 
           prompt: prompt.trim(),
           direction,
-          mode: 'mermaid'
+          mode: 'generate'
         }),
       });
 
@@ -169,13 +156,15 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (result.mermaid) {
-        // 保存 Mermaid 代码
-        setCurrentMermaid(result.mermaid);
-        // 发送 Mermaid 到 draw.io
-        sendLoadMermaid(result.mermaid);
-        // 允许优化
-        setCanOptimize(true);
+      if (result.xml) {
+        // 立即加载 XML 显示流程图
+        sendLoadXml(result.xml);
+        
+        // 保存 Mermaid 用于后续优化
+        if (result.mermaid) {
+          setCurrentMermaid(result.mermaid);
+          setCanOptimize(true);
+        }
       } else {
         setError('生成的流程图数据为空');
       }
@@ -187,7 +176,7 @@ export default function FlowChartPage() {
     }
   };
 
-  // 优化流程图（第二步：Mermaid 转 XML）
+  // 优化流程图：将 Mermaid 转为专业布局的 XML
   const handleOptimize = async () => {
     if (!currentMermaid || !drawioReady) return;
 
@@ -201,7 +190,7 @@ export default function FlowChartPage() {
         body: JSON.stringify({ 
           mermaid: currentMermaid,
           direction,
-          mode: 'convert'
+          mode: 'optimize'
         }),
       });
 
@@ -215,7 +204,7 @@ export default function FlowChartPage() {
       if (result.xml) {
         // 加载优化后的 XML
         sendLoadXml(result.xml);
-        // 优化后不再允许重复优化
+        // 优化完成后不再显示优化按钮
         setCanOptimize(false);
       } else {
         setError('优化后的流程图数据为空');
