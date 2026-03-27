@@ -120,14 +120,35 @@ export async function POST(request: NextRequest) {
 
     const content = response.content || '';
 
-    // 打印原始返回内容用于调试
-    console.log('豆包 2.0 pro 原始返回:', content.substring(0, 500) + '...');
+    // 打印原始返回内容用于调试（显示更多内容）
+    console.log('豆包 2.0 pro 原始返回长度:', content.length);
+    console.log('豆包 2.0 pro 原始返回前1000字符:', content.substring(0, 1000));
+    console.log('豆包 2.0 pro 原始返回后500字符:', content.substring(content.length - 500));
+
+    // 检查返回内容是否被截断（以 ... 或不完整标签结尾）
+    if (content.endsWith('...') || content.endsWith('<') || content.endsWith('</')) {
+      console.error('返回内容可能被截断');
+      return NextResponse.json(
+        { error: '生成的流程图内容过长，请简化流程描述后重试' },
+        { status: 500 }
+      );
+    }
 
     // 使用正则表达式提取 <mxGraphModel>...</mxGraphModel> 部分
     const mxGraphModelMatch = content.match(/<mxGraphModel[\s\S]*?<\/mxGraphModel>/);
     
     if (!mxGraphModelMatch) {
       console.error('无法从返回内容中提取 mxGraphModel XML');
+      console.error('返回内容片段:', content.substring(0, 2000));
+      
+      // 尝试查找是否有 <mxGraphModel 开头但缺少结束标签
+      if (content.includes('<mxGraphModel') && !content.includes('</mxGraphModel>')) {
+        return NextResponse.json(
+          { error: '生成的流程图 XML 不完整，请简化流程描述后重试' },
+          { status: 500 }
+        );
+      }
+      
       return NextResponse.json(
         { error: '生成的流程图格式不正确，未能提取有效 XML' },
         { status: 500 }
