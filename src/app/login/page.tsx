@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { User } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -115,7 +116,15 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">密码</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">密码</Label>
+                    <Link 
+                      href="/forgot-password" 
+                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      忘记密码？
+                    </Link>
+                  </div>
                   <Input
                     id="password"
                     type="password"
