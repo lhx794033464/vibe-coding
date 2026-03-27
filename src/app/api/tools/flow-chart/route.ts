@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     // 根据方向确定 Mermaid 方向
     const mermaidDirection = direction === 'horizontal' ? 'LR' : 'TD';
 
-    const systemPrompt = `根据描述生成 ${mermaidDirection === 'LR' ? '横向' : '纵向'} Mermaid 流程图代码。以 graph ${mermaidDirection} 开头，仅输出代码。`;
+    const systemPrompt = `根据描述生成 ${mermaidDirection === 'LR' ? '横向' : '纵向'} Mermaid 流程图代码。以 graph ${mermaidDirection} 开头，仅输出代码。代码将用于插入到 draw.io 中（通过 插入→Mermaid 功能）。`;
 
     // 提取转发头
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
