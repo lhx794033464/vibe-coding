@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,6 @@ interface CustomerWithDays extends Customer {
 }
 
 export default function CustomersPage() {
-  const { session, isGuest } = useAuth();
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerWithDays[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,13 +28,9 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [session, isGuest, statusFilter]);
+  }, [statusFilter]);
 
   const fetchCustomers = async () => {
-    // 支持游客模式
-    const token = session?.access_token || (isGuest ? 'guest' : null);
-    if (!token) return;
-    
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -44,11 +38,7 @@ export default function CustomersPage() {
         params.append('status', statusFilter);
       }
       
-      const response = await fetch(`/api/customers?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(`/api/customers?${params.toString()}`);
       const data = await response.json();
       if (response.ok) {
         setCustomers(data.data || []);

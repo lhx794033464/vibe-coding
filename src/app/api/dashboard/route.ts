@@ -1,48 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
-import { createClient } from '@supabase/supabase-js';
+import { customersStorage } from '@/services/localStorage';
+import { TimeRange, CustomerStatus } from '@/types';
 
-// 游客用户ID
-const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-// 获取 supabase 客户端（支持游客模式）
-function getClient(token?: string) {
-  if (token && token !== 'guest') {
-    return getSupabaseClient(token);
-  }
-  // 游客模式使用 anon key
-  const { url, anonKey } = getSupabaseCredentials();
-  return createClient(url, anonKey, {
-    db: { timeout: 60000 },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-// 获取用户ID（支持游客模式）
-async function getUserId(token?: string): Promise<string | null> {
-  if (!token || token === 'guest') {
-    return GUEST_USER_ID;
-  }
-  const client = getSupabaseClient(token);
-  const { data: { user }, error } = await client.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  return user.id;
-}
-
-// 获取看板统计数据
+// 获取看板统计数据 - 本地存储模式
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
-
     const searchParams = request.nextUrl.searchParams;
     const timeRange = searchParams.get('timeRange') || 'all';
 
@@ -77,21 +39,14 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // 获取当前用户的所有客户
-    const { data: allCustomers, error: allCustomersError } = await client
-      .from('customers')
-      .select('*')
-      .eq('user_id', userId);  // 关键：按用户ID过滤，确保数据隔离
-
-    if (allCustomersError) {
-      return NextResponse.json({ error: allCustomersError.message }, { status: 500 });
-    }
+    // 获取所有客户
+    const allCustomers = customersStorage.getAll();
 
     // 根据开通时间（opened_at）筛选客户
-    let customers = allCustomers?.filter(c => c.opened_at) || [];
+    let customers = allCustomers?.filter((c: any) => c.opened_at) || [];
     
     if (startDate && endDate) {
-      customers = customers.filter(c => {
+      customers = customers.filter((c: any) => {
         const openedAt = new Date(c.opened_at);
         return openedAt >= startDate && openedAt < endDate;
       });
@@ -102,10 +57,10 @@ export async function GET(request: NextRequest) {
     
     // 已上线：accepted, online_not_accepted, partially_online
     const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
-    const onlineCustomers = customers.filter(c => onlineStatuses.includes(c.status)).length;
+    const onlineCustomers = customers.filter((c: any) => onlineStatuses.includes(c.status)).length;
     
     // 已验收
-    const acceptedCustomers = customers.filter(c => c.status === 'accepted').length;
+    const acceptedCustomers = customers.filter((c: any) => c.status === 'accepted').length;
 
     // 上线率和验收率
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100) : 0;
@@ -117,15 +72,15 @@ export async function GET(request: NextRequest) {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
     
     // 上月开通的客户
-    const lastMonthCustomers = allCustomers?.filter(c => {
+    const lastMonthCustomers = allCustomers?.filter((c: any) => {
       if (!c.opened_at) return false;
       const openedAt = new Date(c.opened_at);
       return openedAt >= lastMonthStart && openedAt < lastMonthEnd;
     }) || [];
     
     const lastMonthTotalCustomers = lastMonthCustomers.length;
-    const lastMonthOnlineCustomers = lastMonthCustomers.filter(c => onlineStatuses.includes(c.status)).length;
-    const lastMonthAcceptedCustomers = lastMonthCustomers.filter(c => c.status === 'accepted').length;
+    const lastMonthOnlineCustomers = lastMonthCustomers.filter((c: any) => onlineStatuses.includes(c.status)).length;
+    const lastMonthAcceptedCustomers = lastMonthCustomers.filter((c: any) => c.status === 'accepted').length;
     
     // 上月的上线率和验收率
     const lastMonthOnlineRate = lastMonthTotalCustomers > 0 ? (lastMonthOnlineCustomers / lastMonthTotalCustomers * 100) : 0;
@@ -151,7 +106,7 @@ export async function GET(request: NextRequest) {
       partially_online: 0,
     };
 
-    customers?.forEach(c => {
+    customers?.forEach((c: any) => {
       if (statusDistribution.hasOwnProperty(c.status)) {
         statusDistribution[c.status]++;
       }

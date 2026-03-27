@@ -1,136 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
-import { createClient } from '@supabase/supabase-js';
+import { implementationLogsStorage } from '@/services/localStorage';
 
-// 游客用户ID
-const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-// 获取 supabase 客户端（支持游客模式）
-function getClient(token?: string) {
-  if (token && token !== 'guest') {
-    return getSupabaseClient(token);
-  }
-  // 游客模式使用 anon key
-  const { url, anonKey } = getSupabaseCredentials();
-  return createClient(url, anonKey, {
-    db: { timeout: 60000 },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-// 获取用户ID（支持游客模式）
-async function getUserId(token?: string): Promise<string | null> {
-  if (!token || token === 'guest') {
-    return GUEST_USER_ID;
-  }
-  const client = getSupabaseClient(token);
-  const { data: { user }, error } = await client.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  return user.id;
-}
-
-// 获取实施日志列表
+// 获取实施日志列表 - 本地存储模式
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
     const searchParams = request.nextUrl.searchParams;
-    const customerId = searchParams.get('customer_id');
+    const customerId = searchParams.get('customerId');
 
-    if (!customerId) {
-      return NextResponse.json({ error: '缺少客户ID' }, { status: 400 });
+    let logs = implementationLogsStorage.getAll();
+
+    // 按客户筛选
+    if (customerId) {
+      logs = logs.filter((l: any) => l.customer_id === customerId);
     }
 
-    // 先验证客户是否属于当前用户
-    const { data: customer } = await client
-      .from('customers')
-      .select('id')
-      .eq('id', customerId)
-      .eq('user_id', userId)
-      .single();
+    // 排序：按日期倒序
+    logs.sort((a: any, b: any) => new Date(b.log_date).getTime() - new Date(a.log_date).getTime());
 
-    if (!customer) {
-      return NextResponse.json({ error: '客户不存在或无权访问' }, { status: 404 });
-    }
-
-    const { data, error } = await client
-      .from('implementation_logs')
-      .select('*')
-      .eq('customer_id', customerId)
-      .eq('user_id', userId)  // 确保只能看到自己的日志
-      .order('log_date', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: logs });
   } catch (error) {
     console.error('获取实施日志失败:', error);
     return NextResponse.json({ error: '获取实施日志失败' }, { status: 500 });
   }
 }
 
-// 创建实施日志
+// 创建实施日志 - 本地存储模式
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
     const body = await request.json();
-    const { 
-      customer_id, 
-      log_date, 
-      consumed_days, 
-      summary, 
-      meeting_link 
-    } = body;
+    const { customer_id, log_date, content, consumed_days, remaining_days } = body;
 
-    if (!customer_id || !log_date || !consumed_days || !summary) {
-      return NextResponse.json({ error: '缺少必要字段' }, { status: 400 });
+    if (!customer_id) {
+      return NextResponse.json({ error: '客户ID不能为空' }, { status: 400 });
     }
 
-    // 先验证客户是否属于当前用户
-    const { data: customer } = await client
-      .from('customers')
-      .select('id')
-      .eq('id', customer_id)
-      .eq('user_id', userId)
-      .single();
-
-    if (!customer) {
-      return NextResponse.json({ error: '客户不存在或无权操作' }, { status: 404 });
-    }
-
-    const { data, error } = await client
-      .from('implementation_logs')
-      .insert({
-        customer_id,
-        log_date,
-        consumed_days,
-        summary,
-        meeting_link: meeting_link || null,
-        user_id: userId,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const data = implementationLogsStorage.create({
+      customer_id,
+      log_date: log_date || new Date().toISOString().split('T')[0],
+      content: content || '',
+      consumed_days: consumed_days || '0',
+      remaining_days: remaining_days || '0',
+    });
 
     return NextResponse.json({ data });
   } catch (error) {

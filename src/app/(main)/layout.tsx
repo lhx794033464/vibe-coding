@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { Sidebar } from '@/components/sidebar';
 
@@ -10,25 +9,14 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading, signOut, isGuest } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
 
   return (
     <ChatProvider>
       <div className="h-screen flex bg-gray-50 overflow-hidden">
         <Sidebar 
-          onSignOut={signOut} 
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          isGuest={isGuest}
         />
         <main className={`flex-1 h-full overflow-auto transition-all duration-300 ${
           sidebarCollapsed ? 'ml-16' : 'ml-64'

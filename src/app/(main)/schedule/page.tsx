@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -146,7 +145,6 @@ function generateCalendarData(centerDate: Date): Date[] {
 }
 
 export default function SchedulePage() {
-  const { session } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [centerDate, setCenterDate] = useState(new Date());
@@ -179,12 +177,12 @@ export default function SchedulePage() {
   // 获取客户列表
   useEffect(() => {
     const fetchCustomers = async () => {
-      if (!session?.access_token) return;
+
       
       try {
         const response = await fetch('/api/customers', {
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+            
           },
         });
         
@@ -198,12 +196,12 @@ export default function SchedulePage() {
     };
 
     fetchCustomers();
-  }, [session?.access_token]);
+  }, []);
 
   // 获取日程数据
   useEffect(() => {
     const fetchSchedules = async () => {
-      if (!session?.access_token) return;
+
       
       try {
         const startDate = calendarDates[0];
@@ -213,7 +211,7 @@ export default function SchedulePage() {
           `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`,
           {
             headers: {
-              'Authorization': `Bearer ${session.access_token}`,
+              
             },
           }
         );
@@ -228,7 +226,7 @@ export default function SchedulePage() {
     };
 
     fetchSchedules();
-  }, [session?.access_token, calendarDates]);
+  }, [calendarDates]);
 
   const getSchedulesForDate = (date: Date): Schedule[] => {
     const dateStr = formatDate(date);
@@ -237,7 +235,7 @@ export default function SchedulePage() {
 
   // 添加日程
   const handleAddSchedule = async (openMeeting: boolean = false) => {
-    if (!selectedCustomerId || !selectedDate || !session?.access_token) return;
+    if (!selectedCustomerId || !selectedDate) return;
 
     const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
     if (!selectedCustomer) return;
@@ -248,7 +246,7 @@ export default function SchedulePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          
         },
         body: JSON.stringify({
           customerId: selectedCustomerId,
@@ -288,13 +286,13 @@ export default function SchedulePage() {
 
   // 删除日程
   const handleDeleteSchedule = async (scheduleId: string) => {
-    if (!session?.access_token) return;
+
 
     try {
       const response = await fetch(`/api/schedule/${scheduleId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          
         },
       });
 
@@ -329,7 +327,7 @@ export default function SchedulePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+          
         },
         body: JSON.stringify({
           subject: meetingSubject,

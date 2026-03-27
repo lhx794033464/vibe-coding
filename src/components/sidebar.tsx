@@ -6,24 +6,18 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Users, 
-  LogOut,
-  DollarSign,
   Home,
   ChevronLeft,
   ChevronRight,
   CheckSquare,
   Calendar,
   Wrench,
-  User
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
 interface SidebarProps {
-  onSignOut: () => void;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  isGuest?: boolean;
 }
 
 const navItems = [
@@ -32,13 +26,12 @@ const navItems = [
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
-  { href: '/commissions', label: '提成管理', icon: DollarSign },
+  { href: '/commissions', label: '提成管理', icon: Wrench },
   { href: '/tools', label: '交付工具', icon: Wrench },
 ];
 
-export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange, isGuest = false }: SidebarProps) {
+export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
   const router = useRouter();
 
   return (
@@ -78,40 +71,24 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange, isGue
             let isActive = pathname === item.href;
             
             // 特殊处理：customers路径
-            if (item.href === '/customers' && pathname.startsWith('/customers') && pathname !== '/customers/new') {
+            if (item.href === '/customers' && pathname?.startsWith('/customers/')) {
               isActive = true;
             }
-            // 特殊处理：todos路径
-            if (item.href === '/todos' && pathname.startsWith('/todos')) {
-              isActive = true;
-            }
-            // 特殊处理：schedule路径
-            if (item.href === '/schedule' && pathname.startsWith('/schedule')) {
-              isActive = true;
-            }
-            // 特殊处理：commissions路径
-            if (item.href === '/commissions' && pathname.startsWith('/commissions')) {
-              isActive = true;
-            }
-            // 特殊处理：tools路径
-            if (item.href === '/tools' && pathname.startsWith('/tools')) {
-              isActive = true;
-            }
-            
+
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 py-3 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  } ${collapsed ? 'justify-center px-0' : 'px-4'}`}
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  } ${collapsed ? 'justify-center' : ''}`}
                   title={collapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className={`whitespace-nowrap transition-opacity duration-200 ${
-                    collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
+                  <span className={`overflow-hidden transition-all duration-200 ${
+                    collapsed ? 'opacity-0 w-0' : 'opacity-100'
                   }`}>
                     {item.label}
                   </span>
@@ -122,53 +99,24 @@ export function Sidebar({ onSignOut, collapsed = false, onCollapsedChange, isGue
         </ul>
       </nav>
 
-      {/* Sign Out / Return to Login */}
-      <div className={`border-t border-gray-200 ${collapsed ? 'p-2' : 'p-4'}`}>
-        {isGuest ? (
-          <button
-            onClick={() => router.push('/login')}
-            className={`flex items-center gap-3 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors ${
-              collapsed ? 'justify-center px-0' : 'px-4'
-            }`}
-            title={collapsed ? "返回登录" : undefined}
-          >
-            <User className="w-5 h-5 flex-shrink-0" />
-            <span className={`whitespace-nowrap transition-opacity duration-200 ${
-              collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-            }`}>
-              返回登录
-            </span>
-          </button>
-        ) : (
-          <button
-            onClick={onSignOut}
-            className={`flex items-center gap-3 py-3 rounded-lg text-gray-600 hover:bg-gray-100 w-full transition-colors ${
-              collapsed ? 'justify-center px-0' : 'px-4'
-            }`}
-            title={collapsed ? "退出登录" : undefined}
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className={`whitespace-nowrap transition-opacity duration-200 ${
-              collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-            }`}>
-              退出登录
-            </span>
-          </button>
-        )}
+      {/* Collapse Button */}
+      <div className="p-4 border-t border-gray-200">
+        <button
+          onClick={() => onCollapsedChange?.(!collapsed)}
+          className={`flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors ${
+            collapsed ? 'justify-center w-full' : ''
+          }`}
+        >
+          {collapsed ? (
+            <ChevronRight className="w-5 h-5" />
+          ) : (
+            <>
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-sm">收起侧边栏</span>
+            </>
+          )}
+        </button>
       </div>
-
-      {/* 折叠按钮 - 悬停时显示 */}
-      <button
-        onClick={() => onCollapsedChange?.(!collapsed)}
-        className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 hover:bg-gray-50 hover:border-gray-300 transition-all z-10"
-        title={collapsed ? "展开侧边栏" : "收起侧边栏"}
-      >
-        {collapsed ? (
-          <ChevronRight className="w-4 h-4 text-gray-500" />
-        ) : (
-          <ChevronLeft className="w-4 h-4 text-gray-500" />
-        )}
-      </button>
     </aside>
   );
 }

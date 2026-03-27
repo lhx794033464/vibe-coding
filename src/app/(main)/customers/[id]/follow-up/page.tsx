@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +18,6 @@ interface PageProps {
 }
 
 export default function FollowUpPage({ params }: PageProps) {
-  const { session } = useAuth();
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
@@ -35,19 +33,19 @@ export default function FollowUpPage({ params }: PageProps) {
   useEffect(() => {
     const loadData = async () => {
       const { id } = await params;
-      if (id && session?.access_token) {
+      if (id) {
         fetchCustomer(id);
         fetchFollowUps(id);
       }
     };
     loadData();
-  }, [params, session]);
+  }, [params]);
 
   const fetchCustomer = async (id: string) => {
     try {
       const response = await fetch(`/api/customers/${id}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+
         },
       });
       const data = await response.json();
@@ -65,7 +63,7 @@ export default function FollowUpPage({ params }: PageProps) {
     try {
       const response = await fetch(`/api/follow-ups?customer_id=${customerId}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+
         },
       });
       const data = await response.json();
@@ -93,7 +91,7 @@ export default function FollowUpPage({ params }: PageProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+
         },
         body: JSON.stringify({
           customer_id: customer.id,
@@ -132,7 +130,7 @@ export default function FollowUpPage({ params }: PageProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+
         },
         body: JSON.stringify({
           status: 'accepted',

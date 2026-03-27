@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Loader2, Search, User, Mic, MicOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
 import MessageContent from '@/components/chat/MessageContent';
 
@@ -71,7 +70,6 @@ interface Message {
 
 export default function HomePage() {
   const router = useRouter();
-  const { session } = useAuth();
   const { messages: savedMessages, addMessage, clearMessages } = useChat();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -245,8 +243,6 @@ export default function HomePage() {
 
   // 处理语音
   const processVoice = async (audioBlob: Blob) => {
-    if (!session?.access_token) return;
-    
     setIsProcessing(true);
     setShowWelcome(false); // 发送消息时关闭欢迎页动画
     
@@ -266,7 +262,6 @@ export default function HomePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ base64Data }),
       });
@@ -284,7 +279,6 @@ export default function HomePage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ text: userMessage }),
         });
@@ -344,17 +338,11 @@ export default function HomePage() {
     abortControllerRef.current = abortController;
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ 
           messages: [...savedMessages, { role: 'user', content: userMessage }],
           enableSearch: true,

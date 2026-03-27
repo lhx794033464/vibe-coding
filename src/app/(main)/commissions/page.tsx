@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +14,6 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 export default function CommissionsPage() {
-  const { session } = useAuth();
   const [commissions, setCommissions] = useState<CommissionCalculation[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -48,18 +46,12 @@ export default function CommissionsPage() {
 
   useEffect(() => {
     fetchCommissions();
-  }, [session, currentMonth]);
+  }, [currentMonth]);
 
   const fetchCommissions = async () => {
-    if (!session?.access_token) return;
-    
     setLoading(true);
     try {
-      const response = await fetch(`/api/commissions?month=${currentMonth}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await fetch(`/api/commissions?month=${currentMonth}`);
       const data = await response.json();
       if (response.ok) {
         setCommissions(data.data || []);
@@ -105,7 +97,7 @@ export default function CommissionsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+          
         },
         body: JSON.stringify({
           customer_id: schedulingCommission.customerId,
@@ -162,7 +154,7 @@ export default function CommissionsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+          
         },
         body: JSON.stringify({
           customer_id: selectedCommission.customerId,
@@ -205,7 +197,7 @@ export default function CommissionsPage() {
       const response = await fetch(`/api/commissions?record_id=${recordToDelete.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          
         },
       });
 

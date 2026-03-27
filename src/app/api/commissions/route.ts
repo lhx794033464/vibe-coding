@@ -1,37 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
-import { createClient } from '@supabase/supabase-js';
+import { customersStorage, commissionsStorage } from '@/services/localStorage';
 import { MODULE_CONFIG, COMMISSION_CONFIG, ProductModule } from '@/types';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
-
-// 游客用户ID
-const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-// 获取 supabase 客户端（支持游客模式）
-function getClient(token?: string) {
-  if (token && token !== 'guest') {
-    return getSupabaseClient(token);
-  }
-  // 游客模式使用 anon key
-  const { url, anonKey } = getSupabaseCredentials();
-  return createClient(url, anonKey, {
-    db: { timeout: 60000 },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-// 获取用户ID（支持游客模式）
-async function getUserId(token?: string): Promise<string | null> {
-  if (!token || token === 'guest') {
-    return GUEST_USER_ID;
-  }
-  const client = getSupabaseClient(token);
-  const { data: { user }, error } = await client.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  return user.id;
-}
 
 /**
  * 计算单个客户的提成
@@ -88,58 +58,35 @@ function calculateCommission(
 }
 
 /**
- * 获取提成列表
+ * 获取提成列表 - 本地存储模式
  * GET /api/commissions
- * 
- * Query params:
- * - month: 月份 (格式: yyyy-MM，默认当月)
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
-
     // 获取月份参数
     const searchParams = request.nextUrl.searchParams;
     const monthParam = searchParams.get('month') || format(new Date(), 'yyyy-MM');
     const monthStart = startOfMonth(new Date(monthParam + '-01'));
     const monthEnd = endOfMonth(monthStart);
 
-    // 获取当月验收完成的客户（只查当前用户的）
-    const { data: acceptedCustomers, error: customerError } = await client
-      .from('customers')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'accepted')
-      .gte('updated_at', monthStart.toISOString())
-      .lte('updated_at', monthEnd.toISOString())
-      .order('updated_at', { ascending: false });
+    // 获取所有客户
+    const allCustomers = customersStorage.getAll();
 
-    if (customerError) {
-      return NextResponse.json({ error: customerError.message }, { status: 500 });
-    }
+    // 获取当月验收完成的客户
+    const acceptedCustomers = allCustomers.filter((c: any) => {
+      if (c.status !== 'accepted') return false;
+      const updatedAt = new Date(c.updated_at);
+      return updatedAt >= monthStart && updatedAt <= monthEnd;
+    });
 
-    // 获取设置下次计提月份为当前月份的客户（只查当前用户的）
-    const { data: scheduledCustomers, error: scheduledError } = await client
-      .from('customers')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'accepted')
-      .eq('next_commission_month', monthParam);
-
-    if (scheduledError) {
-      return NextResponse.json({ error: scheduledError.message }, { status: 500 });
-    }
+    // 获取设置下次计提月份为当前月份的客户
+    const scheduledCustomers = allCustomers.filter((c: any) => 
+      c.status === 'accepted' && c.next_commission_month === monthParam
+    );
 
     // 合并客户列表（去重）
     const customerMap = new Map();
-    [...(acceptedCustomers || []), ...(scheduledCustomers || [])].forEach(c => {
+    [...acceptedCustomers, ...scheduledCustomers].forEach((c: any) => {
       if (!customerMap.has(c.id)) {
         customerMap.set(c.id, c);
       }
@@ -147,96 +94,49 @@ export async function GET(request: NextRequest) {
     const customers = Array.from(customerMap.values());
 
     // 获取已有的提成记录
-    const customerIds = customers?.map(c => c.id) || [];
-    const { data: commissionRecords } = await client
-      .from('commission_records')
-      .select('*')
-      .eq('user_id', userId)
-      .in('customer_id', customerIds);
+    const commissions = commissionsStorage.getAll();
+    const commissionMap = new Map(commissions.map((c: any) => [c.customer_id, c]));
 
-    // 按客户ID分组提成记录
-    const commissionByCustomer: Record<string, { total: number; records: NonNullable<typeof commissionRecords> }> = {};
-    commissionRecords?.forEach(record => {
-      if (!commissionByCustomer[record.customer_id]) {
-        commissionByCustomer[record.customer_id] = { total: 0, records: [] };
-      }
-      commissionByCustomer[record.customer_id].total += parseFloat(record.amount);
-      commissionByCustomer[record.customer_id].records.push(record);
-    });
-
-    // 计算每个客户的提成信息
-    const commissionData = customers?.map(customer => {
-      const implementationFee = customer.implementation_fee || 0;
+    // 计算每个客户的提成
+    const results = customers.map((customer: any) => {
+      const implementationFee = parseFloat(customer.implementation_fee || '0');
       const implementationDays = parseFloat(customer.implementation_days || '0');
-      const modules = (customer.modules as ProductModule[]) || [];
-      
-      const calculation = calculateCommission(implementationFee, implementationDays, modules);
-      const paidCommission = commissionByCustomer[customer.id]?.total || 0;
-      const remainingCommission = calculation.totalCommission - paidCommission;
+      const modules: ProductModule[] = customer.modules || [];
 
-      // 计算财务和其他模块的可提人天（按天计算时需要）
-      // 关键规则：财务人天 + 其他人天 ≤ 实施人天（共享总额度）
-      const hasFinance = modules.includes('finance');
-      const otherModuleCount = modules.filter(m => m !== 'finance').length;
-      
-      // 从记录中计算已提人天
-      let paidFinanceDays = 0;
-      let paidOtherDays = 0;
-      const records = commissionByCustomer[customer.id]?.records || [];
-      for (const record of records) {
-        const rec = record as { finance_days?: string; other_days?: string };
-        paidFinanceDays += parseFloat(rec.finance_days || '0');
-        paidOtherDays += parseFloat(rec.other_days || '0');
-      }
-      const paidDays = paidFinanceDays + paidOtherDays;
-      
-      // 总可提人天 = 实施人天
-      const totalMaxDays = implementationDays;
-      const remainingDays = totalMaxDays - paidDays;
-      
-      // 财务和其他各自的可提上限（都等于实施人天，但总和不能超过实施人天）
-      const financeMaxDays = hasFinance ? implementationDays : 0;
-      const otherMaxDays = otherModuleCount > 0 ? implementationDays : 0;
+      const commission = calculateCommission(implementationFee, implementationDays, modules);
+
+      // 检查是否已有提成记录
+      const existingRecord = commissionMap.get(customer.id);
 
       return {
-        customerId: customer.id,
-        customerName: customer.name,
-        implementationFee,
-        implementationDays,
+        customer_id: customer.id,
+        customer_name: customer.name,
+        implementation_fee: implementationFee,
+        implementation_days: implementationDays,
         modules,
-        modulesLabel: modules.map(m => MODULE_CONFIG[m]?.label).join('、'),
-        standardFee: calculation.standardFee,
-        feeRatio: calculation.feeRatio,
-        commissionType: calculation.commissionType,
-        commissionRate: calculation.commissionRate,
-        totalCommission: calculation.totalCommission,
-        paidCommission,
-        remainingCommission,
-        isFullyPaid: remainingCommission <= 0,
-        records,
-        acceptedAt: customer.updated_at,
-        // 按天计算时的人天信息
-        financeMaxDays,
-        otherMaxDays,
-        totalMaxDays,
-        paidFinanceDays,
-        paidOtherDays,
-        paidDays,
-        remainingDays,
+        moduleNames: modules.map((m: ProductModule) => MODULE_CONFIG[m]?.label || m),
+        ...commission,
+        status: existingRecord?.status || 'pending',
+        commission_month: monthParam,
       };
-    }) || []; // 不过滤已全部计提的客户，全部显示
-
-    // 按提成进度升序排列（未计提的在上，计提完成的在下）
-    commissionData.sort((a, b) => {
-      const progressA = a.totalCommission > 0 ? a.paidCommission / a.totalCommission : 0;
-      const progressB = b.totalCommission > 0 ? b.paidCommission / b.totalCommission : 0;
-      return progressA - progressB; // 升序：进度低的在前
     });
 
-    return NextResponse.json({ 
-      data: commissionData,
-      month: monthParam,
+    // 统计
+    const totalCommission = results.reduce((sum: number, r: any) => sum + r.totalCommission, 0);
+    const confirmedCommission = results
+      .filter((r: any) => r.status === 'confirmed')
+      .reduce((sum: number, r: any) => sum + r.totalCommission, 0);
+
+    return NextResponse.json({
+      data: results,
+      summary: {
+        totalCustomers: results.length,
+        totalCommission: Math.round(totalCommission * 100) / 100,
+        confirmedCommission: Math.round(confirmedCommission * 100) / 100,
+        pendingCommission: Math.round((totalCommission - confirmedCommission) * 100) / 100,
+      },
     });
+
   } catch (error) {
     console.error('获取提成列表失败:', error);
     return NextResponse.json({ error: '获取提成列表失败' }, { status: 500 });
@@ -244,163 +144,43 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * 创建提成记录
+ * 确认提成 - 本地存储模式
  * POST /api/commissions
- * 
- * Body:
- * - customer_id: 客户ID
- * - amount: 本次提成金额
- * - remark: 备注
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
     const body = await request.json();
-    const { customer_id, amount, remark, finance_days, other_days } = body;
+    const { customer_id, commission_month, status } = body;
 
-    if (!customer_id || !amount) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    if (!customer_id || !commission_month) {
+      return NextResponse.json(
+        { error: '客户ID和提成月份不能为空' },
+        { status: 400 }
+      );
     }
 
-    // 获取客户信息计算应提总额（确保是自己的客户）
-    const { data: customer, error: customerError } = await client
-      .from('customers')
-      .select('*')
-      .eq('id', customer_id)
-      .eq('user_id', userId)
-      .single();
+    // 查找或创建提成记录
+    const commissions = commissionsStorage.getAll();
+    const existing = commissions.find((c: any) => 
+      c.customer_id === customer_id && c.commission_month === commission_month
+    );
 
-    if (customerError || !customer) {
-      return NextResponse.json({ error: '客户不存在或无权操作' }, { status: 404 });
-    }
-
-    const implementationFee = customer.implementation_fee || 0;
-    const implementationDays = parseFloat(customer.implementation_days || '0');
-    const modules = (customer.modules as ProductModule[]) || [];
-    
-    // 计算客户的总应提金额（原始值，不修改）
-    const calculation = calculateCommission(implementationFee, implementationDays, modules);
-    const originalTotalCommission = calculation.totalCommission;
-    
-    // 获取已提金额（只查自己的记录）
-    const { data: existingRecords } = await client
-      .from('commission_records')
-      .select('amount')
-      .eq('customer_id', customer_id)
-      .eq('user_id', userId);
-
-    const paidCommission = existingRecords?.reduce((sum, r) => sum + parseFloat(r.amount), 0) || 0;
-    
-    // 计算本次提成金额（前端已经计算好了）
-    const currentAmount = parseFloat(amount);
-    
-    // 计算剩余提成
-    const remainingCommission = originalTotalCommission - paidCommission - currentAmount;
-
-    // 检查是否超过剩余提成
-    if (currentAmount > (originalTotalCommission - paidCommission)) {
-      return NextResponse.json({ 
-        error: `本次提成金额不能超过剩余提成 ${(originalTotalCommission - paidCommission).toFixed(2)} 元` 
-      }, { status: 400 });
-    }
-
-    // 创建提成记录
-    const { data, error } = await client
-      .from('commission_records')
-      .insert({
+    if (existing && existing.id) {
+      // 更新状态
+      commissionsStorage.update(existing.id as string, { status: status || 'confirmed' });
+    } else {
+      // 创建新记录
+      commissionsStorage.create({
         customer_id,
-        amount,
-        total_commission: originalTotalCommission,
-        paid_commission: paidCommission + currentAmount,
-        finance_days: finance_days !== undefined ? finance_days : null,
-        other_days: other_days !== undefined ? other_days : null,
-        remark: remark || null,
-        user_id: userId,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // 如果已全部计提，清空下次计提月份（确保是自己的客户）
-    const newPaidCommission = paidCommission + currentAmount;
-    const newRemainingCommission = originalTotalCommission - newPaidCommission;
-    
-    if (newRemainingCommission <= 0) {
-      await client
-        .from('customers')
-        .update({ next_commission_month: null })
-        .eq('id', customer_id)
-        .eq('user_id', userId);
-    }
-
-    return NextResponse.json({ 
-      data: {
-        ...data,
-        remainingCommission: newRemainingCommission,
-      }
-    });
-  } catch (error) {
-    console.error('创建提成记录失败:', error);
-    return NextResponse.json({ error: '创建提成记录失败' }, { status: 500 });
-  }
-}
-
-/**
- * 删除提成记录
- * DELETE /api/commissions?record_id=xxx
- */
-export async function DELETE(request: NextRequest) {
-  try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
-
-    const recordId = request.nextUrl.searchParams.get('record_id');
-    if (!recordId) {
-      return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
-    }
-
-    // 获取记录信息，验证归属
-    const { data: record, error: fetchError } = await client
-      .from('commission_records')
-      .select('*')
-      .eq('id', recordId)
-      .eq('user_id', userId)
-      .single();
-
-    if (fetchError || !record) {
-      return NextResponse.json({ error: '记录不存在或无权操作' }, { status: 404 });
-    }
-
-    // 删除记录
-    const { error: deleteError } = await client
-      .from('commission_records')
-      .delete()
-      .eq('id', recordId)
-      .eq('user_id', userId);
-
-    if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+        commission_month,
+        status: status || 'confirmed',
+      });
     }
 
     return NextResponse.json({ success: true });
+
   } catch (error) {
-    console.error('删除提成记录失败:', error);
-    return NextResponse.json({ error: '删除提成记录失败' }, { status: 500 });
+    console.error('确认提成失败:', error);
+    return NextResponse.json({ error: '确认提成失败' }, { status: 500 });
   }
 }

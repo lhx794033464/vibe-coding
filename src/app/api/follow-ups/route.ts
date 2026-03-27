@@ -1,159 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
-import { createClient } from '@supabase/supabase-js';
+import { customersStorage, followUpsStorage } from '@/services/localStorage';
 
-// 游客用户ID
-const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-// 获取 supabase 客户端（支持游客模式）
-function getClient(token?: string) {
-  if (token && token !== 'guest') {
-    return getSupabaseClient(token);
-  }
-  // 游客模式使用 anon key
-  const { url, anonKey } = getSupabaseCredentials();
-  return createClient(url, anonKey, {
-    db: { timeout: 60000 },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-// 获取用户ID（支持游客模式）
-async function getUserId(token?: string): Promise<string | null> {
-  if (!token || token === 'guest') {
-    return GUEST_USER_ID;
-  }
-  const client = getSupabaseClient(token);
-  const { data: { user }, error } = await client.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  return user.id;
-}
-
-// 获取跟进记录列表
+// 获取跟进记录列表 - 本地存储模式
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
     const searchParams = request.nextUrl.searchParams;
-    const customerId = searchParams.get('customer_id');
+    const customerId = searchParams.get('customerId');
 
-    if (!customerId) {
-      return NextResponse.json({ error: '缺少客户ID' }, { status: 400 });
+    let followUps = followUpsStorage.getAll();
+
+    // 按客户筛选
+    if (customerId) {
+      followUps = followUps.filter((f: any) => f.customer_id === customerId);
     }
 
-    // 先验证客户是否属于当前用户
-    const { data: customer } = await client
-      .from('customers')
-      .select('id')
-      .eq('id', customerId)
-      .eq('user_id', userId)
-      .single();
+    // 排序：按日期倒序
+    followUps.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    if (!customer) {
-      return NextResponse.json({ error: '客户不存在或无权访问' }, { status: 404 });
-    }
-
-    const { data, error } = await client
-      .from('follow_up_records')
-      .select('*')
-      .eq('customer_id', customerId)
-      .eq('user_id', userId)  // 确保只能看到自己的记录
-      .order('follow_up_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: followUps });
   } catch (error) {
     console.error('获取跟进记录失败:', error);
     return NextResponse.json({ error: '获取跟进记录失败' }, { status: 500 });
   }
 }
 
-// 创建跟进记录
+// 创建跟进记录 - 本地存储模式
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = await getUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getClient(token);
     const body = await request.json();
-    const { 
-      customer_id, 
-      follow_up_at, 
-      content, 
-      is_accepted, 
-      signature_image_url 
-    } = body;
+    const { customer_id, content, contact_name, contact_phone, follow_up_date } = body;
 
-    if (!customer_id || !follow_up_at || !content) {
-      return NextResponse.json({ error: '缺少必要字段' }, { status: 400 });
+    if (!customer_id || !content) {
+      return NextResponse.json({ error: '客户ID和跟进内容不能为空' }, { status: 400 });
     }
 
-    // 先验证客户是否属于当前用户
-    const { data: customer } = await client
-      .from('customers')
-      .select('id')
-      .eq('id', customer_id)
-      .eq('user_id', userId)
-      .single();
-
-    if (!customer) {
-      return NextResponse.json({ error: '客户不存在或无权操作' }, { status: 404 });
-    }
-
-    const { data, error } = await client
-      .from('follow_up_records')
-      .insert({
-        customer_id,
-        follow_up_at,
-        content,
-        is_accepted: is_accepted || false,
-        signature_image_url: signature_image_url || null,
-        user_id: userId,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // 更新客户的最后跟进时间（确保是自己的客户）
-    await client
-      .from('customers')
-      .update({ 
-        last_follow_up_at: follow_up_at,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', customer_id)
-      .eq('user_id', userId);
-
-    // 如果标记为验收，更新客户状态（确保是自己的客户）
-    if (is_accepted) {
-      await client
-        .from('customers')
-        .update({ 
-          status: 'accepted',
-          accepted_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', customer_id)
-        .eq('user_id', userId);
-    }
+    const data = followUpsStorage.create({
+      customer_id,
+      content,
+      contact_name: contact_name || null,
+      contact_phone: contact_phone || null,
+      follow_up_date: follow_up_date || new Date().toISOString().split('T')[0],
+    });
 
     return NextResponse.json({ data });
   } catch (error) {

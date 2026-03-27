@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +15,6 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 export default function NewCustomerPage() {
-  const { session } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -48,7 +46,7 @@ export default function NewCustomerPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+
         },
         body: JSON.stringify({
           name: formData.name,
@@ -100,7 +98,7 @@ export default function NewCustomerPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token}`,
+    
             },
             body: JSON.stringify({
               name: row['客户名称'] || row['name'] || '',

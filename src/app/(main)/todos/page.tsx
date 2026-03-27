@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,7 +80,6 @@ const PRIORITY_CONFIG = {
 };
 
 export default function TodosPage() {
-  const { session } = useAuth();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,23 +119,14 @@ export default function TodosPage() {
   const completedHeaderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (session?.access_token) {
-      fetchTodos();
-      fetchCustomers();
-    }
-  }, [session, currentDate]);
+    fetchTodos();
+    fetchCustomers();
+  }, [currentDate]);
 
   const fetchTodos = async () => {
-    if (!session?.access_token) return;
-    
     setLoading(true);
     try {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
-      const response = await fetch(`/api/todos?status=all&date=${dateStr}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await fetch(`/api/todos?status=all`);
       const data = await response.json();
       if (response.ok) {
         setTodos(data.data || []);
@@ -150,14 +139,8 @@ export default function TodosPage() {
   };
 
   const fetchCustomers = async () => {
-    if (!session?.access_token) return;
-    
     try {
-      const response = await fetch('/api/customers', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await fetch('/api/customers');
       const data = await response.json();
       if (response.ok) {
         setCustomers(data.data || []);
@@ -168,14 +151,14 @@ export default function TodosPage() {
   };
 
   const handleAddTodo = async () => {
-    if (!session?.access_token || !newContent.trim()) return;
+    if (!newContent.trim()) return;
 
     setAdding(true);
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -210,7 +193,7 @@ export default function TodosPage() {
 
   // 完成待办（带动画）
   const handleCompleteTodo = useCallback(async (todo: Todo) => {
-    if (!session?.access_token || completingTodo) return;
+
 
     // 获取源元素位置
     const sourceElement = document.querySelector(`[data-todo-id="${todo.id}"]`);
@@ -249,7 +232,7 @@ export default function TodosPage() {
         const response = await fetch(`/api/todos/${todo.id}`, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+            
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ completed: true }),
@@ -273,11 +256,11 @@ export default function TodosPage() {
         setCompletingTodo(null);
       }
     }, 600);
-  }, [session?.access_token, completingTodo]);
+  }, [completingTodo]);
 
   // 取消完成（带动画）
   const handleUncompleteTodo = useCallback(async (todo: Todo) => {
-    if (!session?.access_token || uncompletingTodo) return;
+
 
     // 开始动画 - 变白阶段（反向）
     setUncompletingTodo({
@@ -299,7 +282,7 @@ export default function TodosPage() {
         const response = await fetch(`/api/todos/${todo.id}`, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+            
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ completed: false }),
@@ -323,16 +306,16 @@ export default function TodosPage() {
         setUncompletingTodo(null);
       }
     }, 600);
-  }, [session?.access_token, uncompletingTodo]);
+  }, [uncompletingTodo]);
 
   const handleDelete = async (id: string) => {
-    if (!session?.access_token) return;
+
 
     try {
       const response = await fetch(`/api/todos/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          
         },
       });
 
@@ -345,13 +328,13 @@ export default function TodosPage() {
   };
 
   const handlePriorityChange = async (todo: Todo, newPriority: 'high' | 'medium' | 'low') => {
-    if (!session?.access_token) return;
+
 
     try {
       const response = await fetch(`/api/todos/${todo.id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -387,13 +370,13 @@ export default function TodosPage() {
 
   // 保存编辑
   const handleSaveEdit = async (todoId: string) => {
-    if (!session?.access_token || !editContent.trim()) return;
+
 
     try {
       const response = await fetch(`/api/todos/${todoId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

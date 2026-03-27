@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
@@ -55,7 +54,6 @@ const initialStats: DashboardStats = {
 };
 
 export default function DashboardPage() {
-  const { session } = useAuth();
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -63,17 +61,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchStats();
-  }, [session]);
+  }, []);
 
   useEffect(() => {
-    if (session?.access_token && !isInitialLoading) {
+    if (!isInitialLoading) {
       fetchStats();
     }
   }, [timeRange]);
 
   const fetchStats = async () => {
-    if (!session?.access_token) return;
-    
     // 首次加载显示全屏loading，后续只显示更新状态
     if (isInitialLoading) {
       setIsInitialLoading(true);
@@ -82,11 +78,7 @@ export default function DashboardPage() {
     }
     
     try {
-      const response = await fetch(`/api/dashboard?timeRange=${timeRange}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await fetch(`/api/dashboard?timeRange=${timeRange}`);
       const data = await response.json();
       if (response.ok) {
         setStats(data);
