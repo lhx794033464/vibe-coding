@@ -21,7 +21,7 @@ interface CustomerWithDays extends Customer {
 }
 
 export default function CustomersPage() {
-  const { session } = useAuth();
+  const { session, isGuest } = useAuth();
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerWithDays[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,10 +30,12 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [session, statusFilter]);
+  }, [session, isGuest, statusFilter]);
 
   const fetchCustomers = async () => {
-    if (!session?.access_token) return;
+    // 支持游客模式
+    const token = session?.access_token || (isGuest ? 'guest' : null);
+    if (!token) return;
     
     setLoading(true);
     try {
@@ -44,7 +46,7 @@ export default function CustomersPage() {
       
       const response = await fetch(`/api/customers?${params.toString()}`, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       const data = await response.json();
