@@ -157,14 +157,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // 先清除本地状态，防止登录页面检测到用户已登录而跳转
+    setUser(null);
+    setSession(null);
+    setIsGuest(false);
+    setAvatarUrl(null);
+    
     if (supabase) {
       await supabase.auth.signOut();
     }
-    // 清除游客状态
-    setIsGuest(false);
-    // 清除头像状态
-    setAvatarUrl(null);
-    router.push('/login');
+    
+    // 强制刷新页面以确保所有状态被清除
+    window.location.href = '/login';
   };
 
   // 设置游客模式
