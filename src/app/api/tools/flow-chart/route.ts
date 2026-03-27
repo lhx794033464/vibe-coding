@@ -18,24 +18,22 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `根据用户描述生成 Mermaid 流程图代码。
 
 【语法要求】
-- 必须以大写字母 GRAPH 开头，后跟方向 TD（纵向）或 LR（横向）
-- 每个节点格式：
-  - 开始结束: ID(["文本"])  例如：start(["开始"])
-  - 处理步骤: ID["文本"]    例如：input["输入数据"]  
-  - 判断分支: ID{"文本"}    例如：check{"是否有效"}
-- 连接格式：SOURCE --> TARGET 或 SOURCE -->|"标签"| TARGET
+- 必须以 \`graph TD\`（纵向）或 \`graph LR\`（横向）开头
+- 节点定义：
+  - 开始/结束: id(["文本"])，如 start(["开始"])
+  - 处理步骤: id["文本"]，如 input["输入数据"]
+  - 判断分支: id{"文本"}，如 check{"是否有效"}
+- 连接: A --> B 或 A -->|"标签"| B
+- 仅输出代码，不要解释、不要 Markdown 代码块
 
 【示例】
-GRAPH TD
-    START(["开始"]) --> INPUT["输入数据"]
-    INPUT --> CHECK{"检查格式"}
-    CHECK -->|"有效"| PROCESS["处理数据"]
-    CHECK -->|"无效"| ERROR["报错"]
-    PROCESS --> END1(["结束"])
-    ERROR --> END1
-
-【输出规则】
-仅输出 Mermaid 代码，不要任何解释、不要 Markdown 代码块标记（\`\`\`）。`;    
+graph TD
+    start(["开始"]) --> input["输入数据"]
+    input --> check{"检查格式"}
+    check -->|"有效"| process["处理数据"]
+    check -->|"无效"| error["报错"]
+    process --> end1(["结束"])
+    error --> end1`;    
 
     // 提取转发头
 
@@ -60,21 +58,31 @@ GRAPH TD
     const mermaidCode = response.content?.trim() || '';
 
     // 打印原始返回内容用于调试
-    console.log('Mermaid 代码:\n', mermaidCode.substring(0, 1000));
+    console.log('原始 Mermaid 代码:\n', mermaidCode.substring(0, 1000));
 
-    // 清理可能的 Markdown 代码块标记
+    // 清理可能的 Markdown 代码块标记和其他多余内容
     let cleanedCode = mermaidCode;
-    if (cleanedCode.startsWith('```')) {
-      // 移除开头的 ```mermaid 或 ```
-      cleanedCode = cleanedCode.replace(/^```\w*\n?/, '');
-      // 移除结尾的 ```
-      cleanedCode = cleanedCode.replace(/```$/, '');
-      cleanedCode = cleanedCode.trim();
-    }
+    
+    // 移除开头的 ```mermaid 或 ```
+    cleanedCode = cleanedCode.replace(/^```mermaid\s*\n?/i, '');
+    cleanedCode = cleanedCode.replace(/^```\s*\n?/, '');
+    
+    // 移除结尾的 ```
+    cleanedCode = cleanedCode.replace(/\n?```\s*$/i, '');
+    
+    // 移除开头的空行和多余空格
+    cleanedCode = cleanedCode.trim();
+    
+    // 如果包含 GRAPH 开头，转换为小写 graph（兼容之前的提示词）
+    cleanedCode = cleanedCode.replace(/^GRAPH\s+/i, 'graph ');
 
-    // 验证 Mermaid 代码格式
-    if (!cleanedCode.match(/^graph\s+(TD|TB|LR|RL|BT)/m)) {
-      console.error('返回内容不是有效的 Mermaid 代码:', cleanedCode.substring(0, 200));
+    // 打印清理后的代码
+    console.log('清理后 Mermaid 代码:\n', cleanedCode.substring(0, 1000));
+
+    // 验证 Mermaid 代码格式（支持 graph TD/LR/TB/RL/BT）
+    const mermaidRegex = /^graph\s+(TD|TB|LR|RL|BT)/i;
+    if (!mermaidRegex.test(cleanedCode)) {
+      console.error('返回内容不是有效的 Mermaid 代码，前200字符:', cleanedCode.substring(0, 200));
       return NextResponse.json(
         { error: '生成的流程图格式不正确' },
         { status: 500 }
