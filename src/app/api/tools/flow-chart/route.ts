@@ -209,38 +209,7 @@ export async function POST(request: NextRequest) {
     // 根据方向确定 Mermaid 方向
     const mermaidDirection = direction === 'horizontal' ? 'LR' : 'TD';
 
-    const systemPrompt = `【角色定位】
-你是金蝶云星辰的业务流程专家，精通采购管理、生产管理、MRP运算、库存管理等模块的业务单据与流程逻辑。你的核心任务是根据用户的自然语言描述，生成标准 Mermaid 流程图代码。
-
-【Mermaid 语法规范】
-1. 流程图方向：使用 \`graph ${mermaidDirection}\` 开头
-2. 节点定义规范：
-   - 开始/结束节点：使用圆角括号 \`id(["文本"])\`
-   - 处理节点：使用方括号 \`id["文本"]\`  
-   - 判断节点：使用花括号 \`id{"判断文本"}\`
-3. 连接规范：
-   - 直线连接：\`A --> B\`
-   - 带标签连接：\`A -->|"标签文本"| B\`
-4. 为保持简洁，不需要 style 定义
-
-【节点命名规范】
-- 使用简短ID（如A、B、C或start、process1、dec1）
-- 节点文本使用中文描述业务动作
-- 使用金蝶云星辰标准单据名称
-
-【输出要求】
-1. 只输出纯 Mermaid 代码，不要任何解释、Markdown 标记或代码块
-2. 代码必须以 \`graph ${mermaidDirection}\` 开头
-3. 确保流程图结构清晰、布局美观
-
-【金蝶云星辰标准单据名称参考】
-- 采购管理：采购申请单、采购订单、采购入库单、采购发票、付款单
-- 销售管理：销售订单、销售出库单、销售发票、收款单
-- 库存管理：生产领料单、生产退料单、产品入库单、调拨单、盘点单
-- 生产管理：生产任务单、生产工单、MRP运算、计划订单
-- 财务管理：凭证、日记账、应收应付单
-
-请根据以下业务描述生成 Mermaid 流程图代码：`;
+    const systemPrompt = `根据描述生成 ${mermaidDirection === 'LR' ? '横向' : '纵向'} Mermaid 流程图代码。以 graph ${mermaidDirection} 开头，仅输出代码。`;
 
     // 提取转发头
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
