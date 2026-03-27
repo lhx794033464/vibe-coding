@@ -1,20 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getSupabaseClient, getSupabaseCredentials } from '@/storage/database/supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+// 游客用户ID
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+// 获取 supabase 客户端（支持游客模式）
+function getClient(token?: string) {
+  if (token && token !== 'guest') {
+    return getSupabaseClient(token);
+  }
+  // 游客模式使用 anon key
+  const { url, anonKey } = getSupabaseCredentials();
+  return createClient(url, anonKey, {
+    db: { timeout: 60000 },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// 获取用户ID（支持游客模式）
+async function getUserId(token?: string): Promise<string | null> {
+  if (!token || token === 'guest') {
+    return GUEST_USER_ID;
+  }
+  const client = getSupabaseClient(token);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  return user.id;
+}
 
 // 获取看板统计数据
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
+    const userId = await getUserId(token);
+    
+    if (!userId) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
+    const client = getClient(token);
 
     const searchParams = request.nextUrl.searchParams;
     const timeRange = searchParams.get('timeRange') || 'all';
@@ -54,7 +81,7 @@ export async function GET(request: NextRequest) {
     const { data: allCustomers, error: allCustomersError } = await client
       .from('customers')
       .select('*')
-      .eq('user_id', user.id);  // 关键：按用户ID过滤，确保数据隔离
+      .eq('user_id', userId);  // 关键：按用户ID过滤，确保数据隔离
 
     if (allCustomersError) {
       return NextResponse.json({ error: allCustomersError.message }, { status: 500 });
