@@ -12,7 +12,7 @@ interface AuthContextType {
   avatarUrl: string | null;
   isGuest: boolean;
   setGuestMode: (enabled: boolean) => void;
-  signIn: (email: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, otp?: string) => Promise<{ error: Error | null; requireOtp?: boolean }>;
   signUp: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateAvatar: (url: string) => void;
@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [supabase, fetchAvatar]);
 
-  const signIn = async (email: string) => {
+  const signIn = async (email: string, otp?: string): Promise<{ error: Error | null; requireOtp?: boolean }> => {
     if (!supabase) {
       return { error: new Error('系统初始化中，请稍后') };
     }
@@ -136,13 +136,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch('/api/auth/passwordless-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, otp }),
       });
       
       const data = await response.json();
       
       if (!response.ok) {
         return { error: new Error(data.error || '登录失败') };
+      }
+      
+      // 如果需要 OTP
+      if (data.requireOtp) {
+        return { error: null, requireOtp: true };
       }
       
       // 使用返回的 session 设置用户状态

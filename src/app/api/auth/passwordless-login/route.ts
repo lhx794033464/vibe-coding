@@ -1,10 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { loadEnv } from '@/storage/database/supabase-client';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const { email, otp } = await request.json();
 
     if (!email) {
       return NextResponse.json(
@@ -13,11 +14,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 加载环境变量
+    loadEnv();
+    
+    const supabaseUrl = process.env.COZE_SUPABASE_URL;
+    const supabaseAnonKey = process.env.COZE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json(
+        { error: '服务器配置错误' },
+        { status: 500 }
+      );
+    }
+
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      supabaseUrl,
+      supabaseAnonKey,
       {
         cookies: {
           async getAll() {
@@ -35,60 +49,57 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // 使用 admin API 查询用户
-    const { data: { users: authUsers }, error: adminError } = await supabase.auth.admin.listUsers();
-    
-    if (adminError) {
-      console.error('查询用户失败:', adminError);
-      return NextResponse.json(
-        { error: '查询用户失败' },
-        { status: 500 }
-      );
-    }
-    
-    const existingUser = authUsers?.find(u => u.email === email);
+    // 如果没有提供 OTP，则发送 OTP
+    if (!otp) {
+      // 使用 signInWithOtp 发送一次性密码
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false, // 不自动创建用户
+        },
+      });
 
-    if (!existingUser) {
-      return NextResponse.json(
-        { error: '该邮箱未注册，请先注册账号' },
-        { status: 404 }
-      );
-    }
+      if (otpError) {
+        console.error('发送 OTP 失败:', otpError);
+        // 如果错误是用户不存在
+        if (otpError.message?.includes('User not found') || otpError.status === 404) {
+          return NextResponse.json(
+            { error: '该邮箱未注册，请先注册账号' },
+            { status: 404 }
+          );
+        }
+        return NextResponse.json(
+          { error: otpError.message || '发送验证码失败' },
+          { status: 500 }
+        );
+      }
 
-    // 设置临时密码并登录
-    const tempPassword = Math.random().toString(36).slice(-16);
-    
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      existingUser.id,
-      { password: tempPassword }
-    );
-
-    if (updateError) {
-      console.error('更新密码失败:', updateError);
-      return NextResponse.json(
-        { error: '登录失败，请稍后重试' },
-        { status: 500 }
-      );
+      return NextResponse.json({
+        success: true,
+        message: '验证码已发送到您的邮箱，请查收',
+        requireOtp: true,
+      });
     }
 
-    // 使用临时密码登录
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    // 提供了 OTP，验证登录
+    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
       email,
-      password: tempPassword,
+      token: otp,
+      type: 'email',
     });
 
-    if (signInError) {
-      console.error('登录失败:', signInError);
+    if (verifyError) {
+      console.error('验证 OTP 失败:', verifyError);
       return NextResponse.json(
-        { error: '登录失败，请稍后重试' },
-        { status: 500 }
+        { error: verifyError.message || '验证码错误或已过期' },
+        { status: 401 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      session: signInData.session,
-      user: signInData.user,
+      session: verifyData.session,
+      user: verifyData.user,
     });
 
   } catch (error) {
