@@ -13,6 +13,7 @@ import {
   ArrowRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Wand2,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -26,13 +27,17 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  // 保存当前流程图 XML，切换页面时不丢失
-  const [savedXml, setSavedXml] = useState<string>(EMPTY_XML);
+  
+  // 保存当前 Mermaid 代码（用于优化）
+  const [currentMermaid, setCurrentMermaid] = useState<string>('');
+  // 是否可以优化（已生成 Mermaid）
+  const [canOptimize, setCanOptimize] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -57,8 +62,8 @@ export default function FlowChartPage() {
     );
   }, []);
 
-  // 向 draw.io 发送加载消息
-  const sendLoad = useCallback((xml: string) => {
+  // 向 draw.io 发送加载 XML 消息
+  const sendLoadXml = useCallback((xml: string) => {
     if (!iframeRef.current?.contentWindow) return;
     
     iframeRef.current.contentWindow.postMessage(
@@ -69,8 +74,19 @@ export default function FlowChartPage() {
       }),
       'https://embed.diagrams.net'
     );
-    // 更新保存的 XML
-    setSavedXml(xml);
+  }, []);
+
+  // 向 draw.io 发送加载 Mermaid 消息
+  const sendLoadMermaid = useCallback((mermaid: string) => {
+    if (!iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'mermaid',
+        xml: mermaid
+      }),
+      'https://embed.diagrams.net'
+    );
   }, []);
 
   // 监听 draw.io 消息
@@ -103,9 +119,9 @@ export default function FlowChartPage() {
           setIsConfigured(true);
         }
         
-        // 加载保存的流程图（如果有）或空白画布
+        // 加载空白画布
         setTimeout(() => {
-          sendLoad(savedXml);
+          sendLoadXml(EMPTY_XML);
         }, 100);
       }
       
@@ -113,21 +129,13 @@ export default function FlowChartPage() {
       if (typeof data === 'object' && data?.event === 'load') {
         console.log('流程图加载完成');
       }
-      
-      // 处理自动保存 - 实时保存当前 XML
-      if (typeof data === 'object' && (data?.event === 'save' || data?.event === 'autosave')) {
-        console.log('流程图已保存');
-        if (data.xml) {
-          setSavedXml(data.xml);
-        }
-      }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isConfigured, sendConfigure, sendLoad]);
+  }, [isConfigured, sendConfigure, sendLoadXml]);
 
-  // 生成流程图
+  // 生成流程图（第一步：生成 Mermaid）
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('请输入流程图描述');
@@ -141,6 +149,7 @@ export default function FlowChartPage() {
 
     setLoading(true);
     setError('');
+    setCanOptimize(false);
 
     try {
       const response = await fetch('/api/tools/flow-chart', {
@@ -149,6 +158,7 @@ export default function FlowChartPage() {
         body: JSON.stringify({ 
           prompt: prompt.trim(),
           direction,
+          mode: 'mermaid'
         }),
       });
 
@@ -159,9 +169,13 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (result.xml) {
-        // 向 draw.io iframe 发送加载消息
-        sendLoad(result.xml);
+      if (result.mermaid) {
+        // 保存 Mermaid 代码
+        setCurrentMermaid(result.mermaid);
+        // 发送 Mermaid 到 draw.io
+        sendLoadMermaid(result.mermaid);
+        // 允许优化
+        setCanOptimize(true);
       } else {
         setError('生成的流程图数据为空');
       }
@@ -173,13 +187,56 @@ export default function FlowChartPage() {
     }
   };
 
+  // 优化流程图（第二步：Mermaid 转 XML）
+  const handleOptimize = async () => {
+    if (!currentMermaid || !drawioReady) return;
+
+    setOptimizing(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/tools/flow-chart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          mermaid: currentMermaid,
+          direction,
+          mode: 'convert'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setError(result.error || '优化失败，请稍后重试');
+        return;
+      }
+
+      if (result.xml) {
+        // 加载优化后的 XML
+        sendLoadXml(result.xml);
+        // 优化后不再允许重复优化
+        setCanOptimize(false);
+      } else {
+        setError('优化后的流程图数据为空');
+      }
+    } catch (err) {
+      console.error('优化流程图错误:', err);
+      setError('网络错误，请稍后重试');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
   // 清空编辑器
   const handleClear = useCallback(() => {
     if (!drawioReady) return;
     
-    sendLoad(EMPTY_XML);
+    sendLoadXml(EMPTY_XML);
     setPrompt('');
-  }, [drawioReady, sendLoad]);
+    setCurrentMermaid('');
+    setCanOptimize(false);
+  }, [drawioReady, sendLoadXml]);
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
@@ -202,99 +259,121 @@ export default function FlowChartPage() {
           <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
             <div className="p-4 border-b border-slate-200">
-            {/* 方向选择 */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setDirection('vertical')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    direction === 'vertical'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                  纵向
-                </button>
-                <button
-                  onClick={() => setDirection('horizontal')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    direction === 'horizontal'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  横向
-                </button>
+              {/* 方向选择 */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDirection('vertical')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      direction === 'vertical'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                    纵向
+                  </button>
+                  <button
+                    onClick={() => setDirection('horizontal')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      direction === 'horizontal'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <ArrowRight className="w-3.5 h-3.5" />
+                    横向
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              流程描述
-            </label>
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !loading && prompt.trim()) {
-                  e.preventDefault();
-                  handleGenerate();
-                }
-              }}
-              placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
-              className="min-h-[120px] resize-none"
-            />
-            
-            {/* 错误提示 */}
-            {error && (
-              <div className="mt-2 flex items-center gap-2 text-red-500 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                {error}
-              </div>
-            )}
-
-            {/* 生成按钮 */}
-            <Button
-              onClick={handleGenerate}
-              disabled={loading || !prompt.trim()}
-              className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  生成流程图
-                </>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                流程描述
+              </label>
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !loading && prompt.trim()) {
+                    e.preventDefault();
+                    handleGenerate();
+                  }
+                }}
+                placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
+                className="min-h-[120px] resize-none"
+              />
+              
+              {/* 错误提示 */}
+              {error && (
+                <div className="mt-2 flex items-center gap-2 text-red-500 text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
               )}
-            </Button>
-          </div>
 
-          {/* Tips 区域 */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <h4 className="text-xs font-medium text-red-600 mb-1">💡 Tips</h4>
-              <p className="text-xs text-red-500">
-                拖拽画布：Space+左键
-              </p>
+              {/* 生成按钮 */}
+              <Button
+                onClick={handleGenerate}
+                disabled={loading || !prompt.trim()}
+                className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    生成流程图
+                  </>
+                )}
+              </Button>
+
+              {/* 优化按钮 */}
+              {canOptimize && (
+                <Button
+                  onClick={handleOptimize}
+                  disabled={optimizing}
+                  className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  {optimizing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      优化中...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      优化流程图
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Tips 区域 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-xs font-medium text-blue-700 mb-1">💡 Tips</h4>
+                <p className="text-xs text-blue-600">
+                  空格 + 左键 实现拖拽画布
+                </p>
+              </div>
+            </div>
+
+            {/* 编辑器状态 */}
+            <div className="p-3 border-t border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
+                <span className="text-slate-600">
+                  {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
+                </span>
+              </div>
             </div>
           </div>
-
-          {/* 编辑器状态 */}
-          <div className="p-3 border-t border-slate-200 bg-slate-50">
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
-              <span className="text-slate-600">
-                {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
-              </span>
-            </div>
-          </div>
-        </div>)}
+        )}
 
         {/* 右侧编辑器区域 */}
         <div className="flex-1 flex flex-col">
