@@ -15,7 +15,27 @@ export async function POST(request: NextRequest) {
     // 根据方向确定 Mermaid 方向
     const mermaidDirection = direction === 'horizontal' ? 'LR' : 'TD';
 
-    const systemPrompt = `根据描述生成 ${mermaidDirection === 'LR' ? '横向' : '纵向'} Mermaid 流程图代码。以 graph ${mermaidDirection} 开头，仅输出代码。`;
+    const systemPrompt = `生成 Mermaid 流程图代码。
+
+【格式要求】
+1. 以 graph ${mermaidDirection} 开头
+2. 节点定义：
+   - 开始/结束: id(["文本"])
+   - 处理: id["文本"]
+   - 判断: id{"文本"}
+3. 连接: A --> B 或 A -->|"条件"| B
+4. 仅输出代码，不输出解释
+
+【示例】
+graph TD
+    start(["开始"]) --> input["输入数据"]
+    input --> check{"检查格式"}
+    check -->|"正确"| process["处理数据"]
+    check -->|"错误"| error["报错"]
+    process --> end1(["结束"])
+    error --> end1`;    
+
+    // 提取转发头
 
     // 提取转发头
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
