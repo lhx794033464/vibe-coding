@@ -9,13 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { User } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, setGuestMode, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -41,9 +42,23 @@ export default function LoginPage() {
     setError('');
     const { error } = await signUp(email, password);
     if (error) {
+      // 如果错误是"用户已注册"，尝试直接登录
+      if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+        const { error: signInError } = await signIn(email, password);
+        if (!signInError) {
+          setLoading(false);
+          return;
+        }
+      }
       setError(error.message);
     }
     setLoading(false);
+  };
+
+  // 游客访问
+  const handleGuestAccess = () => {
+    setGuestMode(true);
+    router.push('/home');
   };
 
   if (authLoading) {
@@ -62,6 +77,25 @@ export default function LoginPage() {
           <CardDescription>金蝶云星辰实施顾问工作台</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* 游客访问按钮 */}
+          <Button 
+            variant="outline" 
+            className="w-full mb-4" 
+            onClick={handleGuestAccess}
+          >
+            <User className="w-4 h-4 mr-2" />
+            游客访问
+          </Button>
+
+          <div className="relative mb-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-500">或</span>
+            </div>
+          </div>
+
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">登录</TabsTrigger>

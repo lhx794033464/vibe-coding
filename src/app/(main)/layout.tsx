@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatProvider } from '@/contexts/ChatContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { Sidebar } from '@/components/sidebar';
 
 export default function MainLayout({
@@ -12,15 +10,8 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
+  const { user, loading, signOut, isGuest } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -30,10 +21,6 @@ export default function MainLayout({
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
   return (
     <ChatProvider>
       <div className="h-screen flex bg-gray-50 overflow-hidden">
@@ -41,6 +28,7 @@ export default function MainLayout({
           onSignOut={signOut} 
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
+          isGuest={isGuest}
         />
         <main className={`flex-1 h-full overflow-auto transition-all duration-300 ${
           sidebarCollapsed ? 'ml-16' : 'ml-64'

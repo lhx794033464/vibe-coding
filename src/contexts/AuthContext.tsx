@@ -10,6 +10,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   avatarUrl: string | null;
+  isGuest: boolean;
+  setGuestMode: (enabled: boolean) => void;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -18,12 +20,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// 游客用户信息
+const GUEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+const GUEST_USER: User = {
+  id: GUEST_USER_ID,
+  email: 'guest@example.com',
+  user_metadata: { name: '游客' },
+  app_metadata: {},
+  aud: 'authenticated',
+  created_at: new Date().toISOString(),
+  role: 'authenticated',
+  updated_at: new Date().toISOString(),
+} as User;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const router = useRouter();
   
   // 使用 ref 防止重复请求
@@ -144,9 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    // 清除游客状态
+    setIsGuest(false);
     // 清除头像状态
     setAvatarUrl(null);
     router.push('/login');
+  };
+
+  // 设置游客模式
+  const setGuestMode = (enabled: boolean) => {
+    setIsGuest(enabled);
+    if (enabled) {
+      setUser(GUEST_USER);
+    } else {
+      setUser(null);
+    }
   };
 
   return (
@@ -155,6 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session, 
       loading, 
       avatarUrl,
+      isGuest,
+      setGuestMode,
       signIn, 
       signUp, 
       signOut,
