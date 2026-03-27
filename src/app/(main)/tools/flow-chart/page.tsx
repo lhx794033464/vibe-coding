@@ -55,7 +55,21 @@ export default function FlowChartPage() {
     );
   }, []);
 
-  // 向 draw.io 发送加载消息
+  // 向 draw.io 导入 Mermaid 代码
+  const sendImportMermaid = useCallback((mermaidCode: string) => {
+    if (!iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'import',
+        data: mermaidCode,
+        format: 'mermaid'
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, []);
+
+  // 向 draw.io 发送加载消息（用于初始化空白画布）
   const sendLoad = useCallback((xml: string) => {
     if (!iframeRef.current?.contentWindow) return;
     
@@ -147,9 +161,9 @@ export default function FlowChartPage() {
         return;
       }
 
-      if (result.xml) {
-        // 向 draw.io iframe 发送加载消息
-        sendLoad(result.xml);
+      if (result.mermaid) {
+        // 向 draw.io iframe 发送导入 Mermaid 消息
+        sendImportMermaid(result.mermaid);
       } else {
         setError('生成的流程图数据为空');
       }
