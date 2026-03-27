@@ -11,6 +11,8 @@ import {
   RotateCcw,
   ArrowDown,
   ArrowRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -26,9 +28,32 @@ export default function FlowChartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 向 draw.io 发送配置消息
+  const sendConfigure = useCallback(() => {
+    if (!iframeRef.current?.contentWindow) return;
+    
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'configure',
+        config: {
+          autosave: false,
+          saveAndExit: false,
+          noExitBtn: true,
+          noSaveBtn: true,
+          chrome: true,
+          toolbar: true,
+          noCloseBtn: true,
+        }
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, []);
 
   // 向 draw.io 发送加载消息
   const sendLoad = useCallback((xml: string) => {
@@ -47,32 +72,48 @@ export default function FlowChartPage() {
   // 监听 draw.io 消息
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // 验证消息来源
       if (event.origin !== 'https://embed.diagrams.net') return;
       
       let data = event.data;
+      
+      // 处理字符串消息（可能是 JSON 字符串）
       if (typeof data === 'string') {
         try {
           data = JSON.parse(data);
         } catch {
-          // 保持原样
+          // 如果不是 JSON，保持原样
         }
       }
       
-      // 处理 init 消息
+      console.log('收到 draw.io 消息:', data);
+      
+      // 处理 init 消息 - 编辑器已准备好
       if (data === 'init' || (typeof data === 'object' && data?.event === 'init')) {
         console.log('draw.io 编辑器已就绪');
         setDrawioReady(true);
         
-        // 加载空白画布
+        // 发送配置
+        if (!isConfigured) {
+          sendConfigure();
+          setIsConfigured(true);
+        }
+        
+        // 加载空白画布（必须发送 load 消息才能结束转圈）
         setTimeout(() => {
           sendLoad(EMPTY_XML);
         }, 100);
+      }
+      
+      // 处理加载完成
+      if (typeof data === 'object' && data?.event === 'load') {
+        console.log('流程图加载完成');
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sendLoad]);
+  }, [isConfigured, sendConfigure, sendLoad]);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -123,6 +164,7 @@ export default function FlowChartPage() {
   // 清空编辑器
   const handleClear = useCallback(() => {
     if (!drawioReady) return;
+    
     sendLoad(EMPTY_XML);
     setPrompt('');
   }, [drawioReady, sendLoad]);
@@ -144,9 +186,10 @@ export default function FlowChartPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧面板 */}
-        <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0">
-          {/* 输入区域 */}
-          <div className="p-4 border-b border-slate-200">
+        {isLeftPanelOpen && (
+          <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
+            {/* 输入区域 */}
+            <div className="p-4 border-b border-slate-200">
             {/* 方向选择 */}
             <div className="mb-3">
               <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
@@ -220,15 +263,13 @@ export default function FlowChartPage() {
             </Button>
           </div>
 
-          {/* 使用说明 */}
+          {/* Tips 区域 */}
           <div className="flex-1 overflow-y-auto p-4">
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-xs font-medium text-blue-700 mb-2">💡 使用说明</h4>
-              <ul className="text-xs text-blue-600 space-y-1">
-                <li>• 输入业务流程描述，AI 将生成流程图</li>
-                <li>• 在编辑器中可拖拽节点、修改文本</li>
-                <li>• 使用 Space + 左键拖拽画布</li>
-              </ul>
+            <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <h4 className="text-xs font-medium text-red-600 mb-1">💡 Tips</h4>
+              <p className="text-xs text-red-500">
+                拖拽画布：Space+左键
+              </p>
             </div>
           </div>
 
@@ -241,22 +282,39 @@ export default function FlowChartPage() {
               </span>
             </div>
           </div>
-        </div>
+        </div>)}
 
         {/* 右侧编辑器区域 */}
         <div className="flex-1 flex flex-col">
           {/* 工具栏 */}
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClear}
-              disabled={!drawioReady}
-            >
-              <RotateCcw className="w-4 h-4 mr-1" />
-              清空
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+                className="h-9 px-2.5"
+                title={isLeftPanelOpen ? '收起侧边栏' : '展开侧边栏'}
+              >
+                {isLeftPanelOpen ? (
+                  <PanelLeftClose className="w-5 h-5" />
+                ) : (
+                  <PanelLeftOpen className="w-5 h-5" />
+                )}
+              </Button>
+              <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClear}
+                disabled={!drawioReady}
+              >
+                <RotateCcw className="w-4 h-4 mr-1" />
+                清空
+              </Button>
+            </div>
           </div>
 
           {/* draw.io iframe */}
