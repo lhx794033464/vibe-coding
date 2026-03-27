@@ -53,8 +53,8 @@ export default function FlowChartPage() {
         const encodedMermaid = encodeURIComponent(result.mermaid);
         const drawioUrl = `https://app.diagrams.net/?mermaid=${encodedMermaid}&create=1`;
         
-        // 新窗口打开
-        window.open(drawioUrl, '_blank');
+        // 新窗口打开（添加 noopener 防止跨域错误）
+        window.open(drawioUrl, '_blank', 'noopener');
         
         // 保存 URL 供用户再次点击
         setGeneratedUrl(drawioUrl);
@@ -72,7 +72,7 @@ export default function FlowChartPage() {
   // 重新打开上次生成的流程图
   const handleReopen = () => {
     if (generatedUrl) {
-      window.open(generatedUrl, '_blank');
+      window.open(generatedUrl, '_blank', 'noopener');
     }
   };
 
