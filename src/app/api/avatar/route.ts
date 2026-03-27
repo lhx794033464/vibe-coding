@@ -28,6 +28,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
 
+    // 检查 user_profiles 表是否存在
+    const { error: tableCheckError } = await supabase
+      .from('user_profiles')
+      .select('count', { count: 'exact', head: true });
+
+    if (tableCheckError) {
+      console.error('user_profiles 表访问错误:', tableCheckError);
+      // 表不存在或无法访问，返回空头像
+      return NextResponse.json({ avatarUrl: null });
+    }
+
     // 直接查询 user_profiles 表
     const { data: profile, error } = await supabase
       .from('user_profiles')
@@ -35,8 +46,11 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .single();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       // PGRST116 是 "没有找到数据" 的错误，可以忽略
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ avatarUrl: null });
+      }
       console.error('查询用户配置失败:', error);
       return NextResponse.json({ avatarUrl: null });
     }
@@ -58,7 +72,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ avatarUrl });
   } catch (error) {
     console.error('获取头像失败:', error);
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ avatarUrl: null });
   }
 }
 
