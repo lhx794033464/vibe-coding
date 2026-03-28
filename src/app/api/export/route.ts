@@ -1,33 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { customersStorage } from '@/services/localStorage';
 import { VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
-// 导出客户数据
-export async function GET(request: NextRequest) {
+// 导出客户数据 - 本地存储模式
+export async function GET(_request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
     // 获取所有客户
-    const { data: customers, error } = await client
-      .from('customers')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const customers = customersStorage.getAll();
 
     // 状态映射
     const statusMap: Record<string, string> = {
@@ -40,7 +21,7 @@ export async function GET(request: NextRequest) {
     };
 
     // 转换数据格式
-    const exportData = customers?.map(c => ({
+    const exportData = (customers as any[])?.map(c => ({
       '客户名称': c.name,
       '销售订单号': c.sales_order_no || '',
       '实施订单号': c.implementation_order_no || '',

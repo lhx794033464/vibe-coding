@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { customersStorage, implementationLogsStorage } from '@/services/localStorage';
 import {
   Document,
   Paragraph,
@@ -22,21 +22,9 @@ import { MODULE_CONFIG, ProductModule, ProductVersion, VERSION_CONFIG } from '@/
 import * as fs from 'fs';
 import * as path from 'path';
 
-// 生成验收单Word文档（严格按照模板格式，保留页眉页脚）
+// 生成验收单Word文档（本地存储模式）
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const supabaseClient = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { customer_id } = body;
 
@@ -45,45 +33,35 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取客户信息
-    const { data: customer, error: customerError } = await supabaseClient
-      .from('customers')
-      .select('*')
-      .eq('id', customer_id)
-      .single();
-
-    if (customerError || !customer) {
+    const customer = customersStorage.getById(customer_id);
+    if (!customer) {
       return NextResponse.json({ error: '客户不存在' }, { status: 404 });
     }
 
     // 获取实施日志
-    const { data: implementationLogs, error: logsError } = await supabaseClient
-      .from('implementation_logs')
-      .select('*')
-      .eq('customer_id', customer_id)
-      .order('log_date', { ascending: true });
-
-    if (logsError) {
-      return NextResponse.json({ error: logsError.message }, { status: 500 });
-    }
+    const allLogs = implementationLogsStorage.getAll();
+    const implementationLogs = (allLogs as any[])
+      ?.filter((log: any) => log.customer_id === customer_id)
+      ?.sort((a: any, b: any) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime()) || [];
 
     // 格式化版本名称
-    const versionName = customer.version ? (VERSION_CONFIG[customer.version as ProductVersion]?.label || customer.version) : '-';
+    const versionName = (customer as any).version ? (VERSION_CONFIG[(customer as any).version as ProductVersion]?.label || (customer as any).version) : '-';
     
     // 格式化模块名称
-    const modulesName = customer.modules && customer.modules.length > 0
-      ? customer.modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
+    const modulesName = (customer as any).modules && (customer as any).modules.length > 0
+      ? (customer as any).modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
       : '-';
 
     // 边框样式：粗外边框，细内边框
     const outerBorder = {
       style: BorderStyle.SINGLE,
-      size: 12, // 粗边框
+      size: 12,
       color: '000000',
     } as const;
     
     const innerBorder = {
       style: BorderStyle.SINGLE,
-      size: 6, // 细边框
+      size: 6,
       color: '000000',
     } as const;
 
@@ -91,8 +69,8 @@ export async function POST(request: NextRequest) {
     const logoPath = path.join(process.cwd(), 'public', 'kingdee-logo.png');
     const logoBuffer = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
 
-    // 创建实施日志段落（每个序号另起一行）
-    const implementationParagraphs = createImplementationParagraphs(implementationLogs || []);
+    // 创建实施日志段落
+    const implementationParagraphs = createImplementationParagraphs(implementationLogs);
 
     // 创建Word文档
     const doc = new Document({
@@ -104,9 +82,7 @@ export async function POST(request: NextRequest) {
               children: [
                 new Paragraph({
                   children: [
-                    // 添加空格占位
                     new TextRun({ text: ' '.repeat(80) }),
-                    // 添加logo图片
                     ...(logoBuffer ? [
                       new ImageRun({
                         data: logoBuffer,
@@ -134,11 +110,10 @@ export async function POST(request: NextRequest) {
           footers: {
             default: new Footer({
               children: [
-                // 第一行：左边公司名称，右边页码
                 new Paragraph({
                   children: [
                     new TextRun({ text: '金蝶软件（中国）有限公司', size: 21 }),
-                    new TextRun({ text: '\t', size: 21 }), // 制表符
+                    new TextRun({ text: '\t', size: 21 }),
                     new TextRun({ text: '第 ', size: 21 }),
                     new TextRun({
                       children: [PageNumber.CURRENT],
@@ -154,11 +129,10 @@ export async function POST(request: NextRequest) {
                   tabStops: [
                     {
                       type: 'right' as const,
-                      position: 9000, // 右侧位置
+                      position: 9000,
                     },
                   ],
                 }),
-                // 第二行：版权信息左对齐
                 new Paragraph({
                   children: [
                     new TextRun({ text: '版权所有        翻版必究', size: 21 }),
@@ -169,13 +143,12 @@ export async function POST(request: NextRequest) {
             }),
           },
           children: [
-            // 标题：项目实施验收确认单
             new Paragraph({
               children: [
                 new TextRun({
                   text: '项目实施验收确认单',
                   bold: true,
-                  size: 56, // 28pt
+                  size: 56,
                   font: '黑体',
                 }),
               ],
@@ -183,20 +156,17 @@ export async function POST(request: NextRequest) {
               spacing: { after: 300 },
             }),
             
-            // 主表格（粗外边框，细内边框，第一列固定20%宽度）
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
               rows: [
-                // 第1行：客户名称
                 new TableRow({
                   tableHeader: true,
                   children: [
                     createLabelCell('客户名称', outerBorder, innerBorder, 'left'),
-                    createValueCell(customer.name || '', outerBorder, innerBorder, 3, 'right'),
+                    createValueCell((customer as any).name || '', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
                 
-                // 第2行：合同编号
                 new TableRow({
                   tableHeader: true,
                   children: [
@@ -205,7 +175,6 @@ export async function POST(request: NextRequest) {
                   ],
                 }),
                 
-                // 第3行：参会人员
                 new TableRow({
                   tableHeader: true,
                   children: [
@@ -214,7 +183,6 @@ export async function POST(request: NextRequest) {
                   ],
                 }),
                 
-                // 第4行：客户联系人 | 客户电话
                 new TableRow({
                   tableHeader: true,
                   children: [
@@ -225,7 +193,6 @@ export async function POST(request: NextRequest) {
                   ],
                 }),
                 
-                // 第5行：软件版本 | 上线模块
                 new TableRow({
                   tableHeader: true,
                   children: [
@@ -236,7 +203,6 @@ export async function POST(request: NextRequest) {
                   ],
                 }),
                 
-                // 第6行：系统实施主要内容
                 new TableRow({
                   tableHeader: true,
                   children: [
@@ -247,7 +213,6 @@ export async function POST(request: NextRequest) {
               ],
             }),
             
-            // 签署区域（表格外部右下方，加粗显示）
             new Paragraph({
               children: [
                 new TextRun({
@@ -281,8 +246,7 @@ export async function POST(request: NextRequest) {
     // 生成文档buffer
     const buffer = await Packer.toBuffer(doc);
 
-    // 返回文档
-    const fileName = `${customer.name}_验收单_${format(new Date(), 'yyyyMMdd')}.docx`;
+    const fileName = `${(customer as any).name}_验收单_${format(new Date(), 'yyyyMMdd')}.docx`;
     
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
@@ -297,17 +261,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 边框样式类型
+// 辅助函数
 type BorderStyleType = {
   style: typeof BorderStyle.SINGLE;
   size: number;
   color: string;
 };
 
-// 单元格位置类型
 type CellPosition = 'left' | 'right' | 'middle';
 
-// 创建标签单元格
 function createLabelCell(
   text: string, 
   outerBorder: BorderStyleType,
@@ -344,7 +306,6 @@ function createLabelCell(
         }),
       ];
 
-  // 根据位置设置边框
   const borders = getBordersForPosition(position, outerBorder, innerBorder);
 
   return new TableCell({
@@ -352,11 +313,10 @@ function createLabelCell(
     verticalAlign: VerticalAlign.CENTER,
     shading: { fill: 'FFFFFF' },
     borders: borders,
-    width: { size: 20, type: WidthType.PERCENTAGE }, // 第一列固定20%宽度
+    width: { size: 20, type: WidthType.PERCENTAGE },
   });
 }
 
-// 创建值单元格
 function createValueCell(
   text: string,
   outerBorder: BorderStyleType,
@@ -377,7 +337,6 @@ function createValueCell(
     }),
   ];
 
-  // 根据位置设置边框
   const borders = getBordersForPosition(position, outerBorder, innerBorder);
 
   return new TableCell({
@@ -388,7 +347,6 @@ function createValueCell(
   });
 }
 
-// 根据位置获取边框配置
 function getBordersForPosition(
   position: CellPosition,
   outerBorder: BorderStyleType,
@@ -419,13 +377,10 @@ function getBordersForPosition(
   }
 }
 
-// 创建实施日志段落（每个序号另起一行，六号字体，1.5倍行距）
 function createImplementationParagraphs(
   logs: Array<{ log_date: string; consumed_days: string; summary: string }>
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
-
-  // 1.5倍行距配置（240 * 1.5 = 360 twips）
   const lineSpacing = { line: 360, lineRule: 'auto' as const };
 
   if (!logs || logs.length === 0) {
@@ -434,7 +389,7 @@ function createImplementationParagraphs(
         children: [
           new TextRun({
             text: '暂无实施记录',
-            size: 15, // 六号字体 7.5pt
+            size: 15,
             font: '微软雅黑',
             italics: true,
           }),
@@ -447,14 +402,13 @@ function createImplementationParagraphs(
       const dateStr = format(new Date(log.log_date), 'M/d');
       const summary = log.summary || '';
       
-      // 序号和日期行（加粗）
       paragraphs.push(
         new Paragraph({
           children: [
             new TextRun({
               text: `${index + 1}、${dateStr}`,
               bold: true,
-              size: 15, // 六号字体 7.5pt
+              size: 15,
               font: '微软雅黑',
             }),
           ],
@@ -462,13 +416,12 @@ function createImplementationParagraphs(
         })
       );
       
-      // 内容行
       paragraphs.push(
         new Paragraph({
           children: [
             new TextRun({
               text: summary,
-              size: 15, // 六号字体 7.5pt
+              size: 15,
               font: '微软雅黑',
             }),
           ],
@@ -481,7 +434,6 @@ function createImplementationParagraphs(
   return paragraphs;
 }
 
-// 创建实施日志单元格
 function createImplementationCell(
   paragraphs: Paragraph[],
   outerBorder: BorderStyleType,
