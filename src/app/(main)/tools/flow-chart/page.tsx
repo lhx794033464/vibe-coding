@@ -13,6 +13,7 @@ import {
   ArrowRight,
   PanelLeftClose,
   PanelLeftOpen,
+  TrendingUp,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -33,8 +34,30 @@ export default function FlowChartPage() {
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   // 保存当前流程图 XML，切换页面时不丢失
   const [savedXml, setSavedXml] = useState<string>(EMPTY_XML);
+  // 流程图生成统计
+  const [flowChartStats, setFlowChartStats] = useState({ totalGenerated: 0 });
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 获取流程图统计
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tools/flow-chart/stats');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setFlowChartStats(result.data);
+        }
+      }
+    } catch (err) {
+      console.error('获取统计失败:', err);
+    }
+  }, []);
+
+  // 页面加载时获取统计
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   // 向 draw.io 发送配置消息
   const sendConfigure = useCallback(() => {
@@ -162,6 +185,8 @@ export default function FlowChartPage() {
       if (result.xml) {
         // 向 draw.io iframe 发送加载消息
         sendLoad(result.xml);
+        // 刷新统计
+        fetchStats();
       } else {
         setError('生成的流程图数据为空');
       }
@@ -185,13 +210,22 @@ export default function FlowChartPage() {
     <div className="h-full flex flex-col bg-slate-50">
       {/* 页面标题 */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-            <GitBranch className="w-5 h-5 text-blue-600" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <GitBranch className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-slate-800">业务流程图</h1>
+              <p className="text-sm text-slate-500">使用自然语言描述，AI 自动生成可编辑的流程图</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">业务流程图</h1>
-            <p className="text-sm text-slate-500">使用自然语言描述，AI 自动生成可编辑的流程图</p>
+          {/* 统计信息 */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-100">
+            <TrendingUp className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-700">
+              已交付 <span className="font-bold text-blue-800">{flowChartStats.totalGenerated}</span> 张业务流程图
+            </span>
           </div>
         </div>
       </div>

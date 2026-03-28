@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { recordFlowChartGenerated } from '@/services/globalStats';
 
 /**
  * 从 AI 返回内容中提取 mxGraphModel XML
@@ -275,6 +276,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('成功生成流程图 XML，最终长度:', cleanedXml.length);
+
+    // 记录统计
+    const stats = recordFlowChartGenerated();
+    console.log('流程图生成统计:', stats);
 
     return NextResponse.json({ 
       success: true, 
