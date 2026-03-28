@@ -1,26 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { customersStorage, todosStorage, schedulesStorage, implementationLogsStorage } from '@/services/localStorage';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
-// 语音操作解析API
+// 语音操作解析API - 本地模式
 export async function POST(request: NextRequest) {
   console.log('=== 语音操作API开始 ===');
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      console.log('错误：未授权');
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
-    const client = getSupabaseClient(token);
-    const { data: { user }, error: authError } = await client.auth.getUser(token);
-    
-    if (authError || !user) {
-      console.log('错误：用户验证失败', authError);
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-    console.log('用户验证成功:', user.id);
-
     const body = await request.json();
     const { text } = body;
     console.log('接收到的文本:', text);
@@ -29,13 +14,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
     }
 
-    // 先获取用户的所有客户列表，用于匹配
-    const { data: customers } = await client
-      .from('customers')
-      .select('id, name')
-      .order('name');
-    
-    const customerList = customers?.map(c => c.name) || [];
+    // 获取用户的所有客户列表，用于匹配
+    const customers = customersStorage.getAll();
+    const customerList = customers?.map((c: any) => c.name) || [];
     const customerListStr = customerList.length > 0 ? customerList.join('、') : '暂无客户';
 
     // 获取当前日期信息
@@ -188,13 +169,13 @@ ${customerListStr}
         
         if (customer_name) {
           // 先尝试精确匹配
-          const exactMatch = customers?.find(c => c.name === customer_name);
+          const exactMatch = customers?.find((c: any) => c.name === customer_name);
           if (exactMatch) {
             customerId = exactMatch.id;
             matchedCustomerName = exactMatch.name;
           } else {
             // 再尝试模糊匹配
-            const fuzzyMatch = customers?.find(c => 
+            const fuzzyMatch = customers?.find((c: any) => 
               c.name.includes(customer_name) || customer_name.includes(c.name)
             );
             if (fuzzyMatch) {
@@ -235,29 +216,20 @@ ${customerListStr}
           }
         }
 
-        const { data: todo, error } = await client
-          .from('todos')
-          .insert({
-            content: content,
-            customer_id: customerId,
-            due_date: dueDate,
-            priority: priority,
-            user_id: user.id,
-          })
-          .select()
-          .single();
+        const todo = todosStorage.create({
+          content: content,
+          customer_id: customerId,
+          due_date: dueDate,
+          priority: priority,
+          completed: false,
+        });
 
-        if (error) {
-          console.error('创建待办失败:', error);
-          result = { success: false, message: `创建待办失败：${error.message}` };
-        } else {
-          console.log('待办创建成功:', todo);
-          result = { 
-            success: true, 
-            data: todo, 
-            message: `已创建待办：${content}${matchedCustomerName ? `（关联客户：${matchedCustomerName}）` : ''}` 
-          };
-        }
+        console.log('待办创建成功:', todo);
+        result = { 
+          success: true, 
+          data: todo, 
+          message: `已创建待办：${content}${matchedCustomerName ? `（关联客户：${matchedCustomerName}）` : ''}` 
+        };
         break;
       }
 
@@ -270,9 +242,9 @@ ${customerListStr}
         }
 
         // 查找客户（先精确匹配，再模糊匹配）
-        let matchedCustomer = customers?.find(c => c.name === customer_name);
+        let matchedCustomer = customers?.find((c: any) => c.name === customer_name);
         if (!matchedCustomer) {
-          matchedCustomer = customers?.find(c => 
+          matchedCustomer = customers?.find((c: any) => 
             c.name.includes(customer_name) || customer_name.includes(c.name)
           );
         }
@@ -282,27 +254,17 @@ ${customerListStr}
           break;
         }
 
-        const { data: schedule, error } = await client
-          .from('schedules')
-          .insert({
-            customer_id: matchedCustomer.id,
-            schedule_date: date ? `${date}T00:00:00` : new Date().toISOString(),
-            notes: notes,
-            user_id: user.id,
-          })
-          .select()
-          .single();
+        const schedule = schedulesStorage.create({
+          customer_id: matchedCustomer.id,
+          schedule_date: date ? `${date}T00:00:00` : new Date().toISOString(),
+          notes: notes,
+        });
 
-        if (error) {
-          console.error('创建日程失败:', error);
-          result = { success: false, message: `创建日程失败：${error.message}` };
-        } else {
-          result = { 
-            success: true, 
-            data: schedule, 
-            message: `已创建日程：${matchedCustomer.name}${date ? `（${date}）` : ''}` 
-          };
-        }
+        result = { 
+          success: true, 
+          data: schedule, 
+          message: `已创建日程：${matchedCustomer.name}${date ? `（${date}）` : ''}` 
+        };
         break;
       }
 
@@ -315,9 +277,9 @@ ${customerListStr}
         }
 
         // 查找客户（先精确匹配，再模糊匹配）
-        let matchedCustomer = customers?.find(c => c.name === customer_name);
+        let matchedCustomer = customers?.find((c: any) => c.name === customer_name);
         if (!matchedCustomer) {
-          matchedCustomer = customers?.find(c => 
+          matchedCustomer = customers?.find((c: any) => 
             c.name.includes(customer_name) || customer_name.includes(c.name)
           );
         }
@@ -327,97 +289,66 @@ ${customerListStr}
           break;
         }
 
-        const { data: log, error } = await client
-          .from('implementation_logs')
-          .insert({
-            customer_id: matchedCustomer.id,
-            log_date: new Date().toISOString(),
-            consumed_days: consumed_days,
-            summary: summary,
-            user_id: user.id,
-          })
-          .select()
-          .single();
+        const log = implementationLogsStorage.create({
+          customer_id: matchedCustomer.id,
+          log_date: new Date().toISOString(),
+          consumed_days: consumed_days,
+          summary: summary,
+        });
 
-        if (error) {
-          console.error('创建实施日志失败:', error);
-          result = { success: false, message: `创建实施日志失败：${error.message}` };
-        } else {
-          result = { 
-            success: true, 
-            data: log, 
-            message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${summary}` 
-          };
-        }
+        result = { 
+          success: true, 
+          data: log, 
+          message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${summary}` 
+        };
         break;
       }
 
       case 'query_customer': {
-        const { customer_name, status } = intent.params || {};
+        const { customer_name } = intent.params || {};
         
-        let query = client
-          .from('customers')
-          .select('id, name, status')
-          .order('created_at', { ascending: false })
-          .limit(10);
+        let queryCustomers = customers;
 
         if (customer_name) {
-          query = query.ilike('name', `%${customer_name}%`);
-        }
-        if (status) {
-          query = query.eq('status', status);
+          queryCustomers = customers?.filter((c: any) => 
+            c.name.toLowerCase().includes(customer_name.toLowerCase())
+          );
         }
 
-        const { data: queryCustomers, error } = await query;
-
-        if (error) {
-          result = { success: false, message: `查询失败：${error.message}` };
-        } else {
-          const customerListResult = queryCustomers?.map((c: { name: string }) => c.name).join('、') || '暂无客户';
-          result = { 
-            success: true, 
-            data: queryCustomers, 
-            message: customer_name ? `找到客户：${customerListResult}` : `客户列表：${customerListResult}` 
-          };
-        }
+        const customerListResult = queryCustomers?.map((c: any) => c.name).join('、') || '暂无客户';
+        result = { 
+          success: true, 
+          data: queryCustomers, 
+          message: customer_name ? `找到客户：${customerListResult}` : `客户列表：${customerListResult}` 
+        };
         break;
       }
 
       case 'query_todo': {
         const today = new Date().toISOString().split('T')[0];
-        const { data: todos, error } = await client
-          .from('todos')
-          .select('id, content, priority, completed, customer_id')
-          .eq('user_id', user.id)
-          .eq('completed', false)
-          .gte('due_date', `${today}T00:00:00`)
-          .lte('due_date', `${today}T23:59:59`)
-          .order('priority', { ascending: false });
+        const allTodos = todosStorage.getAll();
+        const incompleteTodos = allTodos?.filter((t: any) => 
+          !t.completed && t.due_date && t.due_date.startsWith(today)
+        );
 
-        if (error) {
-          result = { success: false, message: `查询失败：${error.message}` };
-        } else if (!todos || todos.length === 0) {
+        if (!incompleteTodos || incompleteTodos.length === 0) {
           result = { success: true, data: [], message: '今天没有待办事项' };
         } else {
           // 获取关联客户名称
-          const customerIds = todos.filter((t: { customer_id: string | null }) => t.customer_id).map((t: { customer_id: string }) => t.customer_id);
           const customerMap: Record<string, string> = {};
-          
-          if (customerIds.length > 0) {
-            customers?.forEach((c: { id: string; name: string }) => {
-              customerMap[c.id] = c.name;
-            });
-          }
+          customers?.forEach((c: any) => {
+            customerMap[c.id] = c.name;
+          });
 
-          const todoList = todos.map((t: { content: string; customer_id: string | null }) => {
+          const todoList = incompleteTodos.map((t: any) => {
             const customerName = t.customer_id ? customerMap[t.customer_id] : null;
             return `${t.content}${customerName ? `（${customerName}）` : ''}`;
           }).join('、');
           
           result = { 
             success: true, 
-            data: todos, 
-            message: `今日待办（${todos.length}项）：${todoList}` 
+            data: incompleteTodos, 
+            message: `今日待办（${incompleteTodos.length}项）：${todoList}` 
           };
         }
         break;
@@ -434,19 +365,10 @@ ${customerListStr}
         }
 
         // 查找匹配的待办
-        const { data: allTodos, error: queryError } = await client
-          .from('todos')
-          .select('id, content, customer_id, priority, completed')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (queryError) {
-          result = { success: false, message: `查询待办失败：${queryError.message}` };
-          break;
-        }
+        const allTodos = todosStorage.getAll();
 
         // 模糊匹配待办内容
-        const matchedTodo = allTodos?.find((t: { content: string }) => 
+        const matchedTodo = allTodos?.find((t: any) => 
           t.content.includes(todo_content) || todo_content.includes(t.content)
         );
 
@@ -456,7 +378,7 @@ ${customerListStr}
         }
 
         // 构建更新数据
-        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        const updateData: Record<string, unknown> = {};
         let updateDesc = [];
 
         if (new_content) {
@@ -464,7 +386,7 @@ ${customerListStr}
           updateDesc.push(`内容改为"${new_content}"`);
         }
         if (customer_name) {
-          const matchedCustomer = customers?.find(c => 
+          const matchedCustomer = customers?.find((c: any) => 
             c.name === customer_name || c.name.includes(customer_name) || customer_name.includes(c.name)
           );
           if (matchedCustomer) {
@@ -486,22 +408,18 @@ ${customerListStr}
         }
         if (completed !== undefined) {
           updateData.completed = completed;
-          updateData.completed_at = completed ? new Date().toISOString() : null;
           updateDesc.push(completed ? '标记为完成' : '标记为未完成');
         }
 
-        if (Object.keys(updateData).length === 1) { // 只有 updated_at
+        if (Object.keys(updateData).length === 0) {
           result = { success: false, message: '请指定要修改的内容' };
           break;
         }
 
-        const { error: updateError } = await client
-          .from('todos')
-          .update(updateData)
-          .eq('id', matchedTodo.id);
+        const updated = todosStorage.update(matchedTodo.id, updateData);
 
-        if (updateError) {
-          result = { success: false, message: `修改失败：${updateError.message}` };
+        if (!updated) {
+          result = { success: false, message: '修改失败' };
         } else {
           result = { 
             success: true, 

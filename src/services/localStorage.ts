@@ -1,7 +1,39 @@
 /**
  * 本地存储服务
  * 替代 Supabase，所有数据存储在浏览器 localStorage 中
+ * 服务端使用内存存储作为回退
  */
+
+// 服务端内存存储
+const serverMemoryStorage: Record<string, string> = {};
+
+const isServer = () => typeof window === 'undefined';
+
+// 获取存储值（兼容服务端和客户端）
+const getItem = (key: string): string | null => {
+  if (isServer()) {
+    return serverMemoryStorage[key] || null;
+  }
+  return localStorage.getItem(key);
+};
+
+// 设置存储值（兼容服务端和客户端）
+const setItem = (key: string, value: string): void => {
+  if (isServer()) {
+    serverMemoryStorage[key] = value;
+  } else {
+    localStorage.setItem(key, value);
+  }
+};
+
+// 移除存储值（兼容服务端和客户端）
+const removeItem = (key: string): void => {
+  if (isServer()) {
+    delete serverMemoryStorage[key];
+  } else {
+    localStorage.removeItem(key);
+  }
+};
 
 const STORAGE_KEYS = {
   CUSTOMERS: 'customers',
@@ -20,7 +52,7 @@ export const generateId: IdGenerator = () =>
 
 // 获取当前用户ID
 const getUserId = (): string => {
-  if (typeof window === 'undefined') return 'server';
+  if (isServer()) return 'server';
   return localStorage.getItem('local_user_id') || 'local_default';
 };
 
@@ -34,15 +66,14 @@ class LocalStorageService<T extends Record<string, any>> {
 
   // 获取所有数据（带用户过滤）
   getAll(): T[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(`${this.key}_${getUserId()}`);
+    const data = getItem(`${this.key}_${getUserId()}`);
     return data ? JSON.parse(data) : [];
   }
 
   // 根据ID获取
   getById(id: string): T | null {
     const items = this.getAll();
-    return items.find(item => item.id === id) || null;
+    return items.find((item: T) => (item as any).id === id) || null;
   }
 
   // 创建
@@ -57,14 +88,14 @@ class LocalStorageService<T extends Record<string, any>> {
     } as unknown as T;
     
     items.push(newItem);
-    localStorage.setItem(`${this.key}_${getUserId()}`, JSON.stringify(items));
+    setItem(`${this.key}_${getUserId()}`, JSON.stringify(items));
     return newItem;
   }
 
   // 更新
   update(id: string, data: Partial<T>): T | null {
     const items = this.getAll();
-    const index = items.findIndex(item => item.id === id);
+    const index = items.findIndex((item: T) => (item as any).id === id);
     
     if (index === -1) return null;
     
@@ -74,29 +105,29 @@ class LocalStorageService<T extends Record<string, any>> {
       updated_at: new Date().toISOString(),
     };
     
-    localStorage.setItem(`${this.key}_${getUserId()}`, JSON.stringify(items));
+    setItem(`${this.key}_${getUserId()}`, JSON.stringify(items));
     return items[index];
   }
 
   // 删除
   delete(id: string): boolean {
     const items = this.getAll();
-    const filtered = items.filter(item => item.id !== id);
+    const filtered = items.filter((item: T) => (item as any).id !== id);
     
     if (filtered.length === items.length) return false;
     
-    localStorage.setItem(`${this.key}_${getUserId()}`, JSON.stringify(filtered));
+    setItem(`${this.key}_${getUserId()}`, JSON.stringify(filtered));
     return true;
   }
 
   // 批量导入
   import(items: T[]): void {
-    localStorage.setItem(`${this.key}_${getUserId()}`, JSON.stringify(items));
+    setItem(`${this.key}_${getUserId()}`, JSON.stringify(items));
   }
 
   // 清空
   clear(): void {
-    localStorage.removeItem(`${this.key}_${getUserId()}`);
+    removeItem(`${this.key}_${getUserId()}`);
   }
 }
 

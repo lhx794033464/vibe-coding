@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ASRClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
-// 语音识别API
+// 语音识别API - 本地模式，无需认证
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { audioUrl, base64Data, uid } = body;
 
