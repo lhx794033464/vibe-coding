@@ -178,21 +178,24 @@ export default function FlowChartPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        setError(result.error || '生成失败，请稍后重试');
+        // 显示详细错误信息
+        const errorMsg = result.error || '生成失败，请稍后重试';
+        const detailMsg = result.detail ? ` (${result.detail})` : '';
+        setError(`${errorMsg}${detailMsg}`);
         return;
       }
 
-      if (result.xml) {
+      if (result.xml && result.success) {
         // 向 draw.io iframe 发送加载消息
         sendLoad(result.xml);
         // 刷新统计
         fetchStats();
       } else {
-        setError('生成的流程图数据为空');
+        setError(result.error || '生成的流程图数据为空或格式错误');
       }
     } catch (err) {
       console.error('生成流程图错误:', err);
-      setError('网络错误，请稍后重试');
+      setError('网络错误，请检查网络连接后重试');
     } finally {
       setLoading(false);
     }
