@@ -78,19 +78,19 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  className={`flex items-center rounded-lg transition-colors ${
                     isActive
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                  } ${collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}`}
                   title={collapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className={`overflow-hidden transition-all duration-200 ${
-                    collapsed ? 'opacity-0 w-0' : 'opacity-100'
-                  }`}>
-                    {item.label}
-                  </span>
+                  {!collapsed && (
+                    <span className="overflow-hidden whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  )}
                 </Link>
               </li>
             );
