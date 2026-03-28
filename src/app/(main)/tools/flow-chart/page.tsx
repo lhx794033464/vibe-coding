@@ -116,7 +116,7 @@ export default function FlowChartPage() {
   }, []);
 
   // 向 draw.io 发送加载消息
-  const sendLoad = useCallback((xml: string) => {
+  const sendLoad = useCallback((xml: string, onLoadComplete?: () => void) => {
     if (!iframeRef.current?.contentWindow) return;
     
     iframeRef.current.contentWindow.postMessage(
@@ -129,6 +129,10 @@ export default function FlowChartPage() {
     );
     // 更新保存的 XML
     setSavedXml(xml);
+    // 保存回调函数，供 load 事件使用
+    if (onLoadComplete) {
+      (iframeRef.current as HTMLIFrameElement & { onLoadComplete?: () => void }).onLoadComplete = onLoadComplete;
+    }
   }, []);
 
   // 监听 draw.io 消息
@@ -170,6 +174,17 @@ export default function FlowChartPage() {
       // 处理加载完成
       if (typeof data === 'object' && data?.event === 'load') {
         console.log('流程图加载完成');
+        // 停止计时器并记录最终时间
+        stopTimer();
+        setLastGenTime(elapsedTime);
+        // 结束 loading 状态
+        setLoading(false);
+        // 调用加载完成回调
+        const iframe = iframeRef.current as HTMLIFrameElement & { onLoadComplete?: () => void };
+        if (iframe?.onLoadComplete) {
+          iframe.onLoadComplete();
+          iframe.onLoadComplete = undefined;
+        }
       }
       
       // 处理自动保存 - 实时保存当前 XML
@@ -264,9 +279,11 @@ export default function FlowChartPage() {
       });
 
       const result = await response.json();
-      stopTimer();
+      // 注意：不在此处停止计时器，等待 draw.io 加载完成
 
       if (!response.ok) {
+        stopTimer(); // API 错误时停止计时
+        setLoading(false); // 错误时结束 loading
         // 显示详细错误信息
         const errorMsg = result.error || '生成失败，请稍后重试';
         const detailMsg = result.detail ? ` (${result.detail})` : '';
@@ -275,22 +292,23 @@ export default function FlowChartPage() {
       }
 
       if (result.xml && result.success) {
-        // 向 draw.io iframe 发送加载消息
+        // 向 draw.io iframe 发送加载消息，计时器继续运行直到 draw.io 加载完成
         sendLoad(result.xml);
         // 刷新统计
         fetchStats();
-        // 记录本次用时
-        setLastGenTime(elapsedTime);
+        // 注意：不在此处结束 loading，等待 draw.io 的 load 事件
       } else {
+        stopTimer(); // 数据错误时停止计时
+        setLoading(false); // 错误时结束 loading
         setError(result.error || '生成的流程图数据为空或格式错误');
       }
     } catch (err) {
       stopTimer();
+      setLoading(false); // 异常时结束 loading
       console.error('生成流程图错误:', err);
       setError('网络错误，请检查网络连接后重试');
-    } finally {
-      setLoading(false);
     }
+    // 注意：不在 finally 中设置 loading，由 draw.io 的 load 事件或错误处理来结束 loading
   };
 
   // 清空编辑器
@@ -442,7 +460,7 @@ export default function FlowChartPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    生成中 {elapsedTime.toFixed(1)}s
+                    {elapsedTime < 5 ? 'AI生成中' : '渲染中'} {elapsedTime.toFixed(1)}s
                   </>
                 ) : (
                   <>

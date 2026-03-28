@@ -111,7 +111,7 @@ function extractMxGraphModel(content: string): { xml: string | null; error: stri
 /**
  * 验证和清理 XML
  */
-function validateAndCleanXml(xml: string): { xml: string | null; error: string | null } {
+function validateAndCleanXml(xml: string): { xml: string | null; error: string | null; detail?: string } {
   // 移除 XML 注释
   let cleaned = xml.replace(/<!--[\s\S]*?-->/g, '');
   
