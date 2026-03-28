@@ -63,7 +63,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
       </div>
 
       {/* Navigation */}
-      <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'}`}>
+      <nav className="flex-1 p-4">
         <ul className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
