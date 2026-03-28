@@ -12,6 +12,7 @@ import {
   CheckSquare,
   Calendar,
   Wrench,
+  DollarSign,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,7 +26,7 @@ const navItems = [
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
-  { href: '/commissions', label: '提成管理', icon: Wrench },
+  { href: '/commissions', label: '提成管理', icon: DollarSign },
   { href: '/tools', label: '交付工具', icon: Wrench },
 ];
 
@@ -81,7 +82,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                     isActive
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  } ${collapsed ? 'justify-center' : ''}`}
+                  }`}
                   title={collapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
