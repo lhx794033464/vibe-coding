@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { 
+  customersStorage, 
+  todosStorage, 
+  schedulesStorage, 
+  followUpsStorage 
+} from '@/services/localStorage';
 
 export const runtime = 'nodejs';
 
@@ -21,27 +26,20 @@ const VERSION_LABELS: Record<string, string> = {
   flagship: '旗舰版',
 };
 
-// 获取用户业务数据
-async function getUserBusinessData(token: string, userId: string) {
-  const client = getSupabaseClient(token);
-  
+// 获取用户业务数据（本地存储模式）
+async function getUserBusinessData(userId: string) {
   try {
     // 获取所有客户
-    const { data: customers } = await client
-      .from('customers')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const customers = customersStorage.getAll();
 
     // 获取最近的跟进记录
-    const { data: recentFollowUps } = await client
-      .from('follow_up_records')
-      .select('id, customer_id, content, follow_up_at')
-      .order('follow_up_at', { ascending: false })
-      .limit(10);
+    const allFollowUps = followUpsStorage.getAll();
+    const recentFollowUps = allFollowUps
+      .sort((a: any, b: any) => new Date(b.follow_up_at).getTime() - new Date(a.follow_up_at).getTime())
+      .slice(0, 10);
 
     // 获取今天的日期（北京时间 UTC+8）
     const now = new Date();
-    // 使用 Intl.DateTimeFormat 获取北京时间日期
     const beijingFormatter = new Intl.DateTimeFormat('zh-CN', {
       timeZone: 'Asia/Shanghai',
       year: 'numeric',
@@ -52,62 +50,43 @@ async function getUserBusinessData(token: string, userId: string) {
     const yearPart = beijingParts.find(p => p.type === 'year')?.value || '';
     const monthPart = beijingParts.find(p => p.type === 'month')?.value || '';
     const dayPart = beijingParts.find(p => p.type === 'day')?.value || '';
-    const todayStr = `${yearPart}-${monthPart}-${dayPart}`; // YYYY-MM-DD in Beijing time
+    const todayStr = `${yearPart}-${monthPart}-${dayPart}`;
 
     console.log('当前北京时间日期:', todayStr, '原始UTC时间:', now.toISOString());
 
     // 辅助函数：从日期时间字符串中提取日期部分
     const getDatePart = (dateStr: string | null): string => {
       if (!dateStr) return '';
-      // 处理多种格式：2026-03-26T00:00:00.000Z 或 2026-03-26 08:00:00 +0800 CST
       const match = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
       return match ? match[1] : dateStr.substring(0, 10);
     };
 
-    // 获取待办事项 - 分别获取今天和所有未完成的（按用户筛选）
-    const { data: allTodos } = await client
-      .from('todos')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('completed', false)
-      .order('due_date', { ascending: true })
-      .limit(20);
+    // 获取待办事项
+    const allTodos = todosStorage.getAll().filter((t: any) => !t.completed);
 
     console.log('待办原始查询结果:', {
       userId,
       allTodosCount: allTodos?.length || 0,
-      allTodos: allTodos?.map(t => ({ content: t.content, due_date: t.due_date }))
     });
 
     // 分类待办：今天、已过期、未来
-    const todayTodos = allTodos?.filter(t => {
+    const todayTodos = allTodos?.filter((t: any) => {
       const datePart = getDatePart(t.due_date);
       return datePart === todayStr;
     }) || [];
-    const overdueTodos = allTodos?.filter(t => {
+    const overdueTodos = allTodos?.filter((t: any) => {
       const datePart = getDatePart(t.due_date);
       return datePart && datePart < todayStr;
     }) || [];
-    const futureTodos = allTodos?.filter(t => {
+    const futureTodos = allTodos?.filter((t: any) => {
       const datePart = getDatePart(t.due_date);
       return datePart && datePart > todayStr;
     }).slice(0, 5) || [];
 
-    console.log('待办查询结果:', {
-      todayStr,
-      allTodosCount: allTodos?.length || 0,
-      todayTodosCount: todayTodos.length,
-      overdueTodosCount: overdueTodos.length,
-      futureTodosCount: futureTodos.length,
-      todayTodos: todayTodos.map(t => ({ content: t.content, due_date: t.due_date })),
-    });
-
-    // 获取日程排期 - 今天和未来7天
-    // 日程存储的是 UTC 时间，需要计算对应的 UTC 时间范围
+    // 获取日程排期
     const todayBeijingStart = new Date(`${todayStr}T00:00:00+08:00`);
     const todayBeijingEnd = new Date(`${todayStr}T23:59:59+08:00`);
     
-    // 计算下周的日期（北京时间）
     const nextWeekDate = new Date(todayBeijingStart);
     nextWeekDate.setDate(nextWeekDate.getDate() + 7);
     const nextWeekStr = new Intl.DateTimeFormat('zh-CN', {
@@ -115,7 +94,7 @@ async function getUserBusinessData(token: string, userId: string) {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).formatToParts(nextWeekDate).reduce((acc, part) => {
+    }).formatToParts(nextWeekDate).reduce((acc: any, part) => {
       if (part.type === 'year') acc.year = part.value;
       if (part.type === 'month') acc.month = part.value;
       if (part.type === 'day') acc.day = part.value;
@@ -124,55 +103,33 @@ async function getUserBusinessData(token: string, userId: string) {
     const nextWeekDateStr = `${nextWeekStr.year}-${nextWeekStr.month}-${nextWeekStr.day}`;
     const nextWeekBeijingEnd = new Date(`${nextWeekDateStr}T23:59:59+08:00`);
 
-    const { data: schedules, error: scheduleError } = await client
-      .from('schedules')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('schedule_date', todayBeijingStart.toISOString())
-      .lte('schedule_date', nextWeekBeijingEnd.toISOString())
-      .order('schedule_date', { ascending: true });
+    const allSchedules = schedulesStorage.getAll();
+    const schedules = allSchedules.filter((s: any) => {
+      const scheduleDate = new Date(s.schedule_date);
+      return scheduleDate >= todayBeijingStart && scheduleDate <= nextWeekBeijingEnd;
+    }).sort((a: any, b: any) => new Date(a.schedule_date).getTime() - new Date(b.schedule_date).getTime());
 
-    if (scheduleError) {
-      console.error('获取日程排期失败:', scheduleError);
-    }
-
-    console.log('日程排期查询结果:', { 
-      todayStr, 
-      todayBeijingStart: todayBeijingStart.toISOString(),
-      nextWeekDateStr, 
-      nextWeekBeijingEnd: nextWeekBeijingEnd.toISOString(),
-      schedulesCount: schedules?.length || 0,
-      schedules 
-    });
-
-    // 分类日程：今天、未来7天
-    const todaySchedules = schedules?.filter(s => {
+    // 分类日程
+    const todaySchedules = schedules?.filter((s: any) => {
       const scheduleDate = getDatePart(s.schedule_date);
       return scheduleDate === todayStr;
     }) || [];
-    const futureSchedules = schedules?.filter(s => {
+    const futureSchedules = schedules?.filter((s: any) => {
       const scheduleDate = getDatePart(s.schedule_date);
       return scheduleDate && scheduleDate > todayStr;
     }) || [];
 
-    console.log('日程分类结果:', {
-      todaySchedulesCount: todaySchedules.length,
-      futureSchedulesCount: futureSchedules.length,
-      todaySchedules,
-      futureSchedules
-    });
-
     // 创建客户ID到名称的映射
     const customerNameMap: Record<string, string> = {};
-    customers?.forEach(c => {
+    customers?.forEach((c: any) => {
       customerNameMap[c.id] = c.name;
     });
 
     // 计算统计数据
     const totalCustomers = customers?.length || 0;
     const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
-    const onlineCustomers = customers?.filter(c => onlineStatuses.includes(c.status)).length || 0;
-    const acceptedCustomers = customers?.filter(c => c.status === 'accepted').length || 0;
+    const onlineCustomers = customers?.filter((c: any) => onlineStatuses.includes(c.status)).length || 0;
+    const acceptedCustomers = customers?.filter((c: any) => c.status === 'accepted').length || 0;
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100).toFixed(1) : '0';
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100).toFixed(1) : '0';
 
@@ -185,7 +142,7 @@ async function getUserBusinessData(token: string, userId: string) {
       delayed_online: 0,
       partially_online: 0,
     };
-    customers?.forEach(c => {
+    customers?.forEach((c: any) => {
       if (statusDistribution.hasOwnProperty(c.status)) {
         statusDistribution[c.status]++;
       }
@@ -193,42 +150,42 @@ async function getUserBusinessData(token: string, userId: string) {
 
     // 按状态分类客户
     const customersByStatus = {
-      notOnline: customers?.filter(c => c.status === 'not_online').slice(0, 5).map(c => ({
+      notOnline: customers?.filter((c: any) => c.status === 'not_online').slice(0, 5).map((c: any) => ({
         name: c.name,
         days: c.implementation_days,
         version: c.version ? VERSION_LABELS[c.version] : null,
       })) || [],
-      onlineNotAccepted: customers?.filter(c => c.status === 'online_not_accepted').slice(0, 5).map(c => ({
+      onlineNotAccepted: customers?.filter((c: any) => c.status === 'online_not_accepted').slice(0, 5).map((c: any) => ({
         name: c.name,
         days: c.implementation_days,
       })) || [],
-      accepted: customers?.filter(c => c.status === 'accepted').slice(0, 5).map(c => ({
+      accepted: customers?.filter((c: any) => c.status === 'accepted').slice(0, 5).map((c: any) => ({
         name: c.name,
         days: c.implementation_days,
       })) || [],
-      delayedOnline: customers?.filter(c => c.status === 'delayed_online').slice(0, 5).map(c => ({
+      delayedOnline: customers?.filter((c: any) => c.status === 'delayed_online').slice(0, 5).map((c: any) => ({
         name: c.name,
         days: c.implementation_days,
       })) || [],
     };
 
     // 最近跟进
-    const recentFollowUpsList = recentFollowUps?.map(f => ({
+    const recentFollowUpsList = recentFollowUps?.map((f: any) => ({
       customerName: customerNameMap[f.customer_id] || '未知客户',
       content: f.content,
       date: f.follow_up_at,
     })) || [];
 
-    // 待办事项 - 分类返回
+    // 待办事项
     const todoData = {
-      today: todayTodos.map(t => ({
+      today: todayTodos.map((t: any) => ({
         id: t.id,
         content: t.content,
         dueDate: t.due_date,
         priority: t.priority,
         customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
       })),
-      overdue: overdueTodos.map(t => ({
+      overdue: overdueTodos.map((t: any) => ({
         id: t.id,
         content: t.content,
         dueDate: t.due_date,
@@ -236,7 +193,7 @@ async function getUserBusinessData(token: string, userId: string) {
         customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
         overdueDays: Math.floor((now.getTime() - new Date(t.due_date).getTime()) / (1000 * 60 * 60 * 24)),
       })),
-      future: futureTodos.map(t => ({
+      future: futureTodos.map((t: any) => ({
         id: t.id,
         content: t.content,
         dueDate: t.due_date,
@@ -245,14 +202,14 @@ async function getUserBusinessData(token: string, userId: string) {
       })),
     };
 
-    // 日程排期 - 分类返回
+    // 日程排期
     const scheduleData = {
-      today: todaySchedules.map(s => ({
+      today: todaySchedules.map((s: any) => ({
         id: s.id,
         customerName: s.customer_id ? customerNameMap[s.customer_id] : '未知客户',
         notes: s.notes,
       })),
-      future: futureSchedules.map(s => ({
+      future: futureSchedules.map((s: any) => ({
         id: s.id,
         customerName: s.customer_id ? customerNameMap[s.customer_id] : '未知客户',
         scheduleDate: s.schedule_date,
@@ -288,15 +245,12 @@ async function performSearch(query: string, customHeaders: Record<string, string
     
     let response;
     
-    // 根据搜索类型采用不同策略
     switch (searchType) {
       case 'weather':
-        // 天气查询：直接搜索
         response = await client.webSearch(query, 5, true);
         break;
         
       case 'kingdee':
-        // 金蝶问题：优先搜索官方站点
         response = await client.advancedSearch(query, {
           searchType: 'web',
           count: 5,
@@ -305,7 +259,6 @@ async function performSearch(query: string, customHeaders: Record<string, string
           sites: 'kingdee.com,kisyun.com,club.kingdee.com,vip.kingdee.com,cs.ecs.kingdee.com',
         });
         
-        // 如果没有结果，尝试技术社区
         if (!response.web_items || response.web_items.length === 0) {
           response = await client.advancedSearch(query, {
             searchType: 'web',
@@ -317,7 +270,6 @@ async function performSearch(query: string, customHeaders: Record<string, string
         break;
         
       case 'news':
-        // 新闻查询：限制时间范围
         response = await client.advancedSearch(query, {
           searchType: 'web',
           count: 5,
@@ -327,7 +279,6 @@ async function performSearch(query: string, customHeaders: Record<string, string
         break;
         
       case 'finance':
-        // 金融查询：优先财经网站
         response = await client.advancedSearch(query, {
           searchType: 'web',
           count: 5,
@@ -337,11 +288,9 @@ async function performSearch(query: string, customHeaders: Record<string, string
         break;
         
       default:
-        // 通用搜索
         response = await client.webSearch(query, 5, true);
     }
     
-    // 如果特定搜索没有结果，回退到通用搜索
     if (!response.web_items || response.web_items.length === 0) {
       response = await client.webSearch(query, 5, true);
     }
@@ -365,7 +314,6 @@ async function performSearch(query: string, customHeaders: Record<string, string
 function needsWebSearch(message: string): boolean {
   const lowerMessage = message.toLowerCase();
   
-  // 系统内部功能关键词 - 这些不需要联网搜索
   const systemKeywords = [
     '客户', '跟进', '待办', '任务', '日程', '排期',
     '提成', '业绩', '人天', '实施', '交付',
@@ -374,9 +322,7 @@ function needsWebSearch(message: string): boolean {
     '提醒', '统计', '数据', '报表', '看板',
   ];
   
-  // 如果是系统内部功能问题，不联网搜索
   if (systemKeywords.some(keyword => lowerMessage.includes(keyword))) {
-    // 但如果同时包含明确的联网需求关键词，则仍然联网
     const forceSearchKeywords = [
       '天气', '气温', '温度', '股票', '股价', '基金', '汇率',
       '新闻', '最新消息', '今天', '明天', '节假日',
@@ -386,31 +332,21 @@ function needsWebSearch(message: string): boolean {
     }
   }
   
-  // 工作以外的内容 - 需要联网搜索
   const nonWorkKeywords = [
-    // 天气
     '天气', '气温', '温度', '下雨', '晴天', '阴天', '雪', '风',
-    // 新闻资讯
     '新闻', '最新消息', '热点', '头条', '时事',
-    // 金融理财
     '股价', '股票', '行情', '基金', '汇率', '黄金价格', '比特币',
-    // 娱乐生活
     '电影', '上映', '比赛', '比分', '赛程', '明星', '综艺',
-    // 日常知识
     '节假日', '放假', '调休', '吃什么', '怎么做菜', '菜谱',
     '旅游', '景点', '酒店', '机票',
-    // 政策法规
     '政策', '法规', '新规', '规定', '法律',
-    // 百科知识
     '是什么', '什么是', '为什么', '怎么来的', '历史',
   ];
   
-  // 检查是否包含非工作相关关键词
   if (nonWorkKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return true;
   }
   
-  // 金蝶产品技术问题 - 需要联网搜索官方文档
   const kingdeeKeywords = [
     '金蝶', '云星辰', 'KIS云', 'KIS云星辰',
     '凭证', '科目', '账套', '初始化',
@@ -430,22 +366,18 @@ function needsWebSearch(message: string): boolean {
 function getSearchType(message: string): 'weather' | 'news' | 'finance' | 'kingdee' | 'general' {
   const lowerMessage = message.toLowerCase();
   
-  // 天气相关
   if (['天气', '气温', '温度', '下雨', '晴天', '阴天', '雪'].some(k => lowerMessage.includes(k))) {
     return 'weather';
   }
   
-  // 新闻相关
   if (['新闻', '最新消息', '最近发生'].some(k => lowerMessage.includes(k))) {
     return 'news';
   }
   
-  // 金融相关
   if (['股价', '股票', '基金', '汇率', '黄金'].some(k => lowerMessage.includes(k))) {
     return 'finance';
   }
   
-  // 金蝶产品相关
   if (['金蝶', '云星辰', 'KIS', '星辰'].some(k => lowerMessage.includes(k))) {
     return 'kingdee';
   }
@@ -457,9 +389,7 @@ function getSearchType(message: string): 'weather' | 'news' | 'finance' | 'kingd
 function generateSearchQuery(message: string): string {
   const searchType = getSearchType(message);
   
-  // 天气查询优化
   if (searchType === 'weather') {
-    // 提取城市名
     const cityMatch = message.match(/(.{2,4})(天气|气温|温度)/);
     if (cityMatch) {
       return `${cityMatch[1]}天气 今天`;
@@ -467,7 +397,6 @@ function generateSearchQuery(message: string): string {
     return message;
   }
   
-  // 金蝶相关问题添加前缀
   if (searchType === 'kingdee') {
     if (message.includes('金蝶') || message.includes('云星辰') || message.includes('星辰')) {
       return message;
@@ -480,7 +409,7 @@ function generateSearchQuery(message: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, enableSearch } = await request.json();
+    const { messages, enableSearch, userId } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: '消息格式错误' }), {
@@ -489,43 +418,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 获取用户token
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     
     let businessDataText = '';
     let searchResultText = '';
     
-    if (token) {
+    // 获取业务数据（本地存储模式）
+    if (userId) {
       try {
-        const client = getSupabaseClient(token);
-        const { data: { user } } = await client.auth.getUser(token);
+        const businessData = await getUserBusinessData(userId);
         
-        if (user) {
-          const businessData = await getUserBusinessData(token, user.id);
-          
-          console.log('Chat API - 业务数据获取结果:', {
-            hasBusinessData: !!businessData,
-            todayTodosCount: businessData?.todos?.today?.length || 0,
-            schedulesCount: businessData?.schedules?.today?.length || 0,
+        console.log('Chat API - 业务数据获取结果:', {
+          hasBusinessData: !!businessData,
+          todayTodosCount: businessData?.todos?.today?.length || 0,
+          schedulesCount: businessData?.schedules?.today?.length || 0,
+        });
+        
+        if (businessData) {
+          const now = new Date();
+          const todayStr = now.toLocaleDateString('zh-CN', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            weekday: 'long'
           });
-          
-          if (businessData) {
-            console.log('Chat API - 待办数据:', {
-              todayCount: businessData.todos.today.length,
-              todayItems: businessData.todos.today.map(t => t.content),
-            });
-            
-            const now = new Date();
-            const todayStr = now.toLocaleDateString('zh-CN', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric',
-              weekday: 'long'
-            });
 
-            businessDataText = `
+          businessDataText = `
 【当前时间和日期】
 今天是 ${todayStr}
 
@@ -543,43 +461,43 @@ export async function POST(request: NextRequest) {
 - 不上线：${businessData.statusDistribution.not_going_online} 家
 
 【未上线客户】（最多显示5家）
-${businessData.customersByStatus.notOnline.map(c => 
+${businessData.customersByStatus.notOnline.map((c: any) => 
   `- ${c.name}${c.version ? `（${c.version}）` : ''}，实施人天：${c.days || '未设置'}`
 ).join('\n') || '- 暂无'}
 
 【已上线未验收客户】（最多显示5家）
-${businessData.customersByStatus.onlineNotAccepted.map(c => 
+${businessData.customersByStatus.onlineNotAccepted.map((c: any) => 
   `- ${c.name}，实施人天：${c.days || '未设置'}`
 ).join('\n') || '- 暂无'}
 
 【延期上线客户】（最多显示5家）
-${businessData.customersByStatus.delayedOnline.map(c => 
+${businessData.customersByStatus.delayedOnline.map((c: any) => 
   `- ${c.name}，实施人天：${c.days || '未设置'}`
 ).join('\n') || '- 暂无'}
 
 【最近跟进记录】（最多显示5条）
-${businessData.recentFollowUps.slice(0, 5).map(f => 
+${businessData.recentFollowUps.slice(0, 5).map((f: any) => 
   `- ${f.customerName}：${f.content.substring(0, 50)}${f.content.length > 50 ? '...' : ''}`
 ).join('\n') || '- 暂无'}
 
 【待办事项】
 📌 今日待办（${businessData.todos.today.length}项）：
 ${businessData.todos.today.length > 0 
-  ? businessData.todos.today.map(t => 
+  ? businessData.todos.today.map((t: any) => 
       `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}${t.priority === 'high' ? ' ⚠️重要' : ''}`
     ).join('\n')
   : '- 暂无今日待办'}
 
 ⚠️ 已过期待办（${businessData.todos.overdue.length}项）：
 ${businessData.todos.overdue.length > 0 
-  ? businessData.todos.overdue.slice(0, 5).map(t => 
+  ? businessData.todos.overdue.slice(0, 5).map((t: any) => 
       `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}，过期${t.overdueDays}天${t.priority === 'high' ? ' ⚠️重要' : ''}`
     ).join('\n')
   : '- 无过期待办'}
 
 📅 未来待办（${businessData.todos.future.length}项）：
 ${businessData.todos.future.length > 0 
-  ? businessData.todos.future.map(t => 
+  ? businessData.todos.future.map((t: any) => 
       `- ${t.content}${t.customerName ? `（${t.customerName}）` : ''}，截止：${t.dueDate || '无截止日期'}`
     ).join('\n')
   : '- 暂无未来待办'}
@@ -587,19 +505,18 @@ ${businessData.todos.future.length > 0
 【日程排期】
 🗓️ 今日日程（${businessData.schedules.today.length}项）：
 ${businessData.schedules.today.length > 0 
-  ? businessData.schedules.today.map(s => 
+  ? businessData.schedules.today.map((s: any) => 
       `- ${s.customerName}${s.notes ? `：${s.notes}` : ''}`
     ).join('\n')
   : '- 暂无今日日程'}
 
 📅 未来7天日程（${businessData.schedules.future.length}项）：
 ${businessData.schedules.future.length > 0 
-  ? businessData.schedules.future.map(s => 
+  ? businessData.schedules.future.map((s: any) => 
       `- ${s.customerName}，日期：${s.scheduleDate.split('T')[0]}${s.notes ? `，备注：${s.notes}` : ''}`
     ).join('\n')
   : '- 暂无未来日程'}
 `;
-          }
         }
       } catch (e) {
         console.error('获取用户数据失败:', e);
@@ -621,7 +538,7 @@ ${businessData.schedules.future.length > 0
 
 ${searchResult.summary ? `摘要：${searchResult.summary}\n` : ''}
 相关链接：
-${searchResult.results.map((r, i) => 
+${searchResult.results.map((r: any, i: number) => 
   `${i + 1}. ${r.title}
    来源：${r.siteName || '未知'}
    摘要：${r.snippet?.substring(0, 100) || '无'}${r.snippet && r.snippet.length > 100 ? '...' : ''}`
@@ -636,148 +553,11 @@ ${searchResult.results.map((r, i) =>
     // 专业系统提示语 - 小蝶
     const systemMessage = {
       role: 'system' as const,
-      content: `你是"小蝶"，一位金蝶云星辰交付顾问和日常安排助手，具备联网搜索知识的能力和整个系统操作的集成能力。
+      content: `你是"小蝶"，一位金蝶云星辰交付顾问和日常安排助手...
 
 ## 你的身份与定位
 
-你叫"小蝶"，是金蝶云星辰交付集成平台的智能助手。你的核心身份是：
-- **金蝶云星辰交付顾问**：精通产品功能、实施方法论和行业最佳实践
-- **日常安排助手**：帮助顾问管理工作任务、日程安排和客户跟进
-
-## 你的核心能力
-
-### 1. 系统集成能力
-你可以通过系统操作帮助用户完成各种任务：
-- **客户管理**：查询客户信息、更新客户状态、添加跟进记录
-- **待办管理**：创建待办、完成待办、修改待办内容
-- **日程管理**：安排会议、查看日程、提醒重要事项
-- **数据查询**：查询客户数据、统计数据、提成信息
-
-### 2. 联网搜索能力
-你可以联网获取实时信息，包括但不限于：
-- **金蝶产品知识**：搜索金蝶云星辰官方文档、技术资料、产品更新
-- **行业动态**：搜索行业新闻、政策变化、市场趋势
-- **通用知识**：天气查询、新闻资讯、金融行情等实时信息
-- **技术问题**：搜索解决方案、最佳实践、常见问题解答
-
-### 3. 金蝶云星辰专业能力
-- 熟悉各版本功能差异：标准版、专业版、旗舰版
-- 了解各模块：财务、进销存、生产、报销、纳税、开票、订货、零售、委外
-- 掌握实施方法论：项目启动、蓝图设计、系统配置、培训验收
-- 能够解答产品使用问题、配置问题、业务流程问题
-
-### 4. 工作助手能力
-- 帮助顾问管理客户跟进、待办事项、项目进度
-- 提醒重要节点和即将到期的任务
-- 分析客户状态，建议重点关注对象
-- 协助整理工作总结和汇报材料
-
-## 回答风格指南
-1. **专业可靠**：金蝶相关问题提供准确的技术指导，引用官方资料
-2. **简洁高效**：回答直击要点，避免冗长，使用结构化格式
-3. **贴心温暖**：语气友好亲切，像一位可靠的同事兼朋友
-4. **实用导向**：给出可操作的建议，而非空洞的理论
-5. **主动服务**：在回答问题后，主动询问是否需要进一步帮助
-
-## 待办事项回复格式
-
-当汇报待办事项时，请严格按照以下格式回复，每个类别**独立成行**：
-
-⚠️ **重要：直接输出普通文本，禁止使用代码块（\`\`\`）格式！**
-
-**回复示例（直接输出，不要用代码块包裹）：**
-
-小蝶帮你查看了一下当前的待办事项哦😉:
-
-🎀 **今日待办**：X项
-● 具体事项1（关联客户），时间信息
-● 具体事项2（关联客户），时间信息
-
-⚠️ **已过期待办**：X项需要处理
-● 具体事项1（关联客户），已经过期X天 📅
-● 具体事项2（关联客户），已经过期X天 📅
-
-📅 **未来待办**：X项
-● 具体事项1（关联客户），截止时间
-● 具体事项2（关联客户），截止时间
-
-过期的待办记得及时处理哦~需要我帮你完成待办或者修改内容吗? 😉
-
-## 日程排期回复格式
-
-当汇报日程排期时，请严格按照以下格式回复：
-
-**回复示例（直接输出，不要用代码块包裹）：**
-
-小蝶帮你查看了一下今天的日程安排📅:
-
-🗓️ **今日日程**：X项
-● 客户A：项目实施沟通
-● 客户B：系统培训
-
-📅 **未来7天日程**：X项
-● 客户C，日期：2024-01-15，备注：蓝图确认
-● 客户D，日期：2024-01-16，备注：上线培训
-
-今天的工作安排挺充实的，加油哦！💪 需要我帮你查看具体客户的详细信息吗？
-
-## 工作计划回复格式
-
-当用户询问"今天有什么工作计划"、"今天安排"等问题时，需要**结合待办和日程**一起回复：
-
-**回复示例（直接输出，不要用代码块包裹）：**
-
-小蝶帮你整理了一下今天的工作计划📋:
-
-🗓️ **今日日程**：X项
-● 客户A：项目实施沟通
-● 客户B：系统培训
-
-🎀 **今日待办**：X项
-● 完成客户C的蓝图设计文档 ⚠️重要
-● 跟进客户D的上线进度
-
-⚠️ **已过期待办**：X项需要处理
-● 提交上周工作周报，过期2天 📅
-
-今天有X项日程和X项待办，记得优先处理重要和过期的任务哦！💪 需要我帮你查看详情或调整安排吗？
-
-**格式要点：**
-1. 开头使用亲切的引导语+表情
-2. 三个类别必须**换行分隔**，每个类别独立成段
-3. 使用不同的emoji区分：🗓️日程、🎀今日待办、⚠️过期待办
-4. 类别标题使用**加粗**格式
-5. 具体事项用 ● 符号开头，每项独立一行
-6. 日程要显示客户名称和备注信息
-7. 待办要显示关联客户和优先级
-8. 过期待办要显示过期天数并加📅提醒
-9. 结尾提供行动建议和关怀
-10. **禁止使用代码块格式**，直接输出普通文本即可
-
-## 特殊场景处理
-
-### 系统操作请求
-当用户请求系统操作时（如查询客户、创建待办），识别意图并返回操作指令：
-- 客户查询：返回 query_customers 操作
-- 待办创建：返回 create_todo 操作
-- 具体格式参考下方的操作示例
-
-### 金蝶产品问题
-- 优先联网搜索官方文档和技术资料
-- 提供可操作的操作步骤
-- 说明注意事项和常见问题
-- 如搜索结果不足，建议用户查阅官方帮助文档
-
-### 天气查询
-当用户询问天气时，联网搜索并回答：
-- 告知今天的天气状况（温度、天气类型、是否需要带伞等）
-- 可以给出穿衣建议或出行提示
-- 语气轻松友好
-
-### 工作压力或疲劳
-- 给予真诚的关怀和鼓励
-- 提供一些缓解压力的建议
-- 可以适当用幽默缓解气氛
+你叫"小蝶"，是金蝶云星辰交付集成平台的智能助手...
 
 ${businessDataText ? `## 当前用户业务数据
 ${businessDataText}
@@ -785,21 +565,17 @@ ${businessDataText}
 ${searchResultText ? `## 联网搜索结果
 ${searchResultText}
 
-请基于以上搜索结果回答用户问题：
-1. 如果是金蝶产品问题，引用相关资料并给出操作建议
-2. 如果是天气查询，直接给出天气信息，并附上温馨提示
-3. 如果是新闻资讯，总结关键信息
-4. 搜索结果可能不完全准确，重要信息建议用户核实
+请基于以上搜索结果回答用户问题...
 ` : ''}
 ## 重要指令
-1. **始终基于上面提供的【当前用户业务数据】回答用户问题**，这是最新的实时数据，优先于历史对话中的信息。
-2. 如果用户询问待办或日程，直接根据业务数据中的数量和内容回答，不要说"没有"或"无法获取"。
-3. 不要参考历史对话中的旧数据，每次都使用最新的业务数据。
+1. **始终基于上面提供的【当前用户业务数据】回答用户问题**...
+2. 如果用户询问待办或日程，直接根据业务数据中的数量和内容回答...
+3. 不要参考历史对话中的旧数据...
 
 ## 自称要求
-1. 使用"小蝶"自称，不要使用"智能助手"
-2. 回答时保持亲切友好的语气
-3. 适当使用表情符号增加亲和力，但不要过度`,
+1. 使用"小蝶"自称...
+2. 回答时保持亲切友好的语气...
+3. 适当使用表情符号增加亲和力...`,
     };
 
     const fullMessages = [systemMessage, ...messages];
@@ -828,7 +604,7 @@ ${searchResultText}
           }
         } catch (error) {
           console.error('LLM流式输出错误:', error);
-          controller.enqueue(encoder.encode('抱歉，我遇到了一些问题，请稍后再试。如果问题持续，可以联系金蝶官方技术支持。'));
+          controller.enqueue(encoder.encode('抱歉，我遇到了一些问题，请稍后再试。'));
         } finally {
           controller.close();
         }
@@ -844,7 +620,7 @@ ${searchResultText}
     });
   } catch (error) {
     console.error('对话API错误:', error);
-    return new Response(JSON.stringify({ error: '服务器错误' }), {
+    return new Response(JSON.stringify({ error: '服务器内部错误' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

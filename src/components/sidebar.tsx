@@ -13,7 +13,6 @@ import {
   Calendar,
   Wrench,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -32,11 +31,10 @@ const navItems = [
 
 export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
   return (
     <aside 
-      className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-hidden group ${
+      className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-visible group ${
         collapsed ? 'w-16' : 'w-64'
       }`}
     >
@@ -99,24 +97,18 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         </ul>
       </nav>
 
-      {/* Collapse Button */}
-      <div className="p-4 border-t border-gray-200">
-        <button
-          onClick={() => onCollapsedChange?.(!collapsed)}
-          className={`flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors ${
-            collapsed ? 'justify-center w-full' : ''
-          }`}
-        >
-          {collapsed ? (
-            <ChevronRight className="w-5 h-5" />
-          ) : (
-            <>
-              <ChevronLeft className="w-5 h-5" />
-              <span className="text-sm">收起侧边栏</span>
-            </>
-          )}
-        </button>
-      </div>
+      {/* 侧边栏收起按钮 - 悬浮在右侧边缘 */}
+      <button
+        onClick={() => onCollapsedChange?.(!collapsed)}
+        className="absolute -right-3 top-1/2 -translate-y-1/2 z-50 w-6 h-12 bg-white border border-gray-200 rounded-full shadow-md flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-all duration-200 opacity-0 group-hover:opacity-100"
+        title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+      >
+        {collapsed ? (
+          <ChevronRight className="w-4 h-4" />
+        ) : (
+          <ChevronLeft className="w-4 h-4" />
+        )}
+      </button>
     </aside>
   );
 }

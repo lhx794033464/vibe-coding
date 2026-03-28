@@ -338,6 +338,9 @@ export default function HomePage() {
     abortControllerRef.current = abortController;
 
     try {
+      // 从 localStorage 获取用户ID
+      const userId = typeof window !== 'undefined' ? localStorage.getItem('local_user_id') : null;
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -346,6 +349,7 @@ export default function HomePage() {
         body: JSON.stringify({ 
           messages: [...savedMessages, { role: 'user', content: userMessage }],
           enableSearch: true,
+          userId,
         }),
         signal: abortController.signal,
       });
