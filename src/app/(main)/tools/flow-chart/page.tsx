@@ -399,7 +399,7 @@ export default function FlowChartPage() {
                   }
                 }}
                 placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
-                className="min-h-[100px] resize-none"
+                className="h-[100px] resize-none overflow-y-auto"
               />
 
               {/* 优化后的提示词显示 */}
