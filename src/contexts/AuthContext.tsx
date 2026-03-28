@@ -1,13 +1,11 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 interface AuthContextType {
   userId: string;
   isLocalMode: boolean;
   loading: boolean;
-  avatarUrl: string | null;
-  updateAvatar: (url: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,41 +23,23 @@ const getOrCreateLocalUserId = (): string => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // 初始化本地用户
   useEffect(() => {
     const initLocalUser = () => {
       const id = getOrCreateLocalUserId();
       setUserId(id);
-      
-      // 从 localStorage 读取头像
-      const storedAvatar = localStorage.getItem(`avatar_${id}`);
-      if (storedAvatar) {
-        setAvatarUrl(storedAvatar);
-      }
-      
       setLoading(false);
     };
     
     initLocalUser();
   }, []);
 
-  // 更新头像
-  const updateAvatar = useCallback((url: string) => {
-    setAvatarUrl(url);
-    if (userId) {
-      localStorage.setItem(`avatar_${userId}`, url);
-    }
-  }, [userId]);
-
   return (
     <AuthContext.Provider value={{ 
       userId, 
       isLocalMode: true,
       loading, 
-      avatarUrl,
-      updateAvatar
     }}>
       {children}
     </AuthContext.Provider>
