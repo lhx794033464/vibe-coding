@@ -14,6 +14,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   TrendingUp,
+  Wand2,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -26,7 +29,9 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
 
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
+  const [optimizedPrompt, setOptimizedPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
@@ -36,6 +41,10 @@ export default function FlowChartPage() {
   const [savedXml, setSavedXml] = useState<string>(EMPTY_XML);
   // 流程图生成统计
   const [flowChartStats, setFlowChartStats] = useState({ totalGenerated: 0 });
+  // 计时器
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [lastGenTime, setLastGenTime] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -58,6 +67,32 @@ export default function FlowChartPage() {
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // 清理计时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
+  // 开始计时
+  const startTimer = () => {
+    setElapsedTime(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setElapsedTime(prev => prev + 0.1);
+    }, 100);
+  };
+
+  // 停止计时
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   // 向 draw.io 发送配置消息
   const sendConfigure = useCallback(() => {
@@ -150,6 +185,58 @@ export default function FlowChartPage() {
     return () => window.removeEventListener('message', handleMessage);
   }, [isConfigured, sendConfigure, sendLoad]);
 
+  // 提示词优化
+  const handleOptimize = async () => {
+    if (!prompt.trim()) {
+      setError('请输入流程描述后再优化');
+      return;
+    }
+
+    setOptimizing(true);
+    setError('');
+    startTimer();
+
+    try {
+      const response = await fetch('/api/tools/flow-chart/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+
+      const result = await response.json();
+      stopTimer();
+
+      if (!response.ok) {
+        const errorMsg = result.error || '优化失败';
+        const detailMsg = result.detail ? ` (${result.detail})` : '';
+        setError(`${errorMsg}${detailMsg}`);
+        return;
+      }
+
+      if (result.success && result.optimizedPrompt) {
+        setOptimizedPrompt(result.optimizedPrompt);
+        // 可选：自动替换原文
+        // setPrompt(result.optimizedPrompt);
+      } else {
+        setError('优化结果为空');
+      }
+    } catch (err) {
+      stopTimer();
+      console.error('提示词优化错误:', err);
+      setError('网络错误，优化失败');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  // 使用优化后的提示词
+  const useOptimizedPrompt = () => {
+    if (optimizedPrompt) {
+      setPrompt(optimizedPrompt);
+      setOptimizedPrompt('');
+    }
+  };
+
   // 生成流程图
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -164,6 +251,7 @@ export default function FlowChartPage() {
 
     setLoading(true);
     setError('');
+    startTimer();
 
     try {
       const response = await fetch('/api/tools/flow-chart', {
@@ -176,6 +264,7 @@ export default function FlowChartPage() {
       });
 
       const result = await response.json();
+      stopTimer();
 
       if (!response.ok) {
         // 显示详细错误信息
@@ -190,10 +279,13 @@ export default function FlowChartPage() {
         sendLoad(result.xml);
         // 刷新统计
         fetchStats();
+        // 记录本次用时
+        setLastGenTime(elapsedTime);
       } else {
         setError(result.error || '生成的流程图数据为空或格式错误');
       }
     } catch (err) {
+      stopTimer();
       console.error('生成流程图错误:', err);
       setError('网络错误，请检查网络连接后重试');
     } finally {
@@ -207,6 +299,9 @@ export default function FlowChartPage() {
     
     sendLoad(EMPTY_XML);
     setPrompt('');
+    setOptimizedPrompt('');
+    setLastGenTime(0);
+    setElapsedTime(0);
   }, [drawioReady, sendLoad]);
 
   return (
@@ -239,99 +334,156 @@ export default function FlowChartPage() {
           <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
             <div className="p-4 border-b border-slate-200">
-            {/* 方向选择 */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setDirection('vertical')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    direction === 'vertical'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                  纵向
-                </button>
-                <button
-                  onClick={() => setDirection('horizontal')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    direction === 'horizontal'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  横向
-                </button>
+              {/* 方向选择 */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDirection('vertical')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      direction === 'vertical'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                    纵向
+                  </button>
+                  <button
+                    onClick={() => setDirection('horizontal')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      direction === 'horizontal'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <ArrowRight className="w-3.5 h-3.5" />
+                    横向
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              流程描述
-            </label>
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !loading && prompt.trim()) {
-                  e.preventDefault();
-                  handleGenerate();
-                }
-              }}
-              placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
-              className="min-h-[120px] resize-none"
-            />
-            
-            {/* 错误提示 */}
-            {error && (
-              <div className="mt-2 flex items-center gap-2 text-red-500 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                {error}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-slate-700">
+                  流程描述
+                </label>
+                {/* 提示词优化按钮 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleOptimize}
+                  disabled={optimizing || !prompt.trim()}
+                  className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                >
+                  {optimizing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                      优化中 {elapsedTime.toFixed(1)}s
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5 mr-1" />
+                      提示词优化
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
 
-            {/* 生成按钮 */}
-            <Button
-              onClick={handleGenerate}
-              disabled={loading || !prompt.trim()}
-              className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  生成流程图
-                </>
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !loading && prompt.trim()) {
+                    e.preventDefault();
+                    handleGenerate();
+                  }
+                }}
+                placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
+                className="min-h-[100px] resize-none"
+              />
+
+              {/* 优化后的提示词显示 */}
+              {optimizedPrompt && (
+                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-purple-700 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      优化后的提示词
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={useOptimizedPrompt}
+                      className="h-6 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                    >
+                      使用此提示词
+                    </Button>
+                  </div>
+                  <p className="text-xs text-purple-800 leading-relaxed">
+                    {optimizedPrompt}
+                  </p>
+                </div>
               )}
-            </Button>
-          </div>
+              
+              {/* 错误提示 */}
+              {error && (
+                <div className="mt-2 flex items-center gap-2 text-red-500 text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
 
-          {/* Tips 区域 */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <h4 className="text-xs font-medium text-red-600 mb-1">💡 Tips</h4>
-              <p className="text-xs text-red-500">
-                拖拽画布：Space+左键
-              </p>
+              {/* 生成按钮 */}
+              <Button
+                onClick={handleGenerate}
+                disabled={loading || !prompt.trim()}
+                className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    生成中 {elapsedTime.toFixed(1)}s
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    生成流程图
+                  </>
+                )}
+              </Button>
+
+              {/* 上次用时显示 */}
+              {lastGenTime > 0 && !loading && !optimizing && (
+                <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
+                  <Clock className="w-3.5 h-3.5" />
+                  上次生成用时: {lastGenTime.toFixed(1)} 秒
+                </div>
+              )}
+            </div>
+
+            {/* Tips 区域 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <h4 className="text-xs font-medium text-amber-700 mb-2">💡 使用提示</h4>
+                <ul className="text-xs text-amber-600 space-y-1">
+                  <li>• 拖拽画布：Space+左键</li>
+                  <li>• 点击"提示词优化"可将口语化描述转为标准流程</li>
+                  <li>• 支持多种箭头格式：--&gt;、→、-&gt;</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* 编辑器状态 */}
+            <div className="p-3 border-t border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
+                <span className="text-slate-600">
+                  {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
+                </span>
+              </div>
             </div>
           </div>
-
-          {/* 编辑器状态 */}
-          <div className="p-3 border-t border-slate-200 bg-slate-50">
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
-              <span className="text-slate-600">
-                {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
-              </span>
-            </div>
-          </div>
-        </div>)}
+        )}
 
         {/* 右侧编辑器区域 */}
         <div className="flex-1 flex flex-col">
