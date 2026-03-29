@@ -491,13 +491,13 @@ export default function HomePage() {
                 <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
               </div>
 
-              {/* 快捷问题 */}
-              <div className="space-y-4">
+              {/* 快捷问题 - 移动端隐藏 */}
+              <div className="hidden sm:block space-y-4">
                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2 justify-center">
                   <Search className="w-4 h-4" />
                   试试这些问题
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {QUICK_QUESTIONS.map((q, index) => (
                     <button
                       key={index}

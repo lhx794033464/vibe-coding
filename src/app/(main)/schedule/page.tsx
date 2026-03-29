@@ -155,7 +155,6 @@ export default function SchedulePage() {
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
-  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   
   // 会议相关状态
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
@@ -386,107 +385,89 @@ export default function SchedulePage() {
 
       {/* 日历区域 */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-6xl mx-auto">
-          {/* 星期标题 */}
-          <div className="grid grid-cols-7 mb-2">
-            {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, index) => (
+        <div className="max-w-3xl mx-auto space-y-2">
+          {calendarDates.map((date, index) => {
+            const dateStr = formatDate(date);
+            const dateStatus = getDateStatus(date);
+            const todayClass = isToday(date);
+            const { isFirst, month } = isFirstOfMonth(date);
+            const dateSchedules = getSchedulesForDate(date);
+            const dayOfWeek = date.getDay();
+            const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+            return (
               <div
-                key={day}
-                className={`text-center py-2 text-sm font-medium ${
-                  index >= 5 ? 'text-gray-400' : 'text-gray-500'
-                }`}
+                key={index}
+                className={`flex items-center gap-4 p-4 border rounded-lg transition-colors cursor-pointer group ${
+                  (dateStatus.isHoliday || dateStatus.isWeekend)
+                    ? 'bg-gray-100 border-gray-300'
+                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                onClick={() => {
+                  setSelectedDate(date);
+                  setSelectedCustomerId('');
+                  setCustomerSearch('');
+                  setNotes('');
+                  setShowAddDialog(true);
+                }}
               >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* 日历网格 */}
-          <div className="grid grid-cols-7 gap-1">
-            {calendarDates.map((date, index) => {
-              const dateStr = formatDate(date);
-              const dateStatus = getDateStatus(date);
-              const todayClass = isToday(date);
-              const { isFirst, month } = isFirstOfMonth(date);
-              const dateSchedules = getSchedulesForDate(date);
-              const isHovered = hoveredDate === dateStr;
-
-              return (
-                <div
-                  key={index}
-                  className={`relative min-h-[100px] border rounded-lg transition-colors cursor-pointer group ${
-                    (dateStatus.isHoliday || dateStatus.isWeekend)
-                      ? 'bg-gray-100 border-gray-300'
-                      : dateStatus.isWorkday
-                      ? 'bg-white border-gray-200 hover:border-blue-300'
-                      : 'bg-white border-gray-200 hover:border-blue-300'
-                  } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
-                  onMouseEnter={() => setHoveredDate(dateStr)}
-                  onMouseLeave={() => setHoveredDate(null)}
-                  onClick={() => {
-                    setSelectedDate(date);
-                    setSelectedCustomerId('');
-                    setCustomerSearch('');
-                    setNotes('');
-                    setShowAddDialog(true);
-                  }}
-                >
-                  <div className="p-2 flex items-start justify-between">
-                    <div>
-                      {isFirst ? (
-                        <span className="text-lg font-bold text-blue-600">{month}月</span>
-                      ) : (
-                        <span className={`text-sm ${
-                          (dateStatus.isHoliday || dateStatus.isWeekend) ? 'text-gray-600' : 'text-gray-700'
-                        }`}>
-                          {date.getDate()}
-                        </span>
-                      )}
-                    </div>
-                    {isHovered && (
-                      <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm">
-                        <Plus className="w-4 h-4" />
-                      </div>
-                    )}
+                {/* 日期信息 */}
+                <div className="w-24 shrink-0">
+                  {isFirst && (
+                    <div className="text-lg font-bold text-blue-600 mb-1">{month}月</div>
+                  )}
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-2xl font-semibold ${
+                      (dateStatus.isHoliday || dateStatus.isWeekend) ? 'text-gray-500' : 'text-gray-800'
+                    }`}>
+                      {date.getDate()}
+                    </span>
+                    <span className={`text-sm ${
+                      dayOfWeek === 0 || dayOfWeek === 6 ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                      {dayNames[dayOfWeek]}
+                    </span>
                   </div>
-
                   {dateStatus.holidayName && (
-                    <div className="px-2 pb-1">
-                      <span className="text-xs text-gray-500">{dateStatus.holidayName}</span>
+                    <span className="text-xs text-red-500">{dateStatus.holidayName}</span>
+                  )}
+                </div>
+
+                {/* 日程列表 */}
+                <div className="flex-1 min-w-0">
+                  {dateSchedules.length === 0 ? (
+                    <span className="text-sm text-gray-400 group-hover:text-gray-500">暂无日程</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {dateSchedules.map(schedule => (
+                        <div
+                          key={schedule.id}
+                          className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex items-center gap-2 group/schedule"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span>{schedule.customer_name || '未知客户'}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSchedule(schedule.id);
+                            }}
+                            className="opacity-0 group-hover/schedule:opacity-100 hover:text-red-500 transition-opacity"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
-
-                  <div className="px-2 pb-2 space-y-1">
-                    {dateSchedules.slice(0, 3).map(schedule => (
-                      <div
-                        key={schedule.id}
-                        className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded truncate flex items-center justify-between group/schedule"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span className="truncate flex-1">
-                          {schedule.customer_name || '未知客户'}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSchedule(schedule.id);
-                          }}
-                          className="ml-1 opacity-0 group-hover/schedule:opacity-100 hover:text-red-500 transition-opacity"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                    {dateSchedules.length > 3 && (
-                      <div className="text-xs text-gray-500 px-2">
-                        +{dateSchedules.length - 3} 更多
-                      </div>
-                    )}
-                  </div>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* 添加按钮 */}
+                <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <Plus className="w-4 h-4" />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
