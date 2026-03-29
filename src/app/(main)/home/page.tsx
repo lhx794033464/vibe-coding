@@ -633,9 +633,6 @@ export default function HomePage() {
               </Button>
             </div>
           </form>
-          <p className="text-center text-xs text-slate-400 mt-2">
-            按 Enter 发送 · Shift + Enter 换行 · 空格键语音输入 · 支持语音创建待办、预约会议等
-          </p>
         </div>
       </div>
     </div>
