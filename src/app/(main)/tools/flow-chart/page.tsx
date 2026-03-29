@@ -14,9 +14,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   TrendingUp,
-  Wand2,
   Clock,
-  CheckCircle2,
+  Save,
+  LogOut,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -29,9 +29,7 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
 
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
-  const [optimizedPrompt, setOptimizedPrompt] = useState('');
   const [loading, setLoading] = useState(false);
-  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
@@ -103,12 +101,12 @@ export default function FlowChartPage() {
         action: 'configure',
         config: {
           autosave: false,
-          saveAndExit: false,
-          noExitBtn: true,
-          noSaveBtn: true,
+          saveAndExit: true,  // 启用保存和退出按钮
+          noExitBtn: false,   // 显示退出按钮
+          noSaveBtn: false,   // 显示保存按钮
           chrome: true,
           toolbar: true,
-          noCloseBtn: true,
+          noCloseBtn: false,
         }
       }),
       'https://embed.diagrams.net'
@@ -116,7 +114,7 @@ export default function FlowChartPage() {
   }, []);
 
   // 向 draw.io 发送加载消息
-  const sendLoad = useCallback((xml: string, onLoadComplete?: () => void) => {
+  const sendLoad = useCallback((xml: string) => {
     if (!iframeRef.current?.contentWindow) return;
     
     iframeRef.current.contentWindow.postMessage(
@@ -129,11 +127,64 @@ export default function FlowChartPage() {
     );
     // 更新保存的 XML
     setSavedXml(xml);
-    // 保存回调函数，供 load 事件使用
-    if (onLoadComplete) {
-      (iframeRef.current as HTMLIFrameElement & { onLoadComplete?: () => void }).onLoadComplete = onLoadComplete;
+  }, []);
+
+  // 处理 draw.io 的导出（保存）
+  const handleDrawioExport = useCallback((data: any) => {
+    console.log('draw.io 导出数据:', data);
+    
+    // 保存到 localStorage
+    if (data.xml) {
+      const timestamp = new Date().toISOString();
+      const saveData = {
+        xml: data.xml,
+        timestamp,
+        name: data.name || `流程图_${new Date().toLocaleString()}`,
+      };
+      
+      // 保存当前编辑的内容
+      localStorage.setItem('flowchart_current', JSON.stringify(saveData));
+      
+      // 添加到历史记录
+      const history = JSON.parse(localStorage.getItem('flowchart_history') || '[]');
+      history.unshift(saveData);
+      if (history.length > 10) history.pop(); // 最多保留10条
+      localStorage.setItem('flowchart_history', JSON.stringify(history));
+      
+      // 更新状态
+      setSavedXml(data.xml);
+      
+      // 显示保存成功提示
+      alert('流程图已保存到本地存储');
     }
   }, []);
+
+  // 处理 draw.io 的退出
+  const handleDrawioExit = useCallback(() => {
+    console.log('draw.io 退出');
+    // 可以在这里添加确认对话框，询问是否保存
+    const confirmExit = window.confirm('确定要退出编辑器吗？未保存的更改将丢失。');
+    if (confirmExit) {
+      // 清空当前流程图，回到空白画布
+      sendLoad(EMPTY_XML);
+      setPrompt('');
+      alert('已退出编辑器');
+    }
+  }, [sendLoad]);
+
+  // 手动保存当前流程图
+  const handleManualSave = useCallback(() => {
+    if (!iframeRef.current?.contentWindow || !drawioReady) return;
+    
+    // 发送导出请求给 draw.io
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        action: 'export',
+        format: 'xml',
+      }),
+      'https://embed.diagrams.net'
+    );
+  }, [drawioReady]);
 
   // 监听 draw.io 消息
   useEffect(() => {
@@ -179,12 +230,16 @@ export default function FlowChartPage() {
         setLastGenTime(elapsedTime);
         // 结束 loading 状态
         setLoading(false);
-        // 调用加载完成回调
-        const iframe = iframeRef.current as HTMLIFrameElement & { onLoadComplete?: () => void };
-        if (iframe?.onLoadComplete) {
-          iframe.onLoadComplete();
-          iframe.onLoadComplete = undefined;
-        }
+      }
+      
+      // 处理保存/导出事件
+      if (typeof data === 'object' && data?.event === 'export') {
+        handleDrawioExport(data);
+      }
+      
+      // 处理退出事件
+      if (typeof data === 'object' && data?.event === 'exit') {
+        handleDrawioExit();
       }
       
       // 处理自动保存 - 实时保存当前 XML
@@ -198,59 +253,7 @@ export default function FlowChartPage() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isConfigured, sendConfigure, sendLoad]);
-
-  // 提示词优化
-  const handleOptimize = async () => {
-    if (!prompt.trim()) {
-      setError('请输入流程描述后再优化');
-      return;
-    }
-
-    setOptimizing(true);
-    setError('');
-    startTimer();
-
-    try {
-      const response = await fetch('/api/tools/flow-chart/optimize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim() }),
-      });
-
-      const result = await response.json();
-      stopTimer();
-
-      if (!response.ok) {
-        const errorMsg = result.error || '优化失败';
-        const detailMsg = result.detail ? ` (${result.detail})` : '';
-        setError(`${errorMsg}${detailMsg}`);
-        return;
-      }
-
-      if (result.success && result.optimizedPrompt) {
-        setOptimizedPrompt(result.optimizedPrompt);
-        // 可选：自动替换原文
-        // setPrompt(result.optimizedPrompt);
-      } else {
-        setError('优化结果为空');
-      }
-    } catch (err) {
-      stopTimer();
-      console.error('提示词优化错误:', err);
-      setError('网络错误，优化失败');
-    } finally {
-      setOptimizing(false);
-    }
-  };
-
-  // 使用优化后的提示词
-  const useOptimizedPrompt = () => {
-    if (optimizedPrompt) {
-      setPrompt(optimizedPrompt);
-      setOptimizedPrompt('');
-    }
-  };
+  }, [isConfigured, sendConfigure, sendLoad, elapsedTime, handleDrawioExport, handleDrawioExit]);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -279,12 +282,10 @@ export default function FlowChartPage() {
       });
 
       const result = await response.json();
-      // 注意：不在此处停止计时器，等待 draw.io 加载完成
 
       if (!response.ok) {
-        stopTimer(); // API 错误时停止计时
-        setLoading(false); // 错误时结束 loading
-        // 显示详细错误信息
+        stopTimer();
+        setLoading(false);
         const errorMsg = result.error || '生成失败，请稍后重试';
         const detailMsg = result.detail ? ` (${result.detail})` : '';
         setError(`${errorMsg}${detailMsg}`);
@@ -292,23 +293,19 @@ export default function FlowChartPage() {
       }
 
       if (result.xml && result.success) {
-        // 向 draw.io iframe 发送加载消息，计时器继续运行直到 draw.io 加载完成
         sendLoad(result.xml);
-        // 刷新统计
         fetchStats();
-        // 注意：不在此处结束 loading，等待 draw.io 的 load 事件
       } else {
-        stopTimer(); // 数据错误时停止计时
-        setLoading(false); // 错误时结束 loading
+        stopTimer();
+        setLoading(false);
         setError(result.error || '生成的流程图数据为空或格式错误');
       }
     } catch (err) {
       stopTimer();
-      setLoading(false); // 异常时结束 loading
+      setLoading(false);
       console.error('生成流程图错误:', err);
       setError('网络错误，请检查网络连接后重试');
     }
-    // 注意：不在 finally 中设置 loading，由 draw.io 的 load 事件或错误处理来结束 loading
   };
 
   // 清空编辑器
@@ -317,7 +314,6 @@ export default function FlowChartPage() {
     
     sendLoad(EMPTY_XML);
     setPrompt('');
-    setOptimizedPrompt('');
     setLastGenTime(0);
     setElapsedTime(0);
   }, [drawioReady, sendLoad]);
@@ -347,66 +343,43 @@ export default function FlowChartPage() {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧面板 */}
+        {/* 左侧面板 - 宽度改为 200px */}
         {isLeftPanelOpen && (
-          <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
+          <div className="w-[200px] bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-3 border-b border-slate-200">
               {/* 方向选择 */}
               <div className="mb-3">
                 <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <button
                     onClick={() => setDirection('vertical')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       direction === 'vertical'
                         ? 'bg-blue-500 text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    <ArrowDown className="w-3.5 h-3.5" />
+                    <ArrowDown className="w-3 h-3" />
                     纵向
                   </button>
                   <button
                     onClick={() => setDirection('horizontal')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       direction === 'horizontal'
                         ? 'bg-blue-500 text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-3 h-3" />
                     横向
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  流程描述
-                </label>
-                {/* 提示词优化按钮 */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleOptimize}
-                  disabled={optimizing || !prompt.trim()}
-                  className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                >
-                  {optimizing ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                      优化中 {elapsedTime.toFixed(1)}s
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-3.5 h-3.5 mr-1" />
-                      提示词优化
-                    </>
-                  )}
-                </Button>
-              </div>
-
+              <label className="block text-xs font-medium text-slate-700 mb-2">
+                流程描述
+              </label>
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -416,38 +389,15 @@ export default function FlowChartPage() {
                     handleGenerate();
                   }
                 }}
-                placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
-                className="h-[250px] resize-none overflow-y-auto"
+                placeholder="请描述流程图..."
+                className="h-[200px] resize-none overflow-y-auto text-xs"
               />
-
-              {/* 优化后的提示词显示 */}
-              {optimizedPrompt && (
-                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-purple-700 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      优化后的提示词
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={useOptimizedPrompt}
-                      className="h-6 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-100"
-                    >
-                      使用此提示词
-                    </Button>
-                  </div>
-                  <p className="text-xs text-purple-800 leading-relaxed">
-                    {optimizedPrompt}
-                  </p>
-                </div>
-              )}
               
               {/* 错误提示 */}
               {error && (
-                <div className="mt-2 flex items-center gap-2 text-red-500 text-sm">
-                  <AlertCircle className="w-4 h-4" />
-                  {error}
+                <div className="mt-2 flex items-center gap-1 text-red-500 text-xs">
+                  <AlertCircle className="w-3 h-3" />
+                  <span className="truncate">{error}</span>
                 </div>
               )}
 
@@ -455,48 +405,47 @@ export default function FlowChartPage() {
               <Button
                 onClick={handleGenerate}
                 disabled={loading || !prompt.trim()}
-                className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
+                className="w-full mt-3 bg-blue-500 hover:bg-blue-600 text-xs h-8"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                     {elapsedTime < 5 ? 'AI生成中' : '渲染中'} {elapsedTime.toFixed(1)}s
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 mr-2" />
+                    <Sparkles className="w-3 h-3 mr-1" />
                     生成流程图
                   </>
                 )}
               </Button>
 
               {/* 上次用时显示 */}
-              {lastGenTime > 0 && !loading && !optimizing && (
+              {lastGenTime > 0 && !loading && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
-                  <Clock className="w-3.5 h-3.5" />
-                  上次生成用时: {lastGenTime.toFixed(1)} 秒
+                  <Clock className="w-3 h-3" />
+                  上次用时: {lastGenTime.toFixed(1)}s
                 </div>
               )}
             </div>
 
             {/* Tips 区域 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <h4 className="text-xs font-medium text-amber-700 mb-2">💡 使用提示</h4>
-                <ul className="text-xs text-amber-600 space-y-1">
-                  <li>• 拖拽画布：Space+左键</li>
-                  <li>• 点击"提示词优化"可将口语化描述转为标准流程</li>
-                  <li>• 支持多种箭头格式：--&gt;、→、-&gt;</li>
+            <div className="flex-1 overflow-y-auto p-3">
+              <div className="p-2 bg-yellow-50 rounded border border-yellow-200">
+                <h4 className="text-xs font-medium text-amber-700 mb-1">💡 提示</h4>
+                <ul className="text-xs text-amber-600 space-y-0.5">
+                  <li>• 拖拽：Space+左键</li>
+                  <li>• 支持：--&gt;、→</li>
                 </ul>
               </div>
             </div>
 
             {/* 编辑器状态 */}
-            <div className="p-3 border-t border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-2 text-xs">
+            <div className="p-2 border-t border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-1.5 text-xs">
                 <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
-                <span className="text-slate-600">
-                  {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
+                <span className="text-slate-600 text-xs">
+                  {drawioReady ? '就绪' : '加载中...'}
                 </span>
               </div>
             </div>
@@ -512,23 +461,46 @@ export default function FlowChartPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-                className="h-9 px-2.5"
+                className="h-8 px-2"
                 title={isLeftPanelOpen ? '收起侧边栏' : '展开侧边栏'}
               >
                 {isLeftPanelOpen ? (
-                  <PanelLeftClose className="w-5 h-5" />
+                  <PanelLeftClose className="w-4 h-4" />
                 ) : (
-                  <PanelLeftOpen className="w-5 h-5" />
+                  <PanelLeftOpen className="w-4 h-4" />
                 )}
               </Button>
               <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
             </div>
             <div className="flex items-center gap-2">
+              {/* 手动保存按钮 */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManualSave}
+                disabled={!drawioReady}
+                className="h-8"
+              >
+                <Save className="w-4 h-4 mr-1" />
+                保存
+              </Button>
+              {/* 退出按钮 */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDrawioExit}
+                disabled={!drawioReady}
+                className="h-8"
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                退出
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleClear}
                 disabled={!drawioReady}
+                className="h-8"
               >
                 <RotateCcw className="w-4 h-4 mr-1" />
                 清空
