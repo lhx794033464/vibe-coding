@@ -524,42 +524,36 @@ export default function FlowChartPage() {
 
       {/* Mermaid 代码弹窗 */}
       <Dialog open={showMermaidDialog} onOpenChange={setShowMermaidDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-green-600">
               <Check className="w-5 h-5" />
               生成成功
             </DialogTitle>
             <DialogDescription>
-              Mermaid 流程图代码已生成，点击下方按钮复制
+              Mermaid 流程图代码已生成完成
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-4">
-            <div className="relative">
-              <pre className="p-4 bg-slate-900 text-green-400 rounded-lg text-sm overflow-x-auto max-h-[400px] overflow-y-auto">
-                <code>{mermaidCode}</code>
-              </pre>
-              <Button
-                onClick={handleCopy}
-                className="absolute top-2 right-2"
-                size="sm"
-                variant={copied ? 'default' : 'secondary'}
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 mr-1" />
-                    已复制
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 mr-1" />
-                    复制代码
-                  </>
-                )}
-              </Button>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              💡 可将代码粘贴到 <a href="https://mermaid.live" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Mermaid Live Editor</a> 中预览和编辑
+          <div className="mt-4 flex flex-col items-center gap-3">
+            <Button
+              onClick={handleCopy}
+              size="lg"
+              className="w-full"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  已复制到剪贴板
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 mr-2" />
+                  复制代码
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-slate-500 text-center">
+              可粘贴到 <a href="https://mermaid.live" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Mermaid Live Editor</a> 预览
             </p>
           </div>
         </DialogContent>
