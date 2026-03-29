@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, FileText, ArrowRight } from 'lucide-react';
+import { GitBranch, Video, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 // localStorage 键名
@@ -17,8 +17,17 @@ const tools = [
     description: '使用自然语言描述，AI 自动生成可编辑的业务流程图（集成 draw.io）',
     icon: GitBranch,
     href: '/tools/flow-chart',
-    color: 'bg-blue-50 text-blue-600',
+    color: 'text-blue-600',
     iconBg: 'bg-blue-100',
+  },
+  {
+    id: 'flow-video',
+    title: '业务流程视频',
+    description: '输入业务流程描述，AI 自动生成流程演示短视频',
+    icon: Video,
+    href: '/tools/flow-video',
+    color: 'text-purple-600',
+    iconBg: 'bg-purple-100',
   },
 ];
 
