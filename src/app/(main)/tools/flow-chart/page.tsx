@@ -24,6 +24,9 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
   </root>
 </mxGraphModel>`;
 
+// localStorage 缓存键
+const FLOWCHART_CACHE_KEY = 'flowchart-cache-xml';
+
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,8 +35,14 @@ export default function FlowChartPage() {
   const [isConfigured, setIsConfigured] = useState(false);
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  // 保存当前流程图 XML，切换页面时不丢失
-  const [savedXml, setSavedXml] = useState<string>(EMPTY_XML);
+  // 保存当前流程图 XML，切换页面时不丢失（从 localStorage 恢复）
+  const [savedXml, setSavedXml] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(FLOWCHART_CACHE_KEY);
+      return cached || EMPTY_XML;
+    }
+    return EMPTY_XML;
+  });
   // 计时器
   const [elapsedTime, setElapsedTime] = useState(0);
   const [lastGenTime, setLastGenTime] = useState(0);
@@ -100,8 +109,9 @@ export default function FlowChartPage() {
       }),
       'https://embed.diagrams.net'
     );
-    // 更新保存的 XML
+    // 更新保存的 XML 到状态和 localStorage
     setSavedXml(xml);
+    localStorage.setItem(FLOWCHART_CACHE_KEY, xml);
   }, []);
 
   // 监听 draw.io 消息
@@ -145,11 +155,12 @@ export default function FlowChartPage() {
         console.log('流程图加载完成');
       }
       
-      // 处理自动保存 - 实时保存当前 XML
+      // 处理自动保存 - 实时保存当前 XML 到 localStorage
       if (typeof data === 'object' && (data?.event === 'save' || data?.event === 'autosave')) {
         console.log('流程图已保存');
         if (data.xml) {
           setSavedXml(data.xml);
+          localStorage.setItem(FLOWCHART_CACHE_KEY, data.xml);
         }
       }
     };
@@ -220,6 +231,7 @@ export default function FlowChartPage() {
     setPrompt('');
     setLastGenTime(0);
     setElapsedTime(0);
+    localStorage.removeItem(FLOWCHART_CACHE_KEY);
   }, [drawioReady, sendLoad]);
 
   return (
