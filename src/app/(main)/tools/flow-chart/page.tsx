@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
   Clock,
 } from 'lucide-react';
+import { useFlowChart } from '@/contexts/FlowChartContext';
 
 // 空白画布 XML
 const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100">
@@ -24,57 +25,32 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
   </root>
 </mxGraphModel>`;
 
-// localStorage 缓存键
-const FLOWCHART_CACHE_KEY = 'flowchart-cache-xml';
-
 export default function FlowChartPage() {
-  const [prompt, setPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // 从 Context 获取状态和方法
+  const {
+    isGenerating,
+    prompt,
+    direction,
+    error,
+    elapsedTime,
+    lastGenTime,
+    generatedXml,
+    setPrompt,
+    setDirection,
+    setError,
+    startGeneration,
+    resetState,
+    setGeneratedXml,
+    getSavedXml,
+    saveXml,
+  } = useFlowChart();
+  
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  // 保存当前流程图 XML，切换页面时不丢失（从 localStorage 恢复）
-  const [savedXml, setSavedXml] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem(FLOWCHART_CACHE_KEY);
-      return cached || EMPTY_XML;
-    }
-    return EMPTY_XML;
-  });
-  // 计时器
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [lastGenTime, setLastGenTime] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // 清理计时器
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
-
-  // 开始计时
-  const startTimer = () => {
-    setElapsedTime(0);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setElapsedTime(prev => prev + 0.1);
-    }, 100);
-  };
-
-  // 停止计时
-  const stopTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
+  const lastLoadedXmlRef = useRef<string>(''); // 追踪上次加载的 XML，避免重复加载
 
   // 向 draw.io 发送配置消息
   const sendConfigure = useCallback(() => {
@@ -101,6 +77,10 @@ export default function FlowChartPage() {
   const sendLoad = useCallback((xml: string) => {
     if (!iframeRef.current?.contentWindow) return;
     
+    // 避免重复加载相同的 XML
+    if (lastLoadedXmlRef.current === xml) return;
+    lastLoadedXmlRef.current = xml;
+    
     iframeRef.current.contentWindow.postMessage(
       JSON.stringify({
         action: 'load',
@@ -109,10 +89,15 @@ export default function FlowChartPage() {
       }),
       'https://embed.diagrams.net'
     );
-    // 更新保存的 XML 到状态和 localStorage
-    setSavedXml(xml);
-    localStorage.setItem(FLOWCHART_CACHE_KEY, xml);
-  }, []);
+    saveXml(xml);
+  }, [saveXml]);
+
+  // 监听 generatedXml 变化，自动加载到编辑器
+  useEffect(() => {
+    if (generatedXml && drawioReady && generatedXml !== lastLoadedXmlRef.current) {
+      sendLoad(generatedXml);
+    }
+  }, [generatedXml, drawioReady, sendLoad]);
 
   // 监听 draw.io 消息
   useEffect(() => {
@@ -144,9 +129,18 @@ export default function FlowChartPage() {
           setIsConfigured(true);
         }
         
-        // 加载保存的流程图（如果有）或空白画布
+        // 加载保存的流程图（如果有）或检查是否有正在生成的 XML
         setTimeout(() => {
-          sendLoad(savedXml);
+          if (generatedXml) {
+            sendLoad(generatedXml);
+          } else {
+            const savedXml = getSavedXml();
+            if (savedXml) {
+              sendLoad(savedXml);
+            } else {
+              sendLoad(EMPTY_XML);
+            }
+          }
         }, 100);
       }
       
@@ -159,15 +153,14 @@ export default function FlowChartPage() {
       if (typeof data === 'object' && (data?.event === 'save' || data?.event === 'autosave')) {
         console.log('流程图已保存');
         if (data.xml) {
-          setSavedXml(data.xml);
-          localStorage.setItem(FLOWCHART_CACHE_KEY, data.xml);
+          saveXml(data.xml);
         }
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isConfigured, sendConfigure, sendLoad]);
+  }, [isConfigured, sendConfigure, sendLoad, generatedXml, getSavedXml, saveXml]);
 
   // 生成流程图
   const handleGenerate = async () => {
@@ -181,45 +174,10 @@ export default function FlowChartPage() {
       return;
     }
 
-    setLoading(true);
-    setError('');
-    startTimer();
-
-    try {
-      const response = await fetch('/api/tools/flow-chart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: prompt.trim(),
-          direction,
-        }),
-      });
-
-      const result = await response.json();
-      stopTimer();
-
-      if (!response.ok) {
-        // 显示详细错误信息
-        const errorMsg = result.error || '生成失败，请稍后重试';
-        const detailMsg = result.detail ? ` (${result.detail})` : '';
-        setError(`${errorMsg}${detailMsg}`);
-        return;
-      }
-
-      if (result.xml && result.success) {
-        // 向 draw.io iframe 发送加载消息
-        sendLoad(result.xml);
-        // 记录本次用时
-        setLastGenTime(elapsedTime);
-      } else {
-        setError(result.error || '生成的流程图数据为空或格式错误');
-      }
-    } catch (err) {
-      stopTimer();
-      console.error('生成流程图错误:', err);
-      setError('网络错误，请检查网络连接后重试');
-    } finally {
-      setLoading(false);
+    const xml = await startGeneration();
+    if (xml) {
+      // 向 draw.io iframe 发送加载消息
+      sendLoad(xml);
     }
   };
 
@@ -228,11 +186,8 @@ export default function FlowChartPage() {
     if (!drawioReady) return;
     
     sendLoad(EMPTY_XML);
-    setPrompt('');
-    setLastGenTime(0);
-    setElapsedTime(0);
-    localStorage.removeItem(FLOWCHART_CACHE_KEY);
-  }, [drawioReady, sendLoad]);
+    resetState();
+  }, [drawioReady, sendLoad, resetState]);
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
@@ -268,6 +223,7 @@ export default function FlowChartPage() {
                         ? 'bg-blue-500 text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
+                    disabled={isGenerating}
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
                     纵向
@@ -279,6 +235,7 @@ export default function FlowChartPage() {
                         ? 'bg-blue-500 text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
+                    disabled={isGenerating}
                   >
                     <ArrowRight className="w-3.5 h-3.5" />
                     横向
@@ -293,13 +250,14 @@ export default function FlowChartPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && !loading && prompt.trim()) {
+                  if (e.key === 'Enter' && !e.shiftKey && !isGenerating && prompt.trim()) {
                     e.preventDefault();
                     handleGenerate();
                   }
                 }}
                 placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
                 className="h-[200px] resize-none overflow-y-auto"
+                disabled={isGenerating}
               />
               
               {/* 错误提示 */}
@@ -313,10 +271,10 @@ export default function FlowChartPage() {
               {/* 生成按钮 */}
               <Button
                 onClick={handleGenerate}
-                disabled={loading || !prompt.trim()}
+                disabled={isGenerating || !prompt.trim()}
                 className="w-full mt-3 bg-blue-500 hover:bg-blue-600"
               >
-                {loading ? (
+                {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     生成中 {elapsedTime.toFixed(1)}s
@@ -330,7 +288,7 @@ export default function FlowChartPage() {
               </Button>
 
               {/* 上次用时显示 */}
-              {lastGenTime > 0 && !loading && (
+              {lastGenTime > 0 && !isGenerating && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
                   上次生成用时: {lastGenTime.toFixed(1)} 秒
@@ -356,6 +314,9 @@ export default function FlowChartPage() {
                 <span className="text-slate-600">
                   {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
                 </span>
+                {isGenerating && (
+                  <span className="text-blue-500 ml-2">· 正在生成...</span>
+                )}
               </div>
             </div>
           </div>
@@ -380,13 +341,18 @@ export default function FlowChartPage() {
                 )}
               </Button>
               <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
+              {isGenerating && (
+                <span className="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
+                  后台生成中...
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleClear}
-                disabled={!drawioReady}
+                disabled={!drawioReady || isGenerating}
               >
                 <RotateCcw className="w-4 h-4 mr-1" />
                 清空

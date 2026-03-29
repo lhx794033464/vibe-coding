@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChatProvider } from '@/contexts/ChatContext';
+import { FlowChartProvider } from '@/contexts/FlowChartContext';
 import { Sidebar } from '@/components/sidebar';
 import {
   Dialog,
@@ -38,7 +39,8 @@ export default function MainLayout({
 
   return (
     <ChatProvider>
-      <div className="h-screen flex bg-gray-50 overflow-hidden">
+      <FlowChartProvider>
+        <div className="h-screen flex bg-gray-50 overflow-hidden">
         <Sidebar 
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
@@ -73,6 +75,7 @@ export default function MainLayout({
           </div>
         </DialogContent>
       </Dialog>
+      </FlowChartProvider>
     </ChatProvider>
   );
 }
