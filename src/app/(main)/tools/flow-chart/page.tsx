@@ -3,13 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { 
   GitBranch, 
   Loader2, 
@@ -22,14 +15,7 @@ import {
   PanelLeftOpen,
   TrendingUp,
   Clock,
-  Code,
-  Copy,
-  Check,
-  Zap,
-  Eye,
-  Edit3,
 } from 'lucide-react';
-import mermaid from 'mermaid';
 
 // 空白画布 XML
 const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100">
@@ -56,44 +42,7 @@ export default function FlowChartPage() {
   const [lastGenTime, setLastGenTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Mermaid 相关状态
-  const [mermaidLoading, setMermaidLoading] = useState(false);
-  const [mermaidCode, setMermaidCode] = useState('');
-  const [showMermaidDialog, setShowMermaidDialog] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [showMermaidPreview, setShowMermaidPreview] = useState(false);
-  const [mermaidSvg, setMermaidSvg] = useState('');
-  
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const mermaidRef = useRef<HTMLDivElement>(null);
-
-  // 初始化 Mermaid
-  useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      flowchart: {
-        useMaxWidth: true,
-        htmlLabels: true,
-      },
-    });
-  }, []);
-
-  // 渲染 Mermaid 预览
-  useEffect(() => {
-    if (mermaidCode && showMermaidPreview) {
-      const renderMermaid = async () => {
-        try {
-          const { svg } = await mermaid.render('mermaid-preview', mermaidCode);
-          setMermaidSvg(svg);
-        } catch (err) {
-          console.error('Mermaid 渲染错误:', err);
-          setMermaidSvg('<p class="text-red-500">渲染失败</p>');
-        }
-      };
-      renderMermaid();
-    }
-  }, [mermaidCode, showMermaidPreview]);
 
   // 获取流程图统计
   const fetchStats = useCallback(async () => {
@@ -276,8 +225,6 @@ export default function FlowChartPage() {
         fetchStats();
         // 记录本次用时
         setLastGenTime(elapsedTime);
-        // 切换到 draw.io 编辑器
-        setShowMermaidPreview(false);
       } else {
         setError(result.error || '生成的流程图数据为空或格式错误');
       }
@@ -290,70 +237,6 @@ export default function FlowChartPage() {
     }
   };
 
-  // 快速生成 Mermaid 代码
-  const handleGenerateMermaid = async () => {
-    if (!prompt.trim()) {
-      setError('请输入流程描述');
-      return;
-    }
-
-    setMermaidLoading(true);
-    setError('');
-    startTimer();
-
-    try {
-      const response = await fetch('/api/tools/flow-chart/mermaid', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: prompt.trim(),
-          direction,
-        }),
-      });
-
-      const result = await response.json();
-      stopTimer();
-
-      if (!response.ok) {
-        const errorMsg = result.error || '生成失败';
-        const detailMsg = result.detail ? ` (${result.detail})` : '';
-        setError(`${errorMsg}${detailMsg}`);
-        return;
-      }
-
-      if (result.success && result.mermaid) {
-        setMermaidCode(result.mermaid);
-        setShowMermaidDialog(true);
-        setLastGenTime(elapsedTime);
-      } else {
-        setError('生成的 Mermaid 代码为空');
-      }
-    } catch (err) {
-      stopTimer();
-      console.error('生成 Mermaid 错误:', err);
-      setError('网络错误，请检查网络连接后重试');
-    } finally {
-      setMermaidLoading(false);
-    }
-  };
-
-  // 复制 Mermaid 代码
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(mermaidCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('复制失败:', err);
-    }
-  };
-
-  // 在编辑器中使用 Mermaid
-  const handleUseInEditor = () => {
-    setShowMermaidDialog(false);
-    setShowMermaidPreview(true);
-  };
-
   // 清空编辑器
   const handleClear = useCallback(() => {
     if (!drawioReady) return;
@@ -362,9 +245,6 @@ export default function FlowChartPage() {
     setPrompt('');
     setLastGenTime(0);
     setElapsedTime(0);
-    setMermaidCode('');
-    setMermaidSvg('');
-    setShowMermaidPreview(false);
   }, [drawioReady, sendLoad]);
 
   return (
@@ -469,28 +349,8 @@ export default function FlowChartPage() {
                 )}
               </Button>
 
-              {/* 快速生成 Mermaid 按钮 */}
-              <Button
-                onClick={handleGenerateMermaid}
-                disabled={mermaidLoading || !prompt.trim()}
-                variant="outline"
-                className="w-full mt-2 border-purple-300 text-purple-600 hover:bg-purple-50 hover:text-purple-700"
-              >
-                {mermaidLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    生成中 {elapsedTime.toFixed(1)}s
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 mr-2" />
-                    快速生成 Mermaid
-                  </>
-                )}
-              </Button>
-
               {/* 上次用时显示 */}
-              {lastGenTime > 0 && !loading && !mermaidLoading && (
+              {lastGenTime > 0 && !loading && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
                   上次生成用时: {lastGenTime.toFixed(1)} 秒
@@ -505,7 +365,6 @@ export default function FlowChartPage() {
                 <ul className="text-xs text-amber-600 space-y-1">
                   <li>• 拖拽画布：Space+左键</li>
                   <li>• 支持多种箭头格式：--&gt;、→、-&gt;</li>
-                  <li>• Mermaid 可在编辑器中预览</li>
                 </ul>
               </div>
             </div>
@@ -540,33 +399,7 @@ export default function FlowChartPage() {
                   <PanelLeftOpen className="w-5 h-5" />
                 )}
               </Button>
-              
-              {/* 编辑器切换按钮 */}
-              <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-                <button
-                  onClick={() => setShowMermaidPreview(false)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    !showMermaidPreview
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  draw.io
-                </button>
-                <button
-                  onClick={() => setShowMermaidPreview(true)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    showMermaidPreview
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                  disabled={!mermaidCode}
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  Mermaid
-                </button>
-              </div>
+              <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -581,80 +414,17 @@ export default function FlowChartPage() {
             </div>
           </div>
 
-          {/* 编辑器内容区域 */}
-          <div className="flex-1 bg-slate-100 relative">
-            {/* draw.io iframe */}
-            {!showMermaidPreview && (
-              <iframe
-                ref={iframeRef}
-                src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
-                className="w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
-              />
-            )}
-            
-            {/* Mermaid 预览 */}
-            {showMermaidPreview && (
-              <div className="w-full h-full overflow-auto p-4 bg-white">
-                {mermaidSvg ? (
-                  <div 
-                    ref={mermaidRef}
-                    className="flex justify-center"
-                    dangerouslySetInnerHTML={{ __html: mermaidSvg }}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-slate-400">
-                    <p>暂无 Mermaid 预览，请先生成</p>
-                  </div>
-                )}
-              </div>
-            )}
+          {/* draw.io iframe */}
+          <div className="flex-1 bg-slate-100">
+            <iframe
+              ref={iframeRef}
+              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
+              className="w-full h-full border-0"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
+            />
           </div>
         </div>
       </div>
-
-      {/* Mermaid 代码弹窗 */}
-      <Dialog open={showMermaidDialog} onOpenChange={setShowMermaidDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <Check className="w-5 h-5" />
-              生成成功
-            </DialogTitle>
-            <DialogDescription>
-              Mermaid 流程图代码已生成完成
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4 flex flex-col gap-2">
-            <Button
-              onClick={handleUseInEditor}
-              size="lg"
-              className="w-full"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              在编辑器中预览
-            </Button>
-            <Button
-              onClick={handleCopy}
-              variant="outline"
-              size="lg"
-              className="w-full"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4 mr-2" />
-                  已复制到剪贴板
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 mr-2" />
-                  复制代码
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
