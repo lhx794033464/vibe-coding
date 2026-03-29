@@ -19,7 +19,7 @@ export default function MainLayout({
           onCollapsedChange={setSidebarCollapsed}
         />
         <main className={`flex-1 h-full overflow-auto transition-all duration-300 ${
-          sidebarCollapsed ? 'ml-16' : 'ml-64'
+          sidebarCollapsed ? 'ml-16' : 'ml-[200px]'
         }`}>
           {children}
         </main>
