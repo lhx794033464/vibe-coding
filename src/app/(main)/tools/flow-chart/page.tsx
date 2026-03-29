@@ -101,12 +101,12 @@ export default function FlowChartPage() {
         action: 'configure',
         config: {
           autosave: false,
-          saveAndExit: true,
-          noExitBtn: false,
-          noSaveBtn: false,
+          saveAndExit: false,  // 禁用保存并退出按钮
+          noExitBtn: true,     // 隐藏退出按钮
+          noSaveBtn: true,     // 隐藏保存按钮
           chrome: true,
           toolbar: true,
-          noCloseBtn: false,
+          noCloseBtn: true,
         }
       }),
       'https://embed.diagrams.net'
