@@ -1,5 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+
+// DeepSeek API 配置
+const DEEPSEEK_API_KEY = 'sk-a576af7e052748d9a5a64f5171adaaa6';
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+
+/**
+ * 调用 DeepSeek API
+ */
+async function callDeepSeek(messages: Array<{role: string; content: string}>): Promise<string> {
+  const response = await fetch(DEEPSEEK_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages,
+      temperature: 0.01,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`DeepSeek API 错误: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,28 +72,17 @@ export async function POST(request: NextRequest) {
 
 请直接输出 Mermaid 代码（不要 \`\`\`mermaid 标记）：`;
 
-    // 提取转发头
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-
-    // 初始化 SDK 客户端
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
-
+    // 调用 DeepSeek 模型
     const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: prompt }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt }
     ];
 
-    console.log('开始生成 Mermaid 代码...');
+    console.log('开始调用 DeepSeek 生成 Mermaid...');
     const startTime = Date.now();
 
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
-      temperature: 0.01,
-    });
-
+    const content = await callDeepSeek(messages);
     const duration = Date.now() - startTime;
-    const content = response.content?.trim() || '';
 
     if (!content) {
       return NextResponse.json(
