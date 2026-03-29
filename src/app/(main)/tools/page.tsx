@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, FileText, ArrowRight } from 'lucide-react';
+import { GitBranch, FileText, ArrowRight, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 
 // 交付工具列表
@@ -14,6 +14,15 @@ const tools = [
     href: '/tools/flow-chart',
     color: 'bg-blue-50 text-blue-600',
     iconBg: 'bg-blue-100',
+  },
+  {
+    id: 'data-transfer',
+    title: '导账工具',
+    description: 'YonSuite转精斗云，严格模板转换（科目、凭证、辅助资料）',
+    icon: ArrowLeftRight,
+    href: '/tools/data-transfer',
+    color: 'bg-green-50 text-green-600',
+    iconBg: 'bg-green-100',
   },
 ];
 

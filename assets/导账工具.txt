@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用友YonSuite -> 金蝶精斗云 严格模板转换工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f5f7fa; padding: 30px; color: #2c3e50; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h1 { color: #2980b9; text-align: center; margin-bottom: 40px; font-weight: 700; border-bottom: 2px solid #ecf0f1; padding-bottom: 20px; }
+        
+        .step-container { display: flex; gap: 20px; margin-bottom: 30px; }
+        .upload-card { flex: 1; padding: 25px; border: 2px dashed #bdc3c7; border-radius: 8px; text-align: center; transition: all 0.3s; background: #fafafa; position: relative; }
+        .upload-card:hover { border-color: #3498db; background: #ebf5fb; }
+        .upload-card.ready { border-color: #27ae60; background: #e9f7ef; }
+        .upload-card input { position: absolute; top:0; left:0; width:100%; height:100%; opacity: 0; cursor: pointer; }
+        
+        .card-icon { font-size: 36px; margin-bottom: 10px; display: block; }
+        .card-title { font-weight: bold; display: block; margin-bottom: 5px; }
+        .file-name { font-size: 12px; color: #7f8c8d; word-break: break-all; min-height: 18px; }
+
+        .btn-process { width: 100%; padding: 18px; background-color: #2980b9; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; transition: background 0.3s; box-shadow: 0 4px 6px rgba(41, 128, 185, 0.2); }
+        .btn-process:hover { background-color: #2471a3; transform: translateY(-1px); }
+        .btn-process:active { transform: translateY(0); }
+
+        .log-panel { margin-top: 30px; background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 8px; height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+        .log-entry { border-bottom: 1px solid #34495e; padding: 2px 0; }
+        .log-info { color: #3498db; }
+        .log-success { color: #2ecc71; font-weight: bold; }
+        .log-error { color: #e74c3c; font-weight: bold; }
+        .log-warn { color: #f1c40f; }
+
+        .template-headers { font-size: 12px; color: #95a5a6; margin-top: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>用友 ➔ 金蝶精斗云 严格模板转换器</h1>
+
+    <div class="step-container">
+        <!-- 1. 科目表 -->
+        <div class="upload-card" id="cardSub">
+            <span class="card-icon">📂</span>
+            <span class="card-title">1. 上传 科目列表</span>
+            <div class="file-name" id="nameSub">等待上传...</div>
+            <input type="file" id="fileSub" accept=".xls,.xlsx">
+        </div>
+
+        <!-- 2. 凭证表 -->
+        <div class="upload-card" id="cardVou">
+            <span class="card-icon">🧾</span>
+            <span class="card-title">2. 上传 凭证列表</span>
+            <div class="file-name" id="nameVou">等待上传...</div>
+            <input type="file" id="fileVou" accept=".xls,.xlsx">
+        </div>
+    </div>
+
+    <button class="btn-process" onclick="processData()">转换并生成三个标准文件</button>
+    <div class="template-headers">将生成严格符合金蝶要求的：凭证导入.xlsx、科目导入.xlsx、辅助资料.xlsx</div>
+
+    <div class="log-panel" id="console">
+        <div class="log-entry">准备就绪，请上传文件...</div>
+    </div>
+</div>
+
+<script>
+    // --- 界面交互逻辑 ---
+    function log(msg, type = 'normal') {
+        const consoleDiv = document.getElementById('console');
+        const div = document.createElement('div');
+        div.className = `log-entry log-${type}`;
+        div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        consoleDiv.appendChild(div);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    function handleFileSelect(inputId, nameId, cardId) {
+        document.getElementById(inputId).addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById(nameId).innerText = file.name;
+                document.getElementById(cardId).classList.add('ready');
+                log(`已加载文件: ${file.name}`, 'info');
+            }
+        });
+    }
+    handleFileSelect('fileSub', 'nameSub', 'cardSub');
+    handleFileSelect('fileVou', 'nameVou', 'cardVou');
+
+    // --- 核心业务逻辑 ---
+
+    async function processData() {
+        const subFile = document.getElementById('fileSub').files[0];
+        const vouFile = document.getElementById('fileVou').files[0];
+
+        if (!subFile || !vouFile) {
+            log("错误：请确保两个文件都已上传！", "error");
+            return;
+        }
+
+        try {
+            log("开始解析源文件...", "info");
+
+            // 1. 读取源文件（使用智能表头定位）
+            const subData = await readExcelSmart(subFile, ['科目编码', '编码', '科目名称']);
+            const vouData = await readExcelSmart(vouFile, ['凭证号', '凭证日期', '科目']);
+
+            if (!subData.length || !vouData.length) throw new Error("文件读取失败或内容为空");
+            
+            log(`源文件读取成功：科目 ${subData.length} 行，凭证 ${vouData.length} 行`, "success");
+
+            // 2. 数据处理容器
+            let auxItemSet = new Map(); // 用于收集所有的辅助核算资料 (去重)
+
+            // 3. 处理凭证 (这是最复杂的映射)
+            log("正在生成凭证导入数据...", "info");
+            const voucherResult = convertVouchers(vouData, auxItemSet);
+
+            // 4. 处理科目
+            log("正在生成科目导入数据...", "info");
+            const subjectResult = convertSubjects(subData);
+
+            // 5. 处理辅助资料 (从凭证中提取的)
+            log("正在生成辅助核算资料...", "info");
+            const auxResult = Array.from(auxItemSet.values());
+
+            // 6. 导出Excel (严格按模板表头)
+            log("正在导出文件...", "info");
+            
+            // 6.1 导出凭证
+            exportToExcel(voucherResult, [
+                "日期", "凭证字", "凭证号", "附件数", "分录序号", "摘要", 
+                "科目代码", "科目名称", "借方金额", "贷方金额", 
+                "客户", "供应商", "职员", "项目", "部门", "存货",
+                "自定义辅助核算类别", "自定义辅助核算编码",
+                "自定义辅助核算类别1", "自定义辅助核算编码1",
+                "数量", "单价", "原币金额", "币别", "汇率"
+            ], "1_凭证导入模板_金蝶.xlsx");
+
+            // 6.2 导出科目 (严格按照金蝶新模板表头)
+            exportToExcel(subjectResult, [
+                "编码", "名称", "类别", "余额方向", "是否现金科目", "辅助核算类别"
+            ], "2_科目导入模板_金蝶.xlsx");
+
+            // 6.3 导出辅助资料
+            exportToExcel(auxResult, [
+                "类别", "编码", "名称"
+            ], "3_辅助核算项目_金蝶.xlsx");
+
+            log("转换完成！请检查下载文件夹。", "success");
+
+        } catch (e) {
+            console.error(e);
+            log(`转换失败: ${e.message}`, "error");
+        }
+    }
+
+    // --- 转换逻辑：凭证 (保持不变) ---
+    function convertVouchers(data, auxItemSet) {
+        let result = [];
+        let lastDate = "";
+        let lastWord = "记";
+        let lastNo = "";
+        let entrySeq = 0; // 分录序号
+
+        data.forEach(row => {
+            // 跳过无效行
+            if (!row['科目'] && !row['借方金额'] && !row['贷方金额'] && !row['分录摘要']) return;
+            if (String(row['凭证号']).includes('合计')) return;
+
+            // 1. 填充日期和凭证号 (Fill-down)
+            if (row['凭证号']) {
+                lastDate = row['凭证日期'];
+                let vStr = String(row['凭证号']);
+                if (vStr.includes('-')) {
+                    lastWord = vStr.split('-')[0];
+                    lastNo = vStr.split('-')[1];
+                } else {
+                    lastNo = vStr;
+                }
+                entrySeq = 0; // 新凭证重置序号
+            }
+            entrySeq++;
+
+            // 2. 拆解科目
+            let subCode = "";
+            let subName = "";
+            if (row['科目']) {
+                const parts = row['科目'].split(" ");
+                subCode = parts[0];
+                subName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+            }
+
+            // 3. 构建金蝶行结构
+            let kRow = {
+                "日期": lastDate,
+                "凭证字": lastWord,
+                "凭证号": lastNo,
+                "附件数": "",
+                "分录序号": entrySeq,
+                "摘要": row['分录摘要'] || row['摘要'] || "",
+                "科目代码": subCode,
+                "科目名称": subName,
+                "借方金额": row['借方金额'] || 0,
+                "贷方金额": row['贷方金额'] || 0,
+                "客户": "", "供应商": "", "职员": "", "项目": "", "部门": "", "存货": "",
+                "自定义辅助核算类别": "", "自定义辅助核算编码": "",
+                "自定义辅助核算类别1": "", "自定义辅助核算编码1": "",
+                "数量": row['数量'] || "",
+                "单价": row['单价'] || "",
+                "原币金额": row['借方原币'] || row['贷方原币'] || "",
+                "币别": "RMB", // 默认为RMB
+                "汇率": row['汇率'] || ""
+            };
+
+            // 4. 辅助核算解析与映射
+            if (row['辅助核算']) {
+                const matches = row['辅助核算'].matchAll(/【\s*(.*?)\s*:\s*(.*?)\s*\/\s*(.*?)\s*】/g);
+                let customItems = []; 
+
+                for (const match of matches) {
+                    let type = match[1].trim();
+                    let code = match[2].trim();
+                    let name = match[3].trim();
+
+                    if (type === '人员') type = '职员';
+
+                    auxItemSet.set(`${type}_${code}`, { "类别": type, "编码": code, "名称": name });
+
+                    if (["客户", "供应商", "职员", "项目", "部门", "存货"].includes(type)) {
+                        kRow[type] = code; 
+                    } else {
+                        customItems.push({ type, code }); 
+                    }
+                }
+
+                if (customItems.length > 0) {
+                    kRow["自定义辅助核算类别"] = customItems[0].type;
+                    kRow["自定义辅助核算编码"] = customItems[0].code;
+                }
+                if (customItems.length > 1) {
+                    kRow["自定义辅助核算类别1"] = customItems[1].type;
+                    kRow["自定义辅助核算编码1"] = customItems[1].code;
+                }
+            }
+
+            result.push(kRow);
+        });
+        return result;
+    }
+
+    // --- 新增工具：根据图片规则判断金蝶类别 ---
+    function getKingdeeCategory(code) {
+        // 提取前4位作为一级科目代码进行判断
+        const topCode = parseInt(code.substring(0, 4));
+        if (isNaN(topCode)) return "其他";
+
+        // 1. 资产类
+        if (topCode >= 1001 && topCode <= 1499) return "流动资产";
+        if (topCode >= 1501 && topCode <= 1999) return "非流动资产";
+        
+        // 2. 负债类
+        if (topCode >= 2001 && topCode <= 2499) return "流动负债";
+        if (topCode >= 2501 && topCode <= 2999) return "非流动负债";
+        
+        // 3. 权益类
+        if (topCode >= 4000 && topCode <= 4999) return "所有者权益";
+        
+        // 4. 损益类 - 细分规则
+        if (topCode === 6001) return "营业收入";
+        if (topCode >= 6051 && topCode <= 6301) return "其他收益"; // 含其他业务收入、汇兑、投资收益、营业外收入
+        if (topCode >= 6401 && topCode <= 6403) return "营业成本及税金"; // 含主营成本、其他成本、税金及附加
+        if (topCode >= 6601 && topCode <= 6604) return "期间费用"; // 含销售、管理、财务
+        if (topCode >= 6701 && topCode <= 6711) return "其他损失"; // 含资产减值、营业外支出
+        if (topCode === 6801) return "所得税";
+        if (topCode === 6901) return "以前年度损益调整";
+        
+        // 5. 兜底逻辑 (处理成本类和共同类)
+        const firstChar = code.charAt(0);
+        if (firstChar === '5') return "成本"; // 生产成本等
+        if (firstChar === '3') return "共同";
+        
+        return "其他";
+    }
+
+    // --- 转换逻辑：科目 (已调整) ---
+    function convertSubjects(data) {
+        return data.map(row => {
+            const code = String(row['编码'] || row['科目编码'] || "");
+            const name = String(row['名称'] || row['科目名称'] || "");
+            if (!code) return null;
+
+            // 1. 类别判断 (调用新函数)
+            const category = getKingdeeCategory(code);
+
+            // 2. 余额方向判断
+            let direction = "借";
+            const firstChar = code.charAt(0);
+            if (row['余额方向']) {
+                direction = row['余额方向'];
+            } else {
+                // 默认推断
+                if (['2', '3'].includes(firstChar) || (firstChar === '5' && code.startsWith('50'))) {
+                    direction = "贷";
+                }
+            }
+
+            // 3. 是否现金科目 (根据名称)
+            let isCash = "否";
+            if (name.includes("现金") || name.includes("银行") || code.startsWith("1001") || code.startsWith("1002")) {
+                isCash = "是";
+            }
+
+            // 4. 辅助核算格式化
+            let auxCat = "";
+            let rawAux = row['辅助核算'];
+            
+            if (rawAux && rawAux.trim() !== "") {
+                // 用友格式 "部门*|人员" 转为 金蝶格式 "部门/职员"
+                auxCat = rawAux.replace(/人员/g, "职员").replace(/\*\|/g, "/").replace(/\*/g, "").replace(/\|/g, "/");
+            }
+
+            // 严格对应的字段名
+            return {
+                "编码": code,
+                "名称": name,
+                "类别": category,
+                "余额方向": direction,
+                "是否现金科目": isCash,
+                "辅助核算类别": auxCat
+            };
+        }).filter(item => item !== null);
+    }
+
+    // --- 工具：智能读取Excel (保持不变) ---
+    function readExcelSmart(file, keywords) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    let headerIndex = 0;
+                    for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+                        const rowStr = JSON.stringify(rawRows[i]);
+                        if (keywords.some(k => rowStr.includes(k))) {
+                            headerIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerIndex, defval: "" });
+                    resolve(jsonData);
+                } catch (err) { reject(err); }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // --- 工具：导出Excel (保持不变) ---
+    function exportToExcel(jsonData, headers, fileName) {
+        const ws = XLSX.utils.json_to_sheet(jsonData, { header: headers });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, fileName);
+    }
+</script>
+
+</body>
+</html>
