@@ -308,7 +308,6 @@ export default function FlowChartPage() {
                 <h4 className="text-xs font-medium text-amber-700 mb-2">💡 使用提示</h4>
                 <ul className="text-xs text-amber-600 space-y-1">
                   <li>• 拖拽画布：Space+左键</li>
-                  <li>• 支持多种箭头格式：--&gt;、→、-&gt;</li>
                 </ul>
               </div>
             </div>
