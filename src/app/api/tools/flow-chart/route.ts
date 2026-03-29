@@ -139,6 +139,33 @@ function extractMxGraphModel(content: string): { xml: string | null; error: stri
 }
 
 /**
+ * 转义 XML 属性值中的特殊字符
+ * 主要处理 value 属性中可能包含的 < > & 字符
+ */
+function escapeXmlAttributes(xml: string): string {
+  // 专门处理 value="..." 属性，这是最容易出问题的地方
+  // 使用正则匹配 value 属性
+  return xml.replace(
+    /value="([^"]*)"/g,
+    (match, content) => {
+      // 先还原已转义的字符，避免重复转义
+      const unescaped = content
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+      
+      // 重新转义特殊字符
+      const escaped = unescaped
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      return `value="${escaped}"`;
+    }
+  );
+}
+
+/**
  * 验证和清理 XML
  */
 function validateAndCleanXml(xml: string): { xml: string | null; error: string | null } {
@@ -147,6 +174,9 @@ function validateAndCleanXml(xml: string): { xml: string | null; error: string |
   
   // 移除多余的空白
   cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
+  
+  // 转义属性值中的特殊字符（关键修复）
+  cleaned = escapeXmlAttributes(cleaned);
 
   // 验证基本结构
   if (!cleaned.includes('<mxGraphModel')) {
