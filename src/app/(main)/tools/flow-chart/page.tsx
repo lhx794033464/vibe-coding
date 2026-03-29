@@ -3,6 +3,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   GitBranch, 
   Loader2, 
@@ -15,6 +22,10 @@ import {
   PanelLeftOpen,
   TrendingUp,
   Clock,
+  Code,
+  Copy,
+  Check,
+  Zap,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -41,6 +52,12 @@ export default function FlowChartPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [lastGenTime, setLastGenTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Mermaid 相关状态
+  const [mermaidLoading, setMermaidLoading] = useState(false);
+  const [mermaidCode, setMermaidCode] = useState('');
+  const [showMermaidDialog, setShowMermaidDialog] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -237,6 +254,64 @@ export default function FlowChartPage() {
     }
   };
 
+  // 快速生成 Mermaid 代码
+  const handleGenerateMermaid = async () => {
+    if (!prompt.trim()) {
+      setError('请输入流程描述');
+      return;
+    }
+
+    setMermaidLoading(true);
+    setError('');
+    startTimer();
+
+    try {
+      const response = await fetch('/api/tools/flow-chart/mermaid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: prompt.trim(),
+          direction,
+        }),
+      });
+
+      const result = await response.json();
+      stopTimer();
+
+      if (!response.ok) {
+        const errorMsg = result.error || '生成失败';
+        const detailMsg = result.detail ? ` (${result.detail})` : '';
+        setError(`${errorMsg}${detailMsg}`);
+        return;
+      }
+
+      if (result.success && result.mermaid) {
+        setMermaidCode(result.mermaid);
+        setShowMermaidDialog(true);
+        setLastGenTime(elapsedTime);
+      } else {
+        setError('生成的 Mermaid 代码为空');
+      }
+    } catch (err) {
+      stopTimer();
+      console.error('生成 Mermaid 错误:', err);
+      setError('网络错误，请检查网络连接后重试');
+    } finally {
+      setMermaidLoading(false);
+    }
+  };
+
+  // 复制 Mermaid 代码
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(mermaidCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
+    }
+  };
+
   // 清空编辑器
   const handleClear = useCallback(() => {
     if (!drawioReady) return;
@@ -277,6 +352,7 @@ export default function FlowChartPage() {
           <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
             <div className="p-4 border-b border-slate-200">
+              {/* 方向选择 */}
               <div className="mb-3">
                 <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
                 <div className="flex gap-2">
@@ -348,8 +424,28 @@ export default function FlowChartPage() {
                 )}
               </Button>
 
+              {/* 快速生成 Mermaid 按钮 */}
+              <Button
+                onClick={handleGenerateMermaid}
+                disabled={mermaidLoading || !prompt.trim()}
+                variant="outline"
+                className="w-full mt-2 border-purple-300 text-purple-600 hover:bg-purple-50 hover:text-purple-700"
+              >
+                {mermaidLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    生成中 {elapsedTime.toFixed(1)}s
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 mr-2" />
+                    快速生成 Mermaid
+                  </>
+                )}
+              </Button>
+
               {/* 上次用时显示 */}
-              {lastGenTime > 0 && !loading && (
+              {lastGenTime > 0 && !loading && !mermaidLoading && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
                   上次生成用时: {lastGenTime.toFixed(1)} 秒
@@ -364,6 +460,7 @@ export default function FlowChartPage() {
                 <ul className="text-xs text-amber-600 space-y-1">
                   <li>• 拖拽画布：Space+左键</li>
                   <li>• 支持多种箭头格式：--&gt;、→、-&gt;</li>
+                  <li>• 快速生成可直接复制 Mermaid 代码</li>
                 </ul>
               </div>
             </div>
@@ -424,6 +521,49 @@ export default function FlowChartPage() {
           </div>
         </div>
       </div>
+
+      {/* Mermaid 代码弹窗 */}
+      <Dialog open={showMermaidDialog} onOpenChange={setShowMermaidDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <Check className="w-5 h-5" />
+              生成成功
+            </DialogTitle>
+            <DialogDescription>
+              Mermaid 流程图代码已生成，点击下方按钮复制
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <div className="relative">
+              <pre className="p-4 bg-slate-900 text-green-400 rounded-lg text-sm overflow-x-auto max-h-[400px] overflow-y-auto">
+                <code>{mermaidCode}</code>
+              </pre>
+              <Button
+                onClick={handleCopy}
+                className="absolute top-2 right-2"
+                size="sm"
+                variant={copied ? 'default' : 'secondary'}
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 mr-1" />
+                    已复制
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 mr-1" />
+                    复制代码
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              💡 可将代码粘贴到 <a href="https://mermaid.live" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Mermaid Live Editor</a> 中预览和编辑
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
