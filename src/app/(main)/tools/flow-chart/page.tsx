@@ -102,8 +102,6 @@ export default function FlowChartPage() {
           saveAndExit: false,
           noExitBtn: true,
           noSaveBtn: true,
-          noExportBtn: true,
-          noPrintBtn: true,
           chrome: true,
           toolbar: true,
           noCloseBtn: true,
