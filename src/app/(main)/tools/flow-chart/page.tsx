@@ -341,6 +341,7 @@ export default function FlowChartPage() {
         firstBatchResult = {
           ...firstBatchResult,
           lastNode: result.lastNode,
+          firstXml: result.firstXml || firstBatchResult.firstXml || firstBatchResult.xml, // 保存原始XML
         };
       }
 

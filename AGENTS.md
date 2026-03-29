@@ -68,6 +68,9 @@
   - `nextBatchIndex: number | null` 下一批次索引
   - `lastNode: object` 最后一个节点信息（用于续写定位）
   - `totalNodes: number` 当前累计节点数
+  - `firstXml: string` **第二批及以后返回** - 原始第一批XML（供后续批次合并使用）
+- **注意事项**: 服务端第二批响应必须包含 `firstXml` 字段，否则第三批及以后会因无法获取原始XML而报错
+
 
 
 

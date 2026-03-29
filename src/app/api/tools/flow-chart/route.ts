@@ -392,6 +392,7 @@ async function handleBatchGeneration(
     return NextResponse.json({
       success: true,
       xml: mergedXml,
+      firstXml: previousNodes.firstXml, // 传递原始第一批XML供后续批次使用
       batchComplete: !hasMoreNodes,
       nextBatchIndex: hasMoreNodes ? batchIndex + 1 : null,
       lastNode: lastNode,
