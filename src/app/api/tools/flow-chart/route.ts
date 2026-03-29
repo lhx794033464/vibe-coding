@@ -111,7 +111,7 @@ function extractMxGraphModel(content: string): { xml: string | null; error: stri
 /**
  * 验证和清理 XML
  */
-function validateAndCleanXml(xml: string): { xml: string | null; error: string | null; detail?: string } {
+function validateAndCleanXml(xml: string): { xml: string | null; error: string | null } {
   // 移除 XML 注释
   let cleaned = xml.replace(/<!--[\s\S]*?-->/g, '');
   
@@ -121,15 +121,6 @@ function validateAndCleanXml(xml: string): { xml: string | null; error: string |
   // 验证基本结构
   if (!cleaned.includes('<mxGraphModel')) {
     return { xml: null, error: 'XML 缺少 mxGraphModel 根元素' };
-  }
-
-  // 检查 XML 是否完整（有闭合标签）
-  if (!cleaned.includes('</mxGraphModel>')) {
-    return { 
-      xml: null, 
-      error: '流程图太复杂，XML 生成不完整',
-      detail: '请简化流程描述，建议控制在 20 个节点以内，或减少分支层级'
-    };
   }
 
   // 确保只有一个 mxGraphModel（取第一个）
@@ -231,15 +222,6 @@ export async function POST(request: NextRequest) {
 - 判断节点：菱形，style="diamond;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;"
 - 处理节点：矩形，style="rounded=0;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;"
 
-【节点数量限制 - 强制要求】
-- **绝对限制：最多 18 个节点**（包括开始、结束、单据、判断、处理节点）
-- 如果用户描述的流程超过 18 个节点，必须：
-  1. **优先删除次要分支**，只保留主流程（如删除"盘盈盘亏处理"、"销售退货"等边缘流程）
-  2. **合并相似节点**：将多个质检合并为"质检"，多个入库合并为"入库"，多个审核合并为"审核"
-  3. **简化节点名称**：每个节点 label 不超过 12 个字符，如"生产部生产任务单下达+采购部采购申请单转采购订单"改为"订单下达"
-- **输出前自检**：如果生成的 mxCell 数量超过 20 个，立即删除最后几个非关键节点，确保 XML 能完整输出
-- 宁可流程简化，也必须保证 XML 结构完整闭合
-
 【金蝶云星辰标准单据名称】
 - 采购管理：采购申请单、采购订单、采购入库单、采购发票、付款单
 - 销售管理：销售订单、销售出库单、销售发票、收款单、销售退货单
@@ -293,15 +275,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证和清理 XML
-    const { xml: cleanedXml, error: validateError } = validateAndCleanXml(rawXml) as { xml: string | null; error: string | null };
+    const { xml: cleanedXml, error: validateError } = validateAndCleanXml(rawXml);
     
     if (!cleanedXml || validateError) {
       console.error('XML 验证失败:', validateError);
       return NextResponse.json(
-        { 
-          error: validateError || 'XML 验证失败',
-          detail: '流程图生成不完整，建议：1) 简化流程描述 2) 减少分支层级 3) 分阶段生成'
-        },
+        { error: validateError || 'XML 验证失败' },
         { status: 500 }
       );
     }
