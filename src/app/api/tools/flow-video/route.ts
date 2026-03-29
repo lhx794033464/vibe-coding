@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
     const content = [{ type: 'text' as const, text: videoPrompt }];
     
     const response = await client.videoGeneration(content, {
-      model: 'doubao-seedance-2-0-pro-251015',
+      model: 'doubao-seedance-1-5-pro-251215',
       duration: duration,
       ratio: ratio as '16:9' | '9:16' | '1:1',
       resolution: '720p',
-      generateAudio: false,
+      generateAudio: false, // 业务流程视频不需要音频
     });
 
     const genDuration = Date.now() - startTime;
