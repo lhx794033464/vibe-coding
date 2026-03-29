@@ -21,6 +21,7 @@ import {
   Clock,
   Check,
   Film,
+  ArrowLeft,
 } from 'lucide-react';
 
 export default function FlowVideoPage() {
@@ -205,6 +206,13 @@ export default function FlowVideoPage() {
           {/* 工具栏 */}
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
+              <a
+                href="/tools"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                返回
+              </a>
               <span className="text-sm font-medium text-slate-700">视频预览</span>
             </div>
             {videoUrl && (
