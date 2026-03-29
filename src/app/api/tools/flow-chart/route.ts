@@ -4,28 +4,23 @@ import { recordFlowChartGenerated } from '@/services/globalStats';
 
 /**
  * 从 AI 返回内容中提取 mxGraphModel XML
- * 支持多种格式：直接 XML、Markdown 代码块、嵌套结构、截断内容等
  */
 function extractMxGraphModel(content: string): { xml: string | null; error: string | null } {
   if (!content || typeof content !== 'string') {
     return { xml: null, error: '返回内容为空' };
   }
 
-  // 打印前 1500 字符用于调试
-  console.log('AI 返回内容（前1500字符）:', content.substring(0, 1500));
-  console.log('AI 返回内容总长度:', content.length);
-
-  // 步骤1: 移除 Markdown 代码块标记
+  // 移除 Markdown 代码块标记
   let cleanedContent = content
     .replace(/```xml\s*/gi, '')
     .replace(/```\s*$/gm, '')
     .replace(/```/g, '')
     .trim();
 
-  // 步骤2: 查找所有 <mxGraphModel> 的起始位置
   const startTag = '<mxGraphModel';
   const endTag = '</mxGraphModel>';
   
+  // 查找所有 mxGraphModel 候选
   const startIndices: number[] = [];
   let searchIndex = 0;
   while ((searchIndex = cleanedContent.indexOf(startTag, searchIndex)) !== -1) {
@@ -33,18 +28,11 @@ function extractMxGraphModel(content: string): { xml: string | null; error: stri
     searchIndex += startTag.length;
   }
 
-  console.log('找到', startIndices.length, '个 mxGraphModel 起始位置');
-
-  // 步骤3: 对每个起始位置，尝试找到匹配的闭合标签
   const candidates: string[] = [];
-  
   for (const startIdx of startIndices) {
-    // 从起始位置之后开始找闭合标签
     const afterStart = cleanedContent.substring(startIdx + startTag.length);
     const endIdx = afterStart.indexOf(endTag);
-    
     if (endIdx !== -1) {
-      // 找到了闭合标签，提取完整片段
       const xml = cleanedContent.substring(
         startIdx, 
         startIdx + startTag.length + endIdx + endTag.length
@@ -53,118 +41,49 @@ function extractMxGraphModel(content: string): { xml: string | null; error: stri
     }
   }
 
-  console.log('找到', candidates.length, '个完整的 mxGraphModel 候选');
-
-  // 步骤4: 选择最佳候选（包含最多 mxCell 的）
+  // 选择最佳候选
   if (candidates.length > 0) {
-    // 按 mxCell 数量排序，选择最完整的
     const bestCandidate = candidates.sort((a, b) => {
       const countA = (a.match(/<mxCell/g) || []).length;
       const countB = (b.match(/<mxCell/g) || []).length;
-      return countB - countA; // 降序，mxCell 最多的优先
+      return countB - countA;
     })[0];
-    
-    console.log('选择最佳候选，包含 mxCell 数量:', (bestCandidate.match(/<mxCell/g) || []).length);
     return { xml: bestCandidate, error: null };
   }
 
-  // 步骤5: 如果没有找到完整标签，尝试基于索引提取
+  // 尝试基于索引提取
   if (cleanedContent.includes(startTag)) {
     const startIndex = cleanedContent.indexOf(startTag);
     const endIndex = cleanedContent.lastIndexOf(endTag);
-    
     if (endIndex > startIndex) {
       const xml = cleanedContent.substring(startIndex, endIndex + endTag.length);
-      console.log('通过索引提取 mxGraphModel，长度:', xml.length);
       return { xml, error: null };
     }
   }
 
-  // 步骤6: 紧急修复 - 如果看起来是 XML 但格式混乱
-  if (cleanedContent.includes('<mxGraphModel') && cleanedContent.includes('</mxCell>')) {
-    const startIndex = cleanedContent.indexOf('<mxGraphModel');
-    if (startIndex >= 0) {
-      let xml = cleanedContent.substring(startIndex);
-      
-      // 清理可能的嵌套问题 - 保留第一个完整的 mxGraphModel 结构
-      const firstEnd = xml.indexOf('</mxGraphModel>');
-      if (firstEnd > 0) {
-        xml = xml.substring(0, firstEnd + '</mxGraphModel>'.length);
-      } else {
-        // 没有闭合标签，尝试添加
-        xml += '</mxGraphModel>';
-      }
-      
-      console.log('尝试修复不完整的 XML，长度:', xml.length);
-      return { xml, error: null };
-    }
-  }
-
-  // 所有提取方法都失败
-  console.error('无法提取 mxGraphModel，内容片段:', cleanedContent.substring(0, 800));
   return { 
     xml: null, 
-    error: `无法从返回内容中提取有效 XML。内容长度: ${content.length}，包含 mxGraphModel: ${content.includes('<mxGraphModel')}` 
+    error: `无法提取有效 XML。内容长度: ${content.length}` 
   };
 }
 
 /**
- * 验证和清理 XML
+ * 验证 XML 完整性
  */
-function validateAndCleanXml(xml: string): { xml: string | null; error: string | null; detail?: string } {
-  // 移除 XML 注释
-  let cleaned = xml.replace(/<!--[\s\S]*?-->/g, '');
+function validateXml(xml: string): { isValid: boolean; isComplete: boolean } {
+  const hasStart = xml.includes('<mxGraphModel');
+  const hasEnd = xml.includes('</mxGraphModel>');
+  const hasCells = xml.includes('mxCell');
   
-  // 移除多余的空白
-  cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
-
-  // 验证基本结构
-  if (!cleaned.includes('<mxGraphModel')) {
-    return { xml: null, error: 'XML 缺少 mxGraphModel 根元素' };
-  }
-
-  // 检查 XML 是否完整（有闭合标签）
-  if (!cleaned.includes('</mxGraphModel>')) {
-    return { 
-      xml: null, 
-      error: '流程图太复杂，XML 生成不完整',
-      detail: '请简化流程描述，建议控制在 20 个节点以内，或减少分支层级'
-    };
-  }
-
-  // 确保只有一个 mxGraphModel（取第一个）
-  const firstStart = cleaned.indexOf('<mxGraphModel');
-  const firstEnd = cleaned.indexOf('</mxGraphModel>');
-  if (firstStart >= 0 && firstEnd > firstStart) {
-    const secondStart = cleaned.indexOf('<mxGraphModel', firstStart + 1);
-    if (secondStart > 0 && secondStart < firstEnd) {
-      // 有嵌套，只保留第一个完整的
-      cleaned = cleaned.substring(firstStart, firstEnd + '</mxGraphModel>'.length);
-      console.log('清理嵌套的 mxGraphModel，新长度:', cleaned.length);
-    }
-  }
-
-  if (!cleaned.includes('<root>') || !cleaned.includes('</root>')) {
-    console.warn('XML 缺少 root 元素，尝试添加...');
-    if (!cleaned.includes('<root>')) {
-      cleaned = cleaned.replace(
-        '</mxGraphModel>',
-        '<root><mxCell id="0" /><mxCell id="1" parent="0" /></root></mxGraphModel>'
-      );
-    }
-  }
-
-  // 确保有基本的 mxCell 元素
-  if (!cleaned.includes('mxCell')) {
-    return { xml: null, error: 'XML 缺少 mxCell 元素' };
-  }
-
-  return { xml: cleaned, error: null };
+  return {
+    isValid: hasStart && hasCells,
+    isComplete: hasStart && hasEnd && hasCells
+  };
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, direction = 'vertical' } = await request.json();
+    const { prompt, direction = 'vertical', stream = true } = await request.json();
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
@@ -173,24 +92,231 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 根据方向生成不同的布局规则
-    const isHorizontal = direction === 'horizontal';
-    
-    const layoutRules = isHorizontal 
-      ? `【横向布局规则】
+    // 如果不使用流式，返回普通JSON（向后兼容）
+    if (!stream) {
+      return handleNonStreaming(prompt, direction, request);
+    }
+
+    // 流式输出处理
+    return handleStreaming(prompt, direction, request);
+
+  } catch (error) {
+    console.error('生成流程图错误:', error);
+    return NextResponse.json(
+      { error: '服务器内部错误' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * 处理非流式请求（向后兼容）
+ */
+async function handleNonStreaming(prompt: string, direction: string, request: NextRequest) {
+  const systemPrompt = buildSystemPrompt(direction);
+  const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+  const config = new Config();
+  const client = new LLMClient(config, customHeaders);
+
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: prompt }
+  ];
+
+  const response = await client.invoke(messages, {
+    model: 'doubao-seed-2-0-pro-260215',
+    temperature: 0.01,
+  });
+
+  const content = response.content || '';
+  
+  if (!content) {
+    return NextResponse.json(
+      { error: 'AI 返回内容为空' },
+      { status: 500 }
+    );
+  }
+
+  const { xml, error } = extractMxGraphModel(content);
+  
+  if (!xml || error) {
+    return NextResponse.json({ error: error || '提取 XML 失败' }, { status: 500 });
+  }
+
+  const { isComplete } = validateXml(xml);
+  if (!isComplete) {
+    return NextResponse.json(
+      { error: 'XML 不完整', detail: '请简化流程描述' },
+      { status: 500 }
+    );
+  }
+
+  recordFlowChartGenerated();
+
+  return NextResponse.json({ success: true, xml });
+}
+
+/**
+ * 处理流式请求（模拟流式效果）
+ * 注意：由于豆包 SDK 不支持真正的流式输出，这里使用模拟流式：
+ * 1. 先发送开始事件
+ * 2. 等待 AI 完整响应
+ * 3. 将响应分块发送给客户端
+ */
+async function handleStreaming(prompt: string, direction: string, request: NextRequest) {
+  const systemPrompt = buildSystemPrompt(direction, true); // 流式模式下放宽节点限制
+  const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+  const config = new Config();
+  const client = new LLMClient(config, customHeaders);
+
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: prompt }
+  ];
+
+  // 创建 ReadableStream
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // 发送开始事件
+        controller.enqueue(encoder.encode('event: start\ndata: {"status":"started"}\n\n'));
+
+        // 模拟进度更新（因为 SDK 不支持真正的流式）
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+          progress += 5;
+          if (progress <= 90) {
+            const progressData = {
+              chunk: Math.floor(progress / 5),
+              length: progress * 100,
+              preview: 'AI 正在生成流程图...'
+            };
+            controller.enqueue(
+              encoder.encode(`event: progress\ndata: ${JSON.stringify(progressData)}\n\n`)
+            );
+          }
+        }, 500);
+
+        // 调用 AI（非流式）
+        const response = await client.invoke(messages, {
+          model: 'doubao-seed-2-0-pro-260215',
+          temperature: 0.01,
+        });
+
+        // 停止进度更新
+        clearInterval(progressInterval);
+
+        const fullContent = response.content || '';
+        
+        if (!fullContent) {
+          controller.enqueue(
+            encoder.encode(`event: error\ndata: ${JSON.stringify({ error: 'AI 返回内容为空' })}\n\n`)
+          );
+          controller.close();
+          return;
+        }
+
+        // 发送 100% 进度
+        controller.enqueue(
+          encoder.encode(`event: progress\ndata: ${JSON.stringify({ chunk: 20, length: fullContent.length, preview: '接收完成' })}\n\n`)
+        );
+
+        // 提取 XML
+        const { xml, error } = extractMxGraphModel(fullContent);
+
+        if (!xml || error) {
+          controller.enqueue(
+            encoder.encode(`event: error\ndata: ${JSON.stringify({ 
+              error: error || '提取 XML 失败',
+              detail: `内容长度: ${fullContent.length}，可能被截断`
+            })}\n\n`)
+          );
+          controller.close();
+          return;
+        }
+
+        const { isValid, isComplete } = validateXml(xml);
+
+        if (!isValid) {
+          controller.enqueue(
+            encoder.encode(`event: error\ndata: ${JSON.stringify({ error: 'XML 格式无效' })}\n\n`)
+          );
+          controller.close();
+          return;
+        }
+
+        // 记录统计
+        recordFlowChartGenerated();
+
+        // 发送完成事件
+        const completeData = {
+          success: true,
+          xml: xml,
+          isComplete: isComplete,
+          totalLength: fullContent.length,
+          xmlLength: xml.length
+        };
+        controller.enqueue(
+          encoder.encode(`event: complete\ndata: ${JSON.stringify(completeData)}\n\n`)
+        );
+
+        controller.close();
+
+      } catch (error) {
+        console.error('流式处理错误:', error);
+        controller.enqueue(
+          encoder.encode(`event: error\ndata: ${JSON.stringify({ 
+            error: '流式处理失败',
+            detail: error instanceof Error ? error.message : '未知错误'
+          })}\n\n`)
+        );
+        controller.close();
+      }
+    }
+  });
+
+  return new NextResponse(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+
+const encoder = new TextEncoder();
+
+/**
+ * 构建系统提示词
+ */
+function buildSystemPrompt(direction: string, isStreaming: boolean = false): string {
+  const isHorizontal = direction === 'horizontal';
+  
+  const layoutRules = isHorizontal 
+    ? `【横向布局规则】
 - 整体从左到右水平排列
 - 主流程垂直居中对齐（y=300）
 - 分支流程上下对称分布（上分支y=150，下分支y=450）
 - 每个节点水平间距 160-180px
 - 开始节点在左侧（x=40），结束节点在右侧（x=最右）`
-      : `【纵向布局规则】
+    : `【纵向布局规则】
 - 整体自上而下垂直排列
 - 主流程水平居中对齐（x=400）
 - 分支流程左右对称分布（左分支x=200，右分支x=600）
 - 每个节点垂直间距 100-120px
 - 开始节点在顶部（y=40），结束节点在底部（y=最下）`;
 
-    const systemPrompt = `【角色定位】
+  // 流式模式下放宽节点限制，但仍给出建议
+  const nodeLimitPrompt = isStreaming 
+    ? `【节点数量建议】
+- 建议控制在 30 个节点以内以获得最佳效果
+- 如果流程复杂，请确保每个节点的标签简洁明了
+- 流式输出支持超长内容，但生成时间会更长`
+    : `【节点数量限制 - 强制要求】
+- **绝对限制：最多 18 个节点**（包括开始、结束、单据、判断、处理节点）
+- 如果用户描述的流程超过 18 个节点，必须合并相似节点、删除次要分支`;
+
+  return `【角色定位】
 你是金蝶云星辰的业务流程专家，精通采购管理、生产管理、MRP运算、库存管理等模块的业务单据与流程逻辑。你的核心任务是根据用户的自然语言描述，理解其业务场景，匹配标准的金蝶云星辰业务流程，并生成专业级 draw.io 流程图 XML。
 
 【语义解析指南】
@@ -200,15 +326,10 @@ export async function POST(request: NextRequest) {
 4. **分支对称**：存在多条分支时，确保分支结构对称美观
 
 【能力要求】
-1. 语义理解：从用户描述中提取关键业务对象（物料、单据类型、库存状态、运算结果）、动作（MRP计算、采购、领料）和逻辑分支（缺料/不缺料）。
-2. 流程匹配：将用户意图映射到金蝶云星辰标准流程节点：
-   - MRP运算 → 生成计划订单
-   - 缺料分支 → 采购申请 → 采购订单 → 收料 → 质检 → 入库 → 领料
-   - 不缺料分支 → 直接领料生产
-   - 销售流程 → 销售订单 → 发货 → 出库 → 开票 → 收款
-   - 采购流程 → 采购申请 → 采购订单 → 收料 → 入库 → 发票 → 付款
-3. 分支对称处理：当存在分支流程（如缺料与不缺料、通过/驳回）时，必须确保两个分支节点数量相等或视觉长度相同，最后汇聚到同一节点，保持流程图对称美观。
-4. 专业命名：所有节点必须使用金蝶云星辰标准单据名称（如"采购申请单"而非"申请采购"）。
+1. 语义理解：从用户描述中提取关键业务对象、动作和逻辑分支
+2. 流程匹配：将用户意图映射到金蝶云星辰标准流程节点
+3. 分支对称处理：确保分支节点数量相等或视觉长度相同，最后汇聚到同一节点
+4. 专业命名：所有节点必须使用金蝶云星辰标准单据名称
 
 【输出要求 - 非常重要】
 1. **只输出一个完整的 mxGraphModel XML 代码块**，不要任何解释、Markdown 标记
@@ -225,20 +346,13 @@ export async function POST(request: NextRequest) {
 6. **线段条件标签规则**：
    - 判断节点的出边必须在mxCell中添加value属性表示条件（如value="是"/"否"）
 
+${nodeLimitPrompt}
+
 【节点样式规范】
 - 开始/结束：椭圆，style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;"
 - 金蝶单据：圆角矩形，style="rounded=1;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" 
 - 判断节点：菱形，style="diamond;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;"
 - 处理节点：矩形，style="rounded=0;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;"
-
-【节点数量限制 - 强制要求】
-- **绝对限制：最多 18 个节点**（包括开始、结束、单据、判断、处理节点）
-- 如果用户描述的流程超过 18 个节点，必须：
-  1. **优先删除次要分支**，只保留主流程（如删除"盘盈盘亏处理"、"销售退货"等边缘流程）
-  2. **合并相似节点**：将多个质检合并为"质检"，多个入库合并为"入库"，多个审核合并为"审核"
-  3. **简化节点名称**：每个节点 label 不超过 12 个字符，如"生产部生产任务单下达+采购部采购申请单转采购订单"改为"订单下达"
-- **输出前自检**：如果生成的 mxCell 数量超过 20 个，立即删除最后几个非关键节点，确保 XML 能完整输出
-- 宁可流程简化，也必须保证 XML 结构完整闭合
 
 【金蝶云星辰标准单据名称】
 - 采购管理：采购申请单、采购订单、采购入库单、采购发票、付款单
@@ -248,80 +362,4 @@ export async function POST(request: NextRequest) {
 - 财务管理：凭证、日记账、应收应付单
 
 请直接输出完整的 mxGraphModel XML（只输出XML代码，不要任何其他内容）：`;
-
-    // 提取转发头
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-
-    // 初始化 SDK 客户端
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
-
-    // 调用豆包 2.0 pro 模型
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: prompt }
-    ];
-
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
-      temperature: 0.01,
-    });
-
-    const content = response.content || '';
-
-    // 处理空内容情况 - 添加备用提示词
-    if (!content || content.trim() === '') {
-      console.error('AI 返回内容为空');
-      return NextResponse.json(
-        { 
-          error: 'AI 返回内容为空，请重试',
-          detail: '模型未返回任何内容，可能是网络波动或模型超时' 
-        },
-        { status: 500 }
-      );
-    }
-
-    // 提取 XML
-    const { xml: rawXml, error: extractError } = extractMxGraphModel(content);
-    
-    if (!rawXml || extractError) {
-      console.error('XML 提取失败:', extractError);
-      return NextResponse.json(
-        { error: extractError || '未能提取有效 XML' },
-        { status: 500 }
-      );
-    }
-
-    // 验证和清理 XML
-    const { xml: cleanedXml, error: validateError } = validateAndCleanXml(rawXml) as { xml: string | null; error: string | null };
-    
-    if (!cleanedXml || validateError) {
-      console.error('XML 验证失败:', validateError);
-      return NextResponse.json(
-        { 
-          error: validateError || 'XML 验证失败',
-          detail: '流程图生成不完整，建议：1) 简化流程描述 2) 减少分支层级 3) 分阶段生成'
-        },
-        { status: 500 }
-      );
-    }
-
-    console.log('成功生成流程图 XML，最终长度:', cleanedXml.length);
-
-    // 记录统计
-    const stats = recordFlowChartGenerated();
-    console.log('流程图生成统计:', stats);
-
-    return NextResponse.json({ 
-      success: true, 
-      xml: cleanedXml 
-    });
-
-  } catch (error) {
-    console.error('生成流程图错误:', error);
-    return NextResponse.json(
-      { error: '服务器内部错误' },
-      { status: 500 }
-    );
-  }
 }

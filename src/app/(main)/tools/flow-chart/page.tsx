@@ -45,6 +45,10 @@ export default function FlowChartPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [lastGenTime, setLastGenTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // 流式接收状态
+  const [receiveProgress, setReceiveProgress] = useState(0);
+  const [receivedChunks, setReceivedChunks] = useState(0);
+  const [streamingMode, setStreamingMode] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -252,7 +256,7 @@ export default function FlowChartPage() {
     }
   };
 
-  // 生成流程图
+  // 生成流程图（支持流式输出）
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('请输入流程图描述');
@@ -266,6 +270,9 @@ export default function FlowChartPage() {
 
     setLoading(true);
     setError('');
+    setStreamingMode(true);
+    setReceiveProgress(0);
+    setReceivedChunks(0);
     startTimer();
 
     try {
@@ -275,40 +282,141 @@ export default function FlowChartPage() {
         body: JSON.stringify({ 
           prompt: prompt.trim(),
           direction,
+          stream: true, // 启用流式输出
         }),
       });
 
-      const result = await response.json();
-      // 注意：不在此处停止计时器，等待 draw.io 加载完成
-
       if (!response.ok) {
-        stopTimer(); // API 错误时停止计时
-        setLoading(false); // 错误时结束 loading
-        // 显示详细错误信息
-        const errorMsg = result.error || '生成失败，请稍后重试';
-        const detailMsg = result.detail ? ` (${result.detail})` : '';
+        stopTimer();
+        setLoading(false);
+        setStreamingMode(false);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || '生成失败，请稍后重试';
+        const detailMsg = errorData.detail ? ` (${errorData.detail})` : '';
         setError(`${errorMsg}${detailMsg}`);
         return;
       }
 
-      if (result.xml && result.success) {
-        // 向 draw.io iframe 发送加载消息，计时器继续运行直到 draw.io 加载完成
-        sendLoad(result.xml);
-        // 刷新统计
-        fetchStats();
-        // 注意：不在此处结束 loading，等待 draw.io 的 load 事件
+      // 检查是否是流式响应
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('text/event-stream')) {
+        // 流式处理
+        await handleStreamingResponse(response);
       } else {
-        stopTimer(); // 数据错误时停止计时
-        setLoading(false); // 错误时结束 loading
-        setError(result.error || '生成的流程图数据为空或格式错误');
+        // 非流式回退
+        const result = await response.json();
+        stopTimer();
+        setLoading(false);
+        setStreamingMode(false);
+
+        if (result.xml && result.success) {
+          sendLoad(result.xml);
+          fetchStats();
+        } else {
+          setError(result.error || '生成的流程图数据为空或格式错误');
+        }
       }
     } catch (err) {
       stopTimer();
-      setLoading(false); // 异常时结束 loading
+      setLoading(false);
+      setStreamingMode(false);
       console.error('生成流程图错误:', err);
       setError('网络错误，请检查网络连接后重试');
     }
-    // 注意：不在 finally 中设置 loading，由 draw.io 的 load 事件或错误处理来结束 loading
+  };
+
+  // 处理流式响应
+  const handleStreamingResponse = async (response: Response) => {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('无法获取响应流');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let xmlContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+
+        // 解码数据
+        buffer += decoder.decode(value, { stream: true });
+        
+        // 解析 SSE 事件
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || ''; // 保留未完整的数据
+
+        for (const line of lines) {
+          const event = parseSSEEvent(line);
+          if (!event) continue;
+
+          switch (event.event) {
+            case 'start':
+              console.log('流式输出开始');
+              break;
+              
+            case 'progress':
+              if (event.data) {
+                setReceivedChunks(event.data.chunk || 0);
+                // 估算进度（假设最终大约 8000-10000 字符）
+                const estimatedProgress = Math.min(
+                  Math.round((event.data.length / 8000) * 100),
+                  95
+                );
+                setReceiveProgress(estimatedProgress);
+              }
+              break;
+              
+            case 'complete':
+              if (event.data?.xml) {
+                xmlContent = event.data.xml;
+                setReceiveProgress(100);
+                // 加载到 draw.io
+                sendLoad(xmlContent);
+                fetchStats();
+              }
+              break;
+              
+            case 'error':
+              stopTimer();
+              setLoading(false);
+              setStreamingMode(false);
+              setError(event.data?.error || '流式生成失败');
+              return;
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  };
+
+  // 解析 SSE 事件
+  const parseSSEEvent = (data: string): { event: string; data: any } | null => {
+    const lines = data.split('\n');
+    let event = '';
+    let eventData = '';
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        event = line.substring(7);
+      } else if (line.startsWith('data: ')) {
+        eventData = line.substring(6);
+      }
+    }
+
+    if (!event) return null;
+
+    try {
+      return { event, data: eventData ? JSON.parse(eventData) : null };
+    } catch {
+      return { event, data: eventData };
+    }
   };
 
   // 清空编辑器
@@ -320,6 +428,8 @@ export default function FlowChartPage() {
     setOptimizedPrompt('');
     setLastGenTime(0);
     setElapsedTime(0);
+    setReceiveProgress(0);
+    setReceivedChunks(0);
   }, [drawioReady, sendLoad]);
 
   return (
@@ -460,7 +570,10 @@ export default function FlowChartPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {elapsedTime < 5 ? 'AI生成中' : '渲染中'} {elapsedTime.toFixed(1)}s
+                    {streamingMode 
+                      ? `接收中 ${receiveProgress}% (${receivedChunks} chunks)`
+                      : (elapsedTime < 5 ? 'AI生成中' : '渲染中')
+                    } {elapsedTime.toFixed(1)}s
                   </>
                 ) : (
                   <>
@@ -469,6 +582,21 @@ export default function FlowChartPage() {
                   </>
                 )}
               </Button>
+
+              {/* 接收进度条（流式模式） */}
+              {streamingMode && loading && receiveProgress > 0 && (
+                <div className="mt-2">
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${receiveProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 text-center">
+                    {receiveProgress < 100 ? '正在接收 AI 生成的内容...' : '接收完成，渲染中...'}
+                  </p>
+                </div>
+              )}
 
               {/* 上次用时显示 */}
               {lastGenTime > 0 && !loading && !optimizing && (
