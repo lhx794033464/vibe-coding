@@ -460,10 +460,6 @@ export default function HomePage() {
                 清除
               </button>
             )}
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-              在线 · 支持语音交互
-            </div>
           </div>
         </div>
       </div>
