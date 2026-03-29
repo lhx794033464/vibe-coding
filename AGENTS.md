@@ -51,4 +51,23 @@
 - 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
 - Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
 
+## 关键功能决策
+
+### 流程图分批生成
+- **背景**: 单次 AI 调用最多生成约 18 个节点的流程图，超长流程图需要分批处理
+- **方案**: 
+  - 第一批生成主干流程（15-18 个节点），返回 lastNode 信息
+  - 第二批及以后基于上一批终点续写，通过 `previousNodes` 参数传递上一批的 XML 和最后一个节点
+  - 服务端使用 `mergeXmlParts` 函数合并多批次 XML，自动解决节点 ID 冲突
+- **API 参数**:
+  - `batchMode: true` 启用分批模式
+  - `batchIndex: number` 当前批次索引（从 0 开始）
+  - `previousNodes?: { firstXml: string; lastNode: any }` 上一批数据（第二批及以后需要）
+- **响应字段**:
+  - `batchComplete: boolean` 是否已完成全部生成
+  - `nextBatchIndex: number | null` 下一批次索引
+  - `lastNode: object` 最后一个节点信息（用于续写定位）
+  - `totalNodes: number` 当前累计节点数
+
+
 

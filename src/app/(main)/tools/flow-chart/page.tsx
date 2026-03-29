@@ -256,7 +256,7 @@ export default function FlowChartPage() {
     }
   };
 
-  // 生成流程图（支持流式输出）
+  // 生成流程图（支持分批生成）
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('请输入流程图描述');
@@ -276,46 +276,8 @@ export default function FlowChartPage() {
     startTimer();
 
     try {
-      const response = await fetch('/api/tools/flow-chart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: prompt.trim(),
-          direction,
-          stream: true, // 启用流式输出
-        }),
-      });
-
-      if (!response.ok) {
-        stopTimer();
-        setLoading(false);
-        setStreamingMode(false);
-        const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.error || '生成失败，请稍后重试';
-        const detailMsg = errorData.detail ? ` (${errorData.detail})` : '';
-        setError(`${errorMsg}${detailMsg}`);
-        return;
-      }
-
-      // 检查是否是流式响应
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('text/event-stream')) {
-        // 流式处理
-        await handleStreamingResponse(response);
-      } else {
-        // 非流式回退
-        const result = await response.json();
-        stopTimer();
-        setLoading(false);
-        setStreamingMode(false);
-
-        if (result.xml && result.success) {
-          sendLoad(result.xml);
-          fetchStats();
-        } else {
-          setError(result.error || '生成的流程图数据为空或格式错误');
-        }
-      }
+      // 使用分批生成模式
+      await handleBatchGeneration();
     } catch (err) {
       stopTimer();
       setLoading(false);
@@ -325,7 +287,87 @@ export default function FlowChartPage() {
     }
   };
 
-  // 处理流式响应
+  // 分批生成处理
+  const handleBatchGeneration = async () => {
+    let batchIndex = 0;
+    let mergedXml = '';
+    let firstBatchResult: any = null;
+    const maxBatches = 3; // 最多分批次数
+
+    while (batchIndex < maxBatches) {
+      // 构建请求体
+      const requestBody: any = {
+        prompt: prompt.trim(),
+        direction,
+        batchMode: true,
+        batchIndex: batchIndex,
+      };
+
+      // 第二批及以后需要带上上一批的信息
+      if (batchIndex > 0 && firstBatchResult) {
+        requestBody.previousNodes = {
+          firstXml: batchIndex === 1 ? firstBatchResult.xml : firstBatchResult.firstXml,
+          lastNode: firstBatchResult.lastNode,
+        };
+      }
+
+      // 更新进度显示
+      setReceiveProgress(Math.round((batchIndex / maxBatches) * 100));
+
+      const response = await fetch('/api/tools/flow-chart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `第${batchIndex + 1}批生成失败`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success || !result.xml) {
+        throw new Error(result.error || `第${batchIndex + 1}批返回数据无效`);
+      }
+
+      // 保存第一批的结果
+      if (batchIndex === 0) {
+        firstBatchResult = result;
+        mergedXml = result.xml;
+      } else {
+        // 后续批次已经合并了
+        mergedXml = result.xml;
+        firstBatchResult = {
+          ...firstBatchResult,
+          lastNode: result.lastNode,
+        };
+      }
+
+      // 检查是否完成
+      if (result.batchComplete) {
+        setReceiveProgress(100);
+        break;
+      }
+
+      batchIndex++;
+      
+      // 更新提示
+      setReceivedChunks(batchIndex + 1);
+    }
+
+    // 加载最终合并的XML
+    if (mergedXml) {
+      sendLoad(mergedXml);
+      fetchStats();
+    }
+
+    stopTimer();
+    setLoading(false);
+    setStreamingMode(false);
+  };
+
+  // 处理流式响应（保留兼容）
   const handleStreamingResponse = async (response: Response) => {
     const reader = response.body?.getReader();
     if (!reader) {
@@ -571,8 +613,8 @@ export default function FlowChartPage() {
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     {streamingMode 
-                      ? `接收中 ${receiveProgress}% (${receivedChunks} chunks)`
-                      : (elapsedTime < 5 ? 'AI生成中' : '渲染中')
+                      ? `分批生成中 ${receiveProgress}% (第${receivedChunks || 1}批)`
+                      : '生成中'
                     } {elapsedTime.toFixed(1)}s
                   </>
                 ) : (
@@ -583,7 +625,7 @@ export default function FlowChartPage() {
                 )}
               </Button>
 
-              {/* 接收进度条（流式模式） */}
+              {/* 接收进度条（分批生成模式） */}
               {streamingMode && loading && receiveProgress > 0 && (
                 <div className="mt-2">
                   <div className="w-full bg-slate-200 rounded-full h-2">
@@ -593,7 +635,9 @@ export default function FlowChartPage() {
                     />
                   </div>
                   <p className="text-xs text-slate-500 mt-1 text-center">
-                    {receiveProgress < 100 ? '正在接收 AI 生成的内容...' : '接收完成，渲染中...'}
+                    {receiveProgress < 100 
+                      ? `正在生成第 ${receivedChunks || 1} 批节点...` 
+                      : '生成完成，渲染中...'}
                   </p>
                 </div>
               )}

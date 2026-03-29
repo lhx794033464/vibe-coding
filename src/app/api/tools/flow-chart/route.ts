@@ -68,22 +68,153 @@ function extractMxGraphModel(content: string): { xml: string | null; error: stri
 }
 
 /**
- * 验证 XML 完整性
+ * 从 XML 中提取节点信息
  */
-function validateXml(xml: string): { isValid: boolean; isComplete: boolean } {
-  const hasStart = xml.includes('<mxGraphModel');
-  const hasEnd = xml.includes('</mxGraphModel>');
-  const hasCells = xml.includes('mxCell');
+function extractNodesFromXml(xml: string): Array<{
+  id: string;
+  value: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: 'node' | 'edge';
+}> {
+  const nodes: Array<{
+    id: string;
+    value: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    type: 'node' | 'edge';
+  }> = [];
+
+  // 匹配 mxCell 节点
+  const nodeRegex = /<mxCell[^>]*vertex="1"[^>]*>/g;
+  let match;
+  while ((match = nodeRegex.exec(xml)) !== null) {
+    const cellStr = match[0];
+    const idMatch = cellStr.match(/id="([^"]+)"/);
+    const valueMatch = cellStr.match(/value="([^"]*)"/);
+    
+    // 提取 geometry
+    const geometryMatch = xml.substring(match.index).match(/<mxGeometry[^>]*>/);
+    if (geometryMatch) {
+      const geoStr = geometryMatch[0];
+      const xMatch = geoStr.match(/x="([^"]+)"/);
+      const yMatch = geoStr.match(/y="([^"]+)"/);
+      const widthMatch = geoStr.match(/width="([^"]+)"/);
+      const heightMatch = geoStr.match(/height="([^"]+)"/);
+      
+      nodes.push({
+        id: idMatch?.[1] || '',
+        value: valueMatch?.[1] || '',
+        x: parseFloat(xMatch?.[1] || '0'),
+        y: parseFloat(yMatch?.[1] || '0'),
+        width: parseFloat(widthMatch?.[1] || '0'),
+        height: parseFloat(heightMatch?.[1] || '0'),
+        type: 'node'
+      });
+    }
+  }
+
+  return nodes.sort((a, b) => b.y - a.y); // 按Y坐标降序，找最下面的节点
+}
+
+/**
+ * 提取最后一个主流程节点
+ */
+function findLastMainNode(nodes: Array<{id: string; value: string; x: number; y: number}>): {
+  id: string;
+  value: string;
+  x: number;
+  y: number;
+} | null {
+  if (nodes.length === 0) return null;
   
-  return {
-    isValid: hasStart && hasCells,
-    isComplete: hasStart && hasEnd && hasCells
-  };
+  // 找到Y坐标最大（最下面）且X坐标居中（主流程）的节点
+  const mainX = 400; // 假设主流程在 x=400 附近
+  const mainNodes = nodes.filter(n => Math.abs(n.x - mainX) < 100);
+  
+  if (mainNodes.length === 0) return nodes[0]; // 如果没有明显的居中节点，返回最下面的
+  
+  return mainNodes.reduce((max, node) => node.y > max.y ? node : max);
+}
+
+/**
+ * 合并两个XML片段
+ */
+function mergeXmlParts(firstXml: string, secondXml: string): string {
+  // 提取第一个XML的节点和边
+  const firstRootMatch = firstXml.match(/<root>([\s\S]*?)<\/root>/);
+  const secondRootMatch = secondXml.match(/<root>([\s\S]*?)<\/root>/);
+  
+  if (!firstRootMatch || !secondRootMatch) {
+    throw new Error('无法提取 root 元素');
+  }
+
+  // 解析第一个XML的节点，找到最大ID
+  const firstCells = firstRootMatch[1];
+  const idMatches = firstCells.match(/id="(\d+)"/g);
+  let maxId = 0;
+  if (idMatches) {
+    maxId = Math.max(...idMatches.map(m => parseInt(m.match(/\d+/)?.[0] || '0')));
+  }
+
+  // 对第二个XML的节点ID进行偏移
+  let secondCells = secondRootMatch[1];
+  const secondIdMap = new Map<string, string>();
+  
+  // 找到第二个XML中所有的ID
+  const secondIds = [...secondCells.matchAll(/id="([^"]+)"/g)].map(m => m[1]);
+  const uniqueSecondIds = [...new Set(secondIds)];
+  
+  // 生成新的ID映射（跳过 parent 和 0、1）
+  for (const id of uniqueSecondIds) {
+    if (id === '0' || id === '1') continue;
+    if (!secondIdMap.has(id)) {
+      maxId++;
+      secondIdMap.set(id, maxId.toString());
+    }
+  }
+
+  // 替换第二个XML中的ID
+  for (const [oldId, newId] of secondIdMap) {
+    // 替换 id="xxx"
+    secondCells = secondCells.replace(new RegExp(`id="${oldId}"`, 'g'), `id="${newId}"`);
+    // 替换 parent="xxx"
+    secondCells = secondCells.replace(new RegExp(`parent="${oldId}"`, 'g'), `parent="${newId}"`);
+    // 替换 source="xxx"
+    secondCells = secondCells.replace(new RegExp(`source="${oldId}"`, 'g'), `source="${newId}"`);
+    // 替换 target="xxx"
+    secondCells = secondCells.replace(new RegExp(`target="${oldId}"`, 'g'), `target="${newId}"`);
+  }
+
+  // 合并cells（移除第二个的 root 开始标记中的 parent="0" cell）
+  const cleanSecondCells = secondCells
+    .replace(/<mxCell id="0"\/>/, '')
+    .replace(/<mxCell id="1" parent="0"\/>/, '');
+
+  // 构建合并后的XML
+  const mergedRoot = firstRootMatch[1] + cleanSecondCells;
+  
+  // 提取第一个XML的头部属性
+  const headerMatch = firstXml.match(/<mxGraphModel([^>]*)>/);
+  const header = headerMatch ? headerMatch[1] : '';
+  
+  return `<mxGraphModel${header}>\n  <root>\n${mergedRoot}\n  </root>\n</mxGraphModel>`;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, direction = 'vertical', stream = true } = await request.json();
+    const body = await request.json();
+    const { 
+      prompt, 
+      direction = 'vertical', 
+      batchMode = false,
+      batchIndex = 0,
+      previousNodes = null 
+    } = body;
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
@@ -92,13 +223,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 如果不使用流式，返回普通JSON（向后兼容）
-    if (!stream) {
-      return handleNonStreaming(prompt, direction, request);
+    // 分批生成模式
+    if (batchMode) {
+      return handleBatchGeneration(
+        prompt, 
+        direction, 
+        batchIndex, 
+        previousNodes, 
+        request
+      );
     }
 
-    // 流式输出处理
-    return handleStreaming(prompt, direction, request);
+    // 普通单次生成（保持向后兼容）
+    return handleSingleGeneration(prompt, direction, request);
 
   } catch (error) {
     console.error('生成流程图错误:', error);
@@ -110,10 +247,14 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 处理非流式请求（向后兼容）
+ * 处理单次生成（普通模式）
  */
-async function handleNonStreaming(prompt: string, direction: string, request: NextRequest) {
-  const systemPrompt = buildSystemPrompt(direction);
+async function handleSingleGeneration(
+  prompt: string, 
+  direction: string, 
+  request: NextRequest
+) {
+  const systemPrompt = buildSystemPrompt(direction, false);
   const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
   const config = new Config();
   const client = new LLMClient(config, customHeaders);
@@ -140,15 +281,16 @@ async function handleNonStreaming(prompt: string, direction: string, request: Ne
   const { xml, error } = extractMxGraphModel(content);
   
   if (!xml || error) {
+    // 如果单次生成失败且内容很长，建议分批生成
+    if (content.length > 8000) {
+      return NextResponse.json({
+        error: '流程图太复杂，单次生成失败',
+        detail: '建议使用分批生成模式（batchMode: true）',
+        suggestBatch: true,
+        contentLength: content.length
+      }, { status: 500 });
+    }
     return NextResponse.json({ error: error || '提取 XML 失败' }, { status: 500 });
-  }
-
-  const { isComplete } = validateXml(xml);
-  if (!isComplete) {
-    return NextResponse.json(
-      { error: 'XML 不完整', detail: '请简化流程描述' },
-      { status: 500 }
-    );
   }
 
   recordFlowChartGenerated();
@@ -157,137 +299,213 @@ async function handleNonStreaming(prompt: string, direction: string, request: Ne
 }
 
 /**
- * 处理流式请求（模拟流式效果）
- * 注意：由于豆包 SDK 不支持真正的流式输出，这里使用模拟流式：
- * 1. 先发送开始事件
- * 2. 等待 AI 完整响应
- * 3. 将响应分块发送给客户端
+ * 处理分批生成
  */
-async function handleStreaming(prompt: string, direction: string, request: NextRequest) {
-  const systemPrompt = buildSystemPrompt(direction, true); // 流式模式下放宽节点限制
+async function handleBatchGeneration(
+  prompt: string,
+  direction: string,
+  batchIndex: number,
+  previousNodes: any,
+  request: NextRequest
+) {
   const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
   const config = new Config();
   const client = new LLMClient(config, customHeaders);
 
-  const messages = [
-    { role: 'system' as const, content: systemPrompt },
-    { role: 'user' as const, content: prompt }
-  ];
+  // 第一批：生成主干流程（18个节点）
+  if (batchIndex === 0) {
+    const systemPrompt = buildBatchSystemPrompt(direction, 0);
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: prompt }
+    ];
 
-  // 创建 ReadableStream
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // 发送开始事件
-        controller.enqueue(encoder.encode('event: start\ndata: {"status":"started"}\n\n'));
+    const response = await client.invoke(messages, {
+      model: 'doubao-seed-2-0-pro-260215',
+      temperature: 0.01,
+    });
 
-        // 模拟进度更新（因为 SDK 不支持真正的流式）
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-          progress += 5;
-          if (progress <= 90) {
-            const progressData = {
-              chunk: Math.floor(progress / 5),
-              length: progress * 100,
-              preview: 'AI 正在生成流程图...'
-            };
-            controller.enqueue(
-              encoder.encode(`event: progress\ndata: ${JSON.stringify(progressData)}\n\n`)
-            );
-          }
-        }, 500);
-
-        // 调用 AI（非流式）
-        const response = await client.invoke(messages, {
-          model: 'doubao-seed-2-0-pro-260215',
-          temperature: 0.01,
-        });
-
-        // 停止进度更新
-        clearInterval(progressInterval);
-
-        const fullContent = response.content || '';
-        
-        if (!fullContent) {
-          controller.enqueue(
-            encoder.encode(`event: error\ndata: ${JSON.stringify({ error: 'AI 返回内容为空' })}\n\n`)
-          );
-          controller.close();
-          return;
-        }
-
-        // 发送 100% 进度
-        controller.enqueue(
-          encoder.encode(`event: progress\ndata: ${JSON.stringify({ chunk: 20, length: fullContent.length, preview: '接收完成' })}\n\n`)
-        );
-
-        // 提取 XML
-        const { xml, error } = extractMxGraphModel(fullContent);
-
-        if (!xml || error) {
-          controller.enqueue(
-            encoder.encode(`event: error\ndata: ${JSON.stringify({ 
-              error: error || '提取 XML 失败',
-              detail: `内容长度: ${fullContent.length}，可能被截断`
-            })}\n\n`)
-          );
-          controller.close();
-          return;
-        }
-
-        const { isValid, isComplete } = validateXml(xml);
-
-        if (!isValid) {
-          controller.enqueue(
-            encoder.encode(`event: error\ndata: ${JSON.stringify({ error: 'XML 格式无效' })}\n\n`)
-          );
-          controller.close();
-          return;
-        }
-
-        // 记录统计
-        recordFlowChartGenerated();
-
-        // 发送完成事件
-        const completeData = {
-          success: true,
-          xml: xml,
-          isComplete: isComplete,
-          totalLength: fullContent.length,
-          xmlLength: xml.length
-        };
-        controller.enqueue(
-          encoder.encode(`event: complete\ndata: ${JSON.stringify(completeData)}\n\n`)
-        );
-
-        controller.close();
-
-      } catch (error) {
-        console.error('流式处理错误:', error);
-        controller.enqueue(
-          encoder.encode(`event: error\ndata: ${JSON.stringify({ 
-            error: '流式处理失败',
-            detail: error instanceof Error ? error.message : '未知错误'
-          })}\n\n`)
-        );
-        controller.close();
-      }
+    const content = response.content || '';
+    if (!content) {
+      return NextResponse.json({ error: '第一批生成失败' }, { status: 500 });
     }
-  });
 
-  return new NextResponse(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+    const { xml, error } = extractMxGraphModel(content);
+    if (!xml || error) {
+      return NextResponse.json({ error: error || '第一批提取失败' }, { status: 500 });
+    }
+
+    // 提取最后一个节点信息
+    const nodes = extractNodesFromXml(xml);
+    const lastNode = findLastMainNode(nodes);
+
+    recordFlowChartGenerated();
+
+    return NextResponse.json({
+      success: true,
+      xml: xml,
+      batchComplete: false,
+      nextBatchIndex: 1,
+      lastNode: lastNode,
+      totalNodes: nodes.length
+    });
+  }
+
+  // 第二批及以后：续写剩余流程
+  if (batchIndex >= 1 && previousNodes) {
+    const systemPrompt = buildBatchSystemPrompt(direction, batchIndex, previousNodes);
+    
+    // 构建续写提示词
+    const continuePrompt = buildContinuePrompt(prompt, previousNodes, batchIndex);
+    
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: continuePrompt }
+    ];
+
+    const response = await client.invoke(messages, {
+      model: 'doubao-seed-2-0-pro-260215',
+      temperature: 0.01,
+    });
+
+    const content = response.content || '';
+    if (!content) {
+      return NextResponse.json({ error: `第${batchIndex + 1}批生成失败` }, { status: 500 });
+    }
+
+    const { xml: secondXml, error } = extractMxGraphModel(content);
+    if (!secondXml || error) {
+      return NextResponse.json({ error: error || `第${batchIndex + 1}批提取失败` }, { status: 500 });
+    }
+
+    // 合并XML
+    const firstXml = previousNodes.firstXml;
+    const mergedXml = mergeXmlParts(firstXml, secondXml);
+
+    recordFlowChartGenerated();
+
+    // 检查是否还有更多节点需要生成
+    const nodes = extractNodesFromXml(mergedXml);
+    const lastNode = findLastMainNode(nodes);
+    const hasMoreNodes = content.length > 8000 || nodes.length > 25;
+
+    return NextResponse.json({
+      success: true,
+      xml: mergedXml,
+      batchComplete: !hasMoreNodes,
+      nextBatchIndex: hasMoreNodes ? batchIndex + 1 : null,
+      lastNode: lastNode,
+      totalNodes: nodes.length
+    });
+  }
+
+  return NextResponse.json({ error: '无效的分批参数' }, { status: 400 });
 }
 
-const encoder = new TextEncoder();
+/**
+ * 构建分批生成的续写提示词
+ */
+function buildContinuePrompt(
+  originalPrompt: string, 
+  previousNodes: any, 
+  batchIndex: number
+): string {
+  const lastNode = previousNodes.lastNode;
+  
+  return `【续写任务 - 第${batchIndex + 1}批】
+
+原始流程描述：
+${originalPrompt}
+
+上一批生成的最后一个节点信息：
+- 节点ID: ${lastNode?.id || '未知'}
+- 节点名称: ${lastNode?.value || '未知'}
+- 位置: x=${lastNode?.x || 0}, y=${lastNode?.y || 0}
+
+要求：
+1. 从上一个节点"${lastNode?.value || '最后一个节点'}"之后继续生成流程
+2. 保持坐标连续性，新节点 Y 坐标应大于 ${lastNode?.y || 0}
+3. 添加连接线将上一个节点连接到新生成的第一个节点
+4. 最多生成 15 个新节点
+5. 如果流程已经完整（有结束节点），直接返回结束标记
+
+请生成续写的 mxGraphModel XML（只输出XML代码）：`;
+}
 
 /**
- * 构建系统提示词
+ * 构建分批生成的系统提示词
+ */
+function buildBatchSystemPrompt(
+  direction: string, 
+  batchIndex: number,
+  previousNodes?: any
+): string {
+  const isHorizontal = direction === 'horizontal';
+  
+  const layoutRules = isHorizontal 
+    ? `【横向布局规则】
+- 整体从左到右水平排列
+- 主流程垂直居中对齐（y=300）
+- 分支流程上下对称分布
+- 每个节点水平间距 160-180px`
+    : `【纵向布局规则】
+- 整体自上而下垂直排列
+- 主流程水平居中对齐（x=400）
+- 分支流程左右对称分布
+- 每个节点垂直间距 100-120px`;
+
+  if (batchIndex === 0) {
+    return `【角色定位】
+你是金蝶云星辰的业务流程专家。请根据用户描述生成流程图的第一批节点（主干流程）。
+
+【任务要求】
+1. 生成流程的**主干节点**，约 15-18 个节点
+2. 优先包含：开始、核心业务流程、主要判断节点
+3. 次要分支（如异常处理、边缘场景）可以暂时省略
+4. 确保最后一个节点是主流程的重要节点（不要是结束节点，除非流程真的很短）
+
+${layoutRules}
+
+【节点样式规范】
+- 开始/结束：椭圆，fillColor=#f5f5f5
+- 金蝶单据：圆角矩形，fillColor=#dae8fc
+- 判断节点：菱形，fillColor=#fff2cc
+- 处理节点：矩形，fillColor=#e1d5e7
+
+【输出要求】
+只输出完整的 mxGraphModel XML，包含完整的节点和连线。`;
+  }
+
+  // 续写批次的提示词
+  return `【角色定位】
+你是金蝶云星辰的业务流程专家。请续写流程图的剩余部分。
+
+【任务要求】
+1. 从上一批的终点继续生成剩余流程节点
+2. 保持与上一批的坐标、样式一致性
+3. 添加连接线将上一批终点与这一批起点连接
+4. 生成剩余的所有节点，直到流程结束
+5. 最多生成 15 个新节点
+
+${layoutRules}
+
+【重要规则】
+- 新节点的 ID 从 "${previousNodes?.lastNode?.id ? parseInt(previousNodes.lastNode.id) + 1 : 'n20'}" 开始
+- 新节点 Y 坐标必须大于上一批最后一个节点的 Y 坐标
+- 必须添加边（edge）连接上一批终点和这一批起点
+
+【节点样式规范】
+- 开始/结束：椭圆，fillColor=#f5f5f5
+- 金蝶单据：圆角矩形，fillColor=#dae8fc
+- 判断节点：菱形，fillColor=#fff2cc
+- 处理节点：矩形，fillColor=#e1d5e7
+
+【输出要求】
+只输出完整的 mxGraphModel XML（只包含这一批的新节点）。`;
+}
+
+/**
+ * 构建普通单次生成的系统提示词
  */
 function buildSystemPrompt(direction: string, isStreaming: boolean = false): string {
   const isHorizontal = direction === 'horizontal';
@@ -296,70 +514,44 @@ function buildSystemPrompt(direction: string, isStreaming: boolean = false): str
     ? `【横向布局规则】
 - 整体从左到右水平排列
 - 主流程垂直居中对齐（y=300）
-- 分支流程上下对称分布（上分支y=150，下分支y=450）
-- 每个节点水平间距 160-180px
-- 开始节点在左侧（x=40），结束节点在右侧（x=最右）`
+- 分支流程上下对称分布
+- 每个节点水平间距 160-180px`
     : `【纵向布局规则】
 - 整体自上而下垂直排列
 - 主流程水平居中对齐（x=400）
-- 分支流程左右对称分布（左分支x=200，右分支x=600）
-- 每个节点垂直间距 100-120px
-- 开始节点在顶部（y=40），结束节点在底部（y=最下）`;
-
-  // 流式模式下放宽节点限制，但仍给出建议
-  const nodeLimitPrompt = isStreaming 
-    ? `【节点数量建议】
-- 建议控制在 30 个节点以内以获得最佳效果
-- 如果流程复杂，请确保每个节点的标签简洁明了
-- 流式输出支持超长内容，但生成时间会更长`
-    : `【节点数量限制 - 强制要求】
-- **绝对限制：最多 18 个节点**（包括开始、结束、单据、判断、处理节点）
-- 如果用户描述的流程超过 18 个节点，必须合并相似节点、删除次要分支`;
+- 分支流程左右对称分布
+- 每个节点垂直间距 100-120px`;
 
   return `【角色定位】
-你是金蝶云星辰的业务流程专家，精通采购管理、生产管理、MRP运算、库存管理等模块的业务单据与流程逻辑。你的核心任务是根据用户的自然语言描述，理解其业务场景，匹配标准的金蝶云星辰业务流程，并生成专业级 draw.io 流程图 XML。
-
-【语义解析指南】
-1. **箭头识别**：无论用户使用 "->"、"-->"、"--->" 或任何变体，都视为流程连接
-2. **并列处理**：用户用 "+"、"/"、"、"或括号（）表示并行流程时，应拆分为多个并行分支
-3. **条件分支**："如果...则..."、"是否"、"有无"等关键词表示判断节点，需用菱形表示
-4. **分支对称**：存在多条分支时，确保分支结构对称美观
+你是金蝶云星辰的业务流程专家。
 
 【能力要求】
 1. 语义理解：从用户描述中提取关键业务对象、动作和逻辑分支
 2. 流程匹配：将用户意图映射到金蝶云星辰标准流程节点
-3. 分支对称处理：确保分支节点数量相等或视觉长度相同，最后汇聚到同一节点
+3. 分支对称处理：确保分支节点数量相等或视觉长度相同
 4. 专业命名：所有节点必须使用金蝶云星辰标准单据名称
 
-【输出要求 - 非常重要】
-1. **只输出一个完整的 mxGraphModel XML 代码块**，不要任何解释、Markdown 标记
+【输出要求】
+1. **只输出一个完整的 mxGraphModel XML 代码块**
 2. **XML 必须是完整且有效的**，包含完整的 <mxGraphModel>...</mxGraphModel> 和 <root>...</root>
 3. ${layoutRules}
 4. **节点居中对齐规则**：
    - 所有节点必须相对于中心线对称排列
-   - 同层级节点的中心点必须对齐（x或y坐标相同）
    - 节点尺寸统一：开始/结束120x80px，判断100x100px，单据160x60px，处理140x60px
 5. **连接线路由规则**：
    - 所有连线style包含：edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;
    - **严禁在edge中定义points数组**
-   - 从判断节点引出的连线必须设置不同的exitX/exitY出口位置
-6. **线段条件标签规则**：
-   - 判断节点的出边必须在mxCell中添加value属性表示条件（如value="是"/"否"）
 
-${nodeLimitPrompt}
+【节点数量限制 - 强制要求】
+- **绝对限制：最多 18 个节点**（单次生成）
+- 如果流程超过 18 个节点，必须合并相似节点、删除次要分支
+- 优先保证 XML 结构完整闭合
 
 【节点样式规范】
 - 开始/结束：椭圆，style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;"
 - 金蝶单据：圆角矩形，style="rounded=1;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" 
 - 判断节点：菱形，style="diamond;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;"
 - 处理节点：矩形，style="rounded=0;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;"
-
-【金蝶云星辰标准单据名称】
-- 采购管理：采购申请单、采购订单、采购入库单、采购发票、付款单
-- 销售管理：销售订单、销售出库单、销售发票、收款单、销售退货单
-- 库存管理：生产领料单、生产退料单、产品入库单、调拨单、盘点单
-- 生产管理：生产任务单、生产工单、MRP运算、计划订单、委外加工单、委外入库单
-- 财务管理：凭证、日记账、应收应付单
 
 请直接输出完整的 mxGraphModel XML（只输出XML代码，不要任何其他内容）：`;
 }
