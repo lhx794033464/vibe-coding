@@ -87,7 +87,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
               }
 
               return (
-                <li key={item.href} className="relative">
+                <li key={item.href}>
                   <Link
                     href={item.href}
                     className={`flex items-center rounded-lg transition-colors ${
@@ -97,13 +97,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                     } ${collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}`}
                     title={collapsed ? item.label : undefined}
                   >
-                    <div className="relative">
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      {/* 气泡通知 - 只在"交付工具"且未折叠时显示 */}
-                      {item.href === '/tools' && hasNotification && !collapsed && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-                      )}
-                    </div>
+                    <Icon className="w-5 h-5 flex-shrink-0" />
                     {!collapsed && (
                       <span className="overflow-hidden whitespace-nowrap flex items-center gap-1">
                         {item.label}
@@ -112,10 +106,6 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                           <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
                         )}
                       </span>
-                    )}
-                    {/* 折叠时的气泡通知 */}
-                    {item.href === '/tools' && hasNotification && collapsed && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                     )}
                   </Link>
                 </li>
