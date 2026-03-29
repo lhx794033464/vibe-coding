@@ -102,9 +102,8 @@ export default function FlowChartPage() {
           saveAndExit: false,
           noExitBtn: true,
           noSaveBtn: true,
-          noSaveAndExitBtn: true,
-          chrome: false,
-          toolbar: false,
+          chrome: true,
+          toolbar: true,
           noCloseBtn: true,
         }
       }),
@@ -418,7 +417,7 @@ export default function FlowChartPage() {
           <div className="flex-1 bg-slate-100">
             <iframe
               ref={iframeRef}
-              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min&chrome=0"
+              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
               className="w-full h-full border-0"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
             />
