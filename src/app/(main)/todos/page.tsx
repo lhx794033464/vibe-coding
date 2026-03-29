@@ -439,49 +439,51 @@ export default function TodosPage() {
         <p className="text-gray-500 mt-1">管理你的日常待办事项</p>
       </div>
 
-      {/* 待办事项列表 */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <Card className="flex-1 flex flex-col min-h-0">
-          <CardHeader className="shrink-0 pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                待办事项
-                <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {/* 日期调整 */}
-                <div className="flex items-center gap-1 bg-gray-100 rounded-md px-1">
+      {/* 左右布局：左边待办事项，右边新增待办（PC端） */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+        {/* 左边：待办事项列表 */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <Card className="flex-1 flex flex-col min-h-0">
+            <CardHeader className="shrink-0 pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  待办事项
+                  <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {/* 日期调整 */}
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-md px-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-gray-500 hover:text-gray-700"
+                      onClick={() => setCurrentDate(subDays(currentDate, 1))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-gray-600 min-w-[60px] text-center font-medium">
+                      {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-gray-500 hover:text-gray-700"
+                      onClick={() => setCurrentDate(addDays(currentDate, 1))}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {/* 新增待办按钮 - 仅移动端显示 */}
                   <Button
-                    variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-gray-500 hover:text-gray-700"
-                    onClick={() => setCurrentDate(subDays(currentDate, 1))}
+                    className="h-7 w-7 lg:hidden"
+                    onClick={() => setShowAddDialog(true)}
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600 min-w-[60px] text-center font-medium">
-                    {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-gray-500 hover:text-gray-700"
-                    onClick={() => setCurrentDate(addDays(currentDate, 1))}
-                  >
-                    <ChevronRight className="h-4 w-4" />
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-                {/* 新增待办按钮 */}
-                <Button
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setShowAddDialog(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
               </div>
-            </div>
-          </CardHeader>
+            </CardHeader>
             <CardContent className="flex-1 min-h-0 p-0">
               <ScrollArea className="h-full px-6 pb-6">
                 {loading ? (
@@ -490,7 +492,8 @@ export default function TodosPage() {
                   <Empty>
                     <EmptyHeader>
                       <EmptyTitle>暂无待办事项</EmptyTitle>
-                      <EmptyDescription>点击右上角 + 添加一个新的待办开始吧</EmptyDescription>
+                      <EmptyDescription className="hidden lg:block">在右侧添加一个新的待办开始吧</EmptyDescription>
+                      <EmptyDescription className="lg:hidden">点击右上角 + 添加一个新的待办开始吧</EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : (
@@ -789,9 +792,181 @@ export default function TodosPage() {
               </ScrollArea>
             </CardContent>
           </Card>
+        </div>
+
+        {/* 右边：新增待办 - 仅PC端显示 */}
+        <div className="hidden lg:block w-80 shrink-0">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">新增待办</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    待办内容
+                  </label>
+                  <Input
+                    ref={inputRef}
+                    placeholder="输入待办事项..."
+                    value={newContent}
+                    onChange={(e) => setNewContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newContent.trim()) {
+                        handleAddTodo();
+                      }
+                    }}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    关联客户
+                  </label>
+                  <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {selectedCustomer ? (
+                          <span className="truncate">{selectedCustomer.name}</span>
+                        ) : (
+                          <span className="text-gray-400">选择客户（可选）</span>
+                        )}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput 
+                          placeholder="搜索客户..." 
+                          value={customerSearch}
+                          onValueChange={setCustomerSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>未找到客户</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="none"
+                              onSelect={() => {
+                                setNewCustomerId('');
+                                setCustomerPopoverOpen(false);
+                              }}
+                            >
+                              <Check className={cn(
+                                "mr-2 h-4 w-4",
+                                !newCustomerId ? "opacity-100" : "opacity-0"
+                              )} />
+                              不关联客户
+                            </CommandItem>
+                            {filteredCustomers.map((customer) => (
+                              <CommandItem
+                                key={customer.id}
+                                value={customer.name}
+                                onSelect={() => {
+                                  setNewCustomerId(customer.id);
+                                  setCustomerPopoverOpen(false);
+                                }}
+                              >
+                                <Check className={cn(
+                                  "mr-2 h-4 w-4",
+                                  newCustomerId === customer.id ? "opacity-100" : "opacity-0"
+                                )} />
+                                {customer.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    截止日期
+                  </label>
+                  <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formatDateDisplay(newDueDate)}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={newDueDate}
+                        onSelect={(date: Date | undefined) => {
+                          if (date) {
+                            setNewDueDate(date);
+                            setDueDatePopoverOpen(false);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    优先级
+                  </label>
+                  <Select value={newPriority} onValueChange={(v) => setNewPriority(v as 'high' | 'medium' | 'low')}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom" align="start">
+                      <SelectItem value="high">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                          重要
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="medium">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                          次要
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="low">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                          常规
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button 
+                  className="w-full"
+                  onClick={handleAddTodo}
+                  disabled={!newContent.trim() || adding}
+                >
+                  {adding ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></span>
+                      添加中...
+                    </span>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      添加待办
+                    </>
+                  )}
+                </Button>
+
+                <div className="text-xs text-gray-400 text-center">
+                  未完成的待办将在第二天自动延期
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* 新增待办弹窗 */}
+      {/* 新增待办弹窗 - 仅移动端显示 */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
