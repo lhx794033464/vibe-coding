@@ -19,7 +19,7 @@ const tools = [
   {
     id: 'data-transfer',
     title: '导账工具',
-    description: 'YonSuite转精斗云，严格模板转换（科目、凭证、辅助资料）',
+    description: 'YonSuite转精斗云',
     icon: ArrowLeftRight,
     href: '/tools/data-transfer',
     color: 'bg-green-50 text-green-600',
