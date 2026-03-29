@@ -261,7 +261,7 @@ export default function FlowChartPage() {
                     handleGenerate();
                   }
                 }}
-                placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
+                placeholder="请简明扼要地描述您的业务流程，如有分支或返回结构请描述清楚。例如：如果质量有问题则退货，如果产品不合格则重新执行生产"
                 className="h-[200px] resize-none overflow-y-auto"
                 disabled={isGenerating}
               />
