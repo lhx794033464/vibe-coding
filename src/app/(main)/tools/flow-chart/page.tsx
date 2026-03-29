@@ -14,9 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   TrendingUp,
-  Wand2,
   Clock,
-  CheckCircle2,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -29,9 +27,7 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
 
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
-  const [optimizedPrompt, setOptimizedPrompt] = useState('');
   const [loading, setLoading] = useState(false);
-  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
@@ -185,58 +181,6 @@ export default function FlowChartPage() {
     return () => window.removeEventListener('message', handleMessage);
   }, [isConfigured, sendConfigure, sendLoad]);
 
-  // 提示词优化
-  const handleOptimize = async () => {
-    if (!prompt.trim()) {
-      setError('请输入流程描述后再优化');
-      return;
-    }
-
-    setOptimizing(true);
-    setError('');
-    startTimer();
-
-    try {
-      const response = await fetch('/api/tools/flow-chart/optimize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim() }),
-      });
-
-      const result = await response.json();
-      stopTimer();
-
-      if (!response.ok) {
-        const errorMsg = result.error || '优化失败';
-        const detailMsg = result.detail ? ` (${result.detail})` : '';
-        setError(`${errorMsg}${detailMsg}`);
-        return;
-      }
-
-      if (result.success && result.optimizedPrompt) {
-        setOptimizedPrompt(result.optimizedPrompt);
-        // 可选：自动替换原文
-        // setPrompt(result.optimizedPrompt);
-      } else {
-        setError('优化结果为空');
-      }
-    } catch (err) {
-      stopTimer();
-      console.error('提示词优化错误:', err);
-      setError('网络错误，优化失败');
-    } finally {
-      setOptimizing(false);
-    }
-  };
-
-  // 使用优化后的提示词
-  const useOptimizedPrompt = () => {
-    if (optimizedPrompt) {
-      setPrompt(optimizedPrompt);
-      setOptimizedPrompt('');
-    }
-  };
-
   // 生成流程图
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -299,7 +243,6 @@ export default function FlowChartPage() {
     
     sendLoad(EMPTY_XML);
     setPrompt('');
-    setOptimizedPrompt('');
     setLastGenTime(0);
     setElapsedTime(0);
   }, [drawioReady, sendLoad]);
@@ -334,7 +277,6 @@ export default function FlowChartPage() {
           <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
             <div className="p-4 border-b border-slate-200">
-              {/* 方向选择 */}
               <div className="mb-3">
                 <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
                 <div className="flex gap-2">
@@ -363,32 +305,9 @@ export default function FlowChartPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  流程描述
-                </label>
-                {/* 提示词优化按钮 */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleOptimize}
-                  disabled={optimizing || !prompt.trim()}
-                  className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                >
-                  {optimizing ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                      优化中 {elapsedTime.toFixed(1)}s
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-3.5 h-3.5 mr-1" />
-                      提示词优化
-                    </>
-                  )}
-                </Button>
-              </div>
-
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                流程描述
+              </label>
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -401,29 +320,6 @@ export default function FlowChartPage() {
                 placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
                 className="h-[200px] resize-none overflow-y-auto"
               />
-
-              {/* 优化后的提示词显示 */}
-              {optimizedPrompt && (
-                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-purple-700 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      优化后的提示词
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={useOptimizedPrompt}
-                      className="h-6 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-100"
-                    >
-                      使用此提示词
-                    </Button>
-                  </div>
-                  <p className="text-xs text-purple-800 leading-relaxed">
-                    {optimizedPrompt}
-                  </p>
-                </div>
-              )}
               
               {/* 错误提示 */}
               {error && (
@@ -453,7 +349,7 @@ export default function FlowChartPage() {
               </Button>
 
               {/* 上次用时显示 */}
-              {lastGenTime > 0 && !loading && !optimizing && (
+              {lastGenTime > 0 && !loading && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
                   上次生成用时: {lastGenTime.toFixed(1)} 秒
@@ -467,7 +363,6 @@ export default function FlowChartPage() {
                 <h4 className="text-xs font-medium text-amber-700 mb-2">💡 使用提示</h4>
                 <ul className="text-xs text-amber-600 space-y-1">
                   <li>• 拖拽画布：Space+左键</li>
-                  <li>• 点击"提示词优化"可将口语化描述转为标准流程</li>
                   <li>• 支持多种箭头格式：--&gt;、→、-&gt;</li>
                 </ul>
               </div>
