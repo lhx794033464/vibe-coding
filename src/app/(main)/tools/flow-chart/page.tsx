@@ -445,7 +445,7 @@ export default function FlowChartPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧面板 */}
         {isLeftPanelOpen && (
-          <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
+          <div className="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
             <div className="p-4 border-b border-slate-200">
               {/* 方向选择 */}
