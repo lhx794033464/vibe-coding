@@ -14,7 +14,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   TrendingUp,
+  Wand2,
   Clock,
+  CheckCircle2,
 } from 'lucide-react';
 
 // 空白画布 XML
@@ -27,7 +29,9 @@ const EMPTY_XML = `<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides
 
 export default function FlowChartPage() {
   const [prompt, setPrompt] = useState('');
+  const [optimizedPrompt, setOptimizedPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState('');
   const [drawioReady, setDrawioReady] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
@@ -41,10 +45,6 @@ export default function FlowChartPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [lastGenTime, setLastGenTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  // 流式接收状态
-  const [receiveProgress, setReceiveProgress] = useState(0);
-  const [receivedChunks, setReceivedChunks] = useState(0);
-  const [streamingMode, setStreamingMode] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -200,7 +200,59 @@ export default function FlowChartPage() {
     return () => window.removeEventListener('message', handleMessage);
   }, [isConfigured, sendConfigure, sendLoad]);
 
-  // 生成流程图（支持分批生成）
+  // 提示词优化
+  const handleOptimize = async () => {
+    if (!prompt.trim()) {
+      setError('请输入流程描述后再优化');
+      return;
+    }
+
+    setOptimizing(true);
+    setError('');
+    startTimer();
+
+    try {
+      const response = await fetch('/api/tools/flow-chart/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+
+      const result = await response.json();
+      stopTimer();
+
+      if (!response.ok) {
+        const errorMsg = result.error || '优化失败';
+        const detailMsg = result.detail ? ` (${result.detail})` : '';
+        setError(`${errorMsg}${detailMsg}`);
+        return;
+      }
+
+      if (result.success && result.optimizedPrompt) {
+        setOptimizedPrompt(result.optimizedPrompt);
+        // 可选：自动替换原文
+        // setPrompt(result.optimizedPrompt);
+      } else {
+        setError('优化结果为空');
+      }
+    } catch (err) {
+      stopTimer();
+      console.error('提示词优化错误:', err);
+      setError('网络错误，优化失败');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  // 使用优化后的提示词
+  const useOptimizedPrompt = () => {
+    if (optimizedPrompt) {
+      setPrompt(optimizedPrompt);
+      setOptimizedPrompt('');
+    }
+  };
+
+  // 生成流程图
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('请输入流程图描述');
@@ -214,196 +266,49 @@ export default function FlowChartPage() {
 
     setLoading(true);
     setError('');
-    setStreamingMode(true);
-    setReceiveProgress(0);
-    setReceivedChunks(0);
     startTimer();
 
     try {
-      // 使用分批生成模式
-      await handleBatchGeneration();
-    } catch (err) {
-      stopTimer();
-      setLoading(false);
-      setStreamingMode(false);
-      console.error('生成流程图错误:', err);
-      setError('网络错误，请检查网络连接后重试');
-    }
-  };
-
-  // 分批生成处理
-  const handleBatchGeneration = async () => {
-    let batchIndex = 0;
-    let mergedXml = '';
-    let firstBatchResult: any = null;
-    const maxBatches = 3; // 最多分批次数
-
-    while (batchIndex < maxBatches) {
-      // 构建请求体
-      const requestBody: any = {
-        prompt: prompt.trim(),
-        direction,
-        batchMode: true,
-        batchIndex: batchIndex,
-      };
-
-      // 第二批及以后需要带上上一批的信息
-      if (batchIndex > 0 && firstBatchResult) {
-        requestBody.previousNodes = {
-          firstXml: batchIndex === 1 ? firstBatchResult.xml : firstBatchResult.firstXml,
-          lastNode: firstBatchResult.lastNode,
-        };
-      }
-
-      // 更新进度显示
-      setReceiveProgress(Math.round((batchIndex / maxBatches) * 100));
-
       const response = await fetch('/api/tools/flow-chart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ 
+          prompt: prompt.trim(),
+          direction,
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `第${batchIndex + 1}批生成失败`);
-      }
-
       const result = await response.json();
+      // 注意：不在此处停止计时器，等待 draw.io 加载完成
 
-      if (!result.success || !result.xml) {
-        throw new Error(result.error || `第${batchIndex + 1}批返回数据无效`);
+      if (!response.ok) {
+        stopTimer(); // API 错误时停止计时
+        setLoading(false); // 错误时结束 loading
+        // 显示详细错误信息
+        const errorMsg = result.error || '生成失败，请稍后重试';
+        const detailMsg = result.detail ? ` (${result.detail})` : '';
+        setError(`${errorMsg}${detailMsg}`);
+        return;
       }
 
-      // 保存第一批的结果
-      if (batchIndex === 0) {
-        firstBatchResult = result;
-        mergedXml = result.xml;
+      if (result.xml && result.success) {
+        // 向 draw.io iframe 发送加载消息，计时器继续运行直到 draw.io 加载完成
+        sendLoad(result.xml);
+        // 刷新统计
+        fetchStats();
+        // 注意：不在此处结束 loading，等待 draw.io 的 load 事件
       } else {
-        // 后续批次已经合并了
-        mergedXml = result.xml;
-        firstBatchResult = {
-          ...firstBatchResult,
-          lastNode: result.lastNode,
-          firstXml: result.firstXml || firstBatchResult.firstXml || firstBatchResult.xml, // 保存原始XML
-        };
+        stopTimer(); // 数据错误时停止计时
+        setLoading(false); // 错误时结束 loading
+        setError(result.error || '生成的流程图数据为空或格式错误');
       }
-
-      // 检查是否完成
-      if (result.batchComplete) {
-        setReceiveProgress(100);
-        break;
-      }
-
-      batchIndex++;
-      
-      // 更新提示
-      setReceivedChunks(batchIndex + 1);
+    } catch (err) {
+      stopTimer();
+      setLoading(false); // 异常时结束 loading
+      console.error('生成流程图错误:', err);
+      setError('网络错误，请检查网络连接后重试');
     }
-
-    // 加载最终合并的XML
-    if (mergedXml) {
-      sendLoad(mergedXml);
-      fetchStats();
-    }
-
-    stopTimer();
-    setLoading(false);
-    setStreamingMode(false);
-  };
-
-  // 处理流式响应（保留兼容）
-  const handleStreamingResponse = async (response: Response) => {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('无法获取响应流');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let xmlContent = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          break;
-        }
-
-        // 解码数据
-        buffer += decoder.decode(value, { stream: true });
-        
-        // 解析 SSE 事件
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || ''; // 保留未完整的数据
-
-        for (const line of lines) {
-          const event = parseSSEEvent(line);
-          if (!event) continue;
-
-          switch (event.event) {
-            case 'start':
-              console.log('流式输出开始');
-              break;
-              
-            case 'progress':
-              if (event.data) {
-                setReceivedChunks(event.data.chunk || 0);
-                // 估算进度（假设最终大约 8000-10000 字符）
-                const estimatedProgress = Math.min(
-                  Math.round((event.data.length / 8000) * 100),
-                  95
-                );
-                setReceiveProgress(estimatedProgress);
-              }
-              break;
-              
-            case 'complete':
-              if (event.data?.xml) {
-                xmlContent = event.data.xml;
-                setReceiveProgress(100);
-                // 加载到 draw.io
-                sendLoad(xmlContent);
-                fetchStats();
-              }
-              break;
-              
-            case 'error':
-              stopTimer();
-              setLoading(false);
-              setStreamingMode(false);
-              setError(event.data?.error || '流式生成失败');
-              return;
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  };
-
-  // 解析 SSE 事件
-  const parseSSEEvent = (data: string): { event: string; data: any } | null => {
-    const lines = data.split('\n');
-    let event = '';
-    let eventData = '';
-
-    for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        event = line.substring(7);
-      } else if (line.startsWith('data: ')) {
-        eventData = line.substring(6);
-      }
-    }
-
-    if (!event) return null;
-
-    try {
-      return { event, data: eventData ? JSON.parse(eventData) : null };
-    } catch {
-      return { event, data: eventData };
-    }
+    // 注意：不在 finally 中设置 loading，由 draw.io 的 load 事件或错误处理来结束 loading
   };
 
   // 清空编辑器
@@ -412,10 +317,9 @@ export default function FlowChartPage() {
     
     sendLoad(EMPTY_XML);
     setPrompt('');
+    setOptimizedPrompt('');
     setLastGenTime(0);
     setElapsedTime(0);
-    setReceiveProgress(0);
-    setReceivedChunks(0);
   }, [drawioReady, sendLoad]);
 
   return (
@@ -481,6 +385,26 @@ export default function FlowChartPage() {
                 <label className="block text-sm font-medium text-slate-700">
                   流程描述
                 </label>
+                {/* 提示词优化按钮 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleOptimize}
+                  disabled={optimizing || !prompt.trim()}
+                  className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                >
+                  {optimizing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                      优化中 {elapsedTime.toFixed(1)}s
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5 mr-1" />
+                      提示词优化
+                    </>
+                  )}
+                </Button>
               </div>
 
               <Textarea
@@ -495,6 +419,29 @@ export default function FlowChartPage() {
                 placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
                 className="h-[250px] resize-none overflow-y-auto"
               />
+
+              {/* 优化后的提示词显示 */}
+              {optimizedPrompt && (
+                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-purple-700 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      优化后的提示词
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={useOptimizedPrompt}
+                      className="h-6 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                    >
+                      使用此提示词
+                    </Button>
+                  </div>
+                  <p className="text-xs text-purple-800 leading-relaxed">
+                    {optimizedPrompt}
+                  </p>
+                </div>
+              )}
               
               {/* 错误提示 */}
               {error && (
@@ -513,10 +460,7 @@ export default function FlowChartPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {streamingMode 
-                      ? `分批生成中 ${receiveProgress}% (第${receivedChunks || 1}批)`
-                      : '生成中'
-                    } {elapsedTime.toFixed(1)}s
+                    {elapsedTime < 5 ? 'AI生成中' : '渲染中'} {elapsedTime.toFixed(1)}s
                   </>
                 ) : (
                   <>
@@ -526,25 +470,8 @@ export default function FlowChartPage() {
                 )}
               </Button>
 
-              {/* 接收进度条（分批生成模式） */}
-              {streamingMode && loading && receiveProgress > 0 && (
-                <div className="mt-2">
-                  <div className="w-full bg-slate-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${receiveProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1 text-center">
-                    {receiveProgress < 100 
-                      ? `正在生成第 ${receivedChunks || 1} 批节点...` 
-                      : '生成完成，渲染中...'}
-                  </p>
-                </div>
-              )}
-
               {/* 上次用时显示 */}
-              {lastGenTime > 0 && !loading && (
+              {lastGenTime > 0 && !loading && !optimizing && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
                   上次生成用时: {lastGenTime.toFixed(1)} 秒
@@ -613,7 +540,7 @@ export default function FlowChartPage() {
           <div className="flex-1 bg-slate-100">
             <iframe
               ref={iframeRef}
-              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min&saveAndExit=0&noExitBtn=1&noSaveBtn=1"
+              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
               className="w-full h-full border-0"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
             />
