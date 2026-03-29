@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
     const config = new Config();
     const client = new VideoGenerationClient(config);
 
-    // 构建视频生成提示词
-    const videoPrompt = `企业业务流程动画演示：${prompt}。展示专业的业务流程图动画，包含清晰的流程节点、连接箭头和数据流向，采用简洁现代的商务风格，流畅的过渡动画效果。`;
+    // 构建视频生成提示词 - 侧重视觉动画效果，避免文字渲染
+    const videoPrompt = `Professional business process animation: flowing particles and light streams connecting different stages, smooth transitions between workflow steps, modern corporate style with blue and white color scheme, clean geometric shapes representing process nodes, dynamic data flow visualization, cinematic camera movement, elegant motion graphics, no text or labels, abstract representation of business workflow.`;
 
     console.log('开始生成业务流程视频...');
     console.log('提示词:', videoPrompt);
