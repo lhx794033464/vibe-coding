@@ -479,12 +479,9 @@ export default function HomePage() {
                   <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-800 mb-2">
+                  <h2 className="text-xl font-semibold text-slate-800">
                     你好，我是小蝶
                   </h2>
-                  <p className="text-slate-500 max-w-md mx-auto">
-                    我是你的金蝶云星辰交付顾问和日常安排助手，可以帮你查询客户数据、解答产品问题、管理工作任务、搜索金蝶知识
-                  </p>
                 </div>
               </div>
 
