@@ -417,7 +417,7 @@ export default function FlowChartPage() {
           <div className="flex-1 bg-slate-100">
             <iframe
               ref={iframeRef}
-              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"
+              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min&noSaveBtn=1&noExitBtn=1"
               className="w-full h-full border-0"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
             />
