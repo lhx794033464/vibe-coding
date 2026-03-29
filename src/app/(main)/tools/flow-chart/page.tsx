@@ -249,12 +249,9 @@ export default function FlowChartPage() {
                 </div>
               </div>
 
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 流程描述
               </label>
-              <p className="text-xs text-slate-500 mb-2">
-                请简明扼要地描述您的业务流程，如有<strong className="text-slate-700">分支</strong>或<strong className="text-slate-700">返回</strong>结构请描述清楚。例如：如果质量有问题则退货，如果产品不合格则重新执行生产
-              </p>
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -264,8 +261,8 @@ export default function FlowChartPage() {
                     handleGenerate();
                   }
                 }}
-                placeholder="在此输入您的流程描述..."
-                className="h-[180px] resize-none overflow-y-auto"
+                placeholder="请描述您想要的流程图，例如：用户登录流程，包括输入账号密码、验证、登录成功或失败..."
+                className="h-[200px] resize-none overflow-y-auto"
                 disabled={isGenerating}
               />
               
