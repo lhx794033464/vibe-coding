@@ -1,35 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { recordFlowChartGenerated } from '@/services/globalStats';
 
-// DeepSeek API 配置
-const DEEPSEEK_API_KEY = 'sk-a576af7e052748d9a5a64f5171adaaa6';
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+// 使用豆包 2.0 Pro 模型
+const FLOW_CHART_MODEL = 'doubao-seed-2-0-pro-260215';
 
 /**
- * 调用 DeepSeek API
+ * 调用豆包模型生成流程图 (使用 coze-coding-dev-sdk)
  */
-async function callDeepSeek(messages: Array<{role: string; content: string}>): Promise<string> {
-  const response = await fetch(DEEPSEEK_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages,
-      temperature: 0.01,
-      stream: false,
-    }),
+async function callDoubao(
+  messages: Array<{role: 'system' | 'user' | 'assistant'; content: string}>,
+  customHeaders: Record<string, string>
+): Promise<string> {
+  const config = new Config();
+  const client = new LLMClient(config, customHeaders);
+
+  const response = await client.invoke(messages, {
+    model: FLOW_CHART_MODEL,
+    temperature: 0.01,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`DeepSeek API 错误: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  return response.content || '';
 }
 
 /**
@@ -215,6 +206,9 @@ function validateAndCleanXml(xml: string): { xml: string | null; error: string |
 
 export async function POST(request: NextRequest) {
   try {
+    // 提取请求头用于转发
+    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+    
     const { prompt, direction = 'vertical' } = await request.json();
 
     if (!prompt || typeof prompt !== 'string') {
@@ -291,18 +285,18 @@ export async function POST(request: NextRequest) {
 
 请直接输出完整的 mxGraphModel XML（只输出XML代码，不要任何其他内容）：`;
 
-    // 调用 DeepSeek 模型
-    const messages = [
+    // 调用豆包模型
+    const messages: Array<{role: 'system' | 'user' | 'assistant'; content: string}> = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: prompt }
     ];
 
-    console.log('开始调用 DeepSeek 生成流程图...');
+    console.log('开始调用豆包生成流程图...');
     const startTime = Date.now();
 
-    const content = await callDeepSeek(messages);
+    const content = await callDoubao(messages, customHeaders);
 
-    console.log('DeepSeek 返回完成，耗时:', Date.now() - startTime, 'ms');
+    console.log('豆包返回完成，耗时:', Date.now() - startTime, 'ms');
 
     // 处理空内容情况 - 添加备用提示词
     if (!content || content.trim() === '') {
