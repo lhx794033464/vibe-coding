@@ -3,6 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { GitBranch, FileText, ArrowRight, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
+import { useFlowChart } from '@/contexts/FlowChartContext';
 
 // 交付工具列表
 const tools = [
@@ -27,6 +28,8 @@ const tools = [
 ];
 
 export default function ToolsPage() {
+  const { hasNotification } = useFlowChart();
+  
   return (
     <div className="h-full bg-slate-50">
       <div className="p-6">
@@ -40,13 +43,19 @@ export default function ToolsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {tools.map((tool) => {
             const Icon = tool.icon;
+            const showNotification = tool.id === 'flow-chart' && hasNotification;
+            
             return (
               <Link key={tool.id} href={tool.href}>
-                <Card className="h-full cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-200 group rounded-2xl overflow-hidden">
+                <Card className="h-full cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-200 group rounded-2xl overflow-hidden relative">
+                  {/* 气泡通知 - 卡片右上角 */}
+                  {showNotification && (
+                    <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full z-10 animate-pulse" />
+                  )}
                   <CardContent className="p-6">
                     <div className="flex flex-col items-center text-center">
                       {/* 图标 */}
-                      <div className={`w-16 h-16 rounded-2xl ${tool.iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
+                      <div className={`w-16 h-16 rounded-2xl ${tool.iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200 relative`}>
                         <Icon className={`w-8 h-8 ${tool.color.replace('bg-', 'text-')}`} />
                       </div>
                       {/* 标题 */}

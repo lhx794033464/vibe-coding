@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState, useRef, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useCallback, ReactNode, useEffect } from 'react';
 
 // localStorage 缓存键
 const FLOWCHART_CACHE_KEY = 'flowchart-cache-xml';
+const FLOWCHART_NOTIFICATION_KEY = 'flowchart-has-notification';
 
 interface FlowChartContextType {
   // 生成状态
@@ -14,6 +15,9 @@ interface FlowChartContextType {
   elapsedTime: number;
   lastGenTime: number;
   generatedXml: string | null;
+  
+  // 通知状态
+  hasNotification: boolean;
   
   // 状态更新函数
   setPrompt: (prompt: string) => void;
@@ -29,6 +33,9 @@ interface FlowChartContextType {
   setGeneratedXml: (xml: string) => void;
   getSavedXml: () => string;
   saveXml: (xml: string) => void;
+  
+  // 通知相关
+  clearNotification: () => void;
 }
 
 const FlowChartContext = createContext<FlowChartContextType | undefined>(undefined);
@@ -43,11 +50,32 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
   const [lastGenTime, setLastGenTime] = useState(0);
   const [generatedXml, setGeneratedXml] = useState<string | null>(null);
   
+  // 通知状态
+  const [hasNotification, setHasNotification] = useState(false);
+  
   // 使用 ref 存储 AbortController 和计时器，避免触发重渲染
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const generatingRef = useRef(false); // 用于追踪生成状态
   const startTimeRef = useRef<number>(0); // 存储开始时间
+  
+  // 初始化时从 localStorage 读取通知状态
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedNotification = localStorage.getItem(FLOWCHART_NOTIFICATION_KEY);
+      if (savedNotification === 'true') {
+        setHasNotification(true);
+      }
+    }
+  }, []);
+  
+  // 清除通知
+  const clearNotification = useCallback(() => {
+    setHasNotification(false);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(FLOWCHART_NOTIFICATION_KEY);
+    }
+  }, []);
   
   // 清理计时器
   const clearTimer = useCallback(() => {
@@ -129,6 +157,9 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
 
       if (result.xml && result.success) {
         setGeneratedXml(result.xml);
+        // 设置通知状态（后台生成完成）
+        setHasNotification(true);
+        localStorage.setItem(FLOWCHART_NOTIFICATION_KEY, 'true');
         // 计算实际用时
         const actualTime = (Date.now() - startTimeRef.current) / 1000;
         setLastGenTime(actualTime);
@@ -195,6 +226,7 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
       elapsedTime,
       lastGenTime,
       generatedXml,
+      hasNotification,
       setPrompt,
       setDirection,
       setError,
@@ -204,6 +236,7 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
       setGeneratedXml,
       getSavedXml,
       saveXml,
+      clearNotification,
     }}>
       {children}
     </FlowChartContext.Provider>

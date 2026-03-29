@@ -43,6 +43,7 @@ export default function FlowChartPage() {
     setGeneratedXml,
     getSavedXml,
     saveXml,
+    clearNotification,
   } = useFlowChart();
   
   const [drawioReady, setDrawioReady] = useState(false);
@@ -51,6 +52,11 @@ export default function FlowChartPage() {
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lastLoadedXmlRef = useRef<string>(''); // 追踪上次加载的 XML，避免重复加载
+
+  // 进入页面时清除通知
+  useEffect(() => {
+    clearNotification();
+  }, [clearNotification]);
 
   // 向 draw.io 发送配置消息
   const sendConfigure = useCallback(() => {
