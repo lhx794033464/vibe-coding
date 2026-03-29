@@ -101,12 +101,16 @@ export default function FlowChartPage() {
         action: 'configure',
         config: {
           autosave: false,
-          saveAndExit: false,  // 禁用保存并退出按钮
-          noExitBtn: true,     // 隐藏退出按钮
-          noSaveBtn: true,     // 隐藏保存按钮
-          chrome: true,
-          toolbar: true,
+          showSaveButton: false,
+          showExitButton: false,
+          saveAndExit: false,
+          noSaveBtn: true,
+          noExitBtn: true,
           noCloseBtn: true,
+          chrome: false,
+          toolbar: false,
+          noHelpBtn: true,
+          buttons: [],
         }
       }),
       'https://embed.diagrams.net'
@@ -498,7 +502,7 @@ export default function FlowChartPage() {
           <div className="flex-1 bg-slate-100">
             <iframe
               ref={iframeRef}
-              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min&noSaveBtn=1&noExitBtn=1&noCloseBtn=1"
+              src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=atrium&noSaveBtn=1&noExitBtn=1&noCloseBtn=1&noHelpBtn=1&noLightbox=1&noLink=1&hide-sidebar=1"
               className="w-full h-full border-0"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads"
             />
