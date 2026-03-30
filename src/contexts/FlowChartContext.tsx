@@ -157,9 +157,12 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
 
       if (result.xml && result.success) {
         setGeneratedXml(result.xml);
-        // 设置通知状态（后台生成完成）
-        setHasNotification(true);
-        localStorage.setItem(FLOWCHART_NOTIFICATION_KEY, 'true');
+        // 设置通知状态（后台生成完成）- 只在用户不在流程图页面时显示
+        const isOnFlowChartPage = typeof window !== 'undefined' && window.location.pathname === '/tools/flow-chart';
+        if (!isOnFlowChartPage) {
+          setHasNotification(true);
+          localStorage.setItem(FLOWCHART_NOTIFICATION_KEY, 'true');
+        }
         // 计算实际用时
         const actualTime = (Date.now() - startTimeRef.current) / 1000;
         setLastGenTime(actualTime);
