@@ -78,13 +78,6 @@ export default function ToolsPage() {
             );
           })}
         </div>
-
-        {/* 提示信息 */}
-        <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
-          <p className="text-sm text-blue-700">
-            💡 更多交付工具正在开发中，如有需求建议请联系产品团队
-          </p>
-        </div>
       </div>
     </div>
   );
