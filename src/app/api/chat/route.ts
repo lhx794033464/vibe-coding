@@ -409,7 +409,7 @@ function generateSearchQuery(message: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, enableSearch, userId, businessData: clientBusinessData } = await request.json();
+    const { messages, enableSearch, userId } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: '消息格式错误' }), {
@@ -423,39 +423,27 @@ export async function POST(request: NextRequest) {
     let businessDataText = '';
     let searchResultText = '';
     
-    // 优先使用前端传递的业务数据，否则从服务端获取
-    let businessData = clientBusinessData;
-    
-    if (!businessData && userId) {
+    // 获取业务数据（本地存储模式）
+    if (userId) {
       try {
-        businessData = await getUserBusinessData(userId);
+        const businessData = await getUserBusinessData(userId);
         
-        console.log('Chat API - 从服务端获取业务数据:', {
+        console.log('Chat API - 业务数据获取结果:', {
           hasBusinessData: !!businessData,
           todayTodosCount: businessData?.todos?.today?.length || 0,
           schedulesCount: businessData?.schedules?.today?.length || 0,
         });
-      } catch (e) {
-        console.error('获取服务端业务数据失败:', e);
-      }
-    } else if (businessData) {
-      console.log('Chat API - 使用前端传递的业务数据:', {
-        totalCustomers: businessData.totalCustomers,
-        todayTodosCount: businessData.todos?.today?.length || 0,
-      });
-    }
-    
-    // 构建业务数据上下文
-    if (businessData) {
-      const now = new Date();
-      const todayStr = now.toLocaleDateString('zh-CN', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        weekday: 'long'
-      });
+        
+        if (businessData) {
+          const now = new Date();
+          const todayStr = now.toLocaleDateString('zh-CN', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            weekday: 'long'
+          });
 
-      businessDataText = `
+          businessDataText = `
 【当前时间和日期】
 今天是 ${todayStr}
 
@@ -529,6 +517,10 @@ ${businessData.schedules.future.length > 0
     ).join('\n')
   : '- 暂无未来日程'}
 `;
+        }
+      } catch (e) {
+        console.error('获取用户数据失败:', e);
+      }
     }
 
     // 获取最后一条用户消息

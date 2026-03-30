@@ -98,29 +98,27 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const fetchCustomer = async (id: string) => {
     try {
-      // 本地存储模式：直接从 localStorage 获取数据
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const customersKey = `customers_${userId}`;
-        const customers = JSON.parse(localStorage.getItem(customersKey) || '[]');
-        const customerData = customers.find((c: any) => c.id === id);
-        
-        if (customerData) {
-          setCustomer(customerData);
-          setEditForm({
-            name: customerData.name,
-            sales_order_no: customerData.sales_order_no || '',
-            implementation_order_no: customerData.implementation_order_no || '',
-            implementation_fee: customerData.implementation_fee || '',
-            implementation_days: customerData.implementation_days || '',
-            opened_at: customerData.opened_at ? customerData.opened_at.split('T')[0] : '',
-            version: customerData.version || '',
-            modules: customerData.modules || [],
-            industry: customerData.industry || '',
-            special_requirements: customerData.special_requirements || '',
-            status: customerData.status,
-          });
-        }
+      const response = await fetch(`/api/customers/${id}`, {
+        headers: {
+
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCustomer(data.data);
+        setEditForm({
+          name: data.data.name,
+          sales_order_no: data.data.sales_order_no || '',
+          implementation_order_no: data.data.implementation_order_no || '',
+          implementation_fee: data.data.implementation_fee || '',
+          implementation_days: data.data.implementation_days || '',
+          opened_at: data.data.opened_at ? data.data.opened_at.split('T')[0] : '',
+          version: data.data.version || '',
+          modules: data.data.modules || [],
+          industry: data.data.industry || '',
+          special_requirements: data.data.special_requirements || '',
+          status: data.data.status,
+        });
       }
     } catch (error) {
       console.error('获取客户详情失败:', error);
@@ -131,13 +129,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const fetchFollowUps = async (customerId: string) => {
     try {
-      // 本地存储模式：直接从 localStorage 获取数据
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const followUpsKey = `follow_ups_${userId}`;
-        const followUps = JSON.parse(localStorage.getItem(followUpsKey) || '[]');
-        const customerFollowUps = followUps.filter((f: any) => f.customer_id === customerId);
-        setFollowUps(customerFollowUps);
+      const response = await fetch(`/api/follow-ups?customer_id=${customerId}`, {
+        headers: {
+
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setFollowUps(data.data || []);
       }
     } catch (error) {
       console.error('获取跟进记录失败:', error);
@@ -146,13 +145,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const fetchImplementationLogs = async (customerId: string) => {
     try {
-      // 本地存储模式：直接从 localStorage 获取数据
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const logsKey = `implementation_logs_${userId}`;
-        const logs = JSON.parse(localStorage.getItem(logsKey) || '[]');
-        const customerLogs = logs.filter((l: any) => l.customer_id === customerId);
-        setImplementationLogs(customerLogs);
+      const response = await fetch(`/api/implementation-logs?customer_id=${customerId}`, {
+        headers: {
+
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setImplementationLogs(data.data || []);
       }
     } catch (error) {
       console.error('获取实施日志失败:', error);
@@ -163,33 +163,30 @@ export default function CustomerDetailPage({ params }: PageProps) {
     if (!customer) return;
     
     try {
-      // 本地存储模式：直接更新 localStorage
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const customersKey = `customers_${userId}`;
-        const customers = JSON.parse(localStorage.getItem(customersKey) || '[]');
-        const index = customers.findIndex((c: any) => c.id === customer.id);
-        
-        if (index !== -1) {
-          customers[index] = {
-            ...customers[index],
-            name: editForm.name,
-            sales_order_no: editForm.sales_order_no || null,
-            implementation_order_no: editForm.implementation_order_no || null,
-            implementation_fee: editForm.implementation_fee ? parseInt(editForm.implementation_fee) : null,
-            implementation_days: editForm.implementation_days ? parseFloat(editForm.implementation_days) : null,
-            opened_at: editForm.opened_at || null,
-            version: editForm.version || null,
-            modules: editForm.modules.length > 0 ? editForm.modules : null,
-            industry: editForm.industry || null,
-            special_requirements: editForm.special_requirements || null,
-            status: editForm.status,
-            updated_at: new Date().toISOString(),
-          };
-          localStorage.setItem(customersKey, JSON.stringify(customers));
-          setCustomer(customers[index]);
-          setEditing(false);
-        }
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+
+        },
+        body: JSON.stringify({
+          name: editForm.name,
+          sales_order_no: editForm.sales_order_no || null,
+          implementation_order_no: editForm.implementation_order_no || null,
+          implementation_fee: editForm.implementation_fee ? parseInt(editForm.implementation_fee) : null,
+          implementation_days: editForm.implementation_days ? parseFloat(editForm.implementation_days) : null,
+          opened_at: editForm.opened_at || null,
+          version: editForm.version || null,
+          modules: editForm.modules.length > 0 ? editForm.modules : null,
+          industry: editForm.industry || null,
+          special_requirements: editForm.special_requirements || null,
+          status: editForm.status,
+        }),
+      });
+
+      if (response.ok) {
+        setEditing(false);
+        fetchCustomer(customer.id);
       }
     } catch (error) {
       console.error('更新客户失败:', error);
@@ -203,30 +200,26 @@ export default function CustomerDetailPage({ params }: PageProps) {
     }
 
     try {
-      // 本地存储模式：直接更新 localStorage
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const followUpsKey = `follow_ups_${userId}`;
-        const followUps = JSON.parse(localStorage.getItem(followUpsKey) || '[]');
-        
-        const newFollowUp = {
-          id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+      const response = await fetch('/api/follow-ups', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+
+        },
+        body: JSON.stringify({
           customer_id: customer.id,
           follow_up_at: followUpForm.follow_up_at,
           content: followUpForm.content,
-          user_id: userId,
-          created_at: new Date().toISOString(),
-        };
-        
-        followUps.push(newFollowUp);
-        localStorage.setItem(followUpsKey, JSON.stringify(followUps));
-        
+        }),
+      });
+
+      if (response.ok) {
         setFollowUpForm({
           follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
           content: '',
         });
         setShowFollowUpForm(false);
-        setFollowUps(followUps.filter((f: any) => f.customer_id === customer.id));
+        fetchFollowUps(customer.id);
       }
     } catch (error) {
       console.error('添加跟进记录失败:', error);
@@ -240,26 +233,22 @@ export default function CustomerDetailPage({ params }: PageProps) {
     }
 
     try {
-      // 本地存储模式：直接更新 localStorage
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const logsKey = `implementation_logs_${userId}`;
-        const logs = JSON.parse(localStorage.getItem(logsKey) || '[]');
-        
-        const newLog = {
-          id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+      const response = await fetch('/api/implementation-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+
+        },
+        body: JSON.stringify({
           customer_id: customer.id,
           log_date: logForm.log_date,
           consumed_days: parseFloat(logForm.consumed_days),
           summary: logForm.summary,
           meeting_link: logForm.meeting_link || null,
-          user_id: userId,
-          created_at: new Date().toISOString(),
-        };
-        
-        logs.push(newLog);
-        localStorage.setItem(logsKey, JSON.stringify(logs));
-        
+        }),
+      });
+
+      if (response.ok) {
         setLogForm({
           log_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
           consumed_days: '',
@@ -267,7 +256,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           meeting_link: '',
         });
         setShowLogForm(false);
-        setImplementationLogs(logs.filter((l: any) => l.customer_id === customer.id));
+        fetchImplementationLogs(customer.id);
       }
     } catch (error) {
       console.error('添加实施日志失败:', error);
@@ -278,14 +267,15 @@ export default function CustomerDetailPage({ params }: PageProps) {
     if (!confirm('确定删除此实施日志吗？')) return;
 
     try {
-      // 本地存储模式：直接更新 localStorage
-      if (typeof window !== 'undefined' && customer) {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const logsKey = `implementation_logs_${userId}`;
-        const logs = JSON.parse(localStorage.getItem(logsKey) || '[]');
-        const filtered = logs.filter((l: any) => l.id !== logId);
-        localStorage.setItem(logsKey, JSON.stringify(filtered));
-        setImplementationLogs(filtered.filter((l: any) => l.customer_id === customer.id));
+      const response = await fetch(`/api/implementation-logs/${logId}`, {
+        method: 'DELETE',
+        headers: {
+
+        },
+      });
+
+      if (response.ok && customer) {
+        fetchImplementationLogs(customer.id);
       }
     } catch (error) {
       console.error('删除实施日志失败:', error);
@@ -322,32 +312,29 @@ export default function CustomerDetailPage({ params }: PageProps) {
     }
 
     try {
-      // 本地存储模式：直接更新 localStorage
-      if (typeof window !== 'undefined') {
-        const userId = localStorage.getItem('local_user_id') || 'local_default';
-        const logsKey = `implementation_logs_${userId}`;
-        const logs = JSON.parse(localStorage.getItem(logsKey) || '[]');
-        const index = logs.findIndex((l: any) => l.id === editingLogId);
-        
-        if (index !== -1) {
-          logs[index] = {
-            ...logs[index],
-            log_date: editLogForm.log_date,
-            consumed_days: parseFloat(editLogForm.consumed_days),
-            summary: editLogForm.summary,
-            meeting_link: editLogForm.meeting_link || null,
-            updated_at: new Date().toISOString(),
-          };
-          localStorage.setItem(logsKey, JSON.stringify(logs));
-          setEditingLogId(null);
-          setEditLogForm({
-            log_date: '',
-            consumed_days: '',
-            summary: '',
-            meeting_link: '',
-          });
-          setImplementationLogs(logs.filter((l: any) => l.customer_id === customer.id));
-        }
+      const response = await fetch(`/api/implementation-logs/${editingLogId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+
+        },
+        body: JSON.stringify({
+          log_date: editLogForm.log_date,
+          consumed_days: parseFloat(editLogForm.consumed_days),
+          summary: editLogForm.summary,
+          meeting_link: editLogForm.meeting_link || null,
+        }),
+      });
+
+      if (response.ok) {
+        setEditingLogId(null);
+        setEditLogForm({
+          log_date: '',
+          consumed_days: '',
+          summary: '',
+          meeting_link: '',
+        });
+        fetchImplementationLogs(customer.id);
       }
     } catch (error) {
       console.error('更新实施日志失败:', error);

@@ -68,183 +68,6 @@ interface Message {
   isVoice?: boolean;
 }
 
-// 获取业务数据用于传递给聊天API（本地存储模式）
-async function getBusinessDataForChat() {
-  if (typeof window === 'undefined') return null;
-  
-  try {
-    // 从 localStorage 获取数据
-    const userId = localStorage.getItem('local_user_id') || 'local_default';
-    const customersKey = `customers_${userId}`;
-    const todosKey = `todos_${userId}`;
-    const schedulesKey = `schedules_${userId}`;
-    const followUpsKey = `follow_ups_${userId}`;
-    
-    const customers = JSON.parse(localStorage.getItem(customersKey) || '[]');
-    const todos = JSON.parse(localStorage.getItem(todosKey) || '[]');
-    const schedules = JSON.parse(localStorage.getItem(schedulesKey) || '[]');
-    const followUps = JSON.parse(localStorage.getItem(followUpsKey) || '[]');
-    
-    // 状态标签映射
-    const STATUS_LABELS: Record<string, string> = {
-      not_online: '未上线',
-      online_not_accepted: '已上线未验收',
-      accepted: '已验收',
-      not_going_online: '不上线',
-      delayed_online: '延期上线',
-      partially_online: '部分上线',
-    };
-    
-    const VERSION_LABELS: Record<string, string> = {
-      standard: '标准版',
-      professional: '专业版',
-      flagship: '旗舰版',
-    };
-    
-    // 获取今天的日期
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    
-    // 计算统计数据
-    const totalCustomers = customers.length;
-    const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
-    const onlineCustomers = customers.filter((c: any) => onlineStatuses.includes(c.status)).length;
-    const acceptedCustomers = customers.filter((c: any) => c.status === 'accepted').length;
-    const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100).toFixed(1) : '0';
-    const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100).toFixed(1) : '0';
-    
-    // 状态分布
-    const statusDistribution: Record<string, number> = {
-      not_online: 0,
-      online_not_accepted: 0,
-      accepted: 0,
-      not_going_online: 0,
-      delayed_online: 0,
-      partially_online: 0,
-    };
-    customers.forEach((c: any) => {
-      if (statusDistribution.hasOwnProperty(c.status)) {
-        statusDistribution[c.status]++;
-      }
-    });
-    
-    // 按状态分类客户
-    const customersByStatus = {
-      notOnline: customers.filter((c: any) => c.status === 'not_online').slice(0, 5).map((c: any) => ({
-        name: c.name,
-        days: c.implementation_days,
-        version: c.version ? VERSION_LABELS[c.version] : null,
-      })),
-      onlineNotAccepted: customers.filter((c: any) => c.status === 'online_not_accepted').slice(0, 5).map((c: any) => ({
-        name: c.name,
-        days: c.implementation_days,
-      })),
-      accepted: customers.filter((c: any) => c.status === 'accepted').slice(0, 5).map((c: any) => ({
-        name: c.name,
-        days: c.implementation_days,
-      })),
-      delayedOnline: customers.filter((c: any) => c.status === 'delayed_online').slice(0, 5).map((c: any) => ({
-        name: c.name,
-        days: c.implementation_days,
-      })),
-    };
-    
-    // 创建客户ID到名称的映射
-    const customerNameMap: Record<string, string> = {};
-    customers.forEach((c: any) => {
-      customerNameMap[c.id] = c.name;
-    });
-    
-    // 最近跟进记录
-    const recentFollowUps = followUps
-      .sort((a: any, b: any) => new Date(b.follow_up_at).getTime() - new Date(a.follow_up_at).getTime())
-      .slice(0, 5)
-      .map((f: any) => ({
-        customerName: customerNameMap[f.customer_id] || '未知客户',
-        content: f.content,
-        date: f.follow_up_at,
-      }));
-    
-    // 待办事项
-    const uncompletedTodos = todos.filter((t: any) => !t.completed);
-    const todayTodos = uncompletedTodos.filter((t: any) => {
-      const dueDate = t.due_date?.split('T')[0];
-      return dueDate === todayStr;
-    }).map((t: any) => ({
-      id: t.id,
-      content: t.content,
-      dueDate: t.due_date,
-      priority: t.priority,
-      customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
-    }));
-    
-    const overdueTodos = uncompletedTodos.filter((t: any) => {
-      const dueDate = t.due_date?.split('T')[0];
-      return dueDate && dueDate < todayStr;
-    }).map((t: any) => ({
-      id: t.id,
-      content: t.content,
-      dueDate: t.due_date,
-      priority: t.priority,
-      customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
-      overdueDays: Math.floor((now.getTime() - new Date(t.due_date).getTime()) / (1000 * 60 * 60 * 24)),
-    }));
-    
-    const futureTodos = uncompletedTodos.filter((t: any) => {
-      const dueDate = t.due_date?.split('T')[0];
-      return dueDate && dueDate > todayStr;
-    }).slice(0, 5).map((t: any) => ({
-      id: t.id,
-      content: t.content,
-      dueDate: t.due_date,
-      priority: t.priority,
-      customerName: t.customer_id ? customerNameMap[t.customer_id] : null,
-    }));
-    
-    // 日程
-    const todaySchedules = schedules.filter((s: any) => {
-      const scheduleDate = s.schedule_date?.split('T')[0];
-      return scheduleDate === todayStr;
-    }).map((s: any) => ({
-      customerName: customerNameMap[s.customer_id] || '未知客户',
-      notes: s.notes,
-      scheduleDate: s.schedule_date,
-    }));
-    
-    const futureSchedules = schedules.filter((s: any) => {
-      const scheduleDate = s.schedule_date?.split('T')[0];
-      return scheduleDate && scheduleDate > todayStr;
-    }).slice(0, 5).map((s: any) => ({
-      customerName: customerNameMap[s.customer_id] || '未知客户',
-      notes: s.notes,
-      scheduleDate: s.schedule_date,
-    }));
-    
-    return {
-      totalCustomers,
-      onlineCustomers,
-      acceptedCustomers,
-      onlineRate,
-      acceptanceRate,
-      statusDistribution,
-      customersByStatus,
-      recentFollowUps,
-      todos: {
-        today: todayTodos,
-        overdue: overdueTodos,
-        future: futureTodos,
-      },
-      schedules: {
-        today: todaySchedules,
-        future: futureSchedules,
-      },
-    };
-  } catch (e) {
-    console.error('获取业务数据失败:', e);
-    return null;
-  }
-}
-
 export default function HomePage() {
   const router = useRouter();
   const { messages: savedMessages, addMessage, clearMessages } = useChat();
@@ -518,9 +341,6 @@ export default function HomePage() {
       // 从 localStorage 获取用户ID
       const userId = typeof window !== 'undefined' ? localStorage.getItem('local_user_id') : null;
       
-      // 获取业务数据并传递给后端（本地存储模式下服务端无法访问客户端数据）
-      const businessData = await getBusinessDataForChat();
-      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -530,7 +350,6 @@ export default function HomePage() {
           messages: [...savedMessages, { role: 'user', content: userMessage }],
           enableSearch: true,
           userId,
-          businessData,
         }),
         signal: abortController.signal,
       });

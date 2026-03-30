@@ -201,32 +201,32 @@ export default function SchedulePage() {
   // 获取日程数据
   useEffect(() => {
     const fetchSchedules = async () => {
+
+      
       try {
         const startDate = calendarDates[0];
         const endDate = calendarDates[calendarDates.length - 1];
         
         const response = await fetch(
-          `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`
+          `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`,
+          {
+            headers: {
+              
+            },
+          }
         );
         
         if (response.ok) {
           const data = await response.json();
-          // 前端根据 customer_id 查询客户名称
-          const schedulesWithNames = (data.schedules || []).map((s: Schedule) => ({
-            ...s,
-            customer_name: customers.find(c => c.id === s.customer_id)?.name || '未知客户'
-          }));
-          setSchedules(schedulesWithNames);
+          setSchedules(data.schedules || []);
         }
       } catch (error) {
         console.error('获取日程失败:', error);
       }
     };
 
-    if (customers.length > 0) {
-      fetchSchedules();
-    }
-  }, [calendarDates, customers]);
+    fetchSchedules();
+  }, [calendarDates]);
 
   const getSchedulesForDate = (date: Date): Schedule[] => {
     const dateStr = formatDate(date);
