@@ -32,22 +32,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, start_time, end_time, meeting_url, type } = body;
+    const { customerId, scheduleDate, notes, customerName } = body;
 
-    if (!title || !start_time) {
-      return NextResponse.json({ error: '标题和开始时间不能为空' }, { status: 400 });
+    if (!customerId || !scheduleDate) {
+      return NextResponse.json({ error: '客户和日期不能为空' }, { status: 400 });
     }
 
     const data = schedulesStorage.create({
-      title,
-      description: description || null,
-      start_time,
-      end_time: end_time || null,
-      meeting_url: meeting_url || null,
-      type: type || 'meeting',
+      customer_id: customerId,
+      customer_name: customerName || null,
+      schedule_date: scheduleDate,
+      notes: notes || null,
     });
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ schedule: data });
   } catch (error) {
     console.error('创建日程失败:', error);
     return NextResponse.json({ error: '创建日程失败' }, { status: 500 });

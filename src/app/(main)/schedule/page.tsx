@@ -250,6 +250,7 @@ export default function SchedulePage() {
         },
         body: JSON.stringify({
           customerId: selectedCustomerId,
+          customerName: selectedCustomer.name,
           scheduleDate: formatDate(selectedDate),
           notes: notes || null,
         }),
