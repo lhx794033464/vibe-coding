@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
@@ -31,10 +30,9 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Badge } from '@/components/ui/badge';
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Calendar } from '@/components/ui/calendar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { 
   Plus, 
   Trash2, 
@@ -45,6 +43,8 @@ import {
   ChevronRight,
   Pencil,
   X,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays, subDays, startOfDay, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -66,23 +66,16 @@ interface Customer {
   name: string;
 }
 
-// 过渡中的待办状态
-interface TransitionTodo {
-  id: string;
-  content: string;
-  customer_id: string | null;
-  priority: 'high' | 'medium' | 'low';
-  phase: 'check' | 'move' | 'done'; // 变绿阶段 | 移动阶段 | 完成
-  // 移动阶段的位置信息
-  sourceRect?: DOMRect;
-  targetRect?: DOMRect;
-  moveDistance?: number; // 需要移动的距离
-}
+const PRIORITY_COLORS = {
+  high: 'bg-rose-500',
+  medium: 'bg-amber-400',
+  low: 'bg-slate-300',
+};
 
-const PRIORITY_CONFIG = {
-  high: { label: '重要', color: 'bg-red-100 text-red-700 border-red-200', order: 3 },
-  medium: { label: '次要', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', order: 2 },
-  low: { label: '常规', color: 'bg-gray-100 text-gray-600 border-gray-200', order: 1 },
+const PRIORITY_LABELS = {
+  high: '重要',
+  medium: '次要',
+  low: '常规',
 };
 
 export default function TodosPage() {
@@ -90,6 +83,8 @@ export default function TodosPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  
+  // 新增待办状态
   const [newContent, setNewContent] = useState('');
   const [newCustomerId, setNewCustomerId] = useState<string>('');
   const [newDueDate, setNewDueDate] = useState<Date>(() => {
@@ -107,23 +102,14 @@ export default function TodosPage() {
   // 当前选中日期
   const [currentDate, setCurrentDate] = useState(startOfDay(new Date()));
   
-  // 动画状态 - 完成动画
-  const [completingTodo, setCompletingTodo] = useState<TransitionTodo | null>(null);
-  // 动画状态 - 取消完成动画
-  const [uncompletingTodo, setUncompletingTodo] = useState<TransitionTodo | null>(null);
-  // 已完成区域是否在下移（用于动画）
-  const [completedShifting, setCompletedShifting] = useState(false);
-  
   // 编辑状态
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [editCustomerId, setEditCustomerId] = useState<string>('');
+  const [editCustomerId, setEditCustomerId] = useState('');
   const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('low');
   const [editCustomerPopoverOpen, setEditCustomerPopoverOpen] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const completedHeaderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchTodos();
@@ -164,10 +150,7 @@ export default function TodosPage() {
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
-        headers: {
-          
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: newContent.trim(),
           customer_id: newCustomerId || null,
@@ -198,134 +181,45 @@ export default function TodosPage() {
     }
   };
 
-  // 完成待办（带动画）
   const handleCompleteTodo = useCallback(async (todo: Todo) => {
-
-
-    // 获取源元素位置
-    const sourceElement = document.querySelector(`[data-todo-id="${todo.id}"]`);
-    const sourceRect = sourceElement?.getBoundingClientRect();
-    
-    // 获取已完成区域头部的位置（目标位置）
-    const completedHeader = document.querySelector('[data-completed-header]');
-    const targetRect = completedHeader?.getBoundingClientRect();
-    
-    // 计算移动距离：从当前位置移动到已完成区域头部下方
-    // 移动距离 = 目标位置底部 - 源位置顶部
-    const moveDistance = targetRect && sourceRect 
-      ? targetRect.bottom - sourceRect.top + 8 // +8 是间距
-      : 100; // 默认值
-
-    // 开始动画 - 变绿阶段
-    setCompletingTodo({
-      id: todo.id,
-      content: todo.content,
-      customer_id: todo.customer_id,
-      priority: todo.priority,
-      phase: 'check',
-      sourceRect,
-      targetRect,
-      moveDistance,
-    });
-
-    // 300ms 后进入移动阶段
-    setTimeout(() => {
-      setCompletingTodo(prev => prev ? { ...prev, phase: 'move' } : null);
-    }, 300);
-
-    // 600ms 后更新状态
-    setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/todos/${todo.id}`, {
-          method: 'PUT',
-          headers: {
-            
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ completed: true }),
-        });
-
-        if (response.ok) {
-          // 更新本地状态
-          setTodos(prev => prev.map(t => 
-            t.id === todo.id ? { ...t, completed: true } : t
-          ));
-          // 完成过渡
-          setCompletingTodo(prev => prev ? { ...prev, phase: 'done' } : null);
-          
-          // 清除过渡状态
-          setTimeout(() => {
-            setCompletingTodo(null);
-          }, 50);
-        }
-      } catch (error) {
-        console.error('更新待办失败:', error);
-        setCompletingTodo(null);
-      }
-    }, 600);
-  }, [completingTodo]);
-
-  // 取消完成（带动画）
-  const handleUncompleteTodo = useCallback(async (todo: Todo) => {
-
-
-    // 开始动画 - 变白阶段（反向）
-    setUncompletingTodo({
-      id: todo.id,
-      content: todo.content,
-      customer_id: todo.customer_id,
-      priority: todo.priority,
-      phase: 'check',
-    });
-
-    // 300ms 后进入移动阶段（淡出）
-    setTimeout(() => {
-      setUncompletingTodo(prev => prev ? { ...prev, phase: 'move' } : null);
-    }, 300);
-
-    // 600ms 后更新状态并进入滑入阶段
-    setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/todos/${todo.id}`, {
-          method: 'PUT',
-          headers: {
-            
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ completed: false }),
-        });
-
-        if (response.ok) {
-          // 更新本地状态
-          setTodos(prev => prev.map(t => 
-            t.id === todo.id ? { ...t, completed: false } : t
-          ));
-          // 完成过渡
-          setUncompletingTodo(prev => prev ? { ...prev, phase: 'done' } : null);
-          
-          // 清除过渡状态
-          setTimeout(() => {
-            setUncompletingTodo(null);
-          }, 50);
-        }
-      } catch (error) {
-        console.error('更新待办失败:', error);
-        setUncompletingTodo(null);
-      }
-    }, 600);
-  }, [uncompletingTodo]);
-
-  const handleDelete = async (id: string) => {
-
-
     try {
-      const response = await fetch(`/api/todos/${id}`, {
-        method: 'DELETE',
-        headers: {
-          
-        },
+      const response = await fetch(`/api/todos/${todo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: true }),
       });
 
+      if (response.ok) {
+        setTodos(prev => prev.map(t => 
+          t.id === todo.id ? { ...t, completed: true, completed_at: new Date().toISOString() } : t
+        ));
+      }
+    } catch (error) {
+      console.error('更新待办失败:', error);
+    }
+  }, []);
+
+  const handleUncompleteTodo = useCallback(async (todo: Todo) => {
+    try {
+      const response = await fetch(`/api/todos/${todo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: false }),
+      });
+
+      if (response.ok) {
+        setTodos(prev => prev.map(t => 
+          t.id === todo.id ? { ...t, completed: false, completed_at: null } : t
+        ));
+      }
+    } catch (error) {
+      console.error('更新待办失败:', error);
+    }
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/todos/${id}`, { method: 'DELETE' });
       if (response.ok) {
         setTodos(prev => prev.filter(t => t.id !== id));
       }
@@ -335,18 +229,11 @@ export default function TodosPage() {
   };
 
   const handlePriorityChange = async (todo: Todo, newPriority: 'high' | 'medium' | 'low') => {
-
-
     try {
       const response = await fetch(`/api/todos/${todo.id}`, {
         method: 'PUT',
-        headers: {
-          
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priority: newPriority,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: newPriority }),
       });
 
       if (response.ok) {
@@ -359,7 +246,6 @@ export default function TodosPage() {
     }
   };
 
-  // 开始编辑待办
   const handleStartEdit = (todo: Todo) => {
     setEditingTodoId(todo.id);
     setEditContent(todo.content);
@@ -367,7 +253,6 @@ export default function TodosPage() {
     setEditPriority(todo.priority);
   };
 
-  // 取消编辑
   const handleCancelEdit = () => {
     setEditingTodoId(null);
     setEditContent('');
@@ -375,17 +260,11 @@ export default function TodosPage() {
     setEditPriority('low');
   };
 
-  // 保存编辑
   const handleSaveEdit = async (todoId: string) => {
-
-
     try {
       const response = await fetch(`/api/todos/${todoId}`, {
         method: 'PUT',
-        headers: {
-          
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: editContent.trim(),
           customer_id: editCustomerId || null,
@@ -414,6 +293,7 @@ export default function TodosPage() {
   );
 
   const selectedCustomer = customers.find(c => c.id === newCustomerId);
+  const editSelectedCustomer = customers.find(c => c.id === editCustomerId);
 
   const formatDateDisplay = (date: Date) => {
     if (isToday(date)) return '今天';
@@ -421,818 +301,482 @@ export default function TodosPage() {
     return format(date, 'M/d', { locale: zhCN });
   };
 
-  // 分离未完成和已完成的待办（排除正在过渡中的）
+  // 分离未完成和已完成的待办
   const pendingTodos = todos
-    .filter(t => !t.completed && t.id !== completingTodo?.id)
+    .filter(t => !t.completed)
     .sort((a, b) => {
       const priorityOrder = { high: 3, medium: 2, low: 1 };
       return priorityOrder[b.priority] - priorityOrder[a.priority];
     });
 
-  const completedTodos = todos.filter(t => t.completed && t.id !== uncompletingTodo?.id);
+  const completedTodos = todos.filter(t => t.completed);
+  
+  // 计算完成进度
+  const totalTodos = todos.length;
+  const completedCount = completedTodos.length;
+  const progress = totalTodos > 0 ? Math.round((completedCount / totalTodos) * 100) : 0;
 
   return (
-    <div className="h-full flex flex-col p-6">
-      {/* 页面标题 */}
-      <div className="shrink-0 mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">待办清单</h1>
-        <p className="text-gray-500 mt-1">管理你的日常待办事项</p>
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 p-4 lg:p-8">
+      {/* 页面头部 - 极简设计 */}
+      <div className="max-w-3xl mx-auto w-full mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-light text-slate-800 tracking-tight">待办清单</h1>
+            <p className="text-slate-400 mt-1 text-sm">
+              {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })} · {pendingTodos.length} 个待办
+            </p>
+          </div>
+          {/* 进度环 */}
+          {totalTodos > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="text-2xl font-light text-slate-700">{progress}%</div>
+                <div className="text-xs text-slate-400">已完成</div>
+              </div>
+              <div className="relative w-12 h-12">
+                <svg className="w-12 h-12 transform -rotate-90">
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    className="text-slate-200"
+                  />
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeDasharray={`${2 * Math.PI * 20}`}
+                    strokeDashoffset={`${2 * Math.PI * 20 * (1 - progress / 100)}`}
+                    className="text-emerald-500 transition-all duration-500 ease-out"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 左右布局：左边待办事项，右边新增待办（PC端） */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
-        {/* 左边：待办事项列表 */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <Card className="flex-1 flex flex-col min-h-0">
-            <CardHeader className="shrink-0 pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  待办事项
-                  <Badge variant="secondary" className="font-normal">{pendingTodos.length}</Badge>
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  {/* 日期调整 */}
-                  <div className="flex items-center gap-1 bg-gray-100 rounded-md px-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-gray-500 hover:text-gray-700"
-                      onClick={() => setCurrentDate(subDays(currentDate, 1))}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-sm text-gray-600 min-w-[60px] text-center font-medium">
-                      {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-gray-500 hover:text-gray-700"
-                      onClick={() => setCurrentDate(addDays(currentDate, 1))}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {/* 新增待办按钮 - 仅移动端显示 */}
-                  <Button
-                    size="icon"
-                    className="h-7 w-7 lg:hidden"
-                    onClick={() => setShowAddDialog(true)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 min-h-0 p-0">
-              <ScrollArea className="h-full px-6 pb-6">
-                {loading ? (
-                  <div className="py-8 text-center text-gray-500">加载中...</div>
-                ) : todos.length === 0 && !completingTodo ? (
-                  <Empty>
-                    <EmptyHeader>
-                      <EmptyTitle>暂无待办事项</EmptyTitle>
-                      <EmptyDescription className="hidden lg:block">在右侧添加一个新的待办开始吧</EmptyDescription>
-                      <EmptyDescription className="lg:hidden">点击右上角 + 添加一个新的待办开始吧</EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                ) : (
-                  <div ref={listRef} className="space-y-3 pr-4">
-                    {/* 未完成待办 */}
-                    {pendingTodos.map((todo) => {
-                      const isEditing = editingTodoId === todo.id;
-                      const editSelectedCustomer = customers.find(c => c.id === editCustomerId);
-                      
-                      return (
-                        <div
-                          key={todo.id}
-                          data-todo-id={todo.id}
-                          className={cn(
-                            "flex items-start gap-3 p-3 rounded-lg border transition-colors",
-                            isEditing ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200 hover:border-gray-300"
-                          )}
-                          style={{ 
-                            borderLeftWidth: '4px', 
-                            borderLeftStyle: 'solid', 
-                            borderLeftColor: isEditing ? '#3b82f6' : (todo.priority === 'high' ? '#ef4444' : todo.priority === 'medium' ? '#eab308' : '#9ca3af')
+      {/* 主内容区 */}
+      <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
+        {/* 日期导航 */}
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <button
+            onClick={() => setCurrentDate(subDays(currentDate, 1))}
+            className="p-2 rounded-full hover:bg-white hover:shadow-sm transition-all text-slate-400 hover:text-slate-600"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
+            <CalendarIcon className="h-4 w-4 text-slate-400" />
+            <span className="text-slate-700 font-medium min-w-[80px] text-center">
+              {isToday(currentDate) ? '今天' : format(currentDate, 'M月d日', { locale: zhCN })}
+            </span>
+          </div>
+          <button
+            onClick={() => setCurrentDate(addDays(currentDate, 1))}
+            className="p-2 rounded-full hover:bg-white hover:shadow-sm transition-all text-slate-400 hover:text-slate-600"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* 新增待办输入区 - 极简设计 */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full border-2 border-slate-200 flex items-center justify-center">
+              <Plus className="h-3 w-3 text-slate-300" />
+            </div>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="添加新的待办事项..."
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newContent.trim()) {
+                  handleAddTodo();
+                }
+              }}
+              className="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder:text-slate-400"
+            />
+            {newContent.trim() && (
+              <button
+                onClick={handleAddTodo}
+                disabled={adding}
+                className="px-4 py-1.5 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                添加
+              </button>
+            )}
+          </div>
+          
+          {/* 选项行 */}
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
+            {/* 客户选择 */}
+            <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                  <span className={selectedCustomer ? 'text-slate-700' : ''}>
+                    {selectedCustomer ? selectedCustomer.name : '关联客户'}
+                  </span>
+                  <ChevronsUpDown className="h-3 w-3" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="搜索客户..." />
+                  <CommandList>
+                    <CommandEmpty>未找到客户</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={() => {
+                          setNewCustomerId('');
+                          setCustomerPopoverOpen(false);
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", !newCustomerId ? "opacity-100" : "opacity-0")} />
+                        不关联
+                      </CommandItem>
+                      {customers.map((customer) => (
+                        <CommandItem
+                          key={customer.id}
+                          onSelect={() => {
+                            setNewCustomerId(customer.id);
+                            setCustomerPopoverOpen(false);
                           }}
                         >
-                          {/* 完成勾选 */}
-                          <Checkbox
-                            checked={false}
-                            onCheckedChange={() => !isEditing && handleCompleteTodo(todo)}
-                            className="mt-0.5"
-                            disabled={isEditing}
-                          />
+                          <Check className={cn("mr-2 h-4 w-4", newCustomerId === customer.id ? "opacity-100" : "opacity-0")} />
+                          {customer.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
-                          {/* 内容区域 */}
-                          <div className="flex-1 min-w-0">
-                            {isEditing ? (
-                              <div className="space-y-2">
-                                <Input
-                                  value={editContent}
-                                  onChange={(e) => setEditContent(e.target.value)}
-                                  placeholder="待办内容"
-                                  className="h-8"
-                                  autoFocus
-                                />
-                                <div className="flex items-center gap-2">
-                                  <Popover open={editCustomerPopoverOpen} onOpenChange={setEditCustomerPopoverOpen}>
-                                    <PopoverTrigger asChild>
-                                      <Button variant="outline" size="sm" className="h-7 text-xs justify-between w-[140px]">
-                                        {editSelectedCustomer ? (
-                                          <span className="truncate">{editSelectedCustomer.name}</span>
-                                        ) : (
-                                          <span className="text-gray-400">关联客户</span>
-                                        )}
-                                        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-[200px] p-0" align="start">
-                                      <Command>
-                                        <CommandInput placeholder="搜索客户..." />
-                                        <CommandList>
-                                          <CommandEmpty>未找到客户</CommandEmpty>
-                                          <CommandGroup>
-                                            <CommandItem
-                                              value="none"
-                                              onSelect={() => {
-                                                setEditCustomerId('');
-                                                setEditCustomerPopoverOpen(false);
-                                              }}
-                                            >
-                                              <Check className={cn("mr-2 h-4 w-4", !editCustomerId ? "opacity-100" : "opacity-0")} />
-                                              不关联客户
-                                            </CommandItem>
-                                            {customers.map((customer) => (
-                                              <CommandItem
-                                                key={customer.id}
-                                                value={customer.name}
-                                                onSelect={() => {
-                                                  setEditCustomerId(customer.id);
-                                                  setEditCustomerPopoverOpen(false);
-                                                }}
-                                              >
-                                                <Check className={cn("mr-2 h-4 w-4", editCustomerId === customer.id ? "opacity-100" : "opacity-0")} />
-                                                {customer.name}
-                                              </CommandItem>
-                                            ))}
-                                          </CommandGroup>
-                                        </CommandList>
-                                      </Command>
-                                    </PopoverContent>
-                                  </Popover>
-                                  <Select value={editPriority} onValueChange={(v) => setEditPriority(v as 'high' | 'medium' | 'low')}>
-                                    <SelectTrigger className="w-[80px] h-7 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent position="popper" side="bottom" align="start">
-                                      <SelectItem value="high">重要</SelectItem>
-                                      <SelectItem value="medium">次要</SelectItem>
-                                      <SelectItem value="low">常规</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="font-medium">{todo.content}</div>
-                                <div className="mt-1">
-                                  <Badge variant="outline" className="text-xs">
-                                    {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
-                                  </Badge>
-                                </div>
-                              </>
-                            )}
-                          </div>
+            {/* 日期选择 */}
+            <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                  <CalendarIcon className="h-3 w-3" />
+                  {formatDateDisplay(newDueDate)}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={newDueDate}
+                  onSelect={(date: Date | undefined) => {
+                    if (date) {
+                      setNewDueDate(date);
+                      setDueDatePopoverOpen(false);
+                    }
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
 
-                          {/* 操作区域 */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            {isEditing ? (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-50"
-                                  onClick={() => handleSaveEdit(todo.id)}
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-gray-400 hover:text-gray-600"
-                                  onClick={handleCancelEdit}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-gray-400 hover:text-blue-500"
-                                  onClick={() => handleStartEdit(todo)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Select
-                                  value={todo.priority}
-                                  onValueChange={(v) => handlePriorityChange(todo, v as 'high' | 'medium' | 'low')}
-                                >
-                                  <SelectTrigger className="w-[80px] h-7 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent position="popper" side="bottom" align="start">
-                                    <SelectItem value="high">重要</SelectItem>
-                                    <SelectItem value="medium">次要</SelectItem>
-                                    <SelectItem value="low">常规</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-gray-400 hover:text-red-500"
-                                  onClick={() => handleDelete(todo.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* 正在完成中的待办（动画） */}
-                    {completingTodo && completingTodo.phase !== 'done' && (
-                      <div
-                        className={cn(
-                          "flex items-start gap-3 p-3 rounded-lg border relative",
-                          completingTodo.phase === 'check' && "animate-check-phase",
-                          completingTodo.phase === 'move' && "animate-move-down z-50"
-                        )}
-                        style={{ 
-                          borderLeftWidth: '4px', 
-                          borderLeftStyle: 'solid', 
-                          borderLeftColor: '#22c55e',
-                          backgroundColor: '#dcfce7',
-                          '--move-distance': `${completingTodo.moveDistance || 100}px`,
-                        } as React.CSSProperties}
-                      >
-                        <Checkbox
-                          checked={true}
-                          className="mt-0.5 animate-checkmark"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium line-through text-gray-400">
-                            {completingTodo.content}
-                          </div>
-                          <div className="mt-1">
-                            <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                              {completingTodo.customer_id ? (customers.find(c => c.id === completingTodo.customer_id)?.name || '未知客户') : '个人事项'}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 已完成待办 */}
-                    {(completedTodos.length > 0 || (completingTodo && completingTodo.phase === 'move')) && (
-                      <>
-                        <div 
-                          className={cn(
-                            "flex items-center gap-2 py-2",
-                            completingTodo?.phase === 'move' && "animate-shift-down"
-                          )} 
-                          data-completed-header
-                        >
-                          <div className="flex-1 h-px bg-gray-200"></div>
-                          <span className="text-sm text-gray-400">已完成</span>
-                          <div className="flex-1 h-px bg-gray-200"></div>
-                        </div>
-
-                        {completedTodos.map((todo, index) => (
-                          <div
-                            key={todo.id}
-                            className={cn(
-                              "flex items-start gap-3 p-3 rounded-lg border transition-colors bg-green-50 border-green-200",
-                              completingTodo?.phase === 'move' && "animate-shift-down"
-                            )}
-                            style={{ 
-                              borderLeftWidth: '4px', 
-                              borderLeftStyle: 'solid', 
-                              borderLeftColor: '#22c55e'
-                            }}
-                          >
-                            <Checkbox
-                              checked={true}
-                              onCheckedChange={() => handleUncompleteTodo(todo)}
-                              className="mt-0.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                            />
-
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium line-through text-gray-400">
-                                {todo.content}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1 text-sm text-gray-400">
-                                <Badge variant="outline" className="text-xs border-green-200 text-green-600">
-                                  {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-gray-400 hover:text-red-500"
-                                onClick={() => handleDelete(todo.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    {/* 正在取消完成中的待办（check/move阶段在已完成区域显示） */}
-                    {uncompletingTodo && (uncompletingTodo.phase === 'check' || uncompletingTodo.phase === 'move') && (
-                      <div
-                        className={cn(
-                          "flex items-start gap-3 p-3 rounded-lg border",
-                          uncompletingTodo.phase === 'check' && "animate-uncheck-phase",
-                          uncompletingTodo.phase === 'move' && "animate-fade-out"
-                        )}
-                        style={{ 
-                          borderLeftWidth: '4px', 
-                          borderLeftStyle: 'solid', 
-                          borderLeftColor: uncompletingTodo.phase === 'check' ? '#22c55e' : '#9ca3af',
-                          backgroundColor: uncompletingTodo.phase === 'check' ? '#dcfce7' : 'transparent'
-                        }}
-                      >
-                        <Checkbox
-                          checked={uncompletingTodo.phase === 'check'}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className={cn(
-                            "font-medium",
-                            uncompletingTodo.phase === 'check' && "line-through text-gray-400"
-                          )}>
-                            {uncompletingTodo.content}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+            {/* 优先级选择 */}
+            <Select value={newPriority} onValueChange={(v) => setNewPriority(v as 'high' | 'medium' | 'low')}>
+              <SelectTrigger className="h-auto w-auto border-none p-0 text-xs text-slate-500 hover:text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${PRIORITY_COLORS[newPriority]}`} />
+                  {PRIORITY_LABELS[newPriority]}
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="high">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    重要
                   </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                </SelectItem>
+                <SelectItem value="medium">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    次要
+                  </div>
+                </SelectItem>
+                <SelectItem value="low">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-300" />
+                    常规
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* 右边：新增待办 - 仅PC端显示 */}
-        <div className="hidden lg:block w-80 shrink-0">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">新增待办</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                    待办内容
-                  </label>
-                  <Input
-                    ref={inputRef}
-                    placeholder="输入待办事项..."
-                    value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newContent.trim()) {
-                        handleAddTodo();
-                      }
-                    }}
-                    className="w-full"
-                  />
-                </div>
+        {/* 待办列表 */}
+        <ScrollArea className="flex-1">
+          {loading ? (
+            <div className="py-12 text-center text-slate-400">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-200 border-t-slate-400 mx-auto mb-3" />
+              加载中...
+            </div>
+          ) : todos.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>暂无待办事项</EmptyTitle>
+                <EmptyDescription>在上方添加一个新的待办开始吧</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="space-y-2 pb-20">
+              {/* 未完成待办 */}
+              {pendingTodos.map((todo) => {
+                const isEditing = editingTodoId === todo.id;
+                
+                return (
+                  <div
+                    key={todo.id}
+                    className={cn(
+                      "group bg-white rounded-xl p-4 transition-all duration-200",
+                      "hover:shadow-md border border-transparent hover:border-slate-100"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* 复选框 */}
+                      <button
+                        onClick={() => handleCompleteTodo(todo)}
+                        className="mt-0.5 w-5 h-5 rounded-full border-2 border-slate-300 hover:border-emerald-400 flex items-center justify-center transition-colors group/check"
+                      >
+                        <Check className="h-3 w-3 text-emerald-500 opacity-0 group-hover/check:opacity-100 transition-opacity" />
+                      </button>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                    关联客户
-                  </label>
-                  <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between">
-                        {selectedCustomer ? (
-                          <span className="truncate">{selectedCustomer.name}</span>
+                      {/* 内容 */}
+                      <div className="flex-1 min-w-0">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              className="h-8"
+                              autoFocus
+                            />
+                            <div className="flex items-center gap-2">
+                              <Popover open={editCustomerPopoverOpen} onOpenChange={setEditCustomerPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                                    {editSelectedCustomer?.name || '关联客户'}
+                                    <ChevronsUpDown className="ml-1 h-3 w-3" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[200px] p-0">
+                                  <Command>
+                                    <CommandInput placeholder="搜索客户..." />
+                                    <CommandList>
+                                      <CommandEmpty>未找到客户</CommandEmpty>
+                                      <CommandGroup>
+                                        <CommandItem onSelect={() => { setEditCustomerId(''); setEditCustomerPopoverOpen(false); }}>
+                                          不关联
+                                        </CommandItem>
+                                        {customers.map((c) => (
+                                          <CommandItem
+                                            key={c.id}
+                                            onSelect={() => { setEditCustomerId(c.id); setEditCustomerPopoverOpen(false); }}
+                                          >
+                                            {c.name}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                              <Select value={editPriority} onValueChange={(v) => setEditPriority(v as 'high' | 'medium' | 'low')}>
+                                <SelectTrigger className="w-[80px] h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="high">重要</SelectItem>
+                                  <SelectItem value="medium">次要</SelectItem>
+                                  <SelectItem value="low">常规</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                         ) : (
-                          <span className="text-gray-400">选择客户（可选）</span>
+                          <>
+                            <div className="font-medium text-slate-700">{todo.content}</div>
+                            <div className="flex items-center gap-3 mt-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${PRIORITY_COLORS[todo.priority]}`} />
+                              <span className="text-xs text-slate-400">
+                                {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                              </span>
+                            </div>
+                          </>
                         )}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput 
-                          placeholder="搜索客户..." 
-                          value={customerSearch}
-                          onValueChange={setCustomerSearch}
-                        />
-                        <CommandList>
-                          <CommandEmpty>未找到客户</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value="none"
-                              onSelect={() => {
-                                setNewCustomerId('');
-                                setCustomerPopoverOpen(false);
-                              }}
+                      </div>
+
+                      {/* 操作 */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isEditing ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-emerald-500"
+                              onClick={() => handleSaveEdit(todo.id)}
                             >
-                              <Check className={cn(
-                                "mr-2 h-4 w-4",
-                                !newCustomerId ? "opacity-100" : "opacity-0"
-                              )} />
-                              不关联客户
-                            </CommandItem>
-                            {filteredCustomers.map((customer) => (
-                              <CommandItem
-                                key={customer.id}
-                                value={customer.name}
-                                onSelect={() => {
-                                  setNewCustomerId(customer.id);
-                                  setCustomerPopoverOpen(false);
-                                }}
-                              >
-                                <Check className={cn(
-                                  "mr-2 h-4 w-4",
-                                  newCustomerId === customer.id ? "opacity-100" : "opacity-0"
-                                )} />
-                                {customer.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-400"
+                              onClick={handleCancelEdit}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-400 hover:text-slate-600"
+                              onClick={() => handleStartEdit(todo)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-400 hover:text-rose-500"
+                              onClick={() => handleDelete(todo.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                    截止日期
-                  </label>
-                  <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formatDateDisplay(newDueDate)}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={newDueDate}
-                        onSelect={(date: Date | undefined) => {
-                          if (date) {
-                            setNewDueDate(date);
-                            setDueDatePopoverOpen(false);
-                          }
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* 已完成分隔线 */}
+              {completedTodos.length > 0 && (
+                <div className="pt-6 pb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-slate-200" />
+                    <span className="text-xs text-slate-400">已完成 {completedTodos.length}</span>
+                    <div className="flex-1 h-px bg-slate-200" />
+                  </div>
                 </div>
+              )}
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                    优先级
-                  </label>
-                  <Select value={newPriority} onValueChange={(v) => setNewPriority(v as 'high' | 'medium' | 'low')}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent position="popper" side="bottom" align="start">
-                      <SelectItem value="high">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                          重要
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="medium">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                          次要
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="low">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                          常规
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button 
-                  className="w-full"
-                  onClick={handleAddTodo}
-                  disabled={!newContent.trim() || adding}
+              {/* 已完成待办 */}
+              {completedTodos.map((todo) => (
+                <div
+                  key={todo.id}
+                  className="group bg-slate-50 rounded-xl p-4 opacity-60 hover:opacity-80 transition-opacity"
                 >
-                  {adding ? (
-                    <span className="flex items-center gap-2">
-                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></span>
-                      添加中...
-                    </span>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      添加待办
-                    </>
-                  )}
-                </Button>
-
-                <div className="text-xs text-gray-400 text-center">
-                  未完成的待办将在第二天自动延期
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => handleUncompleteTodo(todo)}
+                      className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center"
+                    >
+                      <Check className="h-3 w-3 text-white" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-500 line-through">{todo.content}</div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        {todo.customer_id ? (customers.find(c => c.id === todo.customer_id)?.name || '未知客户') : '个人事项'}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleDelete(todo.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
       </div>
 
-      {/* 新增待办弹窗 - 仅移动端显示 */}
+      {/* 移动端悬浮添加按钮 */}
+      <button
+        onClick={() => setShowAddDialog(true)}
+        className="lg:hidden fixed bottom-20 right-4 w-14 h-14 bg-slate-800 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+
+      {/* 移动端添加弹窗 */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>新增待办</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                待办内容
-              </label>
-              <Input
-                ref={inputRef}
-                placeholder="输入待办事项..."
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newContent.trim()) {
-                    handleAddTodo();
-                    setShowAddDialog(false);
-                  }
-                }}
-                className="w-full"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                关联客户
-              </label>
-              <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+          <div className="space-y-4 pt-4">
+            <Input
+              placeholder="输入待办事项..."
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {selectedCustomer ? (
-                      <span className="truncate">{selectedCustomer.name}</span>
-                    ) : (
-                      <span className="text-gray-400">选择客户（可选）</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Button variant="outline" size="sm">
+                    {selectedCustomer?.name || '关联客户'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
+                <PopoverContent className="w-[200px] p-0">
                   <Command>
-                    <CommandInput 
-                      placeholder="搜索客户..." 
-                      value={customerSearch}
-                      onValueChange={setCustomerSearch}
-                    />
+                    <CommandInput placeholder="搜索客户..." />
                     <CommandList>
-                      <CommandEmpty>未找到客户</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="none"
-                          onSelect={() => {
-                            setNewCustomerId('');
-                            setCustomerPopoverOpen(false);
-                          }}
-                        >
-                          <Check className={cn(
-                            "mr-2 h-4 w-4",
-                            !newCustomerId ? "opacity-100" : "opacity-0"
-                          )} />
-                          不关联客户
+                      {customers.map((c) => (
+                        <CommandItem key={c.id} onSelect={() => setNewCustomerId(c.id)}>
+                          {c.name}
                         </CommandItem>
-                        {filteredCustomers.map((customer) => (
-                          <CommandItem
-                            key={customer.id}
-                            value={customer.name}
-                            onSelect={() => {
-                              setNewCustomerId(customer.id);
-                              setCustomerPopoverOpen(false);
-                            }}
-                          >
-                            <Check className={cn(
-                              "mr-2 h-4 w-4",
-                              newCustomerId === customer.id ? "opacity-100" : "opacity-0"
-                            )} />
-                            {customer.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                      ))}
                     </CommandList>
                   </Command>
                 </PopoverContent>
               </Popover>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                截止日期
-              </label>
-              <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDateDisplay(newDueDate)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={newDueDate}
-                    onSelect={(date: Date | undefined) => {
-                      if (date) {
-                        setNewDueDate(date);
-                        setDueDatePopoverOpen(false);
-                      }
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                优先级
-              </label>
               <Select value={newPriority} onValueChange={(v) => setNewPriority(v as 'high' | 'medium' | 'low')}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-[100px]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent position="popper" side="bottom" align="start">
-                  <SelectItem value="high">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                      重要
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="medium">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                      次要
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="low">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                      常规
-                    </div>
-                  </SelectItem>
+                <SelectContent>
+                  <SelectItem value="high">重要</SelectItem>
+                  <SelectItem value="medium">次要</SelectItem>
+                  <SelectItem value="low">常规</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
             <Button 
-              className="w-full"
+              className="w-full" 
               onClick={() => {
                 handleAddTodo();
-                if (newContent.trim()) {
-                  setShowAddDialog(false);
-                }
+                if (newContent.trim()) setShowAddDialog(false);
               }}
               disabled={!newContent.trim() || adding}
             >
-              {adding ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></span>
-                  添加中...
-                </span>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  添加待办
-                </>
-              )}
+              添加待办
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* CSS 动画样式 */}
-      <style jsx global>{`
-        /* 打勾阶段动画 - 变绿 */
-        @keyframes checkPhase {
-          0% {
-            background-color: rgb(255 255 255);
-            border-left-color: var(--original-border-color, rgb(156 163 175));
-          }
-          100% {
-            background-color: rgb(220 252 231);
-            border-left-color: rgb(34 197 94);
-          }
-        }
-
-        /* 打勾动画 */
-        @keyframes checkmark {
-          0% {
-            transform: scale(0);
-          }
-          50% {
-            transform: scale(1.3);
-          }
-          100% {
-            transform: scale(1);
-          }
-        }
-
-        /* 卡片下移动画 - 移动到已完成区域顶部 */
-        @keyframes moveDown {
-          0% {
-            transform: translateY(0);
-          }
-          100% {
-            transform: translateY(var(--move-distance, 100px));
-          }
-        }
-
-        /* 已完成待办下移动画 */
-        @keyframes shiftDown {
-          0% {
-            transform: translateY(0);
-          }
-          100% {
-            transform: translateY(70px); /* 一个卡片高度 + 间距 */
-          }
-        }
-
-        .animate-check-phase {
-          animation: checkPhase 0.3s ease-out forwards;
-        }
-
-        .animate-checkmark {
-          animation: checkmark 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        .animate-move-down {
-          animation: moveDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        .animate-shift-down {
-          animation: shiftDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        /* 取消完成 - 变白阶段 */
-        @keyframes uncheckPhase {
-          0% {
-            background-color: rgb(220 252 231);
-            border-left-color: rgb(34 197 94);
-          }
-          100% {
-            background-color: rgb(255 255 255);
-            border-left-color: rgb(156 163 175);
-          }
-        }
-
-        /* 取消完成 - 淡出动画 */
-        @keyframes moveToUncompleted {
-          0% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-        }
-
-        .animate-uncheck-phase {
-          animation: uncheckPhase 0.3s ease-out forwards;
-        }
-
-        .animate-fade-out {
-          animation: moveToUncompleted 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-      `}</style>
     </div>
   );
 }
