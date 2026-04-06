@@ -9,6 +9,10 @@ import {
 
 export const runtime = 'nodejs';
 
+// Coze API Token from environment
+const COZE_API_KEY = process.env.COZE_API_KEY || '';
+const COZE_BASE_URL = process.env.COZE_BASE_URL || 'https://api.coze.cn';
+
 // 状态标签映射
 const STATUS_LABELS: Record<string, string> = {
   not_online: '未上线',
@@ -240,7 +244,10 @@ async function getUserBusinessData(userId: string) {
 async function performSearch(query: string, customHeaders: Record<string, string>, searchType?: 'weather' | 'news' | 'finance' | 'kingdee' | 'general') {
   try {
     const { SearchClient } = await import('coze-coding-dev-sdk');
-    const config = new Config();
+    const config = new Config({
+      apiKey: COZE_API_KEY,
+      baseUrl: COZE_BASE_URL,
+    });
     const client = new SearchClient(config, customHeaders);
     
     let response;
@@ -547,7 +554,11 @@ ${searchResult.results.map((r: any, i: number) =>
       }
     }
 
-    const config = new Config();
+    // 初始化 Config，使用环境变量中的 Coze API Token
+    const config = new Config({
+      apiKey: COZE_API_KEY,
+      baseUrl: COZE_BASE_URL,
+    });
     const client = new LLMClient(config, customHeaders);
 
     // 专业系统提示语 - 小蝶
@@ -594,6 +605,8 @@ ${searchResultText}
           const llmStream = client.stream(fullMessages, {
             model: 'doubao-seed-2-0-lite-260215',
             temperature: 0.7,
+          }, undefined, {
+            'Authorization': `Bearer ${COZE_API_KEY}`,
           });
 
           for await (const chunk of llmStream) {
