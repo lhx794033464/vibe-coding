@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
   customersStorage, 
   todosStorage, 
@@ -9,9 +9,9 @@ import {
 
 export const runtime = 'nodejs';
 
-// Coze API Token from environment
-const COZE_API_KEY = process.env.COZE_API_KEY || '';
-const COZE_BASE_URL = process.env.COZE_BASE_URL || 'https://api.coze.cn';
+// Coze Agent API Endpoint
+const COZE_AGENT_URL = process.env.COZE_AGENT_URL || 'https://9xfg5j4czg.coze.site/stream_run';
+const COZE_API_TOKEN = process.env.COZE_API_KEY || ''; // 使用 token 作为认证
 
 // 状态标签映射
 const STATUS_LABELS: Record<string, string> = {
@@ -240,81 +240,11 @@ async function getUserBusinessData(userId: string) {
   }
 }
 
-// 执行联网搜索（根据查询类型采用不同策略）
+// 执行联网搜索（简化版，直接返回 null，后续可接入搜索 API）
 async function performSearch(query: string, customHeaders: Record<string, string>, searchType?: 'weather' | 'news' | 'finance' | 'kingdee' | 'general') {
-  try {
-    const { SearchClient } = await import('coze-coding-dev-sdk');
-    const config = new Config({
-      apiKey: COZE_API_KEY,
-      baseUrl: COZE_BASE_URL,
-    });
-    const client = new SearchClient(config, customHeaders);
-    
-    let response;
-    
-    switch (searchType) {
-      case 'weather':
-        response = await client.webSearch(query, 5, true);
-        break;
-        
-      case 'kingdee':
-        response = await client.advancedSearch(query, {
-          searchType: 'web',
-          count: 5,
-          needSummary: true,
-          needContent: false,
-          sites: 'kingdee.com,kisyun.com,club.kingdee.com,vip.kingdee.com,cs.ecs.kingdee.com',
-        });
-        
-        if (!response.web_items || response.web_items.length === 0) {
-          response = await client.advancedSearch(query, {
-            searchType: 'web',
-            count: 5,
-            needSummary: true,
-            sites: 'zhihu.com,cnblogs.com,juejin.cn,csdn.net',
-          });
-        }
-        break;
-        
-      case 'news':
-        response = await client.advancedSearch(query, {
-          searchType: 'web',
-          count: 5,
-          needSummary: true,
-          timeRange: '1d',
-        });
-        break;
-        
-      case 'finance':
-        response = await client.advancedSearch(query, {
-          searchType: 'web',
-          count: 5,
-          needSummary: true,
-          sites: 'sina.com.cn,eastmoney.com,10jqka.com.cn,xueqiu.com',
-        });
-        break;
-        
-      default:
-        response = await client.webSearch(query, 5, true);
-    }
-    
-    if (!response.web_items || response.web_items.length === 0) {
-      response = await client.webSearch(query, 5, true);
-    }
-
-    return {
-      summary: response.summary || '',
-      results: response.web_items?.map(item => ({
-        title: item.title,
-        url: item.url,
-        snippet: item.snippet,
-        siteName: item.site_name,
-      })) || [],
-    };
-  } catch (error) {
-    console.error('联网搜索失败:', error);
-    return null;
-  }
+  // 暂时禁用联网搜索，可通过 Coze 智能体的内置搜索能力实现
+  console.log('联网搜索请求:', query, '类型:', searchType);
+  return null;
 }
 
 // 判断是否需要联网搜索
@@ -533,42 +463,36 @@ ${businessData.schedules.future.length > 0
     // 获取最后一条用户消息
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
     
-    // 判断是否需要联网搜索
-    if (lastUserMessage && (enableSearch || needsWebSearch(lastUserMessage.content))) {
-      const searchType = getSearchType(lastUserMessage.content);
-      const searchQuery = generateSearchQuery(lastUserMessage.content);
-      const searchResult = await performSearch(searchQuery, customHeaders, searchType);
-      
-      if (searchResult && searchResult.results.length > 0) {
-        searchResultText = `
-【联网搜索结果：${searchQuery}】
-
-${searchResult.summary ? `摘要：${searchResult.summary}\n` : ''}
-相关链接：
-${searchResult.results.map((r: any, i: number) => 
-  `${i + 1}. ${r.title}
-   来源：${r.siteName || '未知'}
-   摘要：${r.snippet?.substring(0, 100) || '无'}${r.snippet && r.snippet.length > 100 ? '...' : ''}`
-).join('\n')}
-`;
-      }
-    }
-
-    // 初始化 Config，使用环境变量中的 Coze API Token
-    const config = new Config({
-      apiKey: COZE_API_KEY,
-      baseUrl: COZE_BASE_URL,
-    });
-    const client = new LLMClient(config, customHeaders);
+    // 判断是否需要联网搜索（暂时禁用，可通过 Coze 智能体内置搜索能力实现）
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _lastUserMessage = lastUserMessage;
+    // 联网搜索功能暂时注释掉，后续可重新接入
+    // if (lastUserMessage && (enableSearch || needsWebSearch(lastUserMessage.content))) {
+    //   const searchType = getSearchType(lastUserMessage.content);
+    //   const searchQuery = generateSearchQuery(lastUserMessage.content);
+    //   const searchResult = await performSearch(searchQuery, customHeaders, searchType);
+    //   
+    //   if (searchResult && searchResult.results && searchResult.results.length > 0) {
+    //     searchResultText = `
+    // 【联网搜索结果：${searchQuery}】
+    // 
+    // ${searchResult.summary ? `摘要：${searchResult.summary}\n` : ''}
+    // 相关链接：
+    // ${searchResult.results.map((r: any, i: number) => 
+    //   `${i + 1}. ${r.title}
+    //    来源：${r.siteName || '未知'}
+    //    摘要：${r.snippet?.substring(0, 100) || '无'}${r.snippet && r.snippet.length > 100 ? '...' : ''}`
+    // ).join('\n')}
+    // `;
+    //   }
+    // }
 
     // 专业系统提示语 - 小蝶
-    const systemMessage = {
-      role: 'system' as const,
-      content: `你是"小蝶"，一位金蝶云星辰交付顾问和日常安排助手...
+    const systemContent = `你是"小蝶"，一位金蝶云星辰交付顾问和日常安排助手。
 
 ## 你的身份与定位
 
-你叫"小蝶"，是金蝶云星辰交付集成平台的智能助手...
+你叫"小蝶"，是金蝶云星辰交付集成平台的智能助手。你的主要任务是帮助交付顾问管理客户、跟进项目进度、查询业务数据、安排日程，以及解答金蝶云星辰产品相关问题。
 
 ${businessDataText ? `## 当前用户业务数据
 ${businessDataText}
@@ -576,20 +500,26 @@ ${businessDataText}
 ${searchResultText ? `## 联网搜索结果
 ${searchResultText}
 
-请基于以上搜索结果回答用户问题...
+请基于以上搜索结果回答用户问题。
 ` : ''}
 ## 重要指令
-1. **始终基于上面提供的【当前用户业务数据】回答用户问题**...
-2. 如果用户询问待办或日程，直接根据业务数据中的数量和内容回答...
-3. 不要参考历史对话中的旧数据...
+1. **始终基于上面提供的【当前用户业务数据】回答用户问题**，如果用户询问客户数量、待办事项、日程安排等，直接根据业务数据中的具体数字和内容回答。
+2. 如果用户询问待办或日程，直接根据业务数据中的数量和内容回答，不要编造数据。
+3. 不要参考历史对话中的旧数据，始终以最新提供的业务数据为准。
+4. 如果用户要求创建、修改、删除数据，告知用户暂不支持此功能，建议前往相应页面操作。
+5. 联网搜索结果仅供参考，如果不相关可以忽略。
 
 ## 自称要求
-1. 使用"小蝶"自称...
-2. 回答时保持亲切友好的语气...
-3. 适当使用表情符号增加亲和力...`,
-    };
+1. 使用"小蝶"自称，不要称呼自己为"AI助手"或"人工智能"。
+2. 回答时保持亲切友好的语气，像一位经验丰富的交付顾问同事。
+3. 适当使用表情符号增加亲和力，但不要过度使用。
+4. 回答要简洁明了，突出重点。`;
 
-    const fullMessages = [systemMessage, ...messages];
+    // 构建消息数组
+    const fullMessages = [
+      { role: 'system', content: systemContent },
+      ...messages
+    ];
     
     console.log('Chat API - 请求信息:', {
       messagesCount: messages.length,
@@ -597,28 +527,101 @@ ${searchResultText}
       businessDataTextLength: businessDataText.length,
     });
 
+    // 调用 Coze Agent API
+    const response = await fetch(COZE_AGENT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${COZE_API_TOKEN}`,
+        ...customHeaders,
+      },
+      body: JSON.stringify({
+        messages: fullMessages,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Coze Agent API 错误:', response.status, errorText);
+      return new Response(JSON.stringify({ error: '智能助手服务暂时不可用' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     // 创建流式响应
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const llmStream = client.stream(fullMessages, {
-            model: 'doubao-seed-2-0-lite-260215',
-            temperature: 0.7,
-          }, undefined, {
-            'Authorization': `Bearer ${COZE_API_KEY}`,
-          });
+          const reader = response.body?.getReader();
+          if (!reader) {
+            controller.enqueue(encoder.encode('抱歉，无法获取响应内容。'));
+            controller.close();
+            return;
+          }
 
-          for await (const chunk of llmStream) {
-            if (chunk.content) {
-              const text = chunk.content.toString();
-              controller.enqueue(encoder.encode(text));
+          const decoder = new TextDecoder();
+          let buffer = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            
+            // 解析 SSE 格式的数据（Coze Agent 格式）
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // 保留未完成的行
+            
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+              
+              // 跳过 event 行，处理 data 行
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  // Coze Agent 响应格式
+                  if (parsed.type === 'answer' && parsed.content?.answer) {
+                    controller.enqueue(encoder.encode(parsed.content.answer));
+                  } else if (parsed.type === 'message_end') {
+                    // 消息结束
+                    controller.close();
+                    return;
+                  }
+                } catch {
+                  // 如果不是 JSON，跳过
+                }
+              }
             }
           }
+          
+          // 处理缓冲区中剩余的内容
+          if (buffer.trim()) {
+            const lines = buffer.split('\n');
+            for (const line of lines) {
+              if (line.trim().startsWith('data: ')) {
+                const data = line.trim().slice(6);
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === 'answer' && parsed.content?.answer) {
+                    controller.enqueue(encoder.encode(parsed.content.answer));
+                  }
+                } catch {
+                  // 忽略解析错误
+                }
+              }
+            }
+          }
+          
+          controller.close();
         } catch (error) {
-          console.error('LLM流式输出错误:', error);
+          console.error('流式输出错误:', error);
           controller.enqueue(encoder.encode('抱歉，我遇到了一些问题，请稍后再试。'));
-        } finally {
           controller.close();
         }
       },
