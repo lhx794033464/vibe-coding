@@ -14,7 +14,7 @@ export async function GET(
       });
     }
     // 不返回密码哈希
-    const { password_hash, ...safeUser } = user;
+    const { password_hash, ...safeUser }: any = user;
     return new Response(JSON.stringify({ data: safeUser }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -44,7 +44,7 @@ export async function PUT(
     }
     
     // 不返回密码哈希
-    const { password_hash, ...safeUser } = updatedUser;
+    const { password_hash, ...safeUser }: any = updatedUser;
     
     return new Response(JSON.stringify({ data: safeUser }), {
       status: 200,

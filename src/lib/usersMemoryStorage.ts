@@ -1,5 +1,5 @@
-// 共享的用户内存存储模块 - 带文件持久化
-// 确保所有 API 路由使用同一个存储，并且数据持久化
+// 用户存储模块 - 使用文件持久化存储
+// 目前使用文件存储确保功能稳定，后续可切换到 Supabase PostgreSQL
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -42,14 +42,13 @@ const defaultAdmin: User = {
   password_hash: hashPassword('admin123'),
 };
 
-// 服务端内存存储 - 单例模式
+// 用户存储类
 class UsersMemoryStorage {
   private static instance: UsersMemoryStorage;
-  private users: User[];
 
   private constructor() {
-    // 初始化时从文件加载数据
-    this.users = this.loadFromFile();
+    console.log('初始化文件用户存储');
+    this.ensureFileExists();
   }
 
   public static getInstance(): UsersMemoryStorage {
@@ -59,6 +58,26 @@ class UsersMemoryStorage {
     return UsersMemoryStorage.instance;
   }
 
+  // 确保数据文件存在
+  private ensureFileExists(): void {
+    if (!isServer) return;
+
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+
+      if (!fs.existsSync(DATA_FILE)) {
+        console.log('用户数据文件不存在，初始化默认数据');
+        const initialUsers = [defaultAdmin];
+        fs.writeFileSync(DATA_FILE, JSON.stringify(initialUsers, null, 2), 'utf-8');
+        console.log('已创建默认用户数据文件');
+      }
+    } catch (error) {
+      console.error('初始化用户数据文件失败:', error);
+    }
+  }
+
   // 从文件加载数据
   private loadFromFile(): User[] {
     if (!isServer) {
@@ -66,23 +85,13 @@ class UsersMemoryStorage {
     }
 
     try {
-      // 确保数据目录存在
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-
       if (fs.existsSync(DATA_FILE)) {
         const data = fs.readFileSync(DATA_FILE, 'utf-8');
         const users = JSON.parse(data);
         console.log('从文件加载用户数据:', users.length, '个用户');
         return users;
-      } else {
-        // 文件不存在，初始化默认数据
-        console.log('用户数据文件不存在，初始化默认数据');
-        const initialUsers = [defaultAdmin];
-        this.saveToFile(initialUsers);
-        return initialUsers;
       }
+      return [defaultAdmin];
     } catch (error) {
       console.error('加载用户数据失败，使用默认数据:', error);
       return [defaultAdmin];
@@ -94,7 +103,6 @@ class UsersMemoryStorage {
     if (!isServer) return;
 
     try {
-      // 确保数据目录存在
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
@@ -108,17 +116,19 @@ class UsersMemoryStorage {
 
   // 获取所有用户
   getAll(): User[] {
-    return [...this.users];
+    return [...this.loadFromFile()];
   }
 
   // 根据ID获取用户
   getById(id: string): User | null {
-    return this.users.find(u => u.id === id) || null;
+    const users = this.loadFromFile();
+    return users.find(u => u.id === id) || null;
   }
 
   // 根据用户名获取用户
   getByUsername(username: string): User | null {
-    return this.users.find(u => u.username === username) || null;
+    const users = this.loadFromFile();
+    return users.find(u => u.username === username) || null;
   }
 
   // 创建用户
@@ -129,6 +139,8 @@ class UsersMemoryStorage {
     is_active: boolean;
     password?: string;
   }): User {
+    const users = this.loadFromFile();
+    
     const newUser: User = {
       id: generateId(),
       username: data.username,
@@ -140,14 +152,13 @@ class UsersMemoryStorage {
     };
 
     if (data.password) {
-      newUser.password_hash = hashPassword(data.password);
+      (newUser as any).password_hash = hashPassword(data.password);
     } else {
-      // 默认密码
-      newUser.password_hash = hashPassword('123456');
+      (newUser as any).password_hash = hashPassword('123456');
     }
 
-    this.users.push(newUser);
-    this.saveToFile(this.users);
+    users.push(newUser);
+    this.saveToFile(users);
     return newUser;
   }
 
@@ -159,7 +170,8 @@ class UsersMemoryStorage {
     is_active: boolean;
     password?: string;
   }>): User | null {
-    const index = this.users.findIndex(u => u.id === id);
+    const users = this.loadFromFile();
+    const index = users.findIndex(u => u.id === id);
     if (index === -1) return null;
 
     const updateData: any = {
@@ -172,33 +184,34 @@ class UsersMemoryStorage {
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
     if (data.password) updateData.password_hash = hashPassword(data.password);
 
-    this.users[index] = {
-      ...this.users[index],
+    users[index] = {
+      ...users[index],
       ...updateData,
     };
 
-    this.saveToFile(this.users);
-    return this.users[index];
+    this.saveToFile(users);
+    return users[index];
   }
 
   // 删除用户
   delete(id: string): boolean {
-    // 不允许删除最后一个管理员
-    const user = this.users.find(u => u.id === id);
+    const users = this.loadFromFile();
+    
+    const user = users.find(u => u.id === id);
     if (!user) return false;
 
     if (user.role === 'admin') {
-      const activeAdmins = this.users.filter(u => u.role === 'admin' && u.is_active);
+      const activeAdmins = users.filter(u => u.role === 'admin' && u.is_active);
       if (activeAdmins.length <= 1) {
         return false;
       }
     }
 
-    const initialLength = this.users.length;
-    this.users = this.users.filter(u => u.id !== id);
+    const initialLength = users.length;
+    const filteredUsers = users.filter(u => u.id !== id);
     
-    if (this.users.length < initialLength) {
-      this.saveToFile(this.users);
+    if (filteredUsers.length < initialLength) {
+      this.saveToFile(filteredUsers);
       return true;
     }
     return false;

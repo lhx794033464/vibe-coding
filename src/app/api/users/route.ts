@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const users = usersMemoryStorage.getAll();
     // 不返回密码哈希
-    const safeUsers = users.map(({ password_hash, ...safeUser }) => safeUser);
+    const safeUsers = users.map(({ password_hash, ...safeUser }: any) => safeUser);
     return new Response(JSON.stringify({ 
       data: safeUsers,
       count: safeUsers.length 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     });
     
     // 不返回密码哈希
-    const { password_hash, ...safeUser } = newUser;
+    const { password_hash, ...safeUser }: any = newUser;
     
     return new Response(JSON.stringify({ data: safeUser }), {
       status: 201,
