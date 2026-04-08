@@ -28,6 +28,8 @@ export default function UsersManagementPage() {
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string>('');
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     email: '',
@@ -64,6 +66,10 @@ export default function UsersManagementPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    
+    console.log('提交表单数据:', formData);
     
     try {
       if (editingUser) {
@@ -74,27 +80,44 @@ export default function UsersManagementPage() {
           body: JSON.stringify(formData),
         });
         
+        const result = await response.json();
+        console.log('更新用户响应:', result);
+        
         if (response.ok) {
           setOpenDialog(false);
           loadUsers();
           resetForm();
+        } else {
+          setError(result.error || '更新用户失败');
         }
       } else {
         // 创建用户
+        console.log('正在创建用户...');
         const response = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
         });
         
+        console.log('响应状态:', response.status);
+        const result = await response.json();
+        console.log('创建用户响应:', result);
+        
         if (response.ok) {
+          console.log('创建成功，关闭对话框');
           setOpenDialog(false);
           loadUsers();
           resetForm();
+        } else {
+          console.error('创建失败:', result);
+          setError(result.error || '创建用户失败');
         }
       }
     } catch (error) {
       console.error('操作失败:', error);
+      setError('网络错误，请重试');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -129,6 +152,7 @@ export default function UsersManagementPage() {
 
   const resetForm = () => {
     setEditingUser(null);
+    setError('');
     setFormData({
       username: '',
       email: '',
@@ -241,7 +265,12 @@ export default function UsersManagementPage() {
         )}
       </div>
 
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+      <Dialog open={openDialog} onOpenChange={(open) => {
+        if (!open) {
+          resetForm();
+        }
+        setOpenDialog(open);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingUser ? '编辑用户' : '添加用户'}</DialogTitle>
@@ -249,6 +278,11 @@ export default function UsersManagementPage() {
               {editingUser ? '修改用户信息和权限' : '创建新的系统用户'}
             </DialogDescription>
           </DialogHeader>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">用户名</Label>
@@ -317,11 +351,21 @@ export default function UsersManagementPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="ghost" onClick={() => setOpenDialog(false)}>
+              <Button type="button" variant="ghost" onClick={() => {
+                setOpenDialog(false);
+                resetForm();
+              }} disabled={isSubmitting}>
                 取消
               </Button>
-              <Button type="submit">
-                {editingUser ? '保存' : '创建'}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    处理中...
+                  </>
+                ) : (
+                  editingUser ? '保存' : '创建'
+                )}
               </Button>
             </div>
           </form>
