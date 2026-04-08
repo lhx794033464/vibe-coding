@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage } from '@/services/localStorage';
+import { customersStorage } from '@/lib/serverStorage';
 import { TimeRange, CustomerStatus } from '@/types';
 
 // 获取看板统计数据 - 本地存储模式

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { implementationLogsStorage } from '@/services/localStorage';
+import { implementationLogsStorage } from '@/lib/serverStorage';
 
 // 更新/删除实施日志 - 本地存储模式
 export async function PUT(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { todosStorage } from '@/services/localStorage';
+import { todosStorage } from '@/lib/serverStorage';
 
 // 获取/更新/删除单个待办 - 本地存储模式
 export async function GET(

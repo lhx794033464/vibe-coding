@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, implementationLogsStorage, followUpsStorage, generateId } from '@/services/localStorage';
+import { customersStorage, implementationLogsStorage } from '@/lib/serverStorage';
 import { TimeRange, CustomerStatus } from '@/types';
 
 // 获取客户列表 - 本地存储模式

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage } from '@/services/localStorage';
+import { customersStorage } from '@/lib/serverStorage';
 
 // 获取单个客户详情 - 本地存储模式
 export async function GET(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, commissionsStorage } from '@/services/localStorage';
+import { customersStorage, commissionsStorage } from '@/lib/serverStorage';
 import { MODULE_CONFIG, COMMISSION_CONFIG, ProductModule } from '@/types';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 

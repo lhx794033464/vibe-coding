@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage } from '@/services/localStorage';
+import { customersStorage } from '@/lib/serverStorage';
 import { VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';

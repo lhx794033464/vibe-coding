@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { schedulesStorage } from '@/services/localStorage';
+import { schedulesStorage } from '@/lib/serverStorage';
 
 // 获取日程列表 - 本地存储模式
 export async function GET(request: NextRequest) {
