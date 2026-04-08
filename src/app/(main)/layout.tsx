@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { FlowChartProvider } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +32,6 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated, isAdmin, user, logout, loading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showBetaNotice, setShowBetaNotice] = useState(false);

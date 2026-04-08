@@ -5,21 +5,22 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { authService } from '@/services/authService';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login, isAuthenticated, loading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
-    // 如果已登录，重定向到首页
-    if (authService.isAuthenticated()) {
+    // 如果已登录且不是正在加载中，重定向到首页
+    if (!loading && isAuthenticated) {
       router.push('/home');
     }
-  }, [router]);
+  }, [loading, isAuthenticated, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,12 +29,12 @@ export default function LoginPage() {
       return;
     }
 
-    setLoading(true);
+    setIsLoggingIn(true);
     setError('');
 
     try {
-      const session = await authService.authenticate(username, password);
-      if (session) {
+      const success = await login(username, password);
+      if (success) {
         router.push('/home');
       } else {
         setError('用户名或密码错误');
@@ -41,9 +42,20 @@ export default function LoginPage() {
     } catch (err) {
       setError('登录失败，请稍后重试');
     } finally {
-      setLoading(false);
+      setIsLoggingIn(false);
     }
   };
+
+  // 如果正在加载认证状态，显示加载中
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-slate-500">正在加载...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-slate-100 flex items-center justify-center p-4">
@@ -65,7 +77,7 @@ export default function LoginPage() {
                 placeholder="用户名"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
+                disabled={isLoggingIn}
                 autoComplete="username"
               />
             </div>
@@ -75,7 +87,7 @@ export default function LoginPage() {
                 placeholder="密码"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
+                disabled={isLoggingIn}
                 autoComplete="current-password"
               />
             </div>
@@ -85,9 +97,9 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700"
-              disabled={loading}
+              disabled={isLoggingIn}
             >
-              {loading ? '登录中...' : '登录'}
+              {isLoggingIn ? '登录中...' : '登录'}
             </Button>
           </form>
           

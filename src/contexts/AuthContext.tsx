@@ -16,14 +16,26 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // 更新认证状态
+  const updateAuthState = async () => {
+    const authenticated = authService.isAuthenticated();
+    const admin = authService.isAdmin();
+    const currentUser = authenticated ? await authService.getCurrentUser() : null;
+    
+    setIsAuthenticated(authenticated);
+    setIsAdmin(admin);
+    setUser(currentUser);
+  };
 
   useEffect(() => {
     // 初始化认证状态
     const initAuth = async () => {
       try {
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
+        await updateAuthState();
       } catch (error) {
         console.error('初始化认证失败:', error);
       } finally {
@@ -38,8 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const session = await authService.authenticate(username, password);
       if (session) {
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
+        await updateAuthState();
         return true;
       }
       return false;
@@ -52,13 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     authService.logout();
     setUser(null);
+    setIsAuthenticated(false);
+    setIsAdmin(false);
   };
 
   return (
     <AuthContext.Provider value={{ 
       user,
-      isAuthenticated: authService.isAuthenticated(),
-      isAdmin: authService.isAdmin(),
+      isAuthenticated,
+      isAdmin,
       loading,
       login,
       logout,
