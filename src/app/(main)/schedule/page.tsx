@@ -230,7 +230,15 @@ export default function SchedulePage() {
 
   const getSchedulesForDate = (date: Date): Schedule[] => {
     const dateStr = formatDate(date);
-    return schedules.filter(s => s.schedule_date.split('T')[0] === dateStr);
+    return schedules.filter(s => {
+      // 兼容两种格式：schedule_date 或 start_time
+      const dateField = s.schedule_date || s.start_time;
+      if (!dateField) return false;
+      
+      // 获取日期部分
+      const scheduleDateStr = dateField.split('T')[0];
+      return scheduleDateStr === dateStr;
+    });
   };
 
   // 添加日程
