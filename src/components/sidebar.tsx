@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -49,6 +50,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const pathname = usePathname();
   const { hasNotification } = useFlowChart();
   const { isAdmin } = useAuth();
+  const [showToggleButton, setShowToggleButton] = useState(false);
 
   // 组合导航项
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
@@ -60,6 +62,8 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         className={`hidden sm:flex fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex-col transition-all duration-300 ease-in-out overflow-visible group ${
           collapsed ? 'w-16' : 'w-[200px]'
         }`}
+        onMouseEnter={() => setShowToggleButton(true)}
+        onMouseLeave={() => setShowToggleButton(false)}
       >
         {/* Logo */}
         <div className={`border-b border-gray-200 ${collapsed ? 'p-3' : 'p-6'}`}>
@@ -128,18 +132,26 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
           </ul>
         </nav>
 
-        {/* 侧边栏收起按钮 - 悬浮在右侧边缘 */}
-        <button
-          onClick={() => onCollapsedChange?.(!collapsed)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 z-50 w-6 h-12 bg-white border border-gray-200 rounded-full shadow-md flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-all duration-200 opacity-0 group-hover:opacity-100"
-          title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+        {/* 右侧感应区域和缩放按钮 */}
+        <div 
+          className="absolute top-0 right-0 h-full w-2 cursor-ew-resize"
+          onMouseEnter={() => setShowToggleButton(true)}
         >
-          {collapsed ? (
-            <ChevronRight className="w-4 h-4" />
-          ) : (
-            <ChevronLeft className="w-4 h-4" />
-          )}
-        </button>
+          {/* 缩放按钮 */}
+          <button
+            onClick={() => onCollapsedChange?.(!collapsed)}
+            className={`absolute -right-3 top-1/2 -translate-y-1/2 z-50 w-6 h-12 bg-white border border-gray-200 rounded-full shadow-md flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-all duration-200 ${
+              showToggleButton ? 'opacity-100' : 'opacity-0'
+            }`}
+            title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+          >
+            {collapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </aside>
 
       {/* 移动端底部导航栏 */}
