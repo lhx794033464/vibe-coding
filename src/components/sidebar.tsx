@@ -15,7 +15,7 @@ import {
   Wrench,
   DollarSign,
   ShieldCheck,
-  User,
+  User as UserIcon,
   LogOut,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
@@ -178,7 +178,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange, user, isAdmin: p
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className={`w-full ${collapsed ? 'justify-center p-2' : 'justify-start gap-2 px-3 py-2'}>
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-blue-600" />
+                    <UserIcon className="w-4 h-4 text-blue-600" />
                   </div>
                   {!collapsed && (
                     <div className="flex-1 text-left overflow-hidden">
