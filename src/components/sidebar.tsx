@@ -13,15 +13,17 @@ import {
   Calendar,
   Wrench,
   DollarSign,
+  ShieldCheck,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-const navItems = [
+const baseNavItems = [
   { href: '/home', label: '智能助手', icon: Home },
   { href: '/todos', label: '待办清单', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
@@ -29,6 +31,10 @@ const navItems = [
   { href: '/customers', label: '客户列表', icon: Users },
   { href: '/commissions', label: '提成管理', icon: DollarSign },
   { href: '/tools', label: '交付工具', icon: Wrench },
+];
+
+const adminNavItems = [
+  { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 
 // 移动端底部导航栏只显示这4个
@@ -42,6 +48,10 @@ const mobileNavItems = [
 export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
   const { hasNotification } = useFlowChart();
+  const { isAdmin } = useAuth();
+
+  // 组合导航项
+  const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
 
   return (
     <>
@@ -83,6 +93,10 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
               
               // 特殊处理：customers路径
               if (item.href === '/customers' && pathname?.startsWith('/customers/')) {
+                isActive = true;
+              }
+              // 特殊处理：用户管理路径
+              if (item.href === '/delivery-tools/users' && pathname?.startsWith('/delivery-tools/')) {
                 isActive = true;
               }
 
