@@ -18,8 +18,7 @@ import {
   RefreshCcw,
   Users,
   UserCheck,
-  Calendar,
-  CheckSquare
+  Calendar
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,7 +41,6 @@ interface MigrationStats {
   implementationLogs: number;
   commissions: number;
   schedules: number;
-  todos: number;
 }
 
 export default function DataTransferPage() {
@@ -305,7 +303,6 @@ export default function DataTransferPage() {
       implementationLogs: readCollection('implementation_logs'),
       commissions: readCollection('commissions'),
       schedules: readCollection('schedules'),
-      todos: readCollection('todos'),
     };
   };
 
@@ -325,7 +322,6 @@ export default function DataTransferPage() {
           implementationLogs: localData.implementationLogs.length,
           commissions: localData.commissions.length,
           schedules: localData.schedules.length,
-          todos: localData.todos.length,
         });
       }
     } catch (error) {
@@ -476,10 +472,6 @@ export default function DataTransferPage() {
                     <Calendar className="w-3 h-3 text-purple-500" />
                     <span>日程: {localStats?.schedules || 0}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <CheckSquare className="w-3 h-3 text-orange-500" />
-                    <span>待办: {localStats?.todos || 0}</span>
-                  </div>
                 </div>
               </div>
               
@@ -498,10 +490,6 @@ export default function DataTransferPage() {
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-purple-500" />
                     <span>日程: {serverStats?.schedules || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <CheckSquare className="w-3 h-3 text-orange-500" />
-                    <span>待办: {serverStats?.todos || 0}</span>
                   </div>
                 </div>
               </div>
@@ -545,8 +533,7 @@ export default function DataTransferPage() {
                     <div className="text-sm mt-1">
                       迁移结果: 客户 {migrationResult.results.customers} 条, 
                       跟进 {migrationResult.results.followUps} 条,
-                      日程 {migrationResult.results.schedules} 条,
-                      待办 {migrationResult.results.todos} 条
+                      日程 {migrationResult.results.schedules} 条
                     </div>
                   </div>
                 ) : (

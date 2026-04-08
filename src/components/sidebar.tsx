@@ -10,7 +10,6 @@ import {
   Home,
   ChevronLeft,
   ChevronRight,
-  CheckSquare,
   Calendar,
   Wrench,
   DollarSign,
@@ -26,7 +25,6 @@ interface SidebarProps {
 
 const baseNavItems = [
   { href: '/home', label: '智能助手', icon: Home },
-  { href: '/todos', label: '待办清单', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
@@ -41,8 +39,8 @@ const adminNavItems = [
 // 移动端底部导航栏只显示这4个
 const mobileNavItems = [
   { href: '/home', label: '智能助手', icon: Home },
-  { href: '/todos', label: '待办清单', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
+  { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
   { href: '/customers', label: '客户列表', icon: Users },
 ];
 

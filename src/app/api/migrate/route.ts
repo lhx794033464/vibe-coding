@@ -4,8 +4,7 @@ import {
   followUpsStorage, 
   implementationLogsStorage, 
   commissionsStorage, 
-  schedulesStorage, 
-  todosStorage 
+  schedulesStorage
 } from '@/lib/serverStorage';
 
 // 数据迁移接口 - 从客户端localStorage迁移到服务器端存储
@@ -17,8 +16,7 @@ export async function POST(request: NextRequest) {
       followUps = [], 
       implementationLogs = [], 
       commissions = [], 
-      schedules = [], 
-      todos = [] 
+      schedules = []
     } = body;
 
     const results = {
@@ -27,7 +25,6 @@ export async function POST(request: NextRequest) {
       implementationLogs: 0,
       commissions: 0,
       schedules: 0,
-      todos: 0,
     };
 
     // 迁移客户数据
@@ -92,18 +89,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 迁移待办事项
-    if (todos && todos.length > 0) {
-      for (const item of todos) {
-        const existing = todosStorage.getById(item.id);
-        if (!existing) {
-          const { id, created_at, updated_at, ...data } = item;
-          todosStorage.create(data);
-          results.todos++;
-        }
-      }
-    }
-
     return NextResponse.json({ 
       success: true, 
       message: '数据迁移完成', 
@@ -125,7 +110,6 @@ export async function GET() {
       implementationLogs: implementationLogsStorage.count(),
       commissions: commissionsStorage.count(),
       schedules: schedulesStorage.count(),
-      todos: todosStorage.count(),
     };
 
     return NextResponse.json({ stats });

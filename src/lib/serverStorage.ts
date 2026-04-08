@@ -250,5 +250,4 @@ export const followUpsStorage = new ServerStorage('follow_ups');
 export const implementationLogsStorage = new ServerStorage('implementation_logs');
 export const commissionsStorage = new ServerStorage('commissions');
 export const schedulesStorage = new ServerStorage('schedules');
-export const todosStorage = new ServerStorage('todos');
 export const userProfilesStorage = new ServerStorage('user_profiles');
