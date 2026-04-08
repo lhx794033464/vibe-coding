@@ -327,6 +327,7 @@ export default function UsersManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
