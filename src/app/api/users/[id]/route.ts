@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { usersService } from '@/services/authService';
+import { supabaseUsersService } from '@/services/supabaseUsersService';
 
 type RouteParams = {
   params: Promise<{ id: string }>;
@@ -8,7 +8,7 @@ type RouteParams = {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const user = usersService.getById(id);
+    const user = await supabaseUsersService.getById(id);
     
     if (!user) {
       return new Response(JSON.stringify({ error: '用户不存在' }), {
@@ -34,13 +34,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { username, email, role, is_active } = body;
+    const { username, email, role, is_active, password } = body;
     
-    const updatedUser = usersService.update(id, {
+    const updatedUser = await supabaseUsersService.update(id, {
       username,
       email,
       role,
       is_active,
+      password,
     });
     
     if (!updatedUser) {
@@ -66,10 +67,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const success = usersService.delete(id);
+    const success = await supabaseUsersService.delete(id);
     
     if (!success) {
-      return new Response(JSON.stringify({ error: '用户不存在' }), {
+      return new Response(JSON.stringify({ error: '用户不存在或无法删除' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });

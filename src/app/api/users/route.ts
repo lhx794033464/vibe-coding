@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
-import { usersService, User } from '@/services/authService';
+import { supabaseUsersService } from '@/services/supabaseUsersService';
 
 export async function GET() {
   try {
-    const users = usersService.getAll();
+    const users = await supabaseUsersService.getAll();
     return new Response(JSON.stringify({ 
       data: users,
       count: users.length 
@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, email, role = 'user', is_active = true } = body;
+    const { username, email, role = 'user', is_active = true, password } = body;
     
     if (!username || !email) {
       return new Response(JSON.stringify({ error: '用户名和邮箱必填' }), {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 检查用户名是否已存在
-    const existingUser = usersService.getByUsername(username);
+    const existingUser = await supabaseUsersService.getByUsername(username);
     if (existingUser) {
       return new Response(JSON.stringify({ error: '用户名已存在' }), {
         status: 409,
@@ -41,11 +41,12 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    const newUser = usersService.create({
+    const newUser = await supabaseUsersService.create({
       username,
       email,
       role,
       is_active,
+      password,
     });
     
     return new Response(JSON.stringify({ data: newUser }), {

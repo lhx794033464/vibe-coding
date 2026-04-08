@@ -20,9 +20,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // 初始化认证状态
-    const initAuth = () => {
+    const initAuth = async () => {
       try {
-        const currentUser = authService.getCurrentUser();
+        const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
       } catch (error) {
         console.error('初始化认证失败:', error);
@@ -36,16 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const session = authService.authenticate(username, password);
+      const session = await authService.authenticate(username, password);
       if (session) {
-        const currentUser = authService.getCurrentUser();
+        const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
         return true;
       }
       return false;
     } catch (error) {
-      console.error('登录失败:', error);
-      return false;
+        console.error('登录失败:', error);
+        return false;
     }
   };
 

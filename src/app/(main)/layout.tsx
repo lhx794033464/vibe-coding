@@ -44,10 +44,12 @@ export default function MainLayout({
       return;
     }
 
-    // 检查用户是否已经确认过内测提示
-    const confirmed = localStorage.getItem(BETA_NOTICE_KEY);
-    if (!confirmed) {
-      setShowBetaNotice(true);
+    if (!loading && isAuthenticated) {
+      // 检查用户是否已经确认过内测提示
+      const confirmed = localStorage.getItem(BETA_NOTICE_KEY);
+      if (!confirmed) {
+        setShowBetaNotice(true);
+      }
     }
   }, [loading, isAuthenticated, router]);
 

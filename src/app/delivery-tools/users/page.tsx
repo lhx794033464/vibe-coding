@@ -6,12 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Edit2, Trash2, Loader2, ShieldCheck, UserPlus } from 'lucide-react';
-import { authService, usersService, User } from '@/services/authService';
+import { authService, User } from '@/services/authService';
 import { useRouter } from 'next/navigation';
 
 interface UserFormData {
@@ -19,6 +19,7 @@ interface UserFormData {
   email: string;
   role: 'admin' | 'user';
   is_active: boolean;
+  password?: string;
 }
 
 export default function UsersManagementPage() {
@@ -254,6 +255,30 @@ export default function UsersManagementPage() {
                 required
               />
             </div>
+            {!editingUser && (
+              <div className="space-y-2">
+                <Label htmlFor="password">初始密码</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password || ''}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="留空则使用默认密码"
+                />
+              </div>
+            )}
+            {editingUser && (
+              <div className="space-y-2">
+                <Label htmlFor="password">新密码（留空不修改）</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password || ''}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="留空则不修改密码"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="role">角色</Label>
               <Select

@@ -32,7 +32,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const session = authService.authenticate(username, password);
+      const session = await authService.authenticate(username, password);
       if (session) {
         router.push('/home');
       } else {

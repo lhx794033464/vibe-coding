@@ -99,9 +99,10 @@
 
 ## 关键决策记录
 
-- **认证存储**: 使用 LocalStorage 存储用户数据和会话（替代 Supabase）
+- **认证存储**: 使用 Supabase 数据库存储用户数据，LocalStorage 存储会话
 - **默认管理员**: 系统初始化时自动创建 admin/admin123 账号
 - **权限控制**: 基于角色的访问控制，管理员可查看所有用户数据
 - **智能助手**: 使用 Coze Agent API，移除 SDK 依赖，直接 fetch 调用
+- **架构分离**: 客户端通过 API 路由操作 Supabase，避免浏览器端依赖
 
 

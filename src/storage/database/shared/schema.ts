@@ -9,6 +9,56 @@ export const healthCheck = pgTable("health_check", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
+// 使用 createSchemaFactory 配置 date coercion
+const { createInsertSchema: createCoercedInsertSchema } = createSchemaFactory({
+  coerce: { date: true },
+});
+
+// 用户表
+export const users = pgTable(
+  "users",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    username: varchar("username", { length: 100 }).notNull().unique(),
+    email: varchar("email", { length: 255 }).notNull().unique(),
+    password_hash: varchar("password_hash", { length: 255 }),
+    role: varchar("role", { length: 20 }).notNull().default('user'), // admin | user
+    is_active: boolean("is_active").notNull().default(true),
+    created_at: timestamp("created_at", { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index("users_username_idx").on(table.username),
+    index("users_role_idx").on(table.role),
+    index("users_is_active_idx").on(table.is_active),
+  ]
+);
+
+// 用户表 Zod schemas
+export const insertUserSchema = createCoercedInsertSchema(users).pick({
+  username: true,
+  email: true,
+  role: true,
+  is_active: true,
+});
+
+export const updateUserSchema = createCoercedInsertSchema(users)
+  .pick({
+    username: true,
+    email: true,
+    role: true,
+    is_active: true,
+  })
+  .partial();
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUser = z.infer<typeof updateUserSchema>;
+
 // 客户状态枚举
 export type CustomerStatus = 'not_online' | 'online_not_accepted' | 'accepted' | 'not_going_online' | 'delayed_online' | 'partially_online';
 
@@ -98,11 +148,6 @@ export const followUpRecords = pgTable(
     index("follow_up_records_follow_up_at_idx").on(table.followUpAt),
   ]
 );
-
-// 使用 createSchemaFactory 配置 date coercion
-const { createInsertSchema: createCoercedInsertSchema } = createSchemaFactory({
-  coerce: { date: true },
-});
 
 // 客户 Zod schemas
 export const insertCustomerSchema = createCoercedInsertSchema(customers).pick({
