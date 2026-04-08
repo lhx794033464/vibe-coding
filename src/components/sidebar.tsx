@@ -15,30 +15,13 @@ import {
   Wrench,
   DollarSign,
   ShieldCheck,
-  User as UserIcon,
-  LogOut,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-
-// 导入用户类型
-import type { User } from '@/services/authService';
 
 interface SidebarProps {
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  user?: User | null;
-  isAdmin?: boolean;
-  onLogout?: () => void;
 }
 
 const baseNavItems = [
@@ -63,13 +46,11 @@ const mobileNavItems = [
   { href: '/customers', label: '客户列表', icon: Users },
 ];
 
-export function Sidebar({ collapsed = false, onCollapsedChange, user, isAdmin: propIsAdmin, onLogout }: SidebarProps) {
+export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
   const { hasNotification } = useFlowChart();
-  const { isAdmin: contextIsAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [showToggleButton, setShowToggleButton] = useState(false);
-  
-  const isAdmin = propIsAdmin ?? contextIsAdmin;
 
   // 组合导航项
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
@@ -171,46 +152,6 @@ export function Sidebar({ collapsed = false, onCollapsedChange, user, isAdmin: p
             )}
           </button>
         </div>
-
-        {/* 底部用户信息区域 */}
-        <div className="border-t border-gray-200 p-3 mt-auto">
-          {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className={`w-full ${collapsed ? 'justify-center p-2' : 'justify-start gap-2 px-3 py-2'}`}>
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-4 h-4 text-blue-600" />
-                  </div>
-                  {!collapsed && (
-                    <div className="flex-1 text-left overflow-hidden">
-                      <p className="text-sm font-medium text-gray-900 truncate">{user.username}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
-                        {isAdmin ? (
-                          <>
-                            <ShieldCheck className="w-3 h-3" />
-                            管理员
-                          </>
-                        ) : (
-                          '普通用户'
-                        )}
-                      </p>
-                    </div>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={collapsed ? 'right' : 'bottom'} className="w-48">
-                <DropdownMenuLabel>我的账户</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {onLogout && (
-                  <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={onLogout}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    退出登录
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
       </aside>
 
       {/* 移动端底部导航栏 */}
@@ -229,7 +170,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange, user, isAdmin: p
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center justify-center w-16 h-14 rounded-lg transition-colors ${
-                isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                isActive
+                  ? 'text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               <Icon className="w-6 h-6" />
