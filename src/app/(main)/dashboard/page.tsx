@@ -133,9 +133,9 @@ export default function DashboardPage() {
   const sortedDistribution = getSortedStatusDistribution();
 
   return (
-    <div className="h-full p-6 overflow-auto">
+    <div className="min-h-screen p-4 sm:p-6 overflow-auto">
       {/* 页面标题和时间选择 */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">数据看板</h1>
           <p className="text-gray-500 mt-1">客户跟进数据总览</p>
@@ -162,7 +162,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 核心指标卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">客户总数</CardTitle>

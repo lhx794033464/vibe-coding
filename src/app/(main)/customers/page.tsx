@@ -79,10 +79,10 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="h-full p-6 overflow-auto">
+    <div className="min-h-screen p-4 sm:p-6 overflow-auto">
       <div className="space-y-6">
         {/* 页面标题 */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">客户列表</h1>
             <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户</p>
@@ -96,7 +96,7 @@ export default function CustomersPage() {
         </div>
 
         {/* 搜索和筛选 */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
@@ -134,19 +134,19 @@ export default function CustomersPage() {
               
               return (
                 <Card key={customer.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
                         {/* 状态标识 */}
-                        <div className={`w-2 h-8 rounded-full ${statusConfig?.bgColor}`}></div>
+                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${statusConfig?.bgColor}`}></div>
                         
                         {/* 客户信息 */}
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           {/* 第一行：客户名称 + 状态 */}
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-start gap-2 flex-wrap">
                             <Link 
                               href={`/customers/${customer.id}`}
-                              className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors"
+                              className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors break-words"
                             >
                               {customer.name}
                             </Link>
@@ -162,14 +162,14 @@ export default function CustomersPage() {
                           </div>
                           {/* 第二行：版本 + 模块 */}
                           {(customer.version || (customer.modules && customer.modules.length > 0)) && (
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
                               {customer.version && (
                                 <Badge className={VERSION_CONFIG[customer.version as ProductVersion]?.color}>
                                   {VERSION_CONFIG[customer.version as ProductVersion]?.label}
                                 </Badge>
                               )}
                               {customer.modules && customer.modules.length > 0 && (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 flex-wrap">
                                   {customer.modules.map((module) => (
                                     <Badge key={module} variant="outline" className="text-xs px-1.5 py-0">
                                       {MODULE_CONFIG[module as ProductModule]?.label}
@@ -180,29 +180,30 @@ export default function CustomersPage() {
                             </div>
                           )}
                           {/* 第三行：人天 + 最近跟进 */}
-                          <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                            <span>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-500 mt-2">
+                            <span className="whitespace-nowrap">
                               人天: 总{formatDays(customer.implementation_days)} / 
                               已耗{formatDays(customer.consumed_days)} / 
                               余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
                             </span>
                             {customer.last_follow_up_at ? (
-                              <span className="text-xs">
+                              <span className="text-xs whitespace-nowrap">
                                 最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
                               </span>
                             ) : (
-                              <span className="text-xs text-orange-500">暂无跟进</span>
+                              <span className="text-xs text-orange-500 whitespace-nowrap">暂无跟进</span>
                             )}
                           </div>
                         </div>
                       </div>
                       
                       {/* 操作按钮 */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end gap-2 sm:flex-shrink-0">
                         <Button
                           variant="default"
                           size="sm"
                           onClick={() => router.push(`/customers/${customer.id}/follow-up`)}
+                          className="w-full sm:w-auto"
                         >
                           <MessageSquare className="w-4 h-4 mr-1" />
                           跟进

@@ -31,8 +31,8 @@ export default function ToolsPage() {
   const { hasNotification } = useFlowChart();
   
   return (
-    <div className="h-full bg-slate-50">
-      <div className="p-6">
+    <div className="min-h-screen bg-slate-50">
+      <div className="p-4 sm:p-6">
         {/* 页面标题 */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-800">交付工具</h1>
@@ -40,7 +40,7 @@ export default function ToolsPage() {
         </div>
 
         {/* 工具卡片网格 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {tools.map((tool) => {
             const Icon = tool.icon;
             const showNotification = tool.id === 'flow-chart' && hasNotification;
