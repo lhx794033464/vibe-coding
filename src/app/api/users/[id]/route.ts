@@ -3,10 +3,11 @@ import { usersMemoryStorage } from '@/lib/usersMemoryStorage';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = usersMemoryStorage.getById(params.id);
+    const { id } = await params;
+    const user = usersMemoryStorage.getById(id);
     if (!user) {
       return new Response(JSON.stringify({ error: '用户不存在' }), {
         status: 404,
@@ -30,11 +31,12 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
-    const updatedUser = usersMemoryStorage.update(params.id, body);
+    const updatedUser = usersMemoryStorage.update(id, body);
     
     if (!updatedUser) {
       return new Response(JSON.stringify({ error: '用户不存在' }), {
@@ -61,10 +63,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const success = usersMemoryStorage.delete(params.id);
+    const { id } = await params;
+    const success = usersMemoryStorage.delete(id);
     
     if (!success) {
       return new Response(JSON.stringify({ error: '删除用户失败或不允许删除最后一个管理员' }), {
