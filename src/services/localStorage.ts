@@ -43,6 +43,8 @@ const STORAGE_KEYS = {
   SCHEDULES: 'schedules',
   TODOS: 'todos',
   USER_PROFILES: 'user_profiles',
+  USERS: 'users',
+  AUTH: 'auth',
 } as const;
 
 // 生成唯一ID

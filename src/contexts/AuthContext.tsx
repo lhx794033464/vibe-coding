@@ -1,45 +1,67 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { authService, User } from '@/services/authService';
 
 interface AuthContextType {
-  userId: string;
-  isLocalMode: boolean;
+  user: User | null;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
   loading: boolean;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 生成或获取本地用户ID
-const getOrCreateLocalUserId = (): string => {
-  const stored = localStorage.getItem('local_user_id');
-  if (stored) return stored;
-  
-  const newId = 'local_' + Math.random().toString(36).substring(2, 15);
-  localStorage.setItem('local_user_id', newId);
-  return newId;
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [userId, setUserId] = useState<string>('');
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 初始化本地用户
   useEffect(() => {
-    const initLocalUser = () => {
-      const id = getOrCreateLocalUserId();
-      setUserId(id);
-      setLoading(false);
+    // 初始化认证状态
+    const initAuth = () => {
+      try {
+        const currentUser = authService.getCurrentUser();
+        setUser(currentUser);
+      } catch (error) {
+        console.error('初始化认证失败:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     
-    initLocalUser();
+    initAuth();
   }, []);
+
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const session = authService.authenticate(username, password);
+      if (session) {
+        const currentUser = authService.getCurrentUser();
+        setUser(currentUser);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('登录失败:', error);
+      return false;
+    }
+  };
+
+  const logout = () => {
+    authService.logout();
+    setUser(null);
+  };
 
   return (
     <AuthContext.Provider value={{ 
-      userId, 
-      isLocalMode: true,
-      loading, 
+      user,
+      isAuthenticated: authService.isAuthenticated(),
+      isAdmin: authService.isAdmin(),
+      loading,
+      login,
+      logout,
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,12 +1,13 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, FileText, ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { GitBranch, ArrowRight, ArrowLeftRight, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 // 交付工具列表
-const tools = [
+const baseTools = [
   {
     id: 'flow-chart',
     title: '业务流程图',
@@ -27,8 +28,25 @@ const tools = [
   },
 ];
 
+// 管理员专属工具
+const adminTools = [
+  {
+    id: 'user-management',
+    title: '用户管理',
+    description: '管理系统用户和权限，添加/编辑/禁用用户账号',
+    icon: Users,
+    href: '/delivery-tools/users',
+    color: 'bg-purple-50 text-purple-600',
+    iconBg: 'bg-purple-100',
+  },
+];
+
 export default function ToolsPage() {
   const { hasNotification } = useFlowChart();
+  const { isAdmin } = useAuth();
+  
+  // 根据权限显示不同的工具列表
+  const tools = isAdmin ? [...baseTools, ...adminTools] : baseTools;
   
   return (
     <div className="h-full bg-slate-50">
