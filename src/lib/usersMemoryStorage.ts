@@ -1,5 +1,8 @@
-// 共享的用户内存存储模块
-// 确保所有 API 路由使用同一个存储
+// 共享的用户内存存储模块 - 带文件持久化
+// 确保所有 API 路由使用同一个存储，并且数据持久化
+
+import * as fs from 'fs';
+import * as path from 'path';
 
 // 用户接口
 export interface User {
@@ -22,25 +25,31 @@ export const hashPassword = (password: string): string => {
   return btoa(password);
 };
 
+// 数据文件路径 - 使用 /tmp 目录确保可写
+const isServer = typeof window === 'undefined';
+const DATA_DIR = isServer ? '/tmp' : path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'users.json');
+
+// 默认管理员用户
+const defaultAdmin: User = {
+  id: 'admin_default',
+  username: 'admin',
+  email: 'admin@company.com',
+  role: 'admin',
+  is_active: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  password_hash: hashPassword('admin123'),
+};
+
 // 服务端内存存储 - 单例模式
 class UsersMemoryStorage {
   private static instance: UsersMemoryStorage;
   private users: User[];
 
   private constructor() {
-    // 初始化默认管理员用户
-    this.users = [
-      {
-        id: 'admin_default',
-        username: 'admin',
-        email: 'admin@company.com',
-        role: 'admin',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        password_hash: hashPassword('admin123'),
-      }
-    ];
+    // 初始化时从文件加载数据
+    this.users = this.loadFromFile();
   }
 
   public static getInstance(): UsersMemoryStorage {
@@ -48,6 +57,53 @@ class UsersMemoryStorage {
       UsersMemoryStorage.instance = new UsersMemoryStorage();
     }
     return UsersMemoryStorage.instance;
+  }
+
+  // 从文件加载数据
+  private loadFromFile(): User[] {
+    if (!isServer) {
+      return [defaultAdmin];
+    }
+
+    try {
+      // 确保数据目录存在
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+
+      if (fs.existsSync(DATA_FILE)) {
+        const data = fs.readFileSync(DATA_FILE, 'utf-8');
+        const users = JSON.parse(data);
+        console.log('从文件加载用户数据:', users.length, '个用户');
+        return users;
+      } else {
+        // 文件不存在，初始化默认数据
+        console.log('用户数据文件不存在，初始化默认数据');
+        const initialUsers = [defaultAdmin];
+        this.saveToFile(initialUsers);
+        return initialUsers;
+      }
+    } catch (error) {
+      console.error('加载用户数据失败，使用默认数据:', error);
+      return [defaultAdmin];
+    }
+  }
+
+  // 保存数据到文件
+  private saveToFile(users: User[]): void {
+    if (!isServer) return;
+
+    try {
+      // 确保数据目录存在
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+
+      fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2), 'utf-8');
+      console.log('用户数据已保存到文件:', DATA_FILE);
+    } catch (error) {
+      console.error('保存用户数据失败:', error);
+    }
   }
 
   // 获取所有用户
@@ -91,6 +147,7 @@ class UsersMemoryStorage {
     }
 
     this.users.push(newUser);
+    this.saveToFile(this.users);
     return newUser;
   }
 
@@ -120,6 +177,7 @@ class UsersMemoryStorage {
       ...updateData,
     };
 
+    this.saveToFile(this.users);
     return this.users[index];
   }
 
@@ -138,7 +196,12 @@ class UsersMemoryStorage {
 
     const initialLength = this.users.length;
     this.users = this.users.filter(u => u.id !== id);
-    return this.users.length < initialLength;
+    
+    if (this.users.length < initialLength) {
+      this.saveToFile(this.users);
+      return true;
+    }
+    return false;
   }
 }
 
