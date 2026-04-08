@@ -19,6 +19,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -176,7 +177,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange, user, isAdmin: p
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className={`w-full ${collapsed ? 'justify-center p-2' : 'justify-start gap-2 px-3 py-2'}>
+                <Button variant="ghost" className={`w-full ${collapsed ? 'justify-center p-2' : 'justify-start gap-2 px-3 py-2'}`}>
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <UserIcon className="w-4 h-4 text-blue-600" />
                   </div>
@@ -228,9 +229,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange, user, isAdmin: p
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center justify-center w-16 h-14 rounded-lg transition-colors ${
-                isActive
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               <Icon className="w-6 h-6" />
