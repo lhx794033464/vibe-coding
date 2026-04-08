@@ -25,10 +25,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, email, role = 'user', is_active = true, password } = body;
+    const { username, email = '', role = 'user', is_active = true, password } = body;
     
-    if (!username || !email) {
-      return new Response(JSON.stringify({ error: '用户名和邮箱必填' }), {
+    if (!username) {
+      return new Response(JSON.stringify({ error: '用户名为必填' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });

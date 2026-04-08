@@ -8,7 +8,7 @@ import * as path from 'path';
 export interface User {
   id: string;
   username: string;
-  email: string;
+  email?: string;
   role: 'admin' | 'user';
   is_active: boolean;
   created_at: string;
@@ -134,7 +134,7 @@ class UsersMemoryStorage {
   // 创建用户
   create(data: {
     username: string;
-    email: string;
+    email?: string;
     role: 'admin' | 'user';
     is_active: boolean;
     password?: string;
@@ -144,7 +144,7 @@ class UsersMemoryStorage {
     const newUser: User = {
       id: generateId(),
       username: data.username,
-      email: data.email,
+      email: data.email || '',
       role: data.role,
       is_active: data.is_active,
       created_at: new Date().toISOString(),

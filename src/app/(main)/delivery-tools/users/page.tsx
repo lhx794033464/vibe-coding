@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 
 interface UserFormData {
   username: string;
-  email: string;
+  email?: string;
   role: 'admin' | 'user';
   is_active: boolean;
   password?: string;
@@ -125,7 +125,7 @@ export default function UsersManagementPage() {
     setEditingUser(user);
     setFormData({
       username: user.username,
-      email: user.email,
+      email: user.email || '',
       role: user.role,
       is_active: user.is_active,
     });
@@ -238,7 +238,7 @@ export default function UsersManagementPage() {
                       </div>
                       {/* 第二行：邮箱 */}
                       <div className="text-sm text-gray-500 mt-1">
-                        {user.email}
+                        {user.email || '未设置邮箱'}
                       </div>
                       {/* 第三行：创建时间 */}
                       <div className="text-xs text-gray-400 mt-1">
@@ -294,13 +294,12 @@ export default function UsersManagementPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
+              <Label htmlFor="email">邮箱（可选）</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
               />
             </div>
             {!editingUser && (
