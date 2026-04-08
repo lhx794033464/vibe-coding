@@ -84,43 +84,10 @@ export default function MainLayout({
       <FlowChartProvider>
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
           {/* 顶部栏 */}
-          <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 shrink-0">
+          <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 shrink-0">
             <div className="flex items-center">
               {/* 移动端显示标题 */}
               <span className="sm:hidden font-bold text-gray-900">交付集成平台</span>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* 用户信息 */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <User className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="hidden sm:block text-left">
-                      <p className="text-sm font-medium text-gray-900">{user?.username}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        {isAdmin ? (
-                          <>
-                            <ShieldCheck className="w-3 h-3" />
-                            管理员
-                          </>
-                        ) : (
-                          '普通用户'
-                        )}
-                      </p>
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>我的账户</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={handleLogout}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    退出登录
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </header>
           
