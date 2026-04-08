@@ -1,12 +1,14 @@
 import { NextRequest } from 'next/server';
-import { supabaseUsersService } from '@/services/supabaseUsersService';
+import { usersMemoryStorage } from '@/lib/usersMemoryStorage';
 
 export async function GET() {
   try {
-    const users = await supabaseUsersService.getAll();
+    const users = usersMemoryStorage.getAll();
+    // 不返回密码哈希
+    const safeUsers = users.map(({ password_hash, ...safeUser }) => safeUser);
     return new Response(JSON.stringify({ 
-      data: users,
-      count: users.length 
+      data: safeUsers,
+      count: safeUsers.length 
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 检查用户名是否已存在
-    const existingUser = await supabaseUsersService.getByUsername(username);
+    const existingUser = usersMemoryStorage.getByUsername(username);
     if (existingUser) {
       return new Response(JSON.stringify({ error: '用户名已存在' }), {
         status: 409,
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    const newUser = await supabaseUsersService.create({
+    const newUser = usersMemoryStorage.create({
       username,
       email,
       role,
@@ -49,7 +51,10 @@ export async function POST(request: NextRequest) {
       password,
     });
     
-    return new Response(JSON.stringify({ data: newUser }), {
+    // 不返回密码哈希
+    const { password_hash, ...safeUser } = newUser;
+    
+    return new Response(JSON.stringify({ data: safeUser }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' },
     });

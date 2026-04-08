@@ -1,48 +1,40 @@
 import { NextRequest } from 'next/server';
-import { supabaseUsersService } from '@/services/supabaseUsersService';
+import { usersMemoryStorage } from '@/lib/usersMemoryStorage';
 
-type RouteParams = {
-  params: Promise<{ id: string }>;
-};
-
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { id } = await params;
-    const user = await supabaseUsersService.getById(id);
-    
+    const user = usersMemoryStorage.getById(params.id);
     if (!user) {
       return new Response(JSON.stringify({ error: '用户不存在' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
-    return new Response(JSON.stringify({ data: user }), {
+    // 不返回密码哈希
+    const { password_hash, ...safeUser } = user;
+    return new Response(JSON.stringify({ data: safeUser }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('获取用户详情失败:', error);
-    return new Response(JSON.stringify({ error: '获取用户详情失败' }), {
+    console.error('获取用户失败:', error);
+    return new Response(JSON.stringify({ error: '获取用户失败' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 }
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { id } = await params;
     const body = await request.json();
-    const { username, email, role, is_active, password } = body;
-    
-    const updatedUser = await supabaseUsersService.update(id, {
-      username,
-      email,
-      role,
-      is_active,
-      password,
-    });
+    const updatedUser = usersMemoryStorage.update(params.id, body);
     
     if (!updatedUser) {
       return new Response(JSON.stringify({ error: '用户不存在' }), {
@@ -51,7 +43,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       });
     }
     
-    return new Response(JSON.stringify({ data: updatedUser }), {
+    // 不返回密码哈希
+    const { password_hash, ...safeUser } = updatedUser;
+    
+    return new Response(JSON.stringify({ data: safeUser }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -64,14 +59,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { id } = await params;
-    const success = await supabaseUsersService.delete(id);
+    const success = usersMemoryStorage.delete(params.id);
     
     if (!success) {
-      return new Response(JSON.stringify({ error: '用户不存在或无法删除' }), {
-        status: 404,
+      return new Response(JSON.stringify({ error: '删除用户失败或不允许删除最后一个管理员' }), {
+        status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
