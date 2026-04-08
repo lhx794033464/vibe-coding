@@ -170,7 +170,8 @@ class AuthService {
         user_id: adminUser.id,
         username: adminUser.username,
         role: adminUser.role,
-        token: generateId(),
+        // Token格式: user_id:username:role:random_string
+        token: `${adminUser.id}:${adminUser.username}:${adminUser.role}:${generateId()}`,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       };
       
@@ -188,7 +189,8 @@ class AuthService {
       user_id: user.id,
       username: user.username,
       role: user.role,
-      token: generateId(),
+      // Token格式: user_id:username:role:random_string
+      token: `${user.id}:${user.username}:${user.role}:${generateId()}`,
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
     
@@ -217,6 +219,23 @@ class AuthService {
   // 检查是否已登录
   isAuthenticated(): boolean {
     return this.getSession() !== null;
+  }
+
+  // 获取Authorization header
+  getAuthHeader(): { [key: string]: string } {
+    const session = this.getSession();
+    if (session) {
+      return {
+        'Authorization': `Bearer ${session.token}`,
+      };
+    }
+    return {};
+  }
+
+  // 获取当前用户ID
+  getCurrentUserId(): string | null {
+    const session = this.getSession();
+    return session?.user_id || null;
   }
 }
 
