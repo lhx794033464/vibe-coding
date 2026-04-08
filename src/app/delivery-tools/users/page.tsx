@@ -140,7 +140,7 @@ export default function UsersManagementPage() {
   const getRoleBadge = (role: string) => {
     if (role === 'admin') {
       return (
-        <Badge variant="default" className="flex items-center gap-1">
+        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 flex items-center gap-1">
           <ShieldCheck className="w-3 h-3" />
           管理员
         </Badge>
@@ -156,9 +156,9 @@ export default function UsersManagementPage() {
 
   const getStatusBadge = (is_active: boolean) => {
     return is_active ? (
-      <Badge variant="default" className="bg-green-500">启用</Badge>
+      <Badge className="bg-green-100 text-green-800 hover:bg-green-200">启用</Badge>
     ) : (
-      <Badge variant="destructive">禁用</Badge>
+      <Badge className="bg-red-100 text-red-800 hover:bg-red-200">禁用</Badge>
     );
   };
 
@@ -171,61 +171,75 @@ export default function UsersManagementPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">用户管理</h1>
-          <p className="text-slate-500">管理系统用户和权限</p>
+    <div className="min-h-screen p-4 sm:p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* 页面标题 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">用户管理</h1>
+            <p className="text-gray-500 mt-1">管理系统用户和权限</p>
+          </div>
+          <Button onClick={() => { resetForm(); setOpenDialog(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            添加用户
+          </Button>
         </div>
-        <Button onClick={() => { resetForm(); setOpenDialog(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          添加用户
-        </Button>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>用户列表</CardTitle>
-          <CardDescription>共 {users.length} 个用户</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>用户名</TableHead>
-                <TableHead>邮箱</TableHead>
-                <TableHead>角色</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.username}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell>{getStatusBadge(user.is_active)}</TableCell>
-                  <TableCell>{new Date(user.created_at).toLocaleDateString('zh-CN')}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      {user.username !== 'admin' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(user)}>
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
-                      )}
+      {/* 用户列表 */}
+      <div className="grid gap-4">
+        {users.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-gray-500">
+              暂无用户数据，点击"添加用户"开始创建
+            </CardContent>
+          </Card>
+        ) : (
+          users.map((user) => (
+            <Card key={user.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1">
+                    {/* 用户头像标识 */}
+                    <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${user.role === 'admin' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                    
+                    {/* 用户信息 */}
+                    <div className="flex-1 min-w-0">
+                      {/* 第一行：用户名 + 角色 + 状态 */}
+                      <div className="flex items-start gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900 break-words">
+                          {user.username}
+                        </span>
+                        {getRoleBadge(user.role)}
+                        {getStatusBadge(user.is_active)}
+                      </div>
+                      {/* 第二行：邮箱 */}
+                      <div className="text-sm text-gray-500 mt-1">
+                        {user.email}
+                      </div>
+                      {/* 第三行：创建时间 */}
+                      <div className="text-xs text-gray-400 mt-1">
+                        创建于 {new Date(user.created_at).toLocaleDateString('zh-CN')}
+                      </div>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  </div>
+                  
+                  {/* 操作按钮 */}
+                  <div className="flex items-center gap-2 sm:flex-shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    {user.username !== 'admin' && (
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(user)}>
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent>
