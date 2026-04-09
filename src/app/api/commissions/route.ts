@@ -110,16 +110,37 @@ export async function GET(request: NextRequest) {
       // 检查是否已有提成记录
       const existingRecord = commissionMap.get(customer.id);
 
+      // 计算人天信息
+      const financeMaxDays = modules.includes('finance') 
+        ? implementationDays * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION / COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION 
+        : 0;
+      const otherModuleCount = modules.filter((m: string) => m !== 'finance').length;
+      const otherMaxDays = otherModuleCount * implementationDays;
+
       return {
-        customer_id: customer.id,
-        customer_name: customer.name,
-        implementation_fee: implementationFee,
-        implementation_days: implementationDays,
+        customerId: customer.id,
+        customerName: customer.name,
+        implementationFee,
+        implementationDays,
         modules,
-        moduleNames: modules.map((m: ProductModule) => MODULE_CONFIG[m]?.label || m),
-        ...commission,
-        status: existingRecord?.status || 'pending',
-        commission_month: monthParam,
+        modulesLabel: modules.map((m: ProductModule) => MODULE_CONFIG[m]?.label || m).join('+'),
+        standardFee: commission.standardFee,
+        feeRatio: commission.feeRatio,
+        commissionType: commission.commissionType,
+        commissionRate: commission.commissionRate,
+        totalCommission: commission.totalCommission,
+        paidCommission: 0, // TODO: 从提成记录中累计
+        remainingCommission: commission.totalCommission,
+        isFullyPaid: false,
+        records: [],
+        acceptedAt: customer.updated_at || customer.accepted_at || '',
+        financeMaxDays,
+        otherMaxDays,
+        totalMaxDays: financeMaxDays + otherMaxDays,
+        paidFinanceDays: 0,
+        paidOtherDays: 0,
+        paidDays: 0,
+        remainingDays: implementationDays,
       };
     });
 

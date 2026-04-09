@@ -246,13 +246,13 @@ export default function CommissionsPage() {
       return (commission.remainingDays || 0) > 0.01;
     } else {
       // 按比例计算：使用剩余金额判断
-      return commission.remainingCommission > 0.01;
+      return (commission.remainingCommission || 0) > 0.01;
     }
   };
   
   // 获取剩余可提人天（用于列表显示）
   const getListRemainingDays = (commission: CommissionCalculation) => {
-    return commission.remainingDays || 0;
+    return commission.remainingDays ?? commission.implementationDays ?? 0;
   };
   
   // 实施费>50%时，输入总人天计算提成
@@ -347,9 +347,9 @@ export default function CommissionsPage() {
   };
 
   // 计算总提成
-  const totalCommission = commissions.reduce((sum, c) => sum + c.totalCommission, 0);
-  const totalPaid = commissions.reduce((sum, c) => sum + c.paidCommission, 0);
-  const totalRemaining = commissions.reduce((sum, c) => sum + c.remainingCommission, 0);
+  const totalCommission = commissions.reduce((sum, c) => sum + (c.totalCommission || 0), 0);
+  const totalPaid = commissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
+  const totalRemaining = commissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
 
   if (loading) {
     return (
@@ -443,7 +443,7 @@ export default function CommissionsPage() {
                     {/* 客户名称和模块 */}
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-semibold text-gray-900">{commission.customerName}</h3>
-                      {commission.modules.length > 0 && (
+                      {commission.modules && Array.isArray(commission.modules) && commission.modules.length > 0 && (
                         <Badge variant="outline" className="text-xs">
                           {commission.modulesLabel}
                         </Badge>
@@ -454,23 +454,23 @@ export default function CommissionsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <p className="text-gray-500">实施费</p>
-                        <p className="font-medium">¥{commission.implementationFee.toLocaleString()}</p>
+                        <p className="font-medium">¥{(commission.implementationFee || 0).toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-gray-500">实施人天</p>
-                        <p className="font-medium">{commission.implementationDays.toFixed(2)} 天</p>
+                        <p className="font-medium">{(commission.implementationDays || 0).toFixed(2)} 天</p>
                       </div>
                       <div>
                         <p className="text-gray-500">提成类型</p>
                         <p className="font-medium">
                           {commission.commissionType === 'percentage' 
-                            ? `按比例 (${(commission.commissionRate! * 100).toFixed(0)}%)` 
+                            ? `按比例 (${((commission.commissionRate || 0) * 100).toFixed(0)}%)` 
                             : '按天计算'}
                         </p>
                       </div>
                       <div>
                         <p className="text-gray-500">验收时间</p>
-                        <p className="font-medium">{format(new Date(commission.acceptedAt), 'yyyy-MM-dd')}</p>
+                        <p className="font-medium">{commission.acceptedAt ? format(new Date(commission.acceptedAt), 'yyyy-MM-dd') : '-'}</p>
                       </div>
                     </div>
 
@@ -515,13 +515,13 @@ export default function CommissionsPage() {
                           <div className="flex items-center justify-between text-sm mb-1">
                             <span className="text-gray-500">提成进度</span>
                             <span className="font-medium">
-                              ¥{commission.paidCommission.toFixed(2)} / ¥{commission.totalCommission.toFixed(2)}
+                              ¥{(commission.paidCommission || 0).toFixed(2)} / ¥{(commission.totalCommission || 0).toFixed(2)}
                             </span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div 
                               className="bg-green-500 h-2 rounded-full transition-all"
-                              style={{ width: `${Math.min((commission.paidCommission / commission.totalCommission) * 100, 100)}%` }}
+                              style={{ width: `${Math.min(((commission.paidCommission || 0) / (commission.totalCommission || 1)) * 100, 100)}%` }}
                             ></div>
                           </div>
                         </>
@@ -619,9 +619,9 @@ export default function CommissionsPage() {
                     <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                       <p className="text-sm text-purple-900 font-medium">按比例计算提成</p>
                       <p className="text-xs text-purple-700 mt-1">
-                        提成比例: {(selectedCommission?.commissionRate! * 100).toFixed(0)}%
+                        提成比例: {((selectedCommission?.commissionRate || 0) * 100).toFixed(0)}%
                         <span className="mx-2">|</span>
-                        应提总额: ¥{selectedCommission?.totalCommission.toFixed(2)}
+                        应提总额: ¥{(selectedCommission?.totalCommission || 0).toFixed(2)}
                       </p>
                     </div>
                     
@@ -662,7 +662,7 @@ export default function CommissionsPage() {
                           <span className="font-medium">{daysNum.toFixed(1)}天</span>
                         </div>
                         <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-                          <span>计算公式: ¥{selectedCommission?.totalCommission.toFixed(2)} × ({daysNum.toFixed(1)}/{totalDays.toFixed(1)})</span>
+                          <span>计算公式: ¥{(selectedCommission?.totalCommission || 0).toFixed(2)} × ({daysNum.toFixed(1)}/{totalDays.toFixed(1)})</span>
                         </div>
                         <div className="pt-2 border-t border-green-200">
                           <div className="flex items-center justify-between">
@@ -674,9 +674,9 @@ export default function CommissionsPage() {
                     )}
                     
                     {/* 已提记录 */}
-                    {selectedCommission.paidCommission > 0 && (
+                    {(selectedCommission.paidCommission || 0) > 0 && (
                       <div className="text-sm text-gray-500">
-                        已提: ¥{selectedCommission.paidCommission.toFixed(2)}
+                        已提: ¥{(selectedCommission.paidCommission || 0).toFixed(2)}
                       </div>
                     )}
                   </div>
@@ -701,7 +701,7 @@ export default function CommissionsPage() {
                     
                     {/* 人天信息 */}
                     <div className="text-sm text-gray-600">
-                      总实施人天: <span className="font-medium">{selectedCommission?.implementationDays.toFixed(1)}天</span>
+                      总实施人天: <span className="font-medium">{(selectedCommission?.implementationDays || 0).toFixed(1)}天</span>
                       <span className="mx-2">|</span>
                       剩余可提: <span className="font-medium text-orange-600">{remainingDays.total.toFixed(1)}天</span>
                     </div>
@@ -768,7 +768,7 @@ export default function CommissionsPage() {
                     {/* 已提记录 */}
                     {(selectedCommission?.paidCommission || 0) > 0 && (
                       <div className="text-sm text-gray-500">
-                        已提: ¥{selectedCommission?.paidCommission.toFixed(2)}
+                        已提: ¥{(selectedCommission?.paidCommission || 0).toFixed(2)}
                       </div>
                     )}
                   </div>
