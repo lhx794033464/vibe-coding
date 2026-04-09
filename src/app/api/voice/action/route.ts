@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, todosStorage, schedulesStorage, implementationLogsStorage } from '@/services/localStorage';
+import { customersStorage, schedulesStorage, implementationLogsStorage } from '@/lib/serverStorage';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 // 语音操作解析API - 本地模式
@@ -42,41 +42,24 @@ export async function POST(request: NextRequest) {
 ${customerListStr}
 
 ## 支持的操作类型：
-1. create_todo - 创建待办事项
-   参数：
-   - content（待办内容，仅提取动词/行为，不要包含公司名和日期）
-   - customer_name（可选，必须从客户列表中选择）
-   - date（可选，日期格式yyyy-MM-dd，从语音中解析相对日期如"今天"、"明天"、"后天"、"下周一"等）
-   - priority（可选，high/medium/low，默认low）
-
-2. create_schedule - 创建日程排期
+1. create_schedule - 创建日程排期
    参数：customer_name（必须从客户列表中选择）, date（日期，格式yyyy-MM-dd）, notes（可选，备注）
 
-3. create_log - 创建实施日志
-   参数：customer_name（必须从客户列表中选择）, consumed_days（消耗人天，数字）, summary（实施纪要）
+2. create_log - 创建实施日志
+   参数：customer_name（必须从客户列表中选择）, consumed_days（消耗人天，数字）, content（实施纪要）
 
-4. query_customer - 查询客户
+3. query_customer - 查询客户
    参数：customer_name（可选，从客户列表中选择）
 
-5. query_todo - 查询待办
-   参数：无
+4. query_schedule - 查询日程
+   参数：date（可选，日期格式yyyy-MM-dd）
 
-6. update_todo - 修改待办事项
-   参数：
-   - todo_content（要修改的待办内容关键词，用于匹配待办）
-   - new_content（可选，新的待办内容）
-   - customer_name（可选，要关联的客户名称）
-   - date（可选，新的截止日期）
-   - priority（可选，新的优先级 high/medium/low）
-   - completed（可选，是否完成 true/false）
-
-7. general - 普通对话
+5. general - 普通对话
    参数：response（回复内容）
 
 ## 重要规则：
-- 待办内容(content)只保留动作/行为，如"导账"、"跟进"、"培训"、"初始化"等
-- 如果语音中包含日期（今天、明天、后天、下周一等），提取为date参数，不要放入content
-- 如果语音中包含公司名，匹配到客户列表后放入customer_name参数，不要放入content
+- 如果语音中包含日期（今天、明天、后天、下周一等），提取为date参数
+- 如果语音中包含公司名，匹配到客户列表后放入customer_name参数
 
 ## 日期解析规则：
 - "今天" → 当天日期
@@ -89,29 +72,17 @@ ${customerListStr}
 {"action": "操作类型", "params": {具体参数}, "response": "给用户的简短确认信息"}
 
 ## 示例：
-用户："明天给华瑞科技导账"
-返回：{"action": "create_todo", "params": {"content": "导账", "customer_name": "华瑞科技", "date": "2026-03-25"}, "response": "已为您创建待办：明天导账（华瑞科技）"}
+用户："明天去华瑞科技做调研"
+返回：{"action": "create_schedule", "params": {"customer_name": "华瑞科技", "date": "${tomorrowDate}", "notes": "调研"}, "response": "已为您创建日程：明天调研（华瑞科技）"}
 
-用户："后天去培训"
-返回：{"action": "create_todo", "params": {"content": "培训", "date": "2026-03-26"}, "response": "已为您创建待办：后天培训"}
+用户："今天给华瑞科技记录2天人天"
+返回：{"action": "create_log", "params": {"customer_name": "华瑞科技", "consumed_days": "2", "content": "实施工作"}, "response": "已记录实施日志：华瑞科技，消耗2天"}
 
-用户："今天有什么待办？"
-返回：{"action": "query_todo", "params": {}, "response": "正在为您查询今日待办..."}
+用户："查看客户列表"
+返回：{"action": "query_customer", "params": {}, "response": "正在为您查询客户列表..."}
 
-用户："下周一给自贡中铁做初始化"
-返回：{"action": "create_todo", "params": {"content": "初始化", "customer_name": "自贡中铁二局地产新城投资有限公司", "date": "2026-03-30"}, "response": "已为您创建待办：下周一初始化（自贡中铁二局地产新城投资有限公司）"}
-
-用户："把导账的待办改为重要"
-返回：{"action": "update_todo", "params": {"todo_content": "导账", "priority": "high"}, "response": "已将导账待办改为重要"}
-
-用户："把培训的待办标记为完成"
-返回：{"action": "update_todo", "params": {"todo_content": "培训", "completed": true}, "response": "已将培训待办标记为完成"}
-
-用户："把初始化的待办关联华瑞科技"
-返回：{"action": "update_todo", "params": {"todo_content": "初始化", "customer_name": "华瑞科技"}, "response": "已将初始化待办关联华瑞科技"}
-
-用户："把导账的内容改成对账"
-返回：{"action": "update_todo", "params": {"todo_content": "导账", "new_content": "对账"}, "response": "已将待办内容改为对账"}`;
+用户："今天有什么日程？"
+返回：{"action": "query_schedule", "params": {"date": "${todayDate}"}, "response": "正在为您查询今日日程..."}`;
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },
@@ -141,7 +112,6 @@ ${customerListStr}
     }
 
     console.log('解析的意图:', intent);
-    console.log('意图action类型:', intent.action, '是否create_todo:', intent.action === 'create_todo');
 
     // 确保params存在
     if (!intent.params) {
@@ -155,84 +125,6 @@ ${customerListStr}
     };
 
     switch (intent.action) {
-      case 'create_todo': {
-        const { content, customer_name, date, priority = 'low' } = intent.params || {};
-        
-        if (!content) {
-          result = { success: false, message: '请提供待办内容' };
-          break;
-        }
-        
-        // 如果有客户名称，必须在现有客户中找到匹配
-        let customerId = null;
-        let matchedCustomerName = customer_name;
-        
-        if (customer_name) {
-          // 先尝试精确匹配
-          const exactMatch = customers?.find((c: any) => c.name === customer_name);
-          if (exactMatch) {
-            customerId = exactMatch.id;
-            matchedCustomerName = exactMatch.name;
-          } else {
-            // 再尝试模糊匹配
-            const fuzzyMatch = customers?.find((c: any) => 
-              c.name.includes(customer_name) || customer_name.includes(c.name)
-            );
-            if (fuzzyMatch) {
-              customerId = fuzzyMatch.id;
-              matchedCustomerName = fuzzyMatch.name;
-            }
-          }
-          
-          // 如果指定了客户名称但找不到匹配，返回错误
-          if (!customerId) {
-            result = { 
-              success: false, 
-              message: `未找到客户"${customer_name}"。请先在客户管理中添加该客户，或从现有客户中选择：${customerListStr.slice(0, 100)}${customerListStr.length > 100 ? '...' : ''}` 
-            };
-            break;
-          }
-        }
-
-        console.log('创建待办:', { content, customerId, matchedCustomerName, priority, date });
-
-        // 计算截止日期
-        let dueDate: string;
-        if (date) {
-          // 如果LLM解析出了日期，直接使用
-          dueDate = `${date}T00:00:00`;
-        } else {
-          // 默认规则：当前时间在下午5点前用当天，否则用明天
-          const now = new Date();
-          const hour = now.getHours();
-          const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          
-          if (hour < 17) {
-            dueDate = todayLocal.toISOString();
-          } else {
-            const tomorrow = new Date(todayLocal);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            dueDate = tomorrow.toISOString();
-          }
-        }
-
-        const todo = todosStorage.create({
-          content: content,
-          customer_id: customerId,
-          due_date: dueDate,
-          priority: priority,
-          completed: false,
-        });
-
-        console.log('待办创建成功:', todo);
-        result = { 
-          success: true, 
-          data: todo, 
-          message: `已创建待办：${content}${matchedCustomerName ? `（关联客户：${matchedCustomerName}）` : ''}` 
-        };
-        break;
-      }
-
       case 'create_schedule': {
         const { customer_name, date, notes = '' } = intent.params || {};
         
@@ -269,9 +161,9 @@ ${customerListStr}
       }
 
       case 'create_log': {
-        const { customer_name, consumed_days, summary } = intent.params || {};
+        const { customer_name, consumed_days, content: logContent } = intent.params || {};
         
-        if (!customer_name || !consumed_days || !summary) {
+        if (!customer_name || !consumed_days || !logContent) {
           result = { success: false, message: '请提供客户名称、消耗人天和实施纪要' };
           break;
         }
@@ -291,15 +183,15 @@ ${customerListStr}
 
         const log = implementationLogsStorage.create({
           customer_id: matchedCustomer.id,
-          log_date: new Date().toISOString(),
-          consumed_days: consumed_days,
-          summary: summary,
+          log_date: new Date().toISOString().split('T')[0],
+          consumed_days: String(consumed_days),
+          content: logContent,
         });
 
         result = { 
           success: true, 
           data: log, 
-          message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${summary}` 
+          message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${logContent}` 
         };
         break;
       }
@@ -324,15 +216,18 @@ ${customerListStr}
         break;
       }
 
-      case 'query_todo': {
-        const today = new Date().toISOString().split('T')[0];
-        const allTodos = todosStorage.getAll();
-        const incompleteTodos = allTodos?.filter((t: any) => 
-          !t.completed && t.due_date && t.due_date.startsWith(today)
-        );
+      case 'query_schedule': {
+        const { date: queryDate } = intent.params || {};
+        const targetDate = queryDate || todayDate;
+        const allSchedules = schedulesStorage.getAll();
+        const daySchedules = allSchedules?.filter((s: any) => {
+          const dateStr = s.schedule_date || s.start_time;
+          if (!dateStr) return false;
+          return dateStr.startsWith(targetDate);
+        });
 
-        if (!incompleteTodos || incompleteTodos.length === 0) {
-          result = { success: true, data: [], message: '今天没有待办事项' };
+        if (!daySchedules || daySchedules.length === 0) {
+          result = { success: true, data: [], message: `${targetDate}没有日程安排` };
         } else {
           // 获取关联客户名称
           const customerMap: Record<string, string> = {};
@@ -340,90 +235,15 @@ ${customerListStr}
             customerMap[c.id] = c.name;
           });
 
-          const todoList = incompleteTodos.map((t: any) => {
-            const customerName = t.customer_id ? customerMap[t.customer_id] : null;
-            return `${t.content}${customerName ? `（${customerName}）` : ''}`;
+          const scheduleList = daySchedules.map((s: any) => {
+            const customerName = s.customer_id ? customerMap[s.customer_id] : null;
+            return `${customerName || '未知客户'}${s.notes ? `（${s.notes}）` : ''}`;
           }).join('、');
           
           result = { 
             success: true, 
-            data: incompleteTodos, 
-            message: `今日待办（${incompleteTodos.length}项）：${todoList}` 
-          };
-        }
-        break;
-      }
-
-      case 'update_todo': {
-        console.log('执行 update_todo 操作');
-        const { todo_content, new_content, customer_name, date, priority, completed } = intent.params || {};
-        console.log('update_todo 参数:', { todo_content, new_content, customer_name, date, priority, completed });
-        
-        if (!todo_content) {
-          result = { success: false, message: '请指定要修改的待办内容' };
-          break;
-        }
-
-        // 查找匹配的待办
-        const allTodos = todosStorage.getAll();
-
-        // 模糊匹配待办内容
-        const matchedTodo = allTodos?.find((t: any) => 
-          t.content.includes(todo_content) || todo_content.includes(t.content)
-        );
-
-        if (!matchedTodo) {
-          result = { success: false, message: `未找到包含"${todo_content}"的待办事项` };
-          break;
-        }
-
-        // 构建更新数据
-        const updateData: Record<string, unknown> = {};
-        let updateDesc = [];
-
-        if (new_content) {
-          updateData.content = new_content;
-          updateDesc.push(`内容改为"${new_content}"`);
-        }
-        if (customer_name) {
-          const matchedCustomer = customers?.find((c: any) => 
-            c.name === customer_name || c.name.includes(customer_name) || customer_name.includes(c.name)
-          );
-          if (matchedCustomer) {
-            updateData.customer_id = matchedCustomer.id;
-            updateDesc.push(`关联客户"${matchedCustomer.name}"`);
-          } else {
-            result = { success: false, message: `未找到客户"${customer_name}"` };
-            break;
-          }
-        }
-        if (date) {
-          updateData.due_date = `${date}T00:00:00`;
-          updateDesc.push(`日期改为${date}`);
-        }
-        if (priority) {
-          updateData.priority = priority;
-          const priorityLabel = priority === 'high' ? '重要' : priority === 'medium' ? '次要' : '常规';
-          updateDesc.push(`优先级改为${priorityLabel}`);
-        }
-        if (completed !== undefined) {
-          updateData.completed = completed;
-          updateDesc.push(completed ? '标记为完成' : '标记为未完成');
-        }
-
-        if (Object.keys(updateData).length === 0) {
-          result = { success: false, message: '请指定要修改的内容' };
-          break;
-        }
-
-        const updated = todosStorage.update(matchedTodo.id, updateData);
-
-        if (!updated) {
-          result = { success: false, message: '修改失败' };
-        } else {
-          result = { 
-            success: true, 
-            message: `已修改待办"${matchedTodo.content}"：${updateDesc.join('，')}` 
+            data: daySchedules, 
+            message: `${targetDate}的日程（${daySchedules.length}项）：${scheduleList}` 
           };
         }
         break;

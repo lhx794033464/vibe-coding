@@ -161,16 +161,16 @@ export default function CustomersPage() {
                             )}
                           </div>
                           {/* 第二行：版本 + 模块 */}
-                          {(customer.version || (customer.modules && customer.modules.length > 0)) && (
+                          {(customer.version || (customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : String(customer.modules).length > 0))) && (
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               {customer.version && (
                                 <Badge className={VERSION_CONFIG[customer.version as ProductVersion]?.color}>
                                   {VERSION_CONFIG[customer.version as ProductVersion]?.label}
                                 </Badge>
                               )}
-                              {customer.modules && customer.modules.length > 0 && (
+                              {customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : false) && (
                                 <div className="flex items-center gap-1 flex-wrap">
-                                  {customer.modules.map((module) => (
+                                  {(customer.modules as string[]).map((module) => (
                                     <Badge key={module} variant="outline" className="text-xs px-1.5 py-0">
                                       {MODULE_CONFIG[module as ProductModule]?.label}
                                     </Badge>

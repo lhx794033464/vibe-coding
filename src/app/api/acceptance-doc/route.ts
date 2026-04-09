@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, implementationLogsStorage } from '@/services/localStorage';
+import { customersStorage, implementationLogsStorage } from '@/lib/serverStorage';
 import {
   Document,
   Paragraph,
@@ -47,9 +47,11 @@ export async function POST(request: NextRequest) {
     // 格式化版本名称
     const versionName = (customer as any).version ? (VERSION_CONFIG[(customer as any).version as ProductVersion]?.label || (customer as any).version) : '-';
     
-    // 格式化模块名称
-    const modulesName = (customer as any).modules && (customer as any).modules.length > 0
-      ? (customer as any).modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
+    // 格式化模块名称（兼容数组和字符串格式）
+    const modulesName = (customer as any).modules && (Array.isArray((customer as any).modules) ? (customer as any).modules.length > 0 : ((customer as any).modules as string).length > 0)
+      ? (Array.isArray((customer as any).modules) 
+          ? (customer as any).modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
+          : String((customer as any).modules))
       : '-';
 
     // 边框样式：粗外边框，细内边框
@@ -378,7 +380,7 @@ function getBordersForPosition(
 }
 
 function createImplementationParagraphs(
-  logs: Array<{ log_date: string; consumed_days: string; summary: string }>
+  logs: Array<{ log_date: string; consumed_days: string; content: string }>
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
   const lineSpacing = { line: 360, lineRule: 'auto' as const };
@@ -400,7 +402,7 @@ function createImplementationParagraphs(
   } else {
     logs.forEach((log, index) => {
       const dateStr = format(new Date(log.log_date), 'M/d');
-      const summary = log.summary || '';
+      const summary = log.content || '';
       
       paragraphs.push(
         new Paragraph({

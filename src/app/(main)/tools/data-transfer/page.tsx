@@ -499,7 +499,7 @@ export default function DataTransferPage() {
             <div className="flex items-center gap-4">
               <Button 
                 onClick={performMigration}
-                disabled={migrating || (localStats && Object.values(localStats).every(v => v === 0))}
+                disabled={migrating || (!localStats || Object.values(localStats).every(v => v === 0))}
                 className="bg-amber-600 hover:bg-amber-700"
               >
                 {migrating ? (

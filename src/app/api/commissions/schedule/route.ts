@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage } from '@/services/localStorage';
+import { customersStorage } from '@/lib/serverStorage';
 
 /**
  * 设置下次计提月份 - 本地存储模式
@@ -8,12 +8,11 @@ import { customersStorage } from '@/services/localStorage';
  * Body:
  * - customer_id: 客户ID
  * - next_commission_month: 下次计提月份 (格式: yyyy-MM)
- * - userId: 用户ID（可选，从 localStorage 获取）
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customer_id, next_commission_month, userId } = body;
+    const { customer_id, next_commission_month } = body;
 
     if (!customer_id || !next_commission_month) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });

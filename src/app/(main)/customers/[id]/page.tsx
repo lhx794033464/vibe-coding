@@ -610,7 +610,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
                   </div>
                   {/* 产品版本和模块 */}
-                  {(customer.version || (customer.modules && customer.modules.length > 0)) && (
+                  {(customer.version || (customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : String(customer.modules).length > 0))) && (
                     <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       {customer.version && (
                         <div className="flex items-center gap-2">
@@ -620,7 +620,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                           </Badge>
                         </div>
                       )}
-                      {customer.modules && customer.modules.length > 0 && (
+                      {customer.modules && Array.isArray(customer.modules) && customer.modules.length > 0 && (
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">产品模块:</span>
                           <div className="flex flex-wrap gap-1">

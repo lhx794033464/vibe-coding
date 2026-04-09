@@ -41,6 +41,7 @@ interface Schedule {
   id: string;
   customer_id: string;
   schedule_date: string;
+  start_time?: string;
   notes: string | null;
   customer_name?: string;
 }

@@ -101,7 +101,9 @@ export async function GET(request: NextRequest) {
     const results = customers.map((customer: any) => {
       const implementationFee = parseFloat(customer.implementation_fee || '0');
       const implementationDays = parseFloat(customer.implementation_days || '0');
-      const modules: ProductModule[] = customer.modules || [];
+      // 兼容数组和字符串格式的modules
+      const rawModules = customer.modules;
+      const modules: ProductModule[] = Array.isArray(rawModules) ? rawModules : (typeof rawModules === 'string' && rawModules.length > 0 ? [rawModules] : []);
 
       const commission = calculateCommission(implementationFee, implementationDays, modules);
 
