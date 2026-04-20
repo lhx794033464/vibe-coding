@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage } from '@/lib/serverStorage';
 import { TimeRange, CustomerStatus } from '@/types';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 获取看板统计数据 - 本地存储模式
 export async function GET(request: NextRequest) {
   try {
+    // 数据隔离：获取当前用户信息
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+
     const searchParams = request.nextUrl.searchParams;
     const timeRange = searchParams.get('timeRange') || 'all';
 
@@ -15,35 +20,33 @@ export async function GET(request: NextRequest) {
     
     switch (timeRange) {
       case 'month':
-        // 本月：本月1日到月末
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         break;
       case 'year':
-        // 本年：上年12月至本年11月
         if (now.getMonth() === 11) {
-          // 12月，本年从今年12月开始
           startDate = new Date(now.getFullYear(), 11, 1);
           endDate = new Date(now.getFullYear() + 1, 0, 1);
         } else {
-          // 1-11月，本年从去年12月开始
           startDate = new Date(now.getFullYear() - 1, 11, 1);
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         }
         break;
       case 'all':
       default:
-        // 全部：不限制
         startDate = null;
         endDate = null;
         break;
     }
 
-    // 获取所有客户
+    // 获取所有客户（根据权限过滤）
     const allCustomers = customersStorage.getAll();
+    const visibleCustomers = isAdmin
+      ? allCustomers
+      : (allCustomers as any[])?.filter((c: any) => c.delivery_consultant === userInfo?.username) || [];
 
     // 根据开通时间（opened_at）筛选客户
-    let customers = allCustomers?.filter((c: any) => c.opened_at) || [];
+    let customers = visibleCustomers?.filter((c: any) => c.opened_at) || [];
     
     if (startDate && endDate) {
       customers = customers.filter((c: any) => {
@@ -71,8 +74,8 @@ export async function GET(request: NextRequest) {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    // 上月开通的客户
-    const lastMonthCustomers = allCustomers?.filter((c: any) => {
+    // 上月开通的客户（同样基于权限过滤后的数据）
+    const lastMonthCustomers = visibleCustomers?.filter((c: any) => {
       if (!c.opened_at) return false;
       const openedAt = new Date(c.opened_at);
       return openedAt >= lastMonthStart && openedAt < lastMonthEnd;

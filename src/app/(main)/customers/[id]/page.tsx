@@ -27,7 +27,7 @@ import {
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { getAuthHeader } from '@/services/authService';
+import { useAuth } from '@/contexts/AuthContext';
 
 // 实施日志类型
 interface ImplementationLog {
@@ -45,6 +45,7 @@ interface PageProps {
 }
 
 export default function CustomerDetailPage({ params }: PageProps) {
+  const { getAuthHeader } = useAuth();
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
@@ -134,7 +135,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     try {
       const response = await fetch(`/api/follow-ups?customer_id=${customerId}`, {
         headers: {
-
+          ...getAuthHeader(),
         },
       });
       const data = await response.json();
@@ -150,7 +151,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     try {
       const response = await fetch(`/api/implementation-logs?customer_id=${customerId}`, {
         headers: {
-
+          ...getAuthHeader(),
         },
       });
       const data = await response.json();
@@ -208,7 +209,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customer_id: customer.id,
@@ -241,7 +242,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customer_id: customer.id,
@@ -274,7 +275,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       const response = await fetch(`/api/implementation-logs/${logId}`, {
         method: 'DELETE',
         headers: {
-
+          ...getAuthHeader(),
         },
       });
 
@@ -320,7 +321,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           log_date: editLogForm.log_date,
@@ -355,7 +356,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customer_id: customer.id,
@@ -393,7 +394,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           status: 'accepted',

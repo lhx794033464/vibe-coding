@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { format, addHours } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 // 类型定义
 interface Customer {
@@ -104,6 +105,7 @@ function generateCalendarData(centerDate: Date): Date[] {
 }
 
 export default function SchedulePage() {
+  const { getAuthHeader } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [centerDate, setCenterDate] = useState(new Date());
@@ -175,7 +177,7 @@ export default function SchedulePage() {
       try {
         const response = await fetch('/api/customers', {
           headers: {
-            
+            ...getAuthHeader(),
           },
         });
         
@@ -204,7 +206,7 @@ export default function SchedulePage() {
           `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`,
           {
             headers: {
-              
+              ...getAuthHeader(),
             },
           }
         );
@@ -247,7 +249,7 @@ export default function SchedulePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customerId: selectedCustomerId,
@@ -293,7 +295,7 @@ export default function SchedulePage() {
       const response = await fetch(`/api/schedule/${scheduleId}`, {
         method: 'DELETE',
         headers: {
-          
+          ...getAuthHeader(),
         },
       });
 
@@ -328,7 +330,7 @@ export default function SchedulePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           subject: meetingSubject,

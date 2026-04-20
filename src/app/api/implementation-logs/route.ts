@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { implementationLogsStorage } from '@/lib/serverStorage';
+import { getVisibleCustomerIds, filterByCustomerAccess } from '@/lib/serverAuth';
 
-// 获取实施日志列表 - 本地存储模式
+// 获取实施日志列表
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customerId');
 
     let logs = implementationLogsStorage.getAll();
+
+    // 数据权限过滤
+    const visibleCustomerIds = await getVisibleCustomerIds(request);
+    logs = filterByCustomerAccess(logs, visibleCustomerIds);
 
     // 按客户筛选
     if (customerId) {
@@ -24,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 创建实施日志 - 本地存储模式
+// 创建实施日志
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

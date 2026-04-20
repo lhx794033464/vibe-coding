@@ -12,8 +12,10 @@ import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, T
 import { CommissionCalculation, VERSION_CONFIG, ProductVersion } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function CommissionsPage() {
+  const { getAuthHeader } = useAuth();
   const [commissions, setCommissions] = useState<CommissionCalculation[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -51,7 +53,9 @@ export default function CommissionsPage() {
   const fetchCommissions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/commissions?month=${currentMonth}`);
+      const response = await fetch(`/api/commissions?month=${currentMonth}`, {
+        headers: { ...getAuthHeader() },
+      });
       const data = await response.json();
       if (response.ok) {
         setCommissions(data.data || []);
@@ -97,7 +101,7 @@ export default function CommissionsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customer_id: schedulingCommission.customerId,
@@ -154,7 +158,7 @@ export default function CommissionsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customer_id: selectedCommission.customerId,
@@ -197,7 +201,7 @@ export default function CommissionsPage() {
       const response = await fetch(`/api/commissions?record_id=${recordToDelete.id}`, {
         method: 'DELETE',
         headers: {
-          
+          ...getAuthHeader(),
         },
       });
 

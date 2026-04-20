@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { followUpsStorage } from '@/lib/serverStorage';
+import { getVisibleCustomerIds, filterByCustomerAccess } from '@/lib/serverAuth';
 
-// 获取跟进记录列表 - 本地存储模式
+// 获取跟进记录列表
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customerId');
 
     let followUps = followUpsStorage.getAll();
+
+    // 数据权限过滤
+    const visibleCustomerIds = await getVisibleCustomerIds(request);
+    followUps = filterByCustomerAccess(followUps, visibleCustomerIds);
 
     // 按客户筛选
     if (customerId) {
@@ -24,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 创建跟进记录 - 本地存储模式
+// 创建跟进记录
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  getAuthHeader: () => Record<string, string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -67,6 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
   };
 
+  const getAuthHeader = (): Record<string, string> => {
+    try {
+      const sessionStr = localStorage.getItem('auth_session');
+      if (!sessionStr) return {};
+      const session = JSON.parse(sessionStr);
+      if (session?.token) {
+        return { Authorization: `Bearer ${session.token}` };
+      }
+    } catch {}
+    return {};
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user,
@@ -75,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      getAuthHeader,
     }}>
       {children}
     </AuthContext.Provider>

@@ -9,10 +9,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, AlertCircle, MessageSquare, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { getAuthHeader } from '@/services/authService';
 
 // 扩展Customer类型，包含计算字段
 interface CustomerWithDays extends Customer {
@@ -21,6 +21,7 @@ interface CustomerWithDays extends Customer {
 }
 
 export default function CustomersPage() {
+  const { getAuthHeader } = useAuth();
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerWithDays[]>([]);
   const [loading, setLoading] = useState(true);

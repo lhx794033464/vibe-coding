@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage, commissionsStorage } from '@/lib/serverStorage';
 import { MODULE_CONFIG, COMMISSION_CONFIG, ProductModule } from '@/types';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { getVisibleCustomerIds, filterByCustomerAccess, getCurrentUserInfo, isAdmin } from '@/lib/serverAuth';
 
 /**
  * 计算单个客户的提成
@@ -93,12 +94,19 @@ export async function GET(request: NextRequest) {
     });
     const customers = Array.from(customerMap.values());
 
+    // 数据权限过滤
+    const visibleCustomerIds = await getVisibleCustomerIds(request);
+    const filteredCustomers = visibleCustomerIds === null
+      ? customers
+      : customers.filter((c: any) => visibleCustomerIds.includes(c.id));
+
     // 获取已有的提成记录
     const commissions = commissionsStorage.getAll();
-    const commissionMap = new Map(commissions.map((c: any) => [c.customer_id, c]));
+    const filteredCommissions = filterByCustomerAccess(commissions, visibleCustomerIds);
+    const commissionMap = new Map(filteredCommissions.map((c: any) => [c.customer_id, c]));
 
     // 计算每个客户的提成
-    const results = customers.map((customer: any) => {
+    const results = filteredCustomers.map((customer: any) => {
       const implementationFee = parseFloat(customer.implementation_fee || '0');
       const implementationDays = parseFloat(customer.implementation_days || '0');
       // 兼容数组和字符串格式的modules
@@ -172,6 +180,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // 数据隔离：验证权限
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+
     const body = await request.json();
     const { customer_id, commission_month, status } = body;
 
@@ -180,6 +192,14 @@ export async function POST(request: NextRequest) {
         { error: '客户ID和提成月份不能为空' },
         { status: 400 }
       );
+    }
+
+    // 非管理员只能操作自己负责的客户
+    if (!isAdmin) {
+      const customer = customersStorage.getById(customer_id);
+      if (!customer || (customer as any).delivery_consultant !== userInfo?.username) {
+        return NextResponse.json({ error: '无权操作此客户' }, { status: 403 });
+      }
     }
 
     // 查找或创建提成记录
@@ -205,5 +225,42 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('确认提成失败:', error);
     return NextResponse.json({ error: '确认提成失败' }, { status: 500 });
+  }
+}
+
+/**
+ * 删除提成记录 - 本地存储模式
+ * DELETE /api/commissions?record_id=xxx
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const recordId = request.nextUrl.searchParams.get('record_id');
+    if (!recordId) {
+      return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
+    }
+
+    // 数据隔离：验证权限
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+    const record = commissionsStorage.getById(recordId);
+    if (!record) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+    if (!isAdmin) {
+      const customer = customersStorage.getById((record as any).customer_id);
+      if (!customer || (customer as any).delivery_consultant !== userInfo?.username) {
+        return NextResponse.json({ error: '无权操作此记录' }, { status: 403 });
+      }
+    }
+
+    const success = commissionsStorage.delete(recordId);
+    if (!success) {
+      return NextResponse.json({ error: '删除失败' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('删除提成记录失败:', error);
+    return NextResponse.json({ error: '删除提成记录失败' }, { status: 500 });
   }
 }

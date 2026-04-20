@@ -3,12 +3,20 @@ import { customersStorage } from '@/lib/serverStorage';
 import { VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 导出客户数据 - 本地存储模式
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    // 获取所有客户
-    const customers = customersStorage.getAll();
+    // 数据隔离：根据用户权限过滤客户
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+
+    // 获取客户（根据权限过滤）
+    const allCustomers = customersStorage.getAll();
+    const customers = isAdmin
+      ? allCustomers
+      : (allCustomers as any[])?.filter((c: any) => c.delivery_consultant === userInfo?.username) || [];
 
     // 状态映射
     const statusMap: Record<string, string> = {

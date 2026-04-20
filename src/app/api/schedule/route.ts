@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { schedulesStorage, customersStorage } from '@/lib/serverStorage';
+import { getVisibleCustomerIds, filterByCustomerAccess, getCurrentUserInfo, isAdmin } from '@/lib/serverAuth';
 
 // 获取日程列表
 export async function GET(request: NextRequest) {
@@ -10,13 +11,15 @@ export async function GET(request: NextRequest) {
 
     let schedules = schedulesStorage.getAll();
 
+    // 数据权限过滤
+    const visibleCustomerIds = await getVisibleCustomerIds(request);
+    schedules = filterByCustomerAccess(schedules, visibleCustomerIds);
+
     // 按日期范围筛选
     if (start && end) {
       schedules = schedules.filter((s: any) => {
-        // 兼容两种格式：schedule_date 或 start_time
         const dateStr = s.schedule_date || s.start_time;
         if (!dateStr) return false;
-        
         const eventDate = new Date(dateStr);
         return eventDate >= new Date(start) && eventDate <= new Date(end);
       });
@@ -42,19 +45,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customerId, scheduleDate, notes } = body;
-
-    if (!customerId || !scheduleDate) {
-      return NextResponse.json({ error: '客户ID和日程日期不能为空' }, { status: 400 });
-    }
-
-    const data = schedulesStorage.create({
-      customer_id: customerId,
-      schedule_date: scheduleDate,
-      notes: notes || null,
+    const schedule = schedulesStorage.create({
+      customer_id: body.customerId || body.customer_id || null,
+      schedule_date: body.scheduleDate || body.schedule_date || new Date().toISOString(),
+      notes: body.notes || '',
     });
 
-    return NextResponse.json({ schedule: data });
+    return NextResponse.json({ schedule });
   } catch (error) {
     console.error('创建日程失败:', error);
     return NextResponse.json({ error: '创建日程失败' }, { status: 500 });

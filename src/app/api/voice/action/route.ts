@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage, schedulesStorage, implementationLogsStorage } from '@/lib/serverStorage';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 语音操作解析API - 本地模式
 export async function POST(request: NextRequest) {
   console.log('=== 语音操作API开始 ===');
   try {
+    // 数据隔离：根据用户权限过滤客户
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+
     const body = await request.json();
     const { text } = body;
     console.log('接收到的文本:', text);
@@ -14,8 +19,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
     }
 
-    // 获取用户的所有客户列表，用于匹配
-    const customers = customersStorage.getAll();
+    // 获取用户可见的客户列表
+    const allCustomers = customersStorage.getAll();
+    const customers = isAdmin
+      ? allCustomers
+      : (allCustomers as any[])?.filter((c: any) => c.delivery_consultant === userInfo?.username) || [];
     const customerList = customers?.map((c: any) => c.name) || [];
     const customerListStr = customerList.length > 0 ? customerList.join('、') : '暂无客户';
 

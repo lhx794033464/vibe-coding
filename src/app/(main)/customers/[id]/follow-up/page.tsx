@@ -12,6 +12,7 @@ import { ArrowLeft, Calendar, Clock, CheckCircle } from 'lucide-react';
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,6 +20,7 @@ interface PageProps {
 
 export default function FollowUpPage({ params }: PageProps) {
   const router = useRouter();
+  const { getAuthHeader } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,7 @@ export default function FollowUpPage({ params }: PageProps) {
     try {
       const response = await fetch(`/api/customers/${id}`, {
         headers: {
-
+          ...getAuthHeader(),
         },
       });
       const data = await response.json();
@@ -63,7 +65,7 @@ export default function FollowUpPage({ params }: PageProps) {
     try {
       const response = await fetch(`/api/follow-ups?customer_id=${customerId}`, {
         headers: {
-
+          ...getAuthHeader(),
         },
       });
       const data = await response.json();
@@ -91,7 +93,7 @@ export default function FollowUpPage({ params }: PageProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           customer_id: customer.id,
@@ -130,7 +132,7 @@ export default function FollowUpPage({ params }: PageProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           status: 'accepted',

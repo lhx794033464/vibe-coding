@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { implementationLogsStorage } from '@/lib/serverStorage';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 更新/删除实施日志 - 本地存储模式
 export async function PUT(
@@ -8,8 +9,23 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
 
+    // 数据隔离：验证权限
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+    const log = implementationLogsStorage.getById(id);
+    if (!log) {
+      return NextResponse.json({ error: '日志不存在' }, { status: 404 });
+    }
+    if (!isAdmin) {
+      const { customersStorage } = await import('@/lib/serverStorage');
+      const customer = customersStorage.getById((log as any).customer_id);
+      if (!customer || (customer as any).delivery_consultant !== userInfo?.username) {
+        return NextResponse.json({ error: '无权操作此日志' }, { status: 403 });
+      }
+    }
+
+    const body = await request.json();
     const data = implementationLogsStorage.update(id, body);
 
     if (!data) {
@@ -29,6 +45,22 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // 数据隔离：验证权限
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+    const log = implementationLogsStorage.getById(id);
+    if (!log) {
+      return NextResponse.json({ error: '日志不存在' }, { status: 404 });
+    }
+    if (!isAdmin) {
+      const { customersStorage } = await import('@/lib/serverStorage');
+      const customer = customersStorage.getById((log as any).customer_id);
+      if (!customer || (customer as any).delivery_consultant !== userInfo?.username) {
+        return NextResponse.json({ error: '无权操作此日志' }, { status: 403 });
+      }
+    }
+
     const success = implementationLogsStorage.delete(id);
 
     if (!success) {

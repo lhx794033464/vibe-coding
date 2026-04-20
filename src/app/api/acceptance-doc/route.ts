@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage, implementationLogsStorage } from '@/lib/serverStorage';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 import {
   Document,
   Paragraph,
@@ -25,6 +26,10 @@ import * as path from 'path';
 // 生成验收单Word文档（本地存储模式）
 export async function POST(request: NextRequest) {
   try {
+    // 数据隔离：验证用户权限
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+
     const body = await request.json();
     const { customer_id } = body;
 
@@ -36,6 +41,11 @@ export async function POST(request: NextRequest) {
     const customer = customersStorage.getById(customer_id);
     if (!customer) {
       return NextResponse.json({ error: '客户不存在' }, { status: 404 });
+    }
+
+    // 非管理员只能生成自己负责的客户的验收单
+    if (!isAdmin && (customer as any).delivery_consultant !== userInfo?.username) {
+      return NextResponse.json({ error: '无权操作此客户' }, { status: 403 });
     }
 
     // 获取实施日志

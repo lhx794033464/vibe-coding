@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { TimeRange, STATUS_CONFIG, CustomerStatus } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -54,6 +55,7 @@ const initialStats: DashboardStats = {
 };
 
 export default function DashboardPage() {
+  const { getAuthHeader } = useAuth();
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -78,7 +80,9 @@ export default function DashboardPage() {
     }
     
     try {
-      const response = await fetch(`/api/dashboard?timeRange=${timeRange}`);
+      const response = await fetch(`/api/dashboard?timeRange=${timeRange}`, {
+        headers: { ...getAuthHeader() },
+      });
       const data = await response.json();
       if (response.ok) {
         setStats(data);

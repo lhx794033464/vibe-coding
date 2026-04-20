@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Send, Loader2, Search, User, Mic, MicOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/contexts/ChatContext';
+import { useAuth } from '@/contexts/AuthContext';
 import MessageContent from '@/components/chat/MessageContent';
 
 // 根据时间获取温馨提示语
@@ -71,6 +72,7 @@ interface Message {
 export default function HomePage() {
   const router = useRouter();
   const { messages: savedMessages, addMessage, clearMessages } = useChat();
+  const { getAuthHeader } = useAuth();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -262,6 +264,7 @@ export default function HomePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader(),
         },
         body: JSON.stringify({ base64Data }),
       });
@@ -279,6 +282,7 @@ export default function HomePage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...getAuthHeader(),
           },
           body: JSON.stringify({ text: userMessage }),
         });
@@ -345,6 +349,7 @@ export default function HomePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader(),
         },
         body: JSON.stringify({ 
           messages: [...savedMessages, { role: 'user', content: userMessage }],

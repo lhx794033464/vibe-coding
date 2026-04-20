@@ -14,11 +14,10 @@ import { CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, Produc
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAuthHeader } from '@/services/authService';
 
 export default function NewCustomerPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, getAuthHeader } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);

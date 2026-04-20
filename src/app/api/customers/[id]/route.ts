@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage } from '@/lib/serverStorage';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 获取单个客户详情 - 本地存储模式
 export async function GET(
@@ -12,6 +13,12 @@ export async function GET(
 
     if (!data) {
       return NextResponse.json({ error: '客户不存在' }, { status: 404 });
+    }
+
+    // 数据隔离：非管理员只能查看自己负责的客户
+    const userInfo = await getCurrentUserInfo(request);
+    if (userInfo?.role !== 'admin' && (data as any).delivery_consultant !== userInfo?.username) {
+      return NextResponse.json({ error: '无权访问此客户' }, { status: 403 });
     }
 
     return NextResponse.json({ data });
@@ -28,8 +35,18 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
 
+    // 数据隔离：验证权限
+    const userInfo = await getCurrentUserInfo(request);
+    const existing = customersStorage.getById(id);
+    if (!existing) {
+      return NextResponse.json({ error: '客户不存在' }, { status: 404 });
+    }
+    if (userInfo?.role !== 'admin' && (existing as any).delivery_consultant !== userInfo?.username) {
+      return NextResponse.json({ error: '无权修改此客户' }, { status: 403 });
+    }
+
+    const body = await request.json();
     const data = customersStorage.update(id, body);
 
     if (!data) {
@@ -50,6 +67,17 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // 数据隔离：验证权限
+    const userInfo = await getCurrentUserInfo(request);
+    const existing = customersStorage.getById(id);
+    if (!existing) {
+      return NextResponse.json({ error: '客户不存在' }, { status: 404 });
+    }
+    if (userInfo?.role !== 'admin' && (existing as any).delivery_consultant !== userInfo?.username) {
+      return NextResponse.json({ error: '无权删除此客户' }, { status: 403 });
+    }
+
     const success = customersStorage.delete(id);
 
     if (!success) {

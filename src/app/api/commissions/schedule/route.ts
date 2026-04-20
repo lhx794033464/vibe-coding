@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage } from '@/lib/serverStorage';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 /**
  * 设置下次计提月份 - 本地存储模式
@@ -11,6 +12,10 @@ import { customersStorage } from '@/lib/serverStorage';
  */
 export async function POST(request: NextRequest) {
   try {
+    // 数据隔离：验证用户权限
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
+
     const body = await request.json();
     const { customer_id, next_commission_month } = body;
 
@@ -22,6 +27,11 @@ export async function POST(request: NextRequest) {
     const customer = customersStorage.getById(customer_id);
     if (!customer) {
       return NextResponse.json({ error: '客户不存在' }, { status: 404 });
+    }
+
+    // 非管理员只能操作自己负责的客户
+    if (!isAdmin && (customer as any).delivery_consultant !== userInfo?.username) {
+      return NextResponse.json({ error: '无权操作此客户' }, { status: 403 });
     }
 
     // 更新下次计提月份
