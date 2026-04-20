@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -13,12 +13,7 @@ import {
   AlertCircle,
   FileUp,
   Loader2,
-  FileText,
-  Database,
-  RefreshCcw,
-  Users,
-  UserCheck,
-  Calendar
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -34,15 +29,6 @@ interface FileState {
   ready: boolean;
 }
 
-// 数据迁移状态
-interface MigrationStats {
-  customers: number;
-  followUps: number;
-  implementationLogs: number;
-  commissions: number;
-  schedules: number;
-}
-
 export default function DataTransferPage() {
   const [subjectFile, setSubjectFile] = useState<FileState>({ name: '等待上传...', ready: false });
   const [voucherFile, setVoucherFile] = useState<FileState>({ name: '等待上传...', ready: false });
@@ -50,12 +36,6 @@ export default function DataTransferPage() {
     { time: new Date().toLocaleTimeString(), message: '准备就绪，请上传文件...', type: 'info' }
   ]);
   const [processing, setProcessing] = useState(false);
-  
-  // 数据迁移状态
-  const [migrating, setMigrating] = useState(false);
-  const [serverStats, setServerStats] = useState<MigrationStats | null>(null);
-  const [localStats, setLocalStats] = useState<MigrationStats | null>(null);
-  const [migrationResult, setMigrationResult] = useState<any>(null);
   
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const voucherInputRef = useRef<HTMLInputElement>(null);
@@ -282,88 +262,6 @@ export default function DataTransferPage() {
     }).filter(item => item !== null);
   };
 
-  // 从localStorage读取旧数据
-  const readLocalData = () => {
-    if (typeof window === 'undefined') return null;
-    
-    const userId = localStorage.getItem('local_user_id') || 'local_default';
-    
-    const readCollection = (key: string) => {
-      try {
-        const data = localStorage.getItem(`${key}_${userId}`);
-        return data ? JSON.parse(data) : [];
-      } catch {
-        return [];
-      }
-    };
-
-    return {
-      customers: readCollection('customers'),
-      followUps: readCollection('follow_ups'),
-      implementationLogs: readCollection('implementation_logs'),
-      commissions: readCollection('commissions'),
-      schedules: readCollection('schedules'),
-    };
-  };
-
-  // 获取迁移状态
-  const fetchMigrationStatus = async () => {
-    try {
-      const response = await fetch('/api/migrate');
-      const result = await response.json();
-      setServerStats(result.stats);
-      
-      // 同时读取本地数据
-      const localData = readLocalData();
-      if (localData) {
-        setLocalStats({
-          customers: localData.customers.length,
-          followUps: localData.followUps.length,
-          implementationLogs: localData.implementationLogs.length,
-          commissions: localData.commissions.length,
-          schedules: localData.schedules.length,
-        });
-      }
-    } catch (error) {
-      console.error('获取迁移状态失败:', error);
-    }
-  };
-
-  // 执行数据迁移
-  const performMigration = async () => {
-    const localData = readLocalData();
-    if (!localData) return;
-
-    setMigrating(true);
-    setMigrationResult(null);
-
-    try {
-      const response = await fetch('/api/migrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(localData),
-      });
-
-      const result = await response.json();
-      setMigrationResult(result);
-      
-      if (result.success) {
-        // 刷新状态
-        await fetchMigrationStatus();
-      }
-    } catch (error) {
-      console.error('数据迁移失败:', error);
-      setMigrationResult({ success: false, error: '迁移失败' });
-    } finally {
-      setMigrating(false);
-    }
-  };
-
-  // 组件加载时获取状态
-  useEffect(() => {
-    fetchMigrationStatus();
-  }, []);
-
   // 主处理函数
   const processData = async () => {
     const subFile = subjectInputRef.current?.files?.[0];
@@ -442,107 +340,6 @@ export default function DataTransferPage() {
           </h1>
           <p className="text-slate-500 mt-1">用友YonSuite → 金蝶精斗云 严格模板转换</p>
         </div>
-
-        {/* 数据迁移卡片 */}
-        <Card className="mb-6 border-amber-200 bg-amber-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="w-5 h-5 text-amber-600" />
-              数据迁移
-            </CardTitle>
-            <CardDescription>
-              将浏览器本地存储的旧数据迁移到服务器端
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-              {/* 本地数据统计 */}
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-600">本地数据</div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3 h-3 text-blue-500" />
-                    <span>客户: {localStats?.customers || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <UserCheck className="w-3 h-3 text-green-500" />
-                    <span>跟进: {localStats?.followUps || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-purple-500" />
-                    <span>日程: {localStats?.schedules || 0}</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* 服务器数据统计 */}
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-600">服务器数据</div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3 h-3 text-blue-500" />
-                    <span>客户: {serverStats?.customers || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <UserCheck className="w-3 h-3 text-green-500" />
-                    <span>跟进: {serverStats?.followUps || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-purple-500" />
-                    <span>日程: {serverStats?.schedules || 0}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* 迁移按钮 */}
-            <div className="flex items-center gap-4">
-              <Button 
-                onClick={performMigration}
-                disabled={migrating || (!localStats || Object.values(localStats).every(v => v === 0))}
-                className="bg-amber-600 hover:bg-amber-700"
-              >
-                {migrating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    迁移中...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCcw className="w-4 h-4 mr-2" />
-                    开始迁移
-                  </>
-                )}
-              </Button>
-              
-              <Button 
-                variant="ghost" 
-                onClick={fetchMigrationStatus}
-                disabled={migrating}
-              >
-                刷新状态
-              </Button>
-            </div>
-            
-            {/* 迁移结果 */}
-            {migrationResult && (
-              <div className={`mt-4 p-3 rounded-md ${migrationResult.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                {migrationResult.success ? (
-                  <div>
-                    <div className="font-medium">迁移成功！</div>
-                    <div className="text-sm mt-1">
-                      迁移结果: 客户 {migrationResult.results.customers} 条, 
-                      跟进 {migrationResult.results.followUps} 条,
-                      日程 {migrationResult.results.schedules} 条
-                    </div>
-                  </div>
-                ) : (
-                  <div>迁移失败: {migrationResult.error}</div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* 上传区域 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
