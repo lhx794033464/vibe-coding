@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { schedulesStorage } from '@/lib/serverStorage';
+import { schedulesStorage, customersStorage } from '@/lib/serverStorage';
 
 // 获取日程列表
 export async function GET(request: NextRequest) {
@@ -22,7 +22,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ schedules });
+    // 关联客户名称
+    const customers = customersStorage.getAll();
+    const customerMap = new Map(customers?.map((c: any) => [c.id, c.name]) || []);
+
+    const enrichedSchedules = schedules.map((s: any) => ({
+      ...s,
+      customer_name: s.customer_id ? (customerMap.get(s.customer_id) || null) : null,
+    }));
+
+    return NextResponse.json({ schedules: enrichedSchedules });
   } catch (error) {
     console.error('获取日程失败:', error);
     return NextResponse.json({ error: '获取日程失败' }, { status: 500 });
