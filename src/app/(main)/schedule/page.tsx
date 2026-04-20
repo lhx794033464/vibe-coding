@@ -47,38 +47,7 @@ interface Schedule {
 }
 
 // 法定节假日数据（从API动态获取国务院最新安排）
-const [holidayData, setHolidayData] = useState<{
-  holidays: Record<string, string>;
-  workdaysOnWeekend: Set<string>;
-}>({ holidays: {}, workdaysOnWeekend: new Set() });
-
-// 获取假日数据
-useEffect(() => {
-  const fetchHolidays = async () => {
-    try {
-      const currentYear = new Date().getFullYear();
-      const res = await fetch(`/api/holidays?year=${currentYear - 1},${currentYear},${currentYear + 1}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      
-      const mergedHolidays: Record<string, string> = {};
-      const mergedWorkdays: string[] = [];
-      
-      for (const yearData of Object.values(data) as Array<{ holidays: Record<string, string>; workdaysOnWeekend: string[] }>) {
-        Object.assign(mergedHolidays, yearData.holidays);
-        mergedWorkdays.push(...yearData.workdaysOnWeekend);
-      }
-      
-      setHolidayData({
-        holidays: mergedHolidays,
-        workdaysOnWeekend: new Set(mergedWorkdays),
-      });
-    } catch (err) {
-      console.error('获取假日数据失败:', err);
-    }
-  };
-  fetchHolidays();
-}, []);
+// holidayData 在组件内部使用 useState 管理
 
 function formatDate(date: Date): string {
   const year = date.getFullYear();
@@ -147,6 +116,12 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   
+  // 法定节假日数据（从API动态获取国务院最新安排）
+  const [holidayData, setHolidayData] = useState<{
+    holidays: Record<string, string>;
+    workdaysOnWeekend: Set<string>;
+  }>({ holidays: {}, workdaysOnWeekend: new Set() });
+  
   // 会议相关状态
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
   const [meetingSubject, setMeetingSubject] = useState('');
@@ -163,6 +138,34 @@ export default function SchedulePage() {
   } | null>(null);
 
   const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
+
+  // 获取假日数据
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const currentYear = new Date().getFullYear();
+        const res = await fetch(`/api/holidays?year=${currentYear - 1},${currentYear},${currentYear + 1}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        const mergedHolidays: Record<string, string> = {};
+        const mergedWorkdays: string[] = [];
+        
+        for (const yearData of Object.values(data) as Array<{ holidays: Record<string, string>; workdaysOnWeekend: string[] }>) {
+          Object.assign(mergedHolidays, yearData.holidays);
+          mergedWorkdays.push(...yearData.workdaysOnWeekend);
+        }
+        
+        setHolidayData({
+          holidays: mergedHolidays,
+          workdaysOnWeekend: new Set(mergedWorkdays),
+        });
+      } catch (err) {
+        console.error('获取假日数据失败:', err);
+      }
+    };
+    fetchHolidays();
+  }, []);
 
   // 获取客户列表
   useEffect(() => {
