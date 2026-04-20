@@ -40,7 +40,7 @@ export default function ToolsPage() {
   const { hasNotification } = useFlowChart();
   
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <div className="p-4 sm:p-6">
         {/* 页面标题 */}
         <div className="mb-6">

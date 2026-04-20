@@ -16,10 +16,10 @@ import {
   ShieldCheck,
   Settings,
   LogOut,
-  User,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { SettingsDialog } from '@/components/SettingsDialog';
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -54,6 +54,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const { isAdmin, user, logout } = useAuth();
   const [showToggleButton, setShowToggleButton] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 组合导航项
@@ -85,14 +86,14 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     <>
       {/* 桌面端左侧边栏 */}
       <aside 
-        className={`hidden sm:flex fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex-col transition-all duration-300 ease-in-out overflow-visible group ${
+        className={`hidden sm:flex fixed left-0 top-0 h-full bg-card border-r border-border flex-col transition-all duration-300 ease-in-out overflow-visible group ${
           collapsed ? 'w-16' : 'w-[200px]'
         }`}
         onMouseEnter={() => setShowToggleButton(true)}
         onMouseLeave={() => setShowToggleButton(false)}
       >
         {/* Logo */}
-        <div className={`border-b border-gray-200 ${collapsed ? 'p-3' : 'p-6'}`}>
+        <div className={`border-b border-border ${collapsed ? 'p-3' : 'p-6'}`}>
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
             {/* Logo */}
             <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
@@ -108,8 +109,8 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
             <div className={`flex-1 overflow-hidden transition-opacity duration-200 ${
               collapsed ? 'opacity-0 w-0' : 'opacity-100'
             }`}>
-              <h1 className="font-bold text-gray-900 whitespace-nowrap">交付集成平台</h1>
-              <p className="text-xs text-gray-500 whitespace-nowrap truncate">金蝶云星辰</p>
+              <h1 className="font-bold text-foreground whitespace-nowrap">交付集成平台</h1>
+              <p className="text-xs text-muted-foreground whitespace-nowrap truncate">金蝶云星辰</p>
             </div>
           </div>
         </div>
@@ -137,7 +138,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                     className={`flex items-center rounded-lg transition-colors ${
                       isActive
                         ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     } ${collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}`}
                     title={collapsed ? item.label : undefined}
                   >
@@ -166,7 +167,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
           {/* 缩放按钮 */}
           <button
             onClick={() => onCollapsedChange?.(!collapsed)}
-            className={`absolute -right-3 top-1/2 -translate-y-1/2 z-50 w-6 h-12 bg-white border border-gray-200 rounded-full shadow-md flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-all duration-200 ${
+            className={`absolute -right-3 top-1/2 -translate-y-1/2 z-50 w-6 h-12 bg-card border border-border rounded-full shadow-md flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 transition-all duration-200 ${
               showToggleButton ? 'opacity-100' : 'opacity-0'
             }`}
             title={collapsed ? '展开侧边栏' : '收起侧边栏'}
@@ -180,10 +181,10 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         </div>
 
         {/* 个人设置区域 - 底部对齐 */}
-        <div className="relative border-t border-gray-200" ref={userMenuRef}>
+        <div className="relative border-t border-border" ref={userMenuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className={`w-full flex items-center cursor-pointer transition-colors hover:bg-gray-50 ${
+            className={`w-full flex items-center cursor-pointer transition-colors hover:bg-muted ${
               collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
             }`}
           >
@@ -194,8 +195,8 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
             {/* 用户名和角色 */}
             {!collapsed && (
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
-                <p className="text-xs text-gray-400 truncate">{displayRole}</p>
+                <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">{displayRole}</p>
               </div>
             )}
           </button>
@@ -204,22 +205,22 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
           {showUserMenu && (
             <div className={`absolute bottom-full left-0 mb-1 ${
               collapsed ? 'left-full ml-2 bottom-0 mb-0' : 'w-full'
-            } bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-[60] ${
+            } bg-card border border-border rounded-lg shadow-lg py-1 z-[60] ${
               collapsed ? 'w-48' : ''
             }`}>
               {/* 用户信息（折叠时显示） */}
               {collapsed && (
-                <div className="px-3 py-2 border-b border-gray-100">
+                <div className="px-3 py-2 border-b border-border">
                   <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
                   <p className="text-xs text-gray-400 truncate">{displayRole}</p>
                 </div>
               )}
               <button
-                onClick={() => { setShowUserMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => { setShowUserMenu(false); setShowSettings(true); }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
               >
-                <User className="w-4 h-4 text-gray-400" />
-                个人设置
+                <Settings className="w-4 h-4 text-muted-foreground" />
+                设置
               </button>
               <button
                 onClick={handleLogout}
@@ -234,7 +235,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
       </aside>
 
       {/* 移动端底部导航栏 */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 flex items-center justify-around px-2 z-50">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border flex items-center justify-around px-2 z-50">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           let isActive = pathname === item.href;
@@ -251,7 +252,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
               className={`flex flex-col items-center justify-center w-16 h-14 rounded-lg transition-colors ${
                 isActive
                   ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Icon className="w-6 h-6" />
@@ -260,6 +261,8 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
           );
         })}
       </nav>
+      {/* 设置弹窗 */}
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </>
   );
 }

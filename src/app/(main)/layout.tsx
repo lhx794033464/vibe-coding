@@ -65,10 +65,10 @@ export default function MainLayout({
   // 加载中显示加载状态
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <p className="text-slate-500">正在加载...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">正在加载...</p>
         </div>
       </div>
     );
@@ -82,7 +82,7 @@ export default function MainLayout({
   return (
     <ChatProvider>
       <FlowChartProvider>
-        <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+        <div className="h-screen flex flex-col bg-background overflow-hidden">
           <div className="flex flex-1 overflow-hidden">
             <Sidebar 
               collapsed={sidebarCollapsed}

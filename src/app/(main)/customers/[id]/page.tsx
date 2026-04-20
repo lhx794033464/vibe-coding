@@ -415,7 +415,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   if (!customer) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">客户不存在</p>
+        <p className="text-muted-foreground">客户不存在</p>
         <Button className="mt-4" onClick={() => router.push('/customers')}>
           返回列表
         </Button>
@@ -555,7 +555,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                             className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors ${
                               editForm.modules.includes(module.value)
                                 ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                                : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                : 'bg-muted text-gray-600 border border-gray-200 hover:bg-gray-100'
                             }`}
                           >
                             <input
@@ -611,10 +611,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   </div>
                   {/* 产品版本和模块 */}
                   {(customer.version || (customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : String(customer.modules).length > 0))) && (
-                    <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex flex-wrap items-center gap-3 p-3 bg-muted rounded-lg">
                       {customer.version && (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-500">产品版本:</span>
+                          <span className="text-sm text-muted-foreground">产品版本:</span>
                           <Badge className={VERSION_CONFIG[customer.version]?.color}>
                             {VERSION_CONFIG[customer.version]?.label}
                           </Badge>
@@ -622,7 +622,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       )}
                       {customer.modules && Array.isArray(customer.modules) && customer.modules.length > 0 && (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-500">产品模块:</span>
+                          <span className="text-sm text-muted-foreground">产品模块:</span>
                           <div className="flex flex-wrap gap-1">
                             {customer.modules.map((module) => (
                               <Badge key={module} variant="outline" className="text-xs">
@@ -636,29 +636,29 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   )}
                   <Separator />
                   {/* 人天统计 */}
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                     <div className="text-center">
-                      <p className="text-sm text-gray-500">总实施人天</p>
+                      <p className="text-sm text-muted-foreground">总实施人天</p>
                       <p className="text-xl font-bold text-gray-900">{parseFloat(customer.implementation_days || '0').toFixed(2)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-gray-500">已消耗人天</p>
+                      <p className="text-sm text-muted-foreground">已消耗人天</p>
                       <p className="text-xl font-bold text-orange-600">{totalConsumedDays.toFixed(2)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-gray-500">剩余人天</p>
+                      <p className="text-sm text-muted-foreground">剩余人天</p>
                       <p className={`text-xl font-bold ${remainingDays < 0 ? 'text-red-600' : 'text-green-600'}`}>{remainingDays.toFixed(2)}</p>
                     </div>
                   </div>
                   <Separator />
                   <div>
-                    <Label className="text-gray-500">实施费</Label>
+                    <Label className="text-muted-foreground">实施费</Label>
                     <p className="text-lg font-semibold mt-1">
                       {customer.implementation_fee ? `¥${customer.implementation_fee.toLocaleString()}` : '-'}
                     </p>
                   </div>
                   <div>
-                    <Label className="text-gray-500">特殊要求</Label>
+                    <Label className="text-muted-foreground">特殊要求</Label>
                     <p className="mt-1 whitespace-pre-wrap">{customer.special_requirements || '-'}</p>
                   </div>
                   <Separator />
@@ -695,7 +695,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               {showLogForm && (
-                <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+                <div className="space-y-3 p-3 bg-muted rounded-lg">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>实施时间</Label>
@@ -742,7 +742,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
 
               {implementationLogs.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">暂无实施日志</p>
+                <p className="text-muted-foreground text-center py-4">暂无实施日志</p>
               ) : (
                 <div className="space-y-3">
                   {implementationLogs.map((log) => (
@@ -795,7 +795,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         // 显示模式
                         <>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">
+                            <span className="text-sm text-muted-foreground">
                               {format(new Date(log.log_date), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
                             </span>
                             <div className="flex items-center gap-2">
@@ -857,7 +857,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               {showFollowUpForm && (
-                <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+                <div className="space-y-3 p-3 bg-muted rounded-lg">
                   <div className="space-y-2">
                     <Label>跟进时间</Label>
                     <Input
@@ -883,13 +883,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
 
               {followUps.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">暂无跟进记录</p>
+                <p className="text-muted-foreground text-center py-4">暂无跟进记录</p>
               ) : (
                 <div className="space-y-3">
                   {followUps.map((record) => (
                     <div key={record.id} className="p-3 border rounded-lg">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-muted-foreground">
                           {format(new Date(record.follow_up_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
                         </span>
                         {record.is_accepted && (
@@ -914,7 +914,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 function InfoItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number | null }) {
   return (
     <div>
-      <Label className="text-gray-500 flex items-center gap-1">
+      <Label className="text-muted-foreground flex items-center gap-1">
         {icon}
         {label}
       </Label>
