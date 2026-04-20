@@ -11,10 +11,12 @@ import {
   RotateCcw,
   ArrowDown,
   ArrowRight,
+  ArrowLeft,
   PanelLeftClose,
   PanelLeftOpen,
   Clock,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 
 // 空白画布 XML
@@ -197,19 +199,13 @@ export default function FlowChartPage() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      {/* 页面标题 */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <GitBranch className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-slate-800">业务流程图</h1>
-              <p className="text-sm text-slate-500">使用自然语言描述，AI 自动生成可编辑的流程图</p>
-            </div>
-          </div>
-        </div>
+      {/* 顶部导航栏 */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
+        <Link href="/tools" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          返回
+        </Link>
+        <h1 className="text-lg font-semibold">业务流程图</h1>
       </div>
 
       <div className="flex-1 flex overflow-hidden">

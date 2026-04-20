@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  ArrowLeftRight, 
+  ArrowLeft, 
   Upload, 
   FileSpreadsheet, 
   Download, 
@@ -326,20 +326,18 @@ export default function DataTransferPage() {
   };
 
   return (
-    <div className="h-full bg-slate-50 overflow-auto">
+    <div className="h-full flex flex-col bg-slate-50">
+      {/* 顶部导航栏 */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
+        <Link href="/tools" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          返回
+        </Link>
+        <h1 className="text-lg font-semibold">导账工具 - YonSuite转精斗云</h1>
+      </div>
+
+      <div className="flex-1 overflow-auto">
       <div className="max-w-4xl mx-auto p-6">
-        {/* 页面头部 */}
-        <div className="mb-6">
-          <Link href="/tools" className="text-sm text-slate-500 hover:text-slate-700 mb-2 inline-flex items-center gap-1">
-            <ArrowLeftRight className="w-4 h-4" />
-            返回工具列表
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <ArrowLeftRight className="w-7 h-7 text-green-600" />
-            导账工具
-          </h1>
-          <p className="text-slate-500 mt-1">用友YonSuite → 金蝶精斗云 严格模板转换</p>
-        </div>
 
         {/* 上传区域 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -468,6 +466,7 @@ export default function DataTransferPage() {
             </ul>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
