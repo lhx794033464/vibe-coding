@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, ArrowRight, ExternalLink } from 'lucide-react';
+import { GitBranch, ArrowRight, ArrowLeftRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 
@@ -17,9 +17,18 @@ const tools = [
     iconBg: 'bg-blue-100',
   },
   {
-    id: 'external-tool',
+    id: 'data-transfer',
     title: '导账工具',
-    description: '星空转星辰',
+    description: 'YonSuite转精斗云',
+    icon: ArrowLeftRight,
+    href: '/tools/data-transfer',
+    color: 'bg-green-50 text-green-600',
+    iconBg: 'bg-green-100',
+  },
+  {
+    id: 'external-tool',
+    title: '星辰交付助手',
+    description: '金蝶云星辰智能交付辅助工具',
     icon: ExternalLink,
     href: 'https://5hy57sc23v.coze.site',
     color: 'bg-amber-50 text-amber-600',
