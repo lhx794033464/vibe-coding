@@ -46,50 +46,39 @@ interface Schedule {
   customer_name?: string;
 }
 
-// 法定节假日数据
-const WORKDAYS_ON_WEEKEND: Set<string> = new Set([
-  // 2024年调休
-  '2024-02-04', '2024-02-18', '2024-04-07', '2024-04-28', '2024-05-11',
-  '2024-09-14', '2024-09-29', '2024-10-12',
-  // 2025年调休
-  '2025-01-26', '2025-02-08', '2025-04-27',
-  // 2026年调休
-  '2026-02-14', '2026-02-28', '2026-04-26', '2026-05-09', '2026-09-27', '2026-10-10',
-]);
+// 法定节假日数据（从API动态获取国务院最新安排）
+const [holidayData, setHolidayData] = useState<{
+  holidays: Record<string, string>;
+  workdaysOnWeekend: Set<string>;
+}>({ holidays: {}, workdaysOnWeekend: new Set() });
 
-const HOLIDAYS: Record<string, string> = {
-  '2024-01-01': '元旦',
-  '2024-02-10': '春节', '2024-02-11': '春节', '2024-02-12': '春节', '2024-02-13': '春节',
-  '2024-02-14': '春节', '2024-02-15': '春节', '2024-02-16': '春节', '2024-02-17': '春节',
-  '2024-04-04': '清明', '2024-04-05': '清明', '2024-04-06': '清明',
-  '2024-05-01': '劳动节', '2024-05-02': '劳动节', '2024-05-03': '劳动节',
-  '2024-05-04': '劳动节', '2024-05-05': '劳动节',
-  '2024-06-08': '端午', '2024-06-09': '端午', '2024-06-10': '端午',
-  '2024-09-15': '中秋', '2024-09-16': '中秋', '2024-09-17': '中秋',
-  '2024-10-01': '国庆', '2024-10-02': '国庆', '2024-10-03': '国庆',
-  '2024-10-04': '国庆', '2024-10-05': '国庆', '2024-10-06': '国庆', '2024-10-07': '国庆',
-  // 2025年
-  '2025-01-01': '元旦',
-  '2025-01-28': '春节', '2025-01-29': '春节', '2025-01-30': '春节', '2025-01-31': '春节',
-  '2025-02-01': '春节', '2025-02-02': '春节', '2025-02-03': '春节', '2025-02-04': '春节',
-  '2025-04-04': '清明', '2025-04-05': '清明', '2025-04-06': '清明',
-  '2025-05-01': '劳动节', '2025-05-02': '劳动节', '2025-05-03': '劳动节',
-  '2025-05-04': '劳动节', '2025-05-05': '劳动节',
-  '2025-05-31': '端午', '2025-06-01': '端午', '2025-06-02': '端午',
-  '2025-10-01': '国庆', '2025-10-02': '国庆', '2025-10-03': '国庆',
-  '2025-10-04': '国庆', '2025-10-05': '国庆', '2025-10-06': '国庆&中秋', '2025-10-07': '国庆',
-  // 2026年
-  '2026-01-01': '元旦', '2026-01-02': '元旦', '2026-01-03': '元旦',
-  '2026-02-17': '春节', '2026-02-18': '春节', '2026-02-19': '春节',
-  '2026-02-20': '春节', '2026-02-21': '春节', '2026-02-22': '春节', '2026-02-23': '春节',
-  '2026-04-05': '清明', '2026-04-06': '清明', '2026-04-07': '清明',
-  '2026-05-01': '劳动节', '2026-05-02': '劳动节', '2026-05-03': '劳动节',
-  '2026-05-04': '劳动节', '2026-05-05': '劳动节',
-  '2026-06-19': '端午', '2026-06-20': '端午', '2026-06-21': '端午',
-  '2026-10-01': '国庆', '2026-10-02': '国庆', '2026-10-03': '国庆',
-  '2026-10-04': '国庆', '2026-10-05': '国庆', '2026-10-06': '国庆', '2026-10-07': '国庆',
-  '2026-10-08': '国庆',
-};
+// 获取假日数据
+useEffect(() => {
+  const fetchHolidays = async () => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const res = await fetch(`/api/holidays?year=${currentYear - 1},${currentYear},${currentYear + 1}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      const mergedHolidays: Record<string, string> = {};
+      const mergedWorkdays: string[] = [];
+      
+      for (const yearData of Object.values(data) as Array<{ holidays: Record<string, string>; workdaysOnWeekend: string[] }>) {
+        Object.assign(mergedHolidays, yearData.holidays);
+        mergedWorkdays.push(...yearData.workdaysOnWeekend);
+      }
+      
+      setHolidayData({
+        holidays: mergedHolidays,
+        workdaysOnWeekend: new Set(mergedWorkdays),
+      });
+    } catch (err) {
+      console.error('获取假日数据失败:', err);
+    }
+  };
+  fetchHolidays();
+}, []);
 
 function formatDate(date: Date): string {
   const year = date.getFullYear();
@@ -98,7 +87,7 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function getDateStatus(date: Date): { 
+function getDateStatus(date: Date, holidayData: { holidays: Record<string, string>; workdaysOnWeekend: Set<string> }): { 
   isHoliday: boolean; 
   isWorkday: boolean; 
   holidayName: string | null;
@@ -108,12 +97,12 @@ function getDateStatus(date: Date): {
   const dayOfWeek = date.getDay();
   const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
   
-  const holidayName = HOLIDAYS[dateStr] || null;
+  const holidayName = holidayData.holidays[dateStr] || null;
   if (holidayName) {
     return { isHoliday: true, isWorkday: false, holidayName, isWeekend: false };
   }
   
-  if (WORKDAYS_ON_WEEKEND.has(dateStr)) {
+  if (holidayData.workdaysOnWeekend.has(dateStr)) {
     return { isHoliday: false, isWorkday: true, holidayName: '调休', isWeekend: false };
   }
   
@@ -415,7 +404,7 @@ export default function SchedulePage() {
           <div className="grid grid-cols-7 gap-1">
             {calendarDates.map((date, index) => {
               const dateStr = formatDate(date);
-              const dateStatus = getDateStatus(date);
+              const dateStatus = getDateStatus(date, holidayData);
               const todayClass = isToday(date);
               const { isFirst, month } = isFirstOfMonth(date);
               const dateSchedules = getSchedulesForDate(date);
@@ -503,7 +492,7 @@ export default function SchedulePage() {
         <div className="lg:hidden max-w-3xl mx-auto space-y-2">
           {calendarDates.map((date, index) => {
             const dateStr = formatDate(date);
-            const dateStatus = getDateStatus(date);
+            const dateStatus = getDateStatus(date, holidayData);
             const todayClass = isToday(date);
             const { isFirst, month } = isFirstOfMonth(date);
             const dateSchedules = getSchedulesForDate(date);
