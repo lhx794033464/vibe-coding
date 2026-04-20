@@ -198,7 +198,7 @@ export default function FlowChartPage() {
   }, [drawioReady, sendLoad, resetState]);
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-slate-50">
       {/* 顶部导航栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
         <Link href="/tools" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -211,19 +211,19 @@ export default function FlowChartPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧面板 */}
         {isLeftPanelOpen && (
-          <div className="w-96 bg-card border-r border-border flex flex-col shrink-0 transition-all duration-300 ease-in-out">
+          <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b border-slate-200">
               {/* 方向选择 */}
               <div className="mb-3">
-                <label className="block text-xs font-medium text-muted-foreground mb-2">布局方向</label>
+                <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDirection('vertical')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       direction === 'vertical'
                         ? 'bg-blue-500 text-white'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                     disabled={isGenerating}
                   >
@@ -235,7 +235,7 @@ export default function FlowChartPage() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       direction === 'horizontal'
                         ? 'bg-blue-500 text-white'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                     disabled={isGenerating}
                   >
@@ -245,7 +245,7 @@ export default function FlowChartPage() {
                 </div>
               </div>
 
-              <label className="block text-sm font-medium text-foreground mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 流程描述
               </label>
               <Textarea
@@ -291,7 +291,7 @@ export default function FlowChartPage() {
 
               {/* 上次用时显示 */}
               {lastGenTime > 0 && !isGenerating && (
-                <div className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                <div className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
                   上次生成用时: {lastGenTime.toFixed(1)} 秒
                 </div>
@@ -310,10 +310,10 @@ export default function FlowChartPage() {
             </div>
 
             {/* 编辑器状态 */}
-            <div className="p-3 border-t border-border bg-background">
+            <div className="p-3 border-t border-slate-200 bg-slate-50">
               <div className="flex items-center gap-2 text-xs">
                 <span className={`w-2 h-2 rounded-full ${drawioReady ? 'bg-green-500' : 'bg-amber-500'}`} />
-                <span className="text-muted-foreground">
+                <span className="text-slate-600">
                   {drawioReady ? '编辑器已就绪' : '编辑器加载中...'}
                 </span>
                 {isGenerating && (
@@ -327,7 +327,7 @@ export default function FlowChartPage() {
         {/* 右侧编辑器区域 */}
         <div className="flex-1 flex flex-col">
           {/* 工具栏 */}
-          <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between">
+          <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -342,7 +342,7 @@ export default function FlowChartPage() {
                   <PanelLeftOpen className="w-5 h-5" />
                 )}
               </Button>
-              <span className="text-sm font-medium text-foreground">draw.io 编辑器</span>
+              <span className="text-sm font-medium text-slate-700">draw.io 编辑器</span>
               {isGenerating && (
                 <span className="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
                   后台生成中...
@@ -363,7 +363,7 @@ export default function FlowChartPage() {
           </div>
 
           {/* draw.io iframe */}
-          <div className="flex-1 bg-muted">
+          <div className="flex-1 bg-slate-100">
             <iframe
               ref={iframeRef}
               src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=min"

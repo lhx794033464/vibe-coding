@@ -326,7 +326,7 @@ export default function DataTransferPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-slate-50">
       {/* 顶部导航栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
         <Link href="/tools" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">

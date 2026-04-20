@@ -375,7 +375,7 @@ export default function NewCustomerPage() {
               <CardTitle>表格导入</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
+              <p className="text-gray-500">
                 支持 Excel (.xlsx) 和 CSV 格式，请先下载模板查看字段格式。
               </p>
               

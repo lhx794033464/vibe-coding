@@ -437,15 +437,15 @@ export default function HomePage() {
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-slate-50 to-white">
       {/* 头部区域 */}
-      <div className="flex-shrink-0 pt-6 pb-4 px-6 border-b border-border">
+      <div className="flex-shrink-0 pt-6 pb-4 px-6 border-b border-slate-100">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full overflow-hidden shadow-lg shadow-blue-500/20 bg-white">
               <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-foreground">小蝶</h1>
-              <p className="text-xs text-muted-foreground">{greeting}</p>
+              <h1 className="text-lg font-semibold text-slate-800">小蝶</h1>
+              <p className="text-xs text-slate-500">{greeting}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -453,7 +453,7 @@ export default function HomePage() {
             {messages.length > 0 && (
               <button
                 onClick={handleClearChat}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                 title="清除对话"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -475,21 +475,21 @@ export default function HomePage() {
                   <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">
+                  <h2 className="text-xl font-semibold text-slate-800">
                     你好，我是小蝶
                   </h2>
                 </div>
               </div>
 
               {/* 语音提示 */}
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
                 <Mic className="w-4 h-4" />
                 <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
               </div>
 
               {/* 快捷问题 - 移动端隐藏 */}
               <div className="hidden sm:block space-y-4">
-                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 justify-center">
+                <p className="text-sm font-medium text-slate-500 flex items-center gap-2 justify-center">
                   <Search className="w-4 h-4" />
                   试试这些问题
                 </p>
@@ -498,14 +498,14 @@ export default function HomePage() {
                     <button
                       key={index}
                       onClick={() => handleQuickQuestion(q.text)}
-                      className="flex items-center gap-3 px-4 py-3.5 bg-white border border-border rounded-xl text-left hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md transition-all group"
+                      className="flex items-center gap-3 px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-left hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md transition-all group"
                     >
                       <span className="text-xl flex-shrink-0">{q.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-slate-700 truncate group-hover:text-blue-600 font-medium">
                           {q.text}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{q.category}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{q.category}</p>
                       </div>
                     </button>
                   ))}
@@ -544,9 +544,9 @@ export default function HomePage() {
                         )}
                       </div>
                     ) : (
-                      <div className={`max-w-full bg-white border border-border rounded-2xl rounded-tl-md px-5 py-4 shadow-sm ${message.isStreaming ? 'streaming-text' : ''}`}>
+                      <div className={`max-w-full bg-white border border-slate-200 rounded-2xl rounded-tl-md px-5 py-4 shadow-sm ${message.isStreaming ? 'streaming-text' : ''}`}>
                         {message.isStreaming && !message.content ? (
-                          <div className="flex items-center gap-2 text-muted-foreground">
+                          <div className="flex items-center gap-2 text-slate-400">
                             <div className="flex gap-1">
                               <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                               <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
@@ -573,10 +573,10 @@ export default function HomePage() {
       </div>
 
       {/* 输入区域 */}
-      <div className="flex-shrink-0 border-t border-border bg-white/80 backdrop-blur-sm">
+      <div className="flex-shrink-0 border-t border-slate-100 bg-white/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
           <form onSubmit={handleSubmit}>
-            <div className="flex items-end gap-3 bg-background border border-border rounded-2xl p-2 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all">
+            <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-2 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -592,7 +592,7 @@ export default function HomePage() {
                 onKeyDown={handleKeyDown}
                 placeholder={input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送..."}
                 rows={1}
-                className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-muted-foreground text-sm leading-relaxed"
+                className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
               />
               {/* 语音按钮 */}

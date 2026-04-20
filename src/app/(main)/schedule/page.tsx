@@ -420,8 +420,8 @@ export default function SchedulePage() {
                     (dateStatus.isHoliday || dateStatus.isWeekend)
                       ? 'bg-gray-100 border-gray-300'
                       : dateStatus.isWorkday
-                      ? 'bg-card border-border hover:border-blue-300'
-                      : 'bg-card border-border hover:border-blue-300'
+                      ? 'bg-white border-gray-200 hover:border-blue-300'
+                      : 'bg-white border-gray-200 hover:border-blue-300'
                   } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
                   onMouseEnter={() => setHoveredDate(dateStr)}
                   onMouseLeave={() => setHoveredDate(null)}
@@ -508,7 +508,7 @@ export default function SchedulePage() {
                 className={`flex items-center gap-4 p-4 border rounded-lg transition-colors cursor-pointer group ${
                   (dateStatus.isHoliday || dateStatus.isWeekend)
                     ? 'bg-gray-100 border-gray-300'
-                    : 'bg-card border-border hover:border-blue-300 hover:shadow-sm'
+                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
                 } ${todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
                 onClick={() => {
                   setSelectedDate(date);
@@ -702,7 +702,7 @@ export default function SchedulePage() {
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">或使用 API 创建</span>
+                  <span className="bg-white px-2 text-gray-500">或使用 API 创建</span>
                 </div>
               </div>
 
