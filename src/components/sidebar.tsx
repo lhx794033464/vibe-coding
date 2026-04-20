@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,6 +14,9 @@ import {
   Wrench,
   DollarSign,
   ShieldCheck,
+  Settings,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,12 +49,37 @@ const mobileNavItems = [
 
 export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { hasNotification } = useFlowChart();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user, logout } = useAuth();
   const [showToggleButton, setShowToggleButton] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 组合导航项
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    setShowUserMenu(false);
+    logout();
+    router.push('/login');
+  };
+
+  // 用户名显示
+  const displayName = user?.username || '未登录';
+  const displayRole = isAdmin ? '管理员' : '普通用户';
+  const avatarLetter = displayName.charAt(0).toUpperCase();
 
   return (
     <>
@@ -149,6 +177,59 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
               <ChevronLeft className="w-4 h-4" />
             )}
           </button>
+        </div>
+
+        {/* 个人设置区域 - 底部对齐 */}
+        <div className="relative border-t border-gray-200" ref={userMenuRef}>
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className={`w-full flex items-center transition-colors hover:bg-gray-50 ${
+              collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
+            }`}
+          >
+            {/* 头像 */}
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-sm font-medium">{avatarLetter}</span>
+            </div>
+            {/* 用户名和角色 */}
+            {!collapsed && (
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
+                <p className="text-xs text-gray-400 truncate">{displayRole}</p>
+              </div>
+            )}
+          </button>
+
+          {/* 弹出菜单 */}
+          {showUserMenu && (
+            <div className={`absolute bottom-full left-0 mb-1 ${
+              collapsed ? 'left-full ml-2 bottom-0 mb-0' : 'w-full'
+            } bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-[60] ${
+              collapsed ? 'w-48' : ''
+            }`}>
+              {/* 用户信息（折叠时显示） */}
+              {collapsed && (
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
+                  <p className="text-xs text-gray-400 truncate">{displayRole}</p>
+                </div>
+              )}
+              <button
+                onClick={() => { setShowUserMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <User className="w-4 h-4 text-gray-400" />
+                个人设置
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                退出登录
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
