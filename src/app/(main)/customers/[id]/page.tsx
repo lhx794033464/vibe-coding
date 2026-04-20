@@ -27,6 +27,7 @@ import {
 import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { getAuthHeader } from '@/services/authService';
 
 // 实施日志类型
 interface ImplementationLog {
@@ -80,6 +81,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     modules: [] as ProductModule[],
     industry: '',
     special_requirements: '',
+    delivery_consultant: '',
     status: '' as CustomerStatus,
   });
   const [generatingDoc, setGeneratingDoc] = useState(false);
@@ -100,7 +102,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     try {
       const response = await fetch(`/api/customers/${id}`, {
         headers: {
-
+          ...getAuthHeader(),
         },
       });
       const data = await response.json();
@@ -117,6 +119,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           modules: data.data.modules || [],
           industry: data.data.industry || '',
           special_requirements: data.data.special_requirements || '',
+          delivery_consultant: data.data.delivery_consultant || '',
           status: data.data.status,
         });
       }
@@ -167,7 +170,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           name: editForm.name,
@@ -180,6 +183,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           modules: editForm.modules.length > 0 ? editForm.modules : null,
           industry: editForm.industry || null,
           special_requirements: editForm.special_requirements || null,
+          delivery_consultant: editForm.delivery_consultant || null,
           status: editForm.status,
         }),
       });
@@ -590,6 +594,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     </div>
                   </div>
                   <div className="space-y-2">
+                  <div className="space-y-2">
+                    <Label>交付顾问</Label>
+                    <Input
+                      value={editForm.delivery_consultant}
+                      onChange={(e) => setEditForm({ ...editForm, delivery_consultant: e.target.value })}
+                      placeholder="请输入交付顾问"
+                    />
+                  </div>
                     <Label>特殊要求</Label>
                     <Textarea
                       value={editForm.special_requirements}
@@ -608,6 +620,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${parseFloat(customer.implementation_days).toFixed(2)} 天` : null} />
                     <InfoItem icon={<Calendar className="w-4 h-4" />} label="开通时间" value={customer.opened_at ? format(new Date(customer.opened_at), 'yyyy-MM-dd') : null} />
                     <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
+                    <InfoItem icon={<User className="w-4 h-4" />} label="交付顾问" value={(customer as any).delivery_consultant} />
                   </div>
                   {/* 产品版本和模块 */}
                   {(customer.version || (customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : String(customer.modules).length > 0))) && (

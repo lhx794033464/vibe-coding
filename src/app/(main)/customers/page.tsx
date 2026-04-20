@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { getAuthHeader } from '@/services/authService';
 
 // 扩展Customer类型，包含计算字段
 interface CustomerWithDays extends Customer {
@@ -38,7 +39,9 @@ export default function CustomersPage() {
         params.append('status', statusFilter);
       }
       
-      const response = await fetch(`/api/customers?${params.toString()}`);
+      const response = await fetch(`/api/customers?${params.toString()}`, {
+        headers: { ...getAuthHeader() },
+      });
       const data = await response.json();
       if (response.ok) {
         setCustomers(data.data || []);
@@ -186,6 +189,11 @@ export default function CustomersPage() {
                               已耗{formatDays(customer.consumed_days)} / 
                               余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
                             </span>
+                            {(customer as any).delivery_consultant && (
+                              <span className="text-xs whitespace-nowrap text-blue-600">
+                                顾问: {(customer as any).delivery_consultant}
+                              </span>
+                            )}
                             {customer.last_follow_up_at ? (
                               <span className="text-xs whitespace-nowrap">
                                 最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}

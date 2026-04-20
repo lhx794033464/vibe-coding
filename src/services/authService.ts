@@ -170,8 +170,8 @@ class AuthService {
         user_id: adminUser.id,
         username: adminUser.username,
         role: adminUser.role,
-        // Token格式: user_id:username:role:random_string
-        token: `${adminUser.id}:${adminUser.username}:${adminUser.role}:${generateId()}`,
+        // Token格式: Base64(user_id:username:role:random_string) — 使用Base64避免中文header问题
+        token: btoa(`${adminUser.id}:${adminUser.username}:${adminUser.role}:${generateId()}`),
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       };
       
@@ -189,8 +189,8 @@ class AuthService {
       user_id: user.id,
       username: user.username,
       role: user.role,
-      // Token格式: user_id:username:role:random_string
-      token: `${user.id}:${user.username}:${user.role}:${generateId()}`,
+      // Token格式: Base64(user_id:username:role:random_string)
+      token: btoa(`${user.id}:${user.username}:${user.role}:${generateId()}`),
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
     
@@ -240,3 +240,8 @@ class AuthService {
 }
 
 export const authService = new AuthService();
+
+// 便捷函数：获取认证header
+export function getAuthHeader(): Record<string, string> {
+  return authService.getAuthHeader();
+}

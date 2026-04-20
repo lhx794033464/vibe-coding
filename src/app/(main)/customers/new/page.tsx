@@ -13,9 +13,12 @@ import { ArrowLeft, Upload, Download } from 'lucide-react';
 import { CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { useAuth } from '@/contexts/AuthContext';
+import { getAuthHeader } from '@/services/authService';
 
 export default function NewCustomerPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
@@ -31,6 +34,7 @@ export default function NewCustomerPage() {
     industry: '',
     special_requirements: '',
     status: 'not_online' as CustomerStatus,
+    delivery_consultant: user?.username || '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,7 +50,7 @@ export default function NewCustomerPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           name: formData.name,
@@ -60,6 +64,7 @@ export default function NewCustomerPage() {
           industry: formData.industry || null,
           special_requirements: formData.special_requirements || null,
           status: formData.status,
+          delivery_consultant: formData.delivery_consultant || null,
         }),
       });
 
@@ -98,7 +103,7 @@ export default function NewCustomerPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-    
+              ...getAuthHeader(),
             },
             body: JSON.stringify({
               name: row['客户名称'] || row['name'] || '',
@@ -109,6 +114,7 @@ export default function NewCustomerPage() {
               opened_at: row['开通时间'] || row['opened_at'] || null,
               industry: row['行业背景'] || row['industry'] || null,
               special_requirements: row['特殊要求'] || row['special_requirements'] || null,
+              delivery_consultant: row['交付顾问'] || row['delivery_consultant'] || null,
               status: mapStatus(row['状态'] || row['status']),
             }),
           });
@@ -343,6 +349,16 @@ export default function NewCustomerPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="delivery_consultant">交付顾问</Label>
+                  <Input
+                    id="delivery_consultant"
+                    value={formData.delivery_consultant}
+                    onChange={(e) => setFormData({ ...formData, delivery_consultant: e.target.value })}
+                    placeholder="请输入交付顾问"
+                  />
                 </div>
 
                 <div className="space-y-2">

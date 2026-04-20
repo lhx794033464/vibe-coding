@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { customersStorage, implementationLogsStorage } from '@/lib/serverStorage';
-import { TimeRange, CustomerStatus } from '@/types';
+import { TimeRange } from '@/types';
+import { getCurrentUserInfo, isAdmin } from '@/lib/serverAuth';
 
 // 获取客户列表 - 本地存储模式
 export async function GET(request: NextRequest) {
@@ -12,11 +13,19 @@ export async function GET(request: NextRequest) {
 
     let customers = customersStorage.getAll();
 
+    // 数据权限过滤：普通用户只能看到交付顾问为自己的客户
+    const userInfo = await getCurrentUserInfo(request);
+    const userIsAdmin = await isAdmin(request);
+
+    if (!userIsAdmin && userInfo) {
+      customers = (customers as any[]).filter(c => c.delivery_consultant === userInfo.username);
+    }
+
     // 时间范围筛选
     if (timeRange && timeRange !== 'all') {
       const now = new Date();
       let startDate: Date;
-      
+
       if (timeRange === 'month') {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       } else if (timeRange === 'year') {
@@ -24,7 +33,7 @@ export async function GET(request: NextRequest) {
       } else {
         startDate = new Date(0);
       }
-      
+
       customers = (customers as any[]).filter(c => new Date(c.created_at) >= startDate);
     }
 
@@ -33,10 +42,14 @@ export async function GET(request: NextRequest) {
       customers = (customers as any[]).filter(c => c.status === status);
     }
 
-    // 搜索
+    // 搜索（支持客户名称、销售单号、行业、交付顾问）
     if (search) {
-      customers = (customers as any[]).filter(c => 
-        c.name?.toLowerCase().includes(search.toLowerCase())
+      const searchLower = search.toLowerCase();
+      customers = (customers as any[]).filter(c =>
+        c.name?.toLowerCase().includes(searchLower) ||
+        c.sales_order_no?.toLowerCase().includes(searchLower) ||
+        c.industry?.toLowerCase().includes(searchLower) ||
+        c.delivery_consultant?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -46,7 +59,7 @@ export async function GET(request: NextRequest) {
     // 获取所有实施日志，计算每个客户的已消耗人天
     const logs = implementationLogsStorage.getAll();
     const consumedDaysMap: Record<string, number> = {};
-    
+
     logs.forEach((record: any) => {
       const days = parseFloat(record.consumed_days || '0');
       if (!consumedDaysMap[record.customer_id]) {
@@ -73,23 +86,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { 
-      name, 
-      sales_order_no, 
-      implementation_order_no, 
-      implementation_fee, 
-      implementation_days, 
+    const {
+      name,
+      sales_order_no,
+      implementation_order_no,
+      implementation_fee,
+      implementation_days,
       opened_at,
       version,
       modules,
-      industry, 
-      special_requirements, 
-      status 
+      industry,
+      special_requirements,
+      status,
+      delivery_consultant,
     } = body;
 
     if (!name) {
       return NextResponse.json({ error: '客户名称不能为空' }, { status: 400 });
     }
+
+    // 获取当前用户信息，用于默认填充交付顾问
+    const userInfo = await getCurrentUserInfo(request);
 
     const data = customersStorage.create({
       name,
@@ -103,6 +120,7 @@ export async function POST(request: NextRequest) {
       industry: industry || null,
       special_requirements: special_requirements || null,
       status: status || 'not_online',
+      delivery_consultant: delivery_consultant || userInfo?.username || null,
     });
 
     return NextResponse.json({ data });

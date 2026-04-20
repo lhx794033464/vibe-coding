@@ -6,8 +6,13 @@ import { usersMemoryStorage } from './usersMemoryStorage';
 
 // 从请求中获取当前用户ID
 export async function getCurrentUserId(request: NextRequest): Promise<string | null> {
+  const userInfo = await getCurrentUserInfo(request);
+  return userInfo?.id || null;
+}
+
+// 从请求中获取当前用户信息（包含username和role）
+export async function getCurrentUserInfo(request: NextRequest): Promise<{ id: string; username: string; role: string } | null> {
   try {
-    // 从Authorization header中获取token
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return null;
@@ -15,16 +20,27 @@ export async function getCurrentUserId(request: NextRequest): Promise<string | n
 
     const token = authHeader.substring(7);
     
-    // 注意：这里简化处理，实际应该验证token
-    // 我们假设token格式是：user_id:username:role:random_string
-    const parts = token.split(':');
-    if (parts.length >= 1) {
-      return parts[0];
+    // 尝试Base64解码（新格式），如果失败则使用原始格式（兼容旧token）
+    let decoded: string;
+    try {
+      decoded = Buffer.from(token, 'base64').toString('utf-8');
+    } catch {
+      decoded = token;
+    }
+
+    // Token格式: user_id:username:role:random_string
+    const parts = decoded.split(':');
+    if (parts.length >= 3) {
+      return {
+        id: parts[0],
+        username: parts[1],
+        role: parts[2],
+      };
     }
     
     return null;
   } catch (error) {
-    console.error('获取当前用户失败:', error);
+    console.error('获取当前用户信息失败:', error);
     return null;
   }
 }
@@ -39,12 +55,6 @@ export async function getCurrentUser(request: NextRequest) {
 
 // 检查是否是管理员
 export async function isAdmin(request: NextRequest): Promise<boolean> {
-  const user = await getCurrentUser(request);
-  return user?.role === 'admin';
-}
-
-// 从cookie或其他方式获取会话（备用方案）
-export function getSessionFromRequest(request: NextRequest) {
-  // 这里可以扩展支持从cookie获取会话
-  return null;
+  const userInfo = await getCurrentUserInfo(request);
+  return userInfo?.role === 'admin';
 }
