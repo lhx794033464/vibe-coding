@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, ArrowRight, ArrowLeftRight, ExternalLink } from 'lucide-react';
+import { GitBranch, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 
@@ -26,14 +26,13 @@ const tools = [
     iconBg: 'bg-green-100',
   },
   {
-    id: 'external-tool',
-    title: '星辰交付助手',
-    description: '金蝶云星辰智能交付辅助工具',
-    icon: ExternalLink,
-    href: 'https://5hy57sc23v.coze.site',
+    id: 'data-transfer-2',
+    title: '导账工具',
+    description: '星空转星辰',
+    icon: ArrowLeftRight,
+    href: '/tools/data-transfer-xk',
     color: 'bg-amber-50 text-amber-600',
     iconBg: 'bg-amber-100',
-    external: true,
   },
 ];
 
@@ -54,45 +53,31 @@ export default function ToolsPage() {
           {tools.map((tool) => {
             const Icon = tool.icon;
             const showNotification = tool.id === 'flow-chart' && hasNotification;
-            const isExternal = 'external' in tool && tool.external;
-            const cardContent = (
-              <Card className="h-full cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-200 group rounded-2xl overflow-hidden relative">
-                {/* 气泡通知 - 卡片右上角 */}
-                {showNotification && (
-                  <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full z-10 animate-pulse" />
-                )}
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center">
-                    {/* 图标 */}
-                    <div className={`w-16 h-16 rounded-2xl ${tool.iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200 relative`}>
-                      <Icon className={`w-8 h-8 ${tool.color.replace('bg-', 'text-')}`} />
-                    </div>
-                    {/* 标题 */}
-                    <h3 className="font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
-                      {tool.title}
-                      {isExternal && <ExternalLink className="w-3.5 h-3.5 inline-block ml-1 opacity-50" />}
-                    </h3>
-                    {/* 描述 */}
-                    <p className="text-sm text-slate-500 line-clamp-2">
-                      {tool.description}
-                    </p>
-                    {/* 箭头 */}
-                    <div className="mt-4 flex items-center gap-1 text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {isExternal ? '打开应用' : '点击使用'}
-                      <ArrowRight className="w-3 h-3" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-
-            return isExternal ? (
-              <a key={tool.id} href={tool.href} target="_blank" rel="noopener noreferrer">
-                {cardContent}
-              </a>
-            ) : (
+            
+            return (
               <Link key={tool.id} href={tool.href}>
-                {cardContent}
+                <Card className="h-full cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-200 group rounded-2xl overflow-hidden relative">
+                  {/* 气泡通知 - 卡片右上角 */}
+                  {showNotification && (
+                    <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full z-10 animate-pulse" />
+                  )}
+                  <CardContent className="p-6">
+                    <div className="flex flex-col items-center text-center">
+                      {/* 图标 */}
+                      <div className={`w-16 h-16 rounded-2xl ${tool.iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200 relative`}>
+                        <Icon className={`w-8 h-8 ${tool.color.replace('bg-', 'text-')}`} />
+                      </div>
+                      {/* 标题 */}
+                      <h3 className="font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
+                        {tool.title}
+                      </h3>
+                      {/* 描述 */}
+                      <p className="text-sm text-slate-500 line-clamp-2">
+                        {tool.description}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
             );
           })}
