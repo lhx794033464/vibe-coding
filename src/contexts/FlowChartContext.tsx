@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useRef, useCallback, ReactNode, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 // localStorage 缓存键
 const FLOWCHART_CACHE_KEY = 'flowchart-cache-xml';
@@ -41,6 +42,7 @@ interface FlowChartContextType {
 const FlowChartContext = createContext<FlowChartContextType | undefined>(undefined);
 
 export function FlowChartProvider({ children }: { children: ReactNode }) {
+  const { getAuthHeader } = useAuth();
   // 生成状态
   const [isGenerating, setIsGenerating] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -135,7 +137,7 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/tools/flow-chart', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ 
           prompt: prompt.trim(),
           direction,
@@ -189,7 +191,7 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
       generatingRef.current = false;
       return null;
     }
-  }, [prompt, direction, startTimer, stopTimer, elapsedTime]);
+  }, [prompt, direction, startTimer, stopTimer, getAuthHeader]);
   
   // 重置状态
   const resetState = useCallback(() => {
