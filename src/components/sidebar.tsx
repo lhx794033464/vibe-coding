@@ -183,7 +183,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         <div className="relative border-t border-gray-200" ref={userMenuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className={`w-full flex items-center transition-colors hover:bg-gray-50 ${
+            className={`w-full flex items-center cursor-pointer transition-colors hover:bg-gray-50 ${
               collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
             }`}
           >
