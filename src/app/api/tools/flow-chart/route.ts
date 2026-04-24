@@ -186,6 +186,85 @@ function escapeXmlAttributes(xml: string): string {
 }
 
 /**
+ * 根据节点实际坐标动态调整画布尺寸
+ * 解决：长流程图节点超出默认 pageHeight(1100) 时，
+ * orthogonalEdgeStyle 连线路由计算失败导致边不显示的问题
+ */
+function adjustCanvasSize(xml: string): string {
+  // 提取所有节点的坐标
+  const cellPattern = /<mxCell\s([^>]*?)>([\s\S]*?)<\/mxCell>/g;
+  let match: RegExpExecArray | null;
+  let maxX = 0;
+  let maxY = 0;
+
+  while ((match = cellPattern.exec(xml)) !== null) {
+    const attrs = match[1];
+    const inner = match[2];
+
+    // 只处理 vertex 节点
+    if (!/vertex="1"/.test(attrs)) continue;
+
+    const xMatch = inner.match(/x="(\d+)"/);
+    const yMatch = inner.match(/y="(\d+)"/);
+    const wMatch = inner.match(/width="(\d+)"/);
+    const hMatch = inner.match(/height="(\d+)"/);
+
+    const x = xMatch ? parseInt(xMatch[1]) : 0;
+    const y = yMatch ? parseInt(yMatch[1]) : 0;
+    const w = wMatch ? parseInt(wMatch[1]) : 100;
+    const h = hMatch ? parseInt(hMatch[1]) : 60;
+
+    if (x + w > maxX) maxX = x + w;
+    if (y + h > maxY) maxY = y + h;
+  }
+
+  // 加上边距
+  const padding = 200;
+  const neededWidth = maxX + padding;
+  const neededHeight = maxY + padding;
+
+  // 默认页面尺寸
+  const defaultPageWidth = 850;
+  const defaultPageHeight = 1100;
+
+  const newPageWidth = Math.max(defaultPageWidth, neededWidth);
+  const newPageHeight = Math.max(defaultPageHeight, neededHeight);
+
+  // dx/dy 是编辑器视口偏移，设为页面尺寸的合理倍数以支持滚动查看
+  const newDx = Math.max(1200, newPageWidth);
+  const newDy = Math.max(800, newPageHeight);
+
+  // 替换 mxGraphModel 的属性
+  let adjusted = xml;
+
+  // 替换 pageHeight
+  adjusted = adjusted.replace(
+    /pageHeight="\d+"/,
+    `pageHeight="${newPageHeight}"`
+  );
+
+  // 替换 pageWidth
+  adjusted = adjusted.replace(
+    /pageWidth="\d+"/,
+    `pageWidth="${newPageWidth}"`
+  );
+
+  // 替换 dx
+  adjusted = adjusted.replace(
+    /dx="\d+"/,
+    `dx="${newDx}"`
+  );
+
+  // 替换 dy
+  adjusted = adjusted.replace(
+    /dy="\d+"/,
+    `dy="${newDy}"`
+  );
+
+  return adjusted;
+}
+
+/**
  * 验证和清理 XML
  */
 function validateAndCleanXml(xml: string): { xml: string | null; error: string | null } {
@@ -219,6 +298,9 @@ function validateAndCleanXml(xml: string): { xml: string | null; error: string |
   if (!cleaned.includes('mxCell')) {
     return { xml: null, error: 'XML 缺少 mxCell 元素' };
   }
+
+  // 根据节点坐标动态调整画布尺寸，修复长流程图连线不显示问题
+  cleaned = adjustCanvasSize(cleaned);
 
   return { xml: cleaned, error: null };
 }
