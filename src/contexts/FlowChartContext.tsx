@@ -12,7 +12,6 @@ interface FlowChartContextType {
   isGenerating: boolean;
   prompt: string;
   direction: 'vertical' | 'horizontal';
-  layoutStyle: 'regular' | 'swimlane';
   error: string;
   elapsedTime: number;
   lastGenTime: number;
@@ -24,7 +23,6 @@ interface FlowChartContextType {
   // 状态更新函数
   setPrompt: (prompt: string) => void;
   setDirection: (direction: 'vertical' | 'horizontal') => void;
-  setLayoutStyle: (style: 'regular' | 'swimlane') => void;
   setError: (error: string) => void;
   
   // 生成相关
@@ -49,7 +47,6 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [direction, setDirection] = useState<'vertical' | 'horizontal'>('vertical');
-  const [layoutStyle, setLayoutStyle] = useState<'regular' | 'swimlane'>('regular');
   const [error, setError] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [lastGenTime, setLastGenTime] = useState(0);
@@ -144,7 +141,6 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ 
           prompt: prompt.trim(),
           direction,
-          layoutStyle,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -195,7 +191,7 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
       generatingRef.current = false;
       return null;
     }
-  }, [prompt, direction, layoutStyle, startTimer, stopTimer, getAuthHeader]);
+  }, [prompt, direction, startTimer, stopTimer, getAuthHeader]);
   
   // 重置状态
   const resetState = useCallback(() => {
@@ -231,7 +227,6 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
       isGenerating,
       prompt,
       direction,
-      layoutStyle,
       error,
       elapsedTime,
       lastGenTime,
@@ -239,7 +234,6 @@ export function FlowChartProvider({ children }: { children: ReactNode }) {
       hasNotification,
       setPrompt,
       setDirection,
-      setLayoutStyle,
       setError,
       startGeneration,
       cancelGeneration,

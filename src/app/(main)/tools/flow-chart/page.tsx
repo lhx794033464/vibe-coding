@@ -15,8 +15,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Clock,
-  LayoutGrid,
-  Rows3,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
@@ -35,14 +33,12 @@ export default function FlowChartPage() {
     isGenerating,
     prompt,
     direction,
-    layoutStyle,
     error,
     elapsedTime,
     lastGenTime,
     generatedXml,
     setPrompt,
     setDirection,
-    setLayoutStyle,
     setError,
     startGeneration,
     resetState,
@@ -245,37 +241,6 @@ export default function FlowChartPage() {
                   >
                     <ArrowRight className="w-3.5 h-3.5" />
                     横向
-                  </button>
-                </div>
-              </div>
-
-              {/* 布局风格选择 */}
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-slate-600 mb-2">布局风格</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setLayoutStyle('regular')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      layoutStyle === 'regular'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    disabled={isGenerating}
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                    常规
-                  </button>
-                  <button
-                    onClick={() => setLayoutStyle('swimlane')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      layoutStyle === 'swimlane'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    disabled={isGenerating}
-                  >
-                    <Rows3 className="w-3.5 h-3.5" />
-                    泳道图
                   </button>
                 </div>
               </div>
