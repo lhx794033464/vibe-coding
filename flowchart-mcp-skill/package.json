@@ -1,0 +1,25 @@
+{
+  "name": "flowchart-mcp-skill",
+  "version": "1.0.0",
+  "description": "业务流程图生成 MCP 技能 - 金蝶云星辰业务流程专家，通过 AI 生成 draw.io/mxGraphModel 格式流程图 XML",
+  "main": "dist/index.js",
+  "bin": {
+    "flowchart-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs --dts --clean",
+    "start": "node dist/index.js",
+    "dev": "tsup src/index.ts --format cjs --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "coze-coding-dev-sdk": "^0.7.17"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["mcp", "flowchart", "draw.io", "mxgraph", "kingdee"],
+  "license": "MIT"
+}
