@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * 业务流程图生成 MCP 技能
  *
@@ -27,8 +25,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod/v3';
-import { callLLMStream, PRIMARY_MODEL, FALLBACK_MODEL } from './llm.js';
-import type { Message } from 'coze-coding-dev-sdk';
+import { callLLMStream, PRIMARY_MODEL, FALLBACK_MODEL, type Message } from './llm.js';
 import { extractMxGraphModel, validateAndCleanXml } from './xml-processor.js';
 import { buildSystemPrompt, buildCompactPrompt, KINGDEE_DOMAIN, type Direction, type DomainConfig } from './prompts.js';
 

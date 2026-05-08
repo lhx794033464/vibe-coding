@@ -14,40 +14,51 @@
 
 ## 在 WorkBuddy 中安装
 
-### 方式一：本地安装（推荐）
+### 前置条件
 
-1. 构建项目：
-```bash
-cd flowchart-mcp-skill
-pnpm install
-pnpm build
-```
+1. 安装 Node.js 18+（[下载地址](https://nodejs.org/)）
+2. 获取 LLM API 密钥（支持 Coze/阿里云百炼/火山引擎/任意 OpenAI 兼容 API）
 
+### 方式一：单文件运行（推荐，零依赖）
+
+1. 下载 `dist/flowchart-mcp.js` 单文件到本地任意目录
 2. 在 WorkBuddy 的 MCP 配置中添加：
+
 ```json
 {
   "mcpServers": {
     "flowchart": {
       "command": "node",
-      "args": ["/绝对路径/flowchart-mcp-skill/dist/index.js"]
+      "args": ["C:\\path\\to\\flowchart-mcp.js"],
+      "env": {
+        "FLOWCHART_LLM_BASE_URL": "https://ark.cn-beijing.volces.com/api/v3",
+        "FLOWCHART_LLM_API_KEY": "your-api-key-here"
+      }
     }
   }
 }
 ```
 
-### 方式二：npx 运行
+> Windows 路径请使用双反斜杠 `\\` 或正斜杠 `/`
 
-在 WorkBuddy 的 MCP 配置中添加：
-```json
-{
-  "mcpServers": {
-    "flowchart": {
-      "command": "npx",
-      "args": ["flowchart-mcp-skill"]
-    }
-  }
-}
+### 方式二：源码运行
+
+```bash
+git clone <repository>
+cd flowchart-mcp-skill
+pnpm install
+bash build.sh
+# 然后参考方式一配置，路径指向 dist/flowchart-mcp.js
 ```
+
+### 环境变量说明
+
+| 变量名 | 必填 | 说明 | 示例 |
+|--------|------|------|------|
+| `FLOWCHART_LLM_BASE_URL` | 是 | LLM API 基础地址 | `https://ark.cn-beijing.volces.com/api/v3` |
+| `FLOWCHART_LLM_API_KEY` | 是 | API 密钥 | `your-api-key` |
+| `FLOWCHART_LLM_MODEL` | 否 | 默认模型 ID | `doubao-seed-2-0-pro-260215` |
+| `FLOWCHART_LLM_FALLBACK` | 否 | 降级模型 ID | `deepseek-v3-2-251201` |
 
 ## 可用工具
 
