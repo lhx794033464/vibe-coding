@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { schedulesStorage, customersStorage } from '@/lib/serverStorage';
-import { getVisibleCustomerIds, filterByCustomerAccess, getCurrentUserInfo, isAdmin } from '@/lib/serverAuth';
+import { dbGetSchedules, dbCreateSchedule, dbGetCustomers } from '@/services/dbService';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 获取日程列表
 export async function GET(request: NextRequest) {
@@ -9,25 +9,20 @@ export async function GET(request: NextRequest) {
     const start = searchParams.get('start');
     const end = searchParams.get('end');
 
-    let schedules = schedulesStorage.getAll();
+    // 数据隔离：获取当前用户信息
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
 
-    // 数据权限过滤
-    const visibleCustomerIds = await getVisibleCustomerIds(request);
-    schedules = filterByCustomerAccess(schedules, visibleCustomerIds);
-
-    // 按日期范围筛选
-    if (start && end) {
-      schedules = schedules.filter((s: any) => {
-        const dateStr = s.schedule_date || s.start_time;
-        if (!dateStr) return false;
-        const eventDate = new Date(dateStr);
-        return eventDate >= new Date(start) && eventDate <= new Date(end);
-      });
-    }
+    const schedules = await dbGetSchedules({
+      userId: userInfo?.id,
+      isAdmin,
+      startDate: start || undefined,
+      endDate: end || undefined,
+    });
 
     // 关联客户名称
-    const customers = customersStorage.getAll();
-    const customerMap = new Map(customers?.map((c: any) => [c.id, c.name]) || []);
+    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customerMap = new Map(customers.map((c: any) => [c.id, c.name]));
 
     const enrichedSchedules = schedules.map((s: any) => ({
       ...s,
@@ -45,10 +40,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const schedule = schedulesStorage.create({
+    const userInfo = await getCurrentUserInfo(request);
+
+    const schedule = await dbCreateSchedule({
       customer_id: body.customerId || body.customer_id || null,
       schedule_date: body.scheduleDate || body.schedule_date || new Date().toISOString(),
       notes: body.notes || '',
+      user_id: userInfo?.id || null,
     });
 
     return NextResponse.json({ schedule });

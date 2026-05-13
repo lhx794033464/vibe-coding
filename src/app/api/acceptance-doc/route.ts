@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, implementationLogsStorage } from '@/lib/serverStorage';
+import { dbGetCustomerById, dbGetImplementationLogs } from '@/services/dbService';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import {
   Document,
@@ -38,21 +38,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取客户信息
-    const customer = customersStorage.getById(customer_id);
+    const customer = await dbGetCustomerById(customer_id);
     if (!customer) {
       return NextResponse.json({ error: '客户不存在' }, { status: 404 });
     }
 
     // 非管理员只能生成自己负责的客户的验收单
-    if (!isAdmin && (customer as any).delivery_consultant !== userInfo?.username) {
+    if (!isAdmin && (customer as any).user_id !== userInfo?.id) {
       return NextResponse.json({ error: '无权操作此客户' }, { status: 403 });
     }
 
     // 获取实施日志
-    const allLogs = implementationLogsStorage.getAll();
-    const implementationLogs = (allLogs as any[])
-      ?.filter((log: any) => log.customer_id === customer_id)
-      ?.sort((a: any, b: any) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime()) || [];
+    const implementationLogs = (await dbGetImplementationLogs({ customerId: customer_id }))
+      .sort((a: any, b: any) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime());
 
     // 格式化版本名称
     const versionName = (customer as any).version ? (VERSION_CONFIG[(customer as any).version as ProductVersion]?.label || (customer as any).version) : '-';

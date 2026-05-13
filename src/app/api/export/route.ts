@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage } from '@/lib/serverStorage';
+import { dbGetCustomers } from '@/services/dbService';
 import { VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
-// 导出客户数据 - 本地存储模式
+// 导出客户数据
 export async function GET(request: NextRequest) {
   try {
-    // 数据隔离：根据用户权限过滤客户
     const userInfo = await getCurrentUserInfo(request);
     const isAdmin = userInfo?.role === 'admin';
 
-    // 获取客户（根据权限过滤）
-    const allCustomers = customersStorage.getAll();
-    const customers = isAdmin
-      ? allCustomers
-      : (allCustomers as any[])?.filter((c: any) => c.delivery_consultant === userInfo?.username) || [];
+    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
 
-    // 状态映射
     const statusMap: Record<string, string> = {
       'not_online': '未上线',
       'online_not_accepted': '已上线未验收',
@@ -28,8 +22,7 @@ export async function GET(request: NextRequest) {
       'partially_online': '部分上线',
     };
 
-    // 转换数据格式
-    const exportData = (customers as any[])?.map(c => ({
+    const exportData = customers.map((c: any) => ({
       '客户名称': c.name,
       '销售订单号': c.sales_order_no || '',
       '实施订单号': c.implementation_order_no || '',
@@ -43,14 +36,12 @@ export async function GET(request: NextRequest) {
       '状态': statusMap[c.status] || c.status,
       '最后跟进时间': c.last_follow_up_at || '',
       '创建时间': c.created_at,
-    })) || [];
+    }));
 
-    // 创建工作簿
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '客户数据');
 
-    // 生成 buffer
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     return new NextResponse(buffer, {

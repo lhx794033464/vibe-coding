@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { followUpsStorage } from '@/lib/serverStorage';
-import { getVisibleCustomerIds, filterByCustomerAccess } from '@/lib/serverAuth';
+import { dbGetFollowUps, dbCreateFollowUp } from '@/services/dbService';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 获取跟进记录列表
 export async function GET(request: NextRequest) {
@@ -8,19 +8,15 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customerId');
 
-    let followUps = followUpsStorage.getAll();
+    // 数据隔离
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
 
-    // 数据权限过滤
-    const visibleCustomerIds = await getVisibleCustomerIds(request);
-    followUps = filterByCustomerAccess(followUps, visibleCustomerIds);
-
-    // 按客户筛选
-    if (customerId) {
-      followUps = followUps.filter((f: any) => f.customer_id === customerId);
-    }
-
-    // 排序：按日期倒序
-    followUps.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const followUps = await dbGetFollowUps({
+      customerId: customerId || undefined,
+      userId: userInfo?.id,
+      isAdmin,
+    });
 
     return NextResponse.json({ data: followUps });
   } catch (error) {
@@ -39,12 +35,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '客户ID和跟进内容不能为空' }, { status: 400 });
     }
 
-    const data = followUpsStorage.create({
+    const userInfo = await getCurrentUserInfo(request);
+
+    const data = await dbCreateFollowUp({
       customer_id,
       content,
       contact_name: contact_name || null,
       contact_phone: contact_phone || null,
       follow_up_date: follow_up_date || new Date().toISOString().split('T')[0],
+      user_id: userInfo?.id || null,
     });
 
     return NextResponse.json({ data });

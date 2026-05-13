@@ -1,14 +1,22 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { authService, User } from '@/services/authService';
+
+export interface User {
+  id: string;
+  username: string;
+  email?: string;
+  role: string;
+  display_name?: string;
+}
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   loading: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (username: string, password: string, email?: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   getAuthHeader: () => Record<string, string>;
 }
@@ -21,48 +29,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 更新认证状态
-  const updateAuthState = async () => {
-    const authenticated = authService.isAuthenticated();
-    const admin = authService.isAdmin();
-    const currentUser = authenticated ? await authService.getCurrentUser() : null;
-    
-    setIsAuthenticated(authenticated);
-    setIsAdmin(admin);
-    setUser(currentUser);
+  const updateAuthState = () => {
+    try {
+      const sessionStr = localStorage.getItem('auth_session');
+      if (!sessionStr) {
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+        return;
+      }
+      const session = JSON.parse(sessionStr);
+      if (session?.token && session?.user) {
+        setUser(session.user);
+        setIsAuthenticated(true);
+        setIsAdmin(session.user.role === 'admin');
+      } else {
+        localStorage.removeItem('auth_session');
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+      }
+    } catch {
+      localStorage.removeItem('auth_session');
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+    }
   };
 
   useEffect(() => {
-    // 初始化认证状态
-    const initAuth = async () => {
-      try {
-        await updateAuthState();
-      } catch (error) {
-        console.error('初始化认证失败:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    initAuth();
+    updateAuthState();
+    setLoading(false);
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const session = await authService.authenticate(username, password);
-      if (session) {
-        await updateAuthState();
-        return true;
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        localStorage.setItem('auth_session', JSON.stringify({
+          token: data.token,
+          user: data.user,
+        }));
+        updateAuthState();
+        return { success: true };
       }
-      return false;
+
+      return { success: false, error: data.error || '登录失败' };
     } catch (error) {
-        console.error('登录失败:', error);
-        return false;
+      console.error('登录失败:', error);
+      return { success: false, error: '网络错误，请稍后重试' };
+    }
+  };
+
+  const register = async (username: string, password: string, email?: string, displayName?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, email, display_name: displayName }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // 注册成功后自动登录
+        localStorage.setItem('auth_session', JSON.stringify({
+          token: data.token,
+          user: data.user,
+        }));
+        updateAuthState();
+        return { success: true };
+      }
+
+      return { success: false, error: data.error || '注册失败' };
+    } catch (error) {
+      console.error('注册失败:', error);
+      return { success: false, error: '网络错误，请稍后重试' };
     }
   };
 
   const logout = () => {
-    authService.logout();
+    localStorage.removeItem('auth_session');
     setUser(null);
     setIsAuthenticated(false);
     setIsAdmin(false);
@@ -87,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       loading,
       login,
+      register,
       logout,
       getAuthHeader,
     }}>

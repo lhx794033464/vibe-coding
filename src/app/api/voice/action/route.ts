@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, schedulesStorage, implementationLogsStorage } from '@/lib/serverStorage';
+import { dbGetCustomers, dbGetSchedules, dbCreateSchedule, dbCreateImplementationLog } from '@/services/dbService';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
-// 语音操作解析API - 本地模式
+// 语音操作解析API
 export async function POST(request: NextRequest) {
   console.log('=== 语音操作API开始 ===');
   try {
-    // 数据隔离：根据用户权限过滤客户
     const userInfo = await getCurrentUserInfo(request);
     const isAdmin = userInfo?.role === 'admin';
 
@@ -20,11 +19,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取用户可见的客户列表
-    const allCustomers = customersStorage.getAll();
-    const customers = isAdmin
-      ? allCustomers
-      : (allCustomers as any[])?.filter((c: any) => c.delivery_consultant === userInfo?.username) || [];
-    const customerList = customers?.map((c: any) => c.name) || [];
+    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customerList = customers.map((c: any) => c.name);
     const customerListStr = customerList.length > 0 ? customerList.join('、') : '暂无客户';
 
     // 获取当前日期信息
@@ -97,18 +93,16 @@ ${customerListStr}
       { role: 'user', content: text }
     ];
 
-    const llmResponse = await llmClient.invoke(messages, { 
+    const llmResponse = await llmClient.invoke(messages, {
       model: 'deepseek-v3-2-251201',
-      temperature: 0.1 
+      temperature: 0.1
     });
 
     const responseText = llmResponse.content || '';
     console.log('LLM响应:', responseText);
-    
-    // 解析JSON
+
     let intent;
     try {
-      // 尝试提取JSON部分
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         intent = JSON.parse(jsonMatch[0]);
@@ -119,32 +113,25 @@ ${customerListStr}
       intent = { action: 'general', params: {}, response: responseText };
     }
 
-    console.log('解析的意图:', intent);
+    if (!intent.params) intent.params = {};
 
-    // 确保params存在
-    if (!intent.params) {
-      intent.params = {};
-    }
-
-    // 执行操作
-    let result: { success: boolean; data?: unknown; message: string } = { 
-      success: false, 
-      message: intent.response || '操作失败' 
+    let result: { success: boolean; data?: unknown; message: string } = {
+      success: false,
+      message: intent.response || '操作失败'
     };
 
     switch (intent.action) {
       case 'create_schedule': {
         const { customer_name, date, notes = '' } = intent.params || {};
-        
+
         if (!customer_name) {
           result = { success: false, message: '请指定客户名称' };
           break;
         }
 
-        // 查找客户（先精确匹配，再模糊匹配）
-        let matchedCustomer = customers?.find((c: any) => c.name === customer_name);
+        let matchedCustomer = customers.find((c: any) => c.name === customer_name);
         if (!matchedCustomer) {
-          matchedCustomer = customers?.find((c: any) => 
+          matchedCustomer = customers.find((c: any) =>
             c.name.includes(customer_name) || customer_name.includes(c.name)
           );
         }
@@ -154,32 +141,32 @@ ${customerListStr}
           break;
         }
 
-        const schedule = schedulesStorage.create({
+        const schedule = await dbCreateSchedule({
           customer_id: matchedCustomer.id,
           schedule_date: date ? `${date}T00:00:00` : new Date().toISOString(),
-          notes: notes,
+          notes,
+          user_id: userInfo?.id || null,
         });
 
-        result = { 
-          success: true, 
-          data: schedule, 
-          message: `已创建日程：${matchedCustomer.name}${date ? `（${date}）` : ''}` 
+        result = {
+          success: true,
+          data: schedule,
+          message: `已创建日程：${matchedCustomer.name}${date ? `（${date}）` : ''}`
         };
         break;
       }
 
       case 'create_log': {
         const { customer_name, consumed_days, content: logContent } = intent.params || {};
-        
+
         if (!customer_name || !consumed_days || !logContent) {
           result = { success: false, message: '请提供客户名称、消耗人天和实施纪要' };
           break;
         }
 
-        // 查找客户（先精确匹配，再模糊匹配）
-        let matchedCustomer = customers?.find((c: any) => c.name === customer_name);
+        let matchedCustomer = customers.find((c: any) => c.name === customer_name);
         if (!matchedCustomer) {
-          matchedCustomer = customers?.find((c: any) => 
+          matchedCustomer = customers.find((c: any) =>
             c.name.includes(customer_name) || customer_name.includes(c.name)
           );
         }
@@ -189,37 +176,37 @@ ${customerListStr}
           break;
         }
 
-        const log = implementationLogsStorage.create({
+        const log = await dbCreateImplementationLog({
           customer_id: matchedCustomer.id,
           log_date: new Date().toISOString().split('T')[0],
           consumed_days: String(consumed_days),
           content: logContent,
+          user_id: userInfo?.id || null,
         });
 
-        result = { 
-          success: true, 
-          data: log, 
-          message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${logContent}` 
+        result = {
+          success: true,
+          data: log,
+          message: `已记录实施日志：${matchedCustomer.name}，消耗${consumed_days}天，${logContent}`
         };
         break;
       }
 
       case 'query_customer': {
         const { customer_name } = intent.params || {};
-        
         let queryCustomers = customers;
 
         if (customer_name) {
-          queryCustomers = customers?.filter((c: any) => 
+          queryCustomers = customers.filter((c: any) =>
             c.name.toLowerCase().includes(customer_name.toLowerCase())
           );
         }
 
-        const customerListResult = queryCustomers?.map((c: any) => c.name).join('、') || '暂无客户';
-        result = { 
-          success: true, 
-          data: queryCustomers, 
-          message: customer_name ? `找到客户：${customerListResult}` : `客户列表：${customerListResult}` 
+        const customerListResult = queryCustomers.map((c: any) => c.name).join('、') || '暂无客户';
+        result = {
+          success: true,
+          data: queryCustomers,
+          message: customer_name ? `找到客户：${customerListResult}` : `客户列表：${customerListResult}`
         };
         break;
       }
@@ -227,19 +214,19 @@ ${customerListStr}
       case 'query_schedule': {
         const { date: queryDate } = intent.params || {};
         const targetDate = queryDate || todayDate;
-        const allSchedules = schedulesStorage.getAll();
-        const daySchedules = allSchedules?.filter((s: any) => {
+
+        const allSchedules = await dbGetSchedules({ userId: userInfo?.id, isAdmin });
+        const daySchedules = allSchedules.filter((s: any) => {
           const dateStr = s.schedule_date || s.start_time;
           if (!dateStr) return false;
           return dateStr.startsWith(targetDate);
         });
 
-        if (!daySchedules || daySchedules.length === 0) {
+        if (daySchedules.length === 0) {
           result = { success: true, data: [], message: `${targetDate}没有日程安排` };
         } else {
-          // 获取关联客户名称
           const customerMap: Record<string, string> = {};
-          customers?.forEach((c: any) => {
+          customers.forEach((c: any) => {
             customerMap[c.id] = c.name;
           });
 
@@ -247,11 +234,11 @@ ${customerListStr}
             const customerName = s.customer_id ? customerMap[s.customer_id] : null;
             return `${customerName || '未知客户'}${s.notes ? `（${s.notes}）` : ''}`;
           }).join('、');
-          
-          result = { 
-            success: true, 
-            data: daySchedules, 
-            message: `${targetDate}的日程（${daySchedules.length}项）：${scheduleList}` 
+
+          result = {
+            success: true,
+            data: daySchedules,
+            message: `${targetDate}的日程（${daySchedules.length}项）：${scheduleList}`
           };
         }
         break;

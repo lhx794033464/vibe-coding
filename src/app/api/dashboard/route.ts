@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage } from '@/lib/serverStorage';
-import { TimeRange, CustomerStatus } from '@/types';
+import { dbGetCustomers } from '@/services/dbService';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
-// 获取看板统计数据 - 本地存储模式
+// 获取看板统计数据
 export async function GET(request: NextRequest) {
   try {
-    // 数据隔离：获取当前用户信息
     const userInfo = await getCurrentUserInfo(request);
     const isAdmin = userInfo?.role === 'admin';
 
@@ -17,7 +15,7 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     let startDate: Date | null = null;
     let endDate: Date | null = null;
-    
+
     switch (timeRange) {
       case 'month':
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -39,67 +37,52 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // 获取所有客户（根据权限过滤）
-    const allCustomers = customersStorage.getAll();
-    const visibleCustomers = isAdmin
-      ? allCustomers
-      : (allCustomers as any[])?.filter((c: any) => c.delivery_consultant === userInfo?.username) || [];
+    // 获取客户（根据权限过滤）
+    const visibleCustomers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
 
-    // 根据开通时间（opened_at）筛选客户
-    let customers = visibleCustomers?.filter((c: any) => c.opened_at) || [];
-    
+    // 根据开通时间筛选客户
+    let customers = visibleCustomers.filter((c: any) => c.opened_at);
+
     if (startDate && endDate) {
       customers = customers.filter((c: any) => {
         const openedAt = new Date(c.opened_at);
-        return openedAt >= startDate && openedAt < endDate;
+        return openedAt >= startDate! && openedAt < endDate!;
       });
     }
 
-    // 计算当前统计数据（基于开通时间筛选后的客户）
     const totalCustomers = customers.length;
-    
-    // 已上线：accepted, online_not_accepted, partially_online
+
     const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
     const onlineCustomers = customers.filter((c: any) => onlineStatuses.includes(c.status)).length;
-    
-    // 已验收
     const acceptedCustomers = customers.filter((c: any) => c.status === 'accepted').length;
 
-    // 上线率和验收率
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100) : 0;
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100) : 0;
 
-    // 计算上月数据（上期）用于变动对比
-    // 上月：上月1日到上月末
+    // 上月数据
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
-    
-    // 上月开通的客户（同样基于权限过滤后的数据）
-    const lastMonthCustomers = visibleCustomers?.filter((c: any) => {
+
+    const lastMonthCustomers = visibleCustomers.filter((c: any) => {
       if (!c.opened_at) return false;
       const openedAt = new Date(c.opened_at);
       return openedAt >= lastMonthStart && openedAt < lastMonthEnd;
-    }) || [];
-    
+    });
+
     const lastMonthTotalCustomers = lastMonthCustomers.length;
     const lastMonthOnlineCustomers = lastMonthCustomers.filter((c: any) => onlineStatuses.includes(c.status)).length;
     const lastMonthAcceptedCustomers = lastMonthCustomers.filter((c: any) => c.status === 'accepted').length;
-    
-    // 上月的上线率和验收率
+
     const lastMonthOnlineRate = lastMonthTotalCustomers > 0 ? (lastMonthOnlineCustomers / lastMonthTotalCustomers * 100) : 0;
     const lastMonthAcceptanceRate = lastMonthTotalCustomers > 0 ? (lastMonthAcceptedCustomers / lastMonthTotalCustomers * 100) : 0;
-    
-    // 计算变动
-    // 客户数变动百分比
-    const totalCustomersChange = lastMonthTotalCustomers > 0 
-      ? ((totalCustomers - lastMonthTotalCustomers) / lastMonthTotalCustomers * 100) 
+
+    const totalCustomersChange = lastMonthTotalCustomers > 0
+      ? ((totalCustomers - lastMonthTotalCustomers) / lastMonthTotalCustomers * 100)
       : (totalCustomers > 0 ? 100 : 0);
-    
-    // 上线率和验收率变动（直接相减）
+
     const onlineRateChange = onlineRate - lastMonthOnlineRate;
     const acceptanceRateChange = acceptanceRate - lastMonthAcceptanceRate;
 
-    // 状态分布（基于筛选后的客户）
     const statusDistribution: Record<string, number> = {
       not_online: 0,
       online_not_accepted: 0,
@@ -109,7 +92,7 @@ export async function GET(request: NextRequest) {
       partially_online: 0,
     };
 
-    customers?.forEach((c: any) => {
+    customers.forEach((c: any) => {
       if (statusDistribution.hasOwnProperty(c.status)) {
         statusDistribution[c.status]++;
       }
@@ -121,11 +104,9 @@ export async function GET(request: NextRequest) {
       acceptedCustomers,
       onlineRate: Math.round(onlineRate * 10) / 10,
       acceptanceRate: Math.round(acceptanceRate * 10) / 10,
-      // 上期数据
       lastMonthTotalCustomers,
       lastMonthOnlineRate: Math.round(lastMonthOnlineRate * 10) / 10,
       lastMonthAcceptanceRate: Math.round(lastMonthAcceptanceRate * 10) / 10,
-      // 变动数据
       totalCustomersChange: Math.round(totalCustomersChange * 10) / 10,
       onlineRateChange: Math.round(onlineRateChange * 10) / 10,
       acceptanceRateChange: Math.round(acceptanceRateChange * 10) / 10,

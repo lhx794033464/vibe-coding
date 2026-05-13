@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { customersStorage, commissionsStorage } from '@/lib/serverStorage';
+import { dbGetCustomers, dbGetCommissionRecords, dbCreateCommissionRecord, dbUpdateCommissionRecord, dbDeleteCommissionRecord } from '@/services/dbService';
 import { MODULE_CONFIG, COMMISSION_CONFIG, ProductModule } from '@/types';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
-import { getVisibleCustomerIds, filterByCustomerAccess, getCurrentUserInfo, isAdmin } from '@/lib/serverAuth';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
-/**
- * 计算单个客户的提成
- */
 function calculateCommission(
   implementationFee: number,
   implementationDays: number,
@@ -20,15 +17,14 @@ function calculateCommission(
 } {
   const standardFee = implementationDays * COMMISSION_CONFIG.STANDARD_DAILY_RATE;
   const feeRatio = standardFee > 0 ? implementationFee / standardFee : 0;
-  
-  // 实施费成交价 > 50%
+
   if (feeRatio > 0.5) {
     const moduleCount = modules.length;
     const isSingleModule = moduleCount === 1;
-    const commissionRate = isSingleModule 
-      ? COMMISSION_CONFIG.SINGLE_MODULE_RATE 
+    const commissionRate = isSingleModule
+      ? COMMISSION_CONFIG.SINGLE_MODULE_RATE
       : COMMISSION_CONFIG.MULTI_MODULE_RATE;
-    
+
     return {
       commissionType: 'percentage',
       totalCommission: implementationFee * commissionRate,
@@ -36,11 +32,8 @@ function calculateCommission(
       standardFee,
       feeRatio,
     };
-  } 
-  // 实施费成交价 ≤ 50%
-  else {
+  } else {
     let totalCommission = 0;
-    
     for (const module of modules) {
       if (module === 'finance') {
         totalCommission += implementationDays * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION;
@@ -48,7 +41,6 @@ function calculateCommission(
         totalCommission += implementationDays * COMMISSION_CONFIG.OTHER_MODULE_DAILY_COMMISSION;
       }
     }
-    
     return {
       commissionType: 'daily',
       totalCommission,
@@ -58,34 +50,33 @@ function calculateCommission(
   }
 }
 
-/**
- * 获取提成列表 - 本地存储模式
- * GET /api/commissions
- */
+// 获取提成列表
 export async function GET(request: NextRequest) {
   try {
-    // 获取月份参数
     const searchParams = request.nextUrl.searchParams;
     const monthParam = searchParams.get('month') || format(new Date(), 'yyyy-MM');
     const monthStart = startOfMonth(new Date(monthParam + '-01'));
     const monthEnd = endOfMonth(monthStart);
 
-    // 获取所有客户
-    const allCustomers = customersStorage.getAll();
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
 
-    // 获取当月验收完成的客户
+    // 获取所有客户（根据权限过滤）
+    const allCustomers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+
+    // 当月验收完成的客户
     const acceptedCustomers = allCustomers.filter((c: any) => {
       if (c.status !== 'accepted') return false;
       const updatedAt = new Date(c.updated_at);
       return updatedAt >= monthStart && updatedAt <= monthEnd;
     });
 
-    // 获取设置下次计提月份为当前月份的客户
-    const scheduledCustomers = allCustomers.filter((c: any) => 
+    // 设置下次计提月份为当前月份的客户
+    const scheduledCustomers = allCustomers.filter((c: any) =>
       c.status === 'accepted' && c.next_commission_month === monthParam
     );
 
-    // 合并客户列表（去重）
+    // 合并去重
     const customerMap = new Map();
     [...acceptedCustomers, ...scheduledCustomers].forEach((c: any) => {
       if (!customerMap.has(c.id)) {
@@ -94,33 +85,22 @@ export async function GET(request: NextRequest) {
     });
     const customers = Array.from(customerMap.values());
 
-    // 数据权限过滤
-    const visibleCustomerIds = await getVisibleCustomerIds(request);
-    const filteredCustomers = visibleCustomerIds === null
-      ? customers
-      : customers.filter((c: any) => visibleCustomerIds.includes(c.id));
+    // 获取提成记录（根据权限过滤）
+    const commissions = await dbGetCommissionRecords({ userId: userInfo?.id, isAdmin });
+    const commissionMap = new Map(commissions.map((c: any) => [c.customer_id, c]));
 
-    // 获取已有的提成记录
-    const commissions = commissionsStorage.getAll();
-    const filteredCommissions = filterByCustomerAccess(commissions, visibleCustomerIds);
-    const commissionMap = new Map(filteredCommissions.map((c: any) => [c.customer_id, c]));
-
-    // 计算每个客户的提成
-    const results = filteredCustomers.map((customer: any) => {
+    // 计算提成
+    const results = customers.map((customer: any) => {
       const implementationFee = parseFloat(customer.implementation_fee || '0');
       const implementationDays = parseFloat(customer.implementation_days || '0');
-      // 兼容数组和字符串格式的modules
       const rawModules = customer.modules;
       const modules: ProductModule[] = Array.isArray(rawModules) ? rawModules : (typeof rawModules === 'string' && rawModules.length > 0 ? [rawModules] : []);
 
       const commission = calculateCommission(implementationFee, implementationDays, modules);
-
-      // 检查是否已有提成记录
       const existingRecord = commissionMap.get(customer.id);
 
-      // 计算人天信息
-      const financeMaxDays = modules.includes('finance') 
-        ? implementationDays * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION / COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION 
+      const financeMaxDays = modules.includes('finance')
+        ? implementationDays * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION / COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION
         : 0;
       const otherModuleCount = modules.filter((m: string) => m !== 'finance').length;
       const otherMaxDays = otherModuleCount * implementationDays;
@@ -137,7 +117,7 @@ export async function GET(request: NextRequest) {
         commissionType: commission.commissionType,
         commissionRate: commission.commissionRate,
         totalCommission: commission.totalCommission,
-        paidCommission: 0, // TODO: 从提成记录中累计
+        paidCommission: 0,
         remainingCommission: commission.totalCommission,
         isFullyPaid: false,
         records: [],
@@ -152,7 +132,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 统计
     const totalCommission = results.reduce((sum: number, r: any) => sum + r.totalCommission, 0);
     const confirmedCommission = results
       .filter((r: any) => r.status === 'confirmed')
@@ -167,20 +146,15 @@ export async function GET(request: NextRequest) {
         pendingCommission: Math.round((totalCommission - confirmedCommission) * 100) / 100,
       },
     });
-
   } catch (error) {
     console.error('获取提成列表失败:', error);
     return NextResponse.json({ error: '获取提成列表失败' }, { status: 500 });
   }
 }
 
-/**
- * 确认提成 - 本地存储模式
- * POST /api/commissions
- */
+// 确认提成
 export async function POST(request: NextRequest) {
   try {
-    // 数据隔离：验证权限
     const userInfo = await getCurrentUserInfo(request);
     const isAdmin = userInfo?.role === 'admin';
 
@@ -188,50 +162,43 @@ export async function POST(request: NextRequest) {
     const { customer_id, commission_month, status } = body;
 
     if (!customer_id || !commission_month) {
-      return NextResponse.json(
-        { error: '客户ID和提成月份不能为空' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '客户ID和提成月份不能为空' }, { status: 400 });
     }
 
-    // 非管理员只能操作自己负责的客户
+    // 验证权限
     if (!isAdmin) {
-      const customer = customersStorage.getById(customer_id);
-      if (!customer || (customer as any).delivery_consultant !== userInfo?.username) {
+      const customer = await dbGetCustomers({ userId: userInfo?.id, isAdmin: false });
+      const found = customer.find((c: any) => c.id === customer_id);
+      if (!found) {
         return NextResponse.json({ error: '无权操作此客户' }, { status: 403 });
       }
     }
 
     // 查找或创建提成记录
-    const commissions = commissionsStorage.getAll();
-    const existing = commissions.find((c: any) => 
+    const existingRecords = await dbGetCommissionRecords({ customerId: customer_id, userId: userInfo?.id, isAdmin });
+    const existing = existingRecords.find((c: any) =>
       c.customer_id === customer_id && c.commission_month === commission_month
     );
 
     if (existing && existing.id) {
-      // 更新状态
-      commissionsStorage.update(existing.id as string, { status: status || 'confirmed' });
+      await dbUpdateCommissionRecord(existing.id, { status: status || 'confirmed' });
     } else {
-      // 创建新记录
-      commissionsStorage.create({
+      await dbCreateCommissionRecord({
         customer_id,
         commission_month,
         status: status || 'confirmed',
+        user_id: userInfo?.id || null,
       });
     }
 
     return NextResponse.json({ success: true });
-
   } catch (error) {
     console.error('确认提成失败:', error);
     return NextResponse.json({ error: '确认提成失败' }, { status: 500 });
   }
 }
 
-/**
- * 删除提成记录 - 本地存储模式
- * DELETE /api/commissions?record_id=xxx
- */
+// 删除提成记录
 export async function DELETE(request: NextRequest) {
   try {
     const recordId = request.nextUrl.searchParams.get('record_id');
@@ -239,25 +206,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
     }
 
-    // 数据隔离：验证权限
     const userInfo = await getCurrentUserInfo(request);
     const isAdmin = userInfo?.role === 'admin';
-    const record = commissionsStorage.getById(recordId);
+
+    const records = await dbGetCommissionRecords({ userId: userInfo?.id, isAdmin });
+    const record = records.find((r: any) => r.id === recordId);
     if (!record) {
-      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
-    }
-    if (!isAdmin) {
-      const customer = customersStorage.getById((record as any).customer_id);
-      if (!customer || (customer as any).delivery_consultant !== userInfo?.username) {
-        return NextResponse.json({ error: '无权操作此记录' }, { status: 403 });
-      }
+      return NextResponse.json({ error: '记录不存在或无权操作' }, { status: 404 });
     }
 
-    const success = commissionsStorage.delete(recordId);
-    if (!success) {
-      return NextResponse.json({ error: '删除失败' }, { status: 500 });
-    }
-
+    await dbDeleteCommissionRecord(recordId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('删除提成记录失败:', error);

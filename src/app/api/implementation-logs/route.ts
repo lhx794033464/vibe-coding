@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { implementationLogsStorage } from '@/lib/serverStorage';
-import { getVisibleCustomerIds, filterByCustomerAccess } from '@/lib/serverAuth';
+import { dbGetImplementationLogs, dbCreateImplementationLog } from '@/services/dbService';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 获取实施日志列表
 export async function GET(request: NextRequest) {
@@ -8,19 +8,15 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customerId');
 
-    let logs = implementationLogsStorage.getAll();
+    // 数据隔离
+    const userInfo = await getCurrentUserInfo(request);
+    const isAdmin = userInfo?.role === 'admin';
 
-    // 数据权限过滤
-    const visibleCustomerIds = await getVisibleCustomerIds(request);
-    logs = filterByCustomerAccess(logs, visibleCustomerIds);
-
-    // 按客户筛选
-    if (customerId) {
-      logs = logs.filter((l: any) => l.customer_id === customerId);
-    }
-
-    // 排序：按日期倒序
-    logs.sort((a: any, b: any) => new Date(b.log_date).getTime() - new Date(a.log_date).getTime());
+    const logs = await dbGetImplementationLogs({
+      customerId: customerId || undefined,
+      userId: userInfo?.id,
+      isAdmin,
+    });
 
     return NextResponse.json({ data: logs });
   } catch (error) {
@@ -39,12 +35,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '客户ID不能为空' }, { status: 400 });
     }
 
-    const data = implementationLogsStorage.create({
+    const userInfo = await getCurrentUserInfo(request);
+
+    const data = await dbCreateImplementationLog({
       customer_id,
       log_date: log_date || new Date().toISOString().split('T')[0],
       content: content || '',
       consumed_days: consumed_days || '0',
       remaining_days: remaining_days || '0',
+      user_id: userInfo?.id || null,
     });
 
     return NextResponse.json({ data });

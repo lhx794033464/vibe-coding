@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Edit2, Trash2, Loader2, ShieldCheck, UserPlus } from 'lucide-react';
-import { authService, User } from '@/services/authService';
+import { useAuth } from '@/contexts/AuthContext';
+import { DbUser } from '@/services/dbService';
 import { useRouter } from 'next/navigation';
 
 interface UserFormData {
@@ -24,10 +25,10 @@ interface UserFormData {
 
 export default function UsersManagementPage() {
   const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<DbUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<DbUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
   const [formData, setFormData] = useState<UserFormData>({
@@ -37,18 +38,20 @@ export default function UsersManagementPage() {
     is_active: true,
   });
 
+  const { isAuthenticated, isAdmin } = useAuth();
+
   useEffect(() => {
     // 检查是否是管理员
-    if (!authService.isAuthenticated()) {
+    if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-    if (!authService.isAdmin()) {
+    if (!isAdmin) {
       router.push('/unauthorized');
       return;
     }
     loadUsers();
-  }, [router]);
+  }, [router, isAuthenticated, isAdmin]);
 
   const loadUsers = async () => {
     try {
@@ -121,18 +124,18 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: DbUser) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
       email: user.email || '',
-      role: user.role,
+      role: user.role as 'admin' | 'user',
       is_active: user.is_active,
     });
     setOpenDialog(true);
   };
 
-  const handleDelete = async (user: User) => {
+  const handleDelete = async (user: DbUser) => {
     if (!confirm(`确定要删除用户 "${user.username}" 吗？`)) {
       return;
     }

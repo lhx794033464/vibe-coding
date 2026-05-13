@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
+import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
 let envLoaded = false;
 
@@ -83,25 +84,37 @@ function getSupabaseCredentials(): SupabaseCredentials {
   return { url, anonKey };
 }
 
+function getSupabaseServiceRoleKey(): string | undefined {
+  loadEnv();
+  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+}
+
 function getSupabaseClient(token?: string): SupabaseClient {
   const { url, anonKey } = getSupabaseCredentials();
 
+  let key: string;
   if (token) {
-    return createClient(url, anonKey, {
-      global: {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      db: {
-        timeout: 60000,
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    key = anonKey;
+  } else {
+    const serviceRoleKey = getSupabaseServiceRoleKey();
+    key = serviceRoleKey ?? anonKey;
   }
 
-  return createClient(url, anonKey, {
+  const globalOptions: Record<string, any> = {};
+  if (token) {
+    globalOptions.headers = { Authorization: `Bearer ${token}` };
+  }
+  try {
+    const buffer = getReportBuffer();
+    if (buffer) {
+      globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
+    }
+  } catch {
+    // Silent — reporting setup failure should not block client creation
+  }
+
+  return createClient(url, key, {
+    global: globalOptions,
     db: {
       timeout: 60000,
     },
@@ -112,4 +125,4 @@ function getSupabaseClient(token?: string): SupabaseClient {
   });
 }
 
-export { loadEnv, getSupabaseCredentials, getSupabaseClient };
+export { loadEnv, getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };

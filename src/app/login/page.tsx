@@ -9,14 +9,16 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, register, isAuthenticated, loading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
   useEffect(() => {
-    // 如果已登录且不是正在加载中，重定向到首页
     if (!loading && isAuthenticated) {
       router.push('/home');
     }
@@ -33,20 +35,52 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const success = await login(username, password);
-      if (success) {
+      const result = await login(username, password);
+      if (result.success) {
         router.push('/home');
       } else {
-        setError('用户名或密码错误');
+        setError(result.error || '用户名或密码错误');
       }
-    } catch (err) {
+    } catch {
       setError('登录失败，请稍后重试');
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  // 如果正在加载认证状态，显示加载中
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) {
+      setError('请输入用户名和密码');
+      return;
+    }
+    if (password.length < 6) {
+      setError('密码至少6位');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setError('');
+
+    try {
+      const result = await register(username, password, email || undefined, displayName || undefined);
+      if (result.success) {
+        router.push('/home');
+      } else {
+        setError(result.error || '注册失败');
+      }
+    } catch {
+      setError('注册失败，请稍后重试');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const toggleMode = () => {
+    setIsRegisterMode(!isRegisterMode);
+    setError('');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-slate-100 flex items-center justify-center p-4">
@@ -67,10 +101,12 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-slate-800">交付集成平台</CardTitle>
-          <p className="text-sm text-slate-500 mt-2">请登录以继续</p>
+          <p className="text-sm text-slate-500 mt-2">
+            {isRegisterMode ? '创建新账号' : '请登录以继续'}
+          </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="space-y-4">
             <div>
               <Input
                 type="text"
@@ -84,13 +120,36 @@ export default function LoginPage() {
             <div>
               <Input
                 type="password"
-                placeholder="密码"
+                placeholder={isRegisterMode ? '密码（至少6位）' : '密码'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoggingIn}
-                autoComplete="current-password"
+                autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
               />
             </div>
+            {isRegisterMode && (
+              <>
+                <div>
+                  <Input
+                    type="email"
+                    placeholder="邮箱（选填）"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoggingIn}
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="显示名称（选填）"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    disabled={isLoggingIn}
+                  />
+                </div>
+              </>
+            )}
             {error && (
               <p className="text-sm text-red-500 text-center">{error}</p>
             )}
@@ -99,13 +158,27 @@ export default function LoginPage() {
               className="w-full bg-blue-600 hover:bg-blue-700"
               disabled={isLoggingIn}
             >
-              {isLoggingIn ? '登录中...' : '登录'}
+              {isLoggingIn
+                ? (isRegisterMode ? '注册中...' : '登录中...')
+                : (isRegisterMode ? '注册' : '登录')}
             </Button>
           </form>
-          
-          <div className="mt-6 text-center text-sm text-slate-500">
-            <p>默认管理员账号：admin / admin123</p>
+
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={toggleMode}
+              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              {isRegisterMode ? '已有账号？去登录' : '没有账号？去注册'}
+            </button>
           </div>
+
+          {!isRegisterMode && (
+            <div className="mt-4 text-center text-sm text-slate-500">
+              <p>默认管理员账号：admin / admin123</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
