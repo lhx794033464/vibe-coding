@@ -45,7 +45,7 @@ export default function CustomersPage() {
       });
       const data = await response.json();
       if (response.ok) {
-        setCustomers(data.data || []);
+        setCustomers(data.customers || []);
       }
     } catch (error) {
       console.error('获取客户列表失败:', error);
