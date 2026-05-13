@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
+      success: true,
       data: {
         user: result.user,
         token: result.token,

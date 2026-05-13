@@ -73,9 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        const authData = data.data;
         localStorage.setItem('auth_session', JSON.stringify({
-          token: data.token,
-          user: data.user,
+          token: authData.token,
+          user: authData.user,
         }));
         updateAuthState();
         return { success: true };
@@ -100,9 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         // 注册成功后自动登录
+        const authData = data.data;
         localStorage.setItem('auth_session', JSON.stringify({
-          token: data.token,
-          user: data.user,
+          token: authData.token,
+          user: authData.user,
         }));
         updateAuthState();
         return { success: true };

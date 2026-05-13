@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbCreateUser, dbGetAllUsers, dbGetUserByUsername } from '@/services/dbService';
+import { dbCreateUser, dbGetUserByUsername } from '@/services/dbService';
 import { isAdmin } from '@/lib/serverAuth';
 
 /**
@@ -38,7 +38,22 @@ export async function POST(request: NextRequest) {
       is_active,
     });
 
-    return NextResponse.json({ data: newUser }, { status: 201 });
+    // 生成 token 用于自动登录
+    const token = Buffer.from(`${newUser.id}:${newUser.username}:${newUser.role}:${Math.random().toString(36).slice(2)}`).toString('base64');
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        user: {
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          role: newUser.role,
+          is_active: newUser.is_active,
+        },
+        token,
+      },
+    }, { status: 201 });
   } catch (error) {
     console.error('注册失败:', error);
     return NextResponse.json({ error: '注册失败，请稍后重试' }, { status: 500 });
