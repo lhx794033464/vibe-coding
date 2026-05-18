@@ -183,7 +183,7 @@ export default function SchedulePage() {
         
         if (response.ok) {
           const result = await response.json();
-          setCustomers(result.data || []);
+          setCustomers(result.customers || []);
         }
       } catch (error) {
         console.error('获取客户列表失败:', error);
