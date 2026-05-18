@@ -38,7 +38,7 @@ export default function UsersManagementPage() {
     is_active: true,
   });
 
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, getAuthHeader } = useAuth();
 
   useEffect(() => {
     // 检查是否是管理员
@@ -55,7 +55,9 @@ export default function UsersManagementPage() {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('/api/users');
+      const response = await fetch('/api/users', {
+        headers: getAuthHeader(),
+      });
       const result = await response.json();
       if (result.data && Array.isArray(result.data)) {
         setUsers(result.data);
@@ -79,7 +81,7 @@ export default function UsersManagementPage() {
         // 更新用户
         const response = await fetch(`/api/users/${editingUser.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
           body: JSON.stringify(formData),
         });
         
@@ -98,7 +100,7 @@ export default function UsersManagementPage() {
         console.log('正在创建用户...');
         const response = await fetch('/api/users', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
           body: JSON.stringify(formData),
         });
         
@@ -143,6 +145,7 @@ export default function UsersManagementPage() {
     try {
       const response = await fetch(`/api/users/${user.id}`, {
         method: 'DELETE',
+        headers: getAuthHeader(),
       });
       
       if (response.ok) {
