@@ -30,6 +30,41 @@ const verifyPassword = (password: string, hash: string): boolean => {
 export const generateId = () =>
   Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+// ==================== 管理员初始化 ====================
+
+let adminEnsured = false;
+
+/**
+ * 确保默认管理员账号存在
+ * 如果 admin 用户不存在则自动创建（首次启动或新环境时）
+ */
+export async function ensureAdminUser(): Promise<void> {
+  if (adminEnsured) return;
+  
+  try {
+    const existing = await dbGetUserByUsername('admin');
+    if (!existing) {
+      const client = getSupabaseClient();
+      const { error } = await client
+        .from('users')
+        .insert({
+          id: 'admin_default',
+          username: 'admin',
+          email: 'admin@company.com',
+          password_hash: hashPassword('admin123'),
+          role: 'admin',
+          is_active: true,
+        });
+      if (error) {
+        console.error('创建默认管理员失败:', error.message);
+      }
+    }
+    adminEnsured = true;
+  } catch (err) {
+    console.error('确保管理员账号失败:', err);
+  }
+}
+
 // ==================== 用户操作 ====================
 
 export async function dbGetAllUsers(): Promise<DbUser[]> {

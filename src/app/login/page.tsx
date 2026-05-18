@@ -96,10 +96,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center pb-2">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center">
-              <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+              <img src="/logo.png" alt="Logo" className="w-14 h-14 object-contain" />
             </div>
-          </div>
           <CardTitle className="text-2xl font-bold text-slate-800">交付集成平台</CardTitle>
           <p className="text-sm text-slate-500 mt-2">
             {isRegisterMode ? '创建新账号' : '请登录以继续'}
