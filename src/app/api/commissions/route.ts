@@ -174,6 +174,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 获取客户信息以计算提成总额
+    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customer = customers.find((c: any) => c.id === customer_id);
+    const implementationFee = customer?.implementation_fee || 0;
+    const implementationDays = customer?.implementation_days || 1;
+    const modules = customer?.modules || [];
+    const moduleCount = Array.isArray(modules) ? modules.length : 0;
+
+    // 计算提成总额
+    let totalCommission = 0;
+    if (implementationFee > 500) {
+      // 实施费>500：按比例
+      const rate = moduleCount >= 3 ? 0.5 : moduleCount >= 2 ? 0.4 : 0.3;
+      totalCommission = implementationFee * rate;
+    } else {
+      // 实施费≤500：按人天
+      totalCommission = implementationDays * 100;
+    }
+
     // 查找或创建提成记录
     const existingRecords = await dbGetCommissionRecords({ customerId: customer_id, userId: userInfo?.id, isAdmin });
     const existing = existingRecords.find((c: any) =>
@@ -181,7 +200,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing && existing.id) {
-      await dbUpdateCommissionRecord(existing.id, { status: status || 'confirmed', amount, remark, finance_days, other_days });
+      await dbUpdateCommissionRecord(existing.id, { status: status || 'confirmed', amount, remark, finance_days, other_days, total_commission: totalCommission });
     } else {
       await dbCreateCommissionRecord({
         customer_id,
@@ -189,6 +208,8 @@ export async function POST(request: NextRequest) {
         status: status || 'confirmed',
         user_id: userInfo?.id || null,
         amount,
+        total_commission: totalCommission,
+        paid_commission: 0,
         remark,
         finance_days,
         other_days,
@@ -198,7 +219,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('确认提成失败:', error);
-    return NextResponse.json({ error: '确认提成失败' }, { status: 500 });
+    const msg = error instanceof Error ? error.message : '确认提成失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
