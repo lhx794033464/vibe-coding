@@ -85,9 +85,14 @@ export async function GET(request: NextRequest) {
     });
     const customers = Array.from(customerMap.values());
 
-    // 获取提成记录（根据权限过滤）
-    const commissions = await dbGetCommissionRecords({ userId: userInfo?.id, isAdmin });
-    const commissionMap = new Map(commissions.map((c: any) => [c.customer_id, c]));
+    // 获取提成记录（根据权限过滤），按 customer_id 分组
+    const allRecords = await dbGetCommissionRecords({ userId: userInfo?.id, isAdmin });
+    const recordsByCustomer = new Map<string, any[]>();
+    for (const r of allRecords) {
+      const list = recordsByCustomer.get(r.customer_id) || [];
+      list.push(r);
+      recordsByCustomer.set(r.customer_id, list);
+    }
 
     // 计算提成
     const results = customers.map((customer: any) => {
@@ -97,13 +102,22 @@ export async function GET(request: NextRequest) {
       const modules: ProductModule[] = Array.isArray(rawModules) ? rawModules : (typeof rawModules === 'string' && rawModules.length > 0 ? [rawModules] : []);
 
       const commission = calculateCommission(implementationFee, implementationDays, modules);
-      const existingRecord = commissionMap.get(customer.id);
+
+      // 从提成记录计算已提金额和人天
+      const records = recordsByCustomer.get(customer.id) || [];
+      const paidCommission = records.reduce((sum: number, r: any) => sum + parseFloat(r.amount || '0'), 0);
+      const paidFinanceDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.finance_days || '0'), 0);
+      const paidOtherDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.other_days || '0'), 0);
 
       const financeMaxDays = modules.includes('finance')
-        ? implementationDays * COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION / COMMISSION_CONFIG.FINANCE_DAILY_COMMISSION
+        ? implementationDays
         : 0;
       const otherModuleCount = modules.filter((m: string) => m !== 'finance').length;
       const otherMaxDays = otherModuleCount * implementationDays;
+      const totalMaxDays = financeMaxDays + otherMaxDays;
+      const paidDays = paidFinanceDays + paidOtherDays;
+      const remainingDays = Math.max(0, totalMaxDays - paidDays);
+      const remainingCommission = Math.max(0, commission.totalCommission - paidCommission);
 
       return {
         customerId: customer.id,
@@ -117,33 +131,37 @@ export async function GET(request: NextRequest) {
         commissionType: commission.commissionType,
         commissionRate: commission.commissionRate,
         totalCommission: commission.totalCommission,
-        paidCommission: 0,
-        remainingCommission: commission.totalCommission,
-        isFullyPaid: false,
-        records: [],
+        paidCommission,
+        remainingCommission,
+        isFullyPaid: paidCommission >= commission.totalCommission,
+        records: records.map((r: any) => ({
+          id: r.id,
+          amount: r.amount,
+          remark: r.remark,
+          created_at: r.created_at,
+          commission_month: r.commission_month,
+        })),
         acceptedAt: customer.updated_at || customer.accepted_at || '',
         financeMaxDays,
         otherMaxDays,
-        totalMaxDays: financeMaxDays + otherMaxDays,
-        paidFinanceDays: 0,
-        paidOtherDays: 0,
-        paidDays: 0,
-        remainingDays: implementationDays,
+        totalMaxDays,
+        paidFinanceDays,
+        paidOtherDays,
+        paidDays,
+        remainingDays,
       };
     });
 
     const totalCommission = results.reduce((sum: number, r: any) => sum + r.totalCommission, 0);
-    const confirmedCommission = results
-      .filter((r: any) => r.status === 'confirmed')
-      .reduce((sum: number, r: any) => sum + r.totalCommission, 0);
+    const totalPaid = results.reduce((sum: number, r: any) => sum + r.paidCommission, 0);
 
     return NextResponse.json({
       data: results,
       summary: {
         totalCustomers: results.length,
         totalCommission: Math.round(totalCommission * 100) / 100,
-        confirmedCommission: Math.round(confirmedCommission * 100) / 100,
-        pendingCommission: Math.round((totalCommission - confirmedCommission) * 100) / 100,
+        confirmedCommission: Math.round(totalPaid * 100) / 100,
+        pendingCommission: Math.round((totalCommission - totalPaid) * 100) / 100,
       },
     });
   } catch (error) {
