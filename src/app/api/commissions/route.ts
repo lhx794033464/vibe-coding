@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     const isAdmin = userInfo?.role === 'admin';
 
     const body = await request.json();
-    const { customer_id, commission_month, status } = body;
+    const { customer_id, commission_month, status, amount, remark, finance_days, other_days } = body;
 
     if (!customer_id || !commission_month) {
       return NextResponse.json({ error: '客户ID和提成月份不能为空' }, { status: 400 });
@@ -181,13 +181,17 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing && existing.id) {
-      await dbUpdateCommissionRecord(existing.id, { status: status || 'confirmed' });
+      await dbUpdateCommissionRecord(existing.id, { status: status || 'confirmed', amount, remark, finance_days, other_days });
     } else {
       await dbCreateCommissionRecord({
         customer_id,
         commission_month,
         status: status || 'confirmed',
         user_id: userInfo?.id || null,
+        amount,
+        remark,
+        finance_days,
+        other_days,
       });
     }
 

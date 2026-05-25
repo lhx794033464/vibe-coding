@@ -162,6 +162,7 @@ export default function CommissionsPage() {
         },
         body: JSON.stringify({
           customer_id: selectedCommission.customerId,
+          commission_month: nextCommissionMonth,
           amount: parseFloat(commissionAmount),
           remark: finalRemark,
           finance_days: financeDaysParam,
