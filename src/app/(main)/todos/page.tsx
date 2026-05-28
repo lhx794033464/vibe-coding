@@ -148,7 +148,8 @@ export default function TodosPage() {
           priority: newPriority,
         }),
       });
-      if (!res.ok) throw new Error('创建失败');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '创建失败');
       setShowCreateDialog(false);
       resetForm();
       loadData();
