@@ -252,15 +252,15 @@ export default function TodosPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between px-2">
-        <h1 className="text-2xl font-semibold">待办事项</h1>
+      <div className="flex items-center justify-between px-6 pt-6 pb-4">
+        <h1 className="text-2xl font-bold text-gray-900">待办事项</h1>
         <Button onClick={() => setShowCreateDialog(true)}>
           <Plus className="w-4 h-4 mr-1" /> 新增待办
         </Button>
       </div>
 
       {/* Search */}
-      <div className="relative px-2">
+      <div className="relative px-6">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="搜索待办标题、描述、关联客户..."
