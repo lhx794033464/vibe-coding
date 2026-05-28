@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { Zap } from 'lucide-react';
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -80,6 +81,18 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const displayName = user?.username || '未登录';
   const displayRole = isAdmin ? '管理员' : '普通用户';
   const avatarLetter = displayName.charAt(0).toUpperCase();
+
+  const { getAuthHeader } = useAuth();
+  const [tokenUsage, setTokenUsage] = useState<{ totalTokens: number; todayTokens: number } | null>(null);
+
+  useEffect(() => {
+    if (!collapsed) {
+      fetch('/api/token-usage', { headers: { ...getAuthHeader() } })
+        .then(r => r.json())
+        .then(d => { if (d.total) setTokenUsage({ totalTokens: d.total.totalTokens || 0, todayTokens: d.today?.totalTokens || 0 }); })
+        .catch(() => {});
+    }
+  }, [collapsed, getAuthHeader]);
 
   return (
     <>
@@ -178,6 +191,20 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
             )}
           </button>
         </div>
+
+        {/* Token 用量统计 */}
+        {!collapsed && tokenUsage && (
+          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/50">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Token 用量</span>
+              <span>今日 {tokenUsage.todayTokens.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground mt-0.5">
+              <span>累计</span>
+              <span className="font-medium text-foreground">{tokenUsage.totalTokens.toLocaleString()}</span>
+            </div>
+          </div>
+        )}
 
         {/* 个人设置区域 - 底部对齐 */}
         <div className="relative border-t border-gray-200" ref={userMenuRef}>

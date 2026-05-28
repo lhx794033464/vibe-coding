@@ -2,11 +2,43 @@ import { NextRequest } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { dbGetCustomers, dbGetSchedules, dbGetImplementationLogs } from '@/services/dbService';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 export const runtime = 'nodejs';
 
 // 对话历史存储（基于 conversation_id）
 const conversationHistory: Map<string, Array<{role: string; content: string}>> = new Map();
+
+// 估算 token 数量（中文约1.3 tokens/字，英文约0.75 tokens/word）
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const nonChineseLength = text.length - chineseChars;
+  return Math.ceil(chineseChars * 1.3 + nonChineseLength * 0.4);
+}
+
+// 记录 token 用量
+async function recordTokenUsage(params: {
+  userId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  apiType: string;
+}) {
+  try {
+    const client = getSupabaseClient();
+    await client.from('token_usage').insert({
+      user_id: params.userId,
+      model: params.model,
+      input_tokens: params.inputTokens,
+      output_tokens: params.outputTokens,
+      total_tokens: params.inputTokens + params.outputTokens,
+      api_type: params.apiType,
+    });
+  } catch (error) {
+    console.error('记录 token 用量失败:', error);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,6 +129,11 @@ ${scheduleSummary || '暂无日程数据'}
       })),
     ];
 
+    // 估算输入 tokens
+    const inputText = llmMessages.map(m => m.content).join('');
+    const inputTokens = estimateTokens(inputText);
+    const model = 'deepseek-v3-2-251201';
+
     // 使用 coze-coding-dev-sdk 流式调用
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
@@ -109,7 +146,7 @@ ${scheduleSummary || '暂无日程数据'}
       async start(controller) {
         try {
           const llmStream = await llmClient.stream(llmMessages, {
-            model: 'deepseek-v3-2-251201',
+            model,
             temperature: 0.7,
           });
 
@@ -127,6 +164,16 @@ ${scheduleSummary || '暂无日程数据'}
             currentHistory.push({ role: 'assistant', content: fullResponse });
             conversationHistory.set(conversationId, currentHistory);
           }
+
+          // 记录 token 用量
+          const outputTokens = estimateTokens(fullResponse);
+          await recordTokenUsage({
+            userId: userInfo?.id || 'anonymous',
+            model,
+            inputTokens,
+            outputTokens,
+            apiType: 'chat',
+          });
 
           controller.close();
         } catch (error) {
