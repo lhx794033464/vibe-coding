@@ -142,11 +142,10 @@ export default function TodosPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
-          title: newTitle.trim(),
-          description: newDescription.trim() || null,
+          content: newTitle.trim(),
+          customer_id: newCustomerId || null,
           due_date: newDueDate || null,
           priority: newPriority,
-          customer_id: newCustomerId || null,
         }),
       });
       if (!res.ok) throw new Error('创建失败');
