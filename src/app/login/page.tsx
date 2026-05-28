@@ -100,7 +100,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center text-sm text-slate-500">
-            <p>测试账号：测试 / 123456</p>
+            <p>测试账号：user / 123456</p>
           </div>
         </CardContent>
       </Card>
