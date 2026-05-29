@@ -31,7 +31,13 @@ export default function CustomersPage() {
   // 腾讯文档获取相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(false);
-  const [fetchData, setFetchData] = useState<{ customerName: string; modules: string; deliverer?: string }[]>([]);
+  const [fetchData, setFetchData] = useState<{
+    customerName: string; modules: string; deliverer?: string;
+    isOnline?: string; applyMonth?: string; implementationType?: string;
+    salesperson?: string; expiryDate?: string; salesOrder?: string;
+    implementationOrder?: string; implementationPrice?: string;
+    purchaseDays?: string; version?: string;
+  }[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
@@ -376,11 +382,28 @@ export default function CustomersPage() {
                           className="w-4 h-4 mt-0.5 rounded border-gray-300"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{item.customerName}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            购买模块：{item.modules || '无'}
-                            {item.deliverer && <span className="ml-2">交付人：{item.deliverer}</span>}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-sm">{item.customerName}</p>
+                            {item.isOnline && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${item.isOnline === '是' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {item.isOnline === '是' ? '已上线' : '未上线'}
+                              </span>
+                            )}
+                            {item.version && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">{item.version}</span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
+                            {item.modules && <span>购买模块：{item.modules}</span>}
+                            {item.implementationType && <span>实施类型：{item.implementationType}</span>}
+                            {item.salesperson && <span>业务员：{item.salesperson}</span>}
+                            {item.applyMonth && <span>申请月：{item.applyMonth}</span>}
+                            {item.expiryDate && <span>到期日：{item.expiryDate}</span>}
+                            {item.implementationPrice && <span>实施成交价：{item.implementationPrice}</span>}
+                            {item.purchaseDays && <span>购买人天：{item.purchaseDays}</span>}
+                            {item.salesOrder && <span>销售订单：{item.salesOrder}</span>}
+                            {item.implementationOrder && <span>实施订单号：{item.implementationOrder}</span>}
+                          </div>
                         </div>
                       </label>
                     ))}
