@@ -343,7 +343,14 @@ export default function HomePage() {
 
     try {
       // 从 localStorage 获取用户ID
-      const userId = typeof window !== 'undefined' ? localStorage.getItem('local_user_id') : null;
+      let userId: string | null = null;
+      try {
+        const sessionStr = localStorage.getItem('auth_session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          userId = session?.user?.id || null;
+        }
+      } catch {}
       
       const response = await fetch('/api/chat', {
         method: 'POST',

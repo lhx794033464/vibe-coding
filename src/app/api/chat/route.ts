@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
-import { dbGetCustomers, dbGetSchedules, dbGetTodos, dbCreateTodo, dbUpdateTodo, dbDeleteTodo } from '@/services/dbService';
+import { dbGetCustomers, dbGetSchedules, dbGetTodos, dbCreateTodo } from '@/services/dbService';
 
 // 获取今天日期（UTC+8）
 function getTodayStr(): string {
@@ -60,44 +60,22 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
 
 ## 待办事项操作能力
 
-你具备待办事项的增删改查能力。当用户要求操作待办时，你必须在回复的最后一行输出操作指令，格式如下：
+你可以帮用户创建待办和查询待办。
 
 ### 创建待办
+当用户要求创建待办时，在回复末尾输出操作指令，格式：
 \`\`\`
 TODO_CREATE|内容|截止日期(YYYY-MM-DD)|优先级(high/medium/low)|关联客户名称(可选)
 \`\`\`
 示例：\`TODO_CREATE|完成客户上线培训|2026-06-01|high|自贡中铁二局地产新城投资有限公司\`
 
-### 完成待办
-\`\`\`
-TODO_COMPLETE|待办ID前8位
-\`\`\`
-
-### 删除待办
-\`\`\`
-TODO_DELETE|待办ID前8位
-\`\`\`
-
-### 修改待办
-\`\`\`
-TODO_UPDATE|待办ID前8位|新内容|新截止日期|新优先级
-\`\`\`
-示例：\`TODO_UPDATE|a1b2c3d4|修改后的内容|2026-06-05|medium\`
-
-### 撤销完成（恢复为待办）
-\`\`\`
-TODO_REOPEN|待办ID前8位
-\`\`\`
-
-### 延期待办（推迟到明天）
-\`\`\`
-TODO_DELAY|待办ID前8位
-\`\`\`
+### 查询待办
+直接根据系统提供的待办数据回答即可，无需输出操作指令。
 
 **重要规则**：
-1. 操作指令必须放在回复的最后一行，用 \`\`\` 包裹
+1. 创建指令必须放在回复的最后一行，用 \`\`\` 包裹
 2. 一条回复只能包含一个操作指令
-3. 查询类请求不需要输出操作指令，直接回答即可
+3. 如果用户要求删除、修改、延期等操作，告知用户请到待办事项页面操作
 4. 如果缺少必要信息（如待办内容），请先询问用户
 
 ${customersData}${schedulesData}${todosData}`;
@@ -109,114 +87,35 @@ async function executeTodoAction(action: string, userId: string, isAdmin: boolea
   const type = parts[0];
 
   try {
-    switch (type) {
-      case 'TODO_CREATE': {
-        const content = parts[1];
-        const dueDate = parts[2] || getTodayStr();
-        const priority = parts[3] || 'medium';
-        const customerName = parts[4] || '';
+    if (type === 'TODO_CREATE') {
+      const content = parts[1];
+      const dueDate = parts[2] || getTodayStr();
+      const priority = parts[3] || 'medium';
+      const customerName = parts[4] || '';
 
-        if (!content) return '创建失败：缺少待办内容';
+      if (!content) return '创建失败：缺少待办内容';
 
-        // 查找关联客户
-        let customerId: string | undefined;
-        if (customerName) {
-          const customerList = await dbGetCustomers({ userId, isAdmin });
-          const matched = customerList.find(c => c.name === customerName || c.name.includes(customerName));
-          if (matched) customerId = matched.id;
-        }
-
-        const todo = await dbCreateTodo({
-          content,
-          due_date: dueDate,
-          priority,
-          customer_id: customerId,
-          user_id: userId,
-          completed: false,
-        });
-
-        return `✅ 待办已创建：${content} | 截止: ${dueDate} | 优先级: ${priority}${customerName ? ` | 关联客户: ${customerName}` : ''}`;
+      // 查找关联客户
+      let customerId: string | undefined;
+      if (customerName) {
+        const customerList = await dbGetCustomers({ userId, isAdmin });
+        const matched = customerList.find(c => c.name === customerName || c.name.includes(customerName));
+        if (matched) customerId = matched.id;
       }
 
-      case 'TODO_COMPLETE': {
-        const idPrefix = parts[1];
-        if (!idPrefix) return '操作失败：缺少待办ID';
-        
-        const todos = await dbGetTodos({ userId });
-        const todo = todos.find(t => t.id.startsWith(idPrefix));
-        if (!todo) return '操作失败：未找到该待办';
-        if (todo.completed) return '该待办已经是完成状态';
+      await dbCreateTodo({
+        content,
+        due_date: dueDate,
+        priority,
+        customer_id: customerId,
+        user_id: userId,
+        completed: false,
+      });
 
-        await dbUpdateTodo(todo.id, { completed: true, completed_at: new Date().toISOString() });
-        return `✅ 已完成待办：${todo.content}`;
-      }
-
-      case 'TODO_REOPEN': {
-        const idPrefix = parts[1];
-        if (!idPrefix) return '操作失败：缺少待办ID';
-
-        const todos = await dbGetTodos({ userId });
-        const todo = todos.find(t => t.id.startsWith(idPrefix));
-        if (!todo) return '操作失败：未找到该待办';
-        if (!todo.completed) return '该待办不是完成状态';
-
-        await dbUpdateTodo(todo.id, { completed: false, completed_at: null });
-        return `✅ 已撤回待办：${todo.content}`;
-      }
-
-      case 'TODO_DELETE': {
-        const idPrefix = parts[1];
-        if (!idPrefix) return '操作失败：缺少待办ID';
-
-        const todos = await dbGetTodos({ userId });
-        const todo = todos.find(t => t.id.startsWith(idPrefix));
-        if (!todo) return '操作失败：未找到该待办';
-
-        await dbDeleteTodo(todo.id);
-        return `✅ 已删除待办：${todo.content}`;
-      }
-
-      case 'TODO_UPDATE': {
-        const idPrefix = parts[1];
-        const newContent = parts[2];
-        const newDueDate = parts[3];
-        const newPriority = parts[4];
-
-        if (!idPrefix) return '操作失败：缺少待办ID';
-
-        const todos = await dbGetTodos({ userId });
-        const todo = todos.find(t => t.id.startsWith(idPrefix));
-        if (!todo) return '操作失败：未找到该待办';
-
-        const updates: any = {};
-        if (newContent) updates.content = newContent;
-        if (newDueDate) updates.due_date = newDueDate;
-        if (newPriority) updates.priority = newPriority;
-
-        await dbUpdateTodo(todo.id, updates);
-        return `✅ 已更新待办：${newContent || todo.content}`;
-      }
-
-      case 'TODO_DELAY': {
-        const idPrefix = parts[1];
-        if (!idPrefix) return '操作失败：缺少待办ID';
-
-        const todos = await dbGetTodos({ userId });
-        const todo = todos.find(t => t.id.startsWith(idPrefix));
-        if (!todo) return '操作失败：未找到该待办';
-
-        // 推迟到明天
-        const currentDue = todo.due_date ? new Date(todo.due_date) : new Date();
-        const tomorrow = new Date(currentDue.getTime() + 24 * 60 * 60 * 1000);
-        const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-
-        await dbUpdateTodo(todo.id, { due_date: tomorrowStr });
-        return `✅ 已延期待办：${todo.content} → 新截止日期: ${tomorrowStr}`;
-      }
-
-      default:
-        return `未知操作: ${type}`;
+      return `✅ 待办已创建：${content} | 截止: ${dueDate} | 优先级: ${priority}${customerName ? ` | 关联客户: ${customerName}` : ''}`;
     }
+
+    return `不支持的操作: ${type}`;
   } catch (error: any) {
     return `操作失败: ${error.message}`;
   }
