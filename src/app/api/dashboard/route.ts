@@ -52,9 +52,13 @@ export async function GET(request: NextRequest) {
 
     const totalCustomers = customers.length;
 
-    const onlineStatuses = ['accepted', 'online_not_accepted', 'partially_online'];
-    const onlineCustomers = customers.filter((c: any) => onlineStatuses.includes(c.status)).length;
-    const acceptedCustomers = customers.filter((c: any) => c.status === 'accepted').length;
+    // 状态映射：status 字段现在是自由文本
+    // "是" = 已上线, "否" = 未上线, "延期上线" = 延期上线, 其他
+    const onlineKeywords = ['是', '已上线', 'accepted', 'online_not_accepted', 'partially_online'];
+    const acceptedKeywords = ['是', '已上线', 'accepted'];
+
+    const onlineCustomers = customers.filter((c: any) => onlineKeywords.includes(c.status)).length;
+    const acceptedCustomers = customers.filter((c: any) => acceptedKeywords.includes(c.status)).length;
 
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100) : 0;
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100) : 0;
@@ -70,8 +74,8 @@ export async function GET(request: NextRequest) {
     });
 
     const lastMonthTotalCustomers = lastMonthCustomers.length;
-    const lastMonthOnlineCustomers = lastMonthCustomers.filter((c: any) => onlineStatuses.includes(c.status)).length;
-    const lastMonthAcceptedCustomers = lastMonthCustomers.filter((c: any) => c.status === 'accepted').length;
+    const lastMonthOnlineCustomers = lastMonthCustomers.filter((c: any) => onlineKeywords.includes(c.status)).length;
+    const lastMonthAcceptedCustomers = lastMonthCustomers.filter((c: any) => acceptedKeywords.includes(c.status)).length;
 
     const lastMonthOnlineRate = lastMonthTotalCustomers > 0 ? (lastMonthOnlineCustomers / lastMonthTotalCustomers * 100) : 0;
     const lastMonthAcceptanceRate = lastMonthTotalCustomers > 0 ? (lastMonthAcceptedCustomers / lastMonthTotalCustomers * 100) : 0;
@@ -83,19 +87,21 @@ export async function GET(request: NextRequest) {
     const onlineRateChange = onlineRate - lastMonthOnlineRate;
     const acceptanceRateChange = acceptanceRate - lastMonthAcceptanceRate;
 
-    const statusDistribution: Record<string, number> = {
-      not_online: 0,
-      online_not_accepted: 0,
-      accepted: 0,
-      not_going_online: 0,
-      delayed_online: 0,
-      partially_online: 0,
+    // 状态分布 - 使用中文标签，按实际 status 值动态统计
+    const statusLabelMap: Record<string, string> = {
+      '是': '已上线',
+      '否': '未上线',
+      '延期上线': '延期上线',
+      'accepted': '已验收',
+      'online_not_accepted': '已上线未验收',
+      'partially_online': '部分上线',
+      'not_going_online': '不准备上线',
     };
 
+    const statusDistribution: Record<string, number> = {};
     customers.forEach((c: any) => {
-      if (statusDistribution.hasOwnProperty(c.status)) {
-        statusDistribution[c.status]++;
-      }
+      const label = statusLabelMap[c.status] || c.status || '未知';
+      statusDistribution[label] = (statusDistribution[label] || 0) + 1;
     });
 
     return NextResponse.json({
