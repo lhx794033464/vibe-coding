@@ -487,7 +487,8 @@ export default function TodosPage() {
                     onClick={() => setShowCompleted(!showCompleted)}
                   >
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-muted-foreground">
+                      <div className="w-2 h-2 rounded-full bg-primary" />
+                      <h3 className="font-semibold text-foreground">
                         已办 ({completedTodos.length})
                       </h3>
                     </div>
@@ -526,7 +527,7 @@ export default function TodosPage() {
                                         {priorityConfig[todo.priority as keyof typeof priorityConfig]?.label || '中'}
                                       </span>
                                     )}
-                                    <p className="text-sm text-muted-foreground line-through truncate">
+                                    <p className="text-sm text-foreground line-through truncate">
                                       {todo.content}
                                     </p>
                                   </div>
