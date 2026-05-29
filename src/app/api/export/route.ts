@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbGetCustomers } from '@/services/dbService';
-import { VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
@@ -29,8 +28,8 @@ export async function GET(request: NextRequest) {
       '实施费': c.implementation_fee || '',
       '实施人天': c.implementation_days || '',
       '开通时间': c.opened_at ? format(new Date(c.opened_at), 'yyyy-MM-dd') : '',
-      '产品版本': c.version ? VERSION_CONFIG[c.version as ProductVersion]?.label : '',
-      '产品模块': c.modules ? c.modules.map((m: ProductModule) => MODULE_CONFIG[m]?.label).join('、') : '',
+      '产品版本': c.version || '',
+      '产品模块': c.modules ? c.modules.map((m: string) => String(m)).join('、') : '',
       '行业背景': c.industry || '',
       '特殊要求': c.special_requirements || '',
       '状态': statusMap[c.status] || c.status,

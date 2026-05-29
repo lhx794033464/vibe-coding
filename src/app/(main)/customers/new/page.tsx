@@ -6,11 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Upload, Download } from 'lucide-react';
-import { CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS } from '@/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,17 +21,20 @@ export default function NewCustomerPage() {
   const [importLoading, setImportLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    status: '',
     sales_order_no: '',
     implementation_order_no: '',
     implementation_fee: '',
     implementation_days: '',
     opened_at: format(new Date(), "yyyy-MM-dd"),
-    version: '' as ProductVersion | '',
-    modules: [] as ProductModule[],
+    version: '',
+    modules: '',
     industry: '',
-    special_requirements: '',
-    status: 'not_online' as CustomerStatus,
+    salesperson: '',
+    implementation_type: '',
+    expiry_date: '',
     delivery_consultant: user?.username || '',
+    special_requirements: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,17 +54,20 @@ export default function NewCustomerPage() {
         },
         body: JSON.stringify({
           name: formData.name,
+          status: formData.status || null,
           sales_order_no: formData.sales_order_no || null,
           implementation_order_no: formData.implementation_order_no || null,
           implementation_fee: formData.implementation_fee ? parseInt(formData.implementation_fee) : null,
           implementation_days: formData.implementation_days ? parseFloat(formData.implementation_days) : null,
           opened_at: formData.opened_at || null,
           version: formData.version || null,
-          modules: formData.modules.length > 0 ? formData.modules : null,
+          modules: formData.modules || null,
           industry: formData.industry || null,
-          special_requirements: formData.special_requirements || null,
-          status: formData.status,
+          salesperson: formData.salesperson || null,
+          implementation_type: formData.implementation_type || null,
+          expiry_date: formData.expiry_date || null,
           delivery_consultant: formData.delivery_consultant || null,
+          special_requirements: formData.special_requirements || null,
         }),
       });
 
@@ -106,15 +110,19 @@ export default function NewCustomerPage() {
             },
             body: JSON.stringify({
               name: row['客户名称'] || row['name'] || '',
+              status: row['客户状态'] || row['status'] || null,
               sales_order_no: row['销售订单号'] || row['sales_order_no'] || null,
               implementation_order_no: row['实施订单号'] || row['implementation_order_no'] || null,
               implementation_fee: row['实施费'] || row['implementation_fee'] || null,
               implementation_days: row['实施人天'] || row['implementation_days'] || null,
               opened_at: row['开通时间'] || row['opened_at'] || null,
+              version: row['版本'] || row['version'] || null,
+              modules: row['购买模块'] || row['modules'] || null,
               industry: row['行业背景'] || row['industry'] || null,
-              special_requirements: row['特殊要求'] || row['special_requirements'] || null,
+              salesperson: row['业务员'] || row['salesperson'] || null,
+              implementation_type: row['实施类型'] || row['implementation_type'] || null,
+              expiry_date: row['到期日'] || row['expiry_date'] || null,
               delivery_consultant: row['交付顾问'] || row['delivery_consultant'] || null,
-              status: mapStatus(row['状态'] || row['status']),
             }),
           });
 
@@ -143,30 +151,23 @@ export default function NewCustomerPage() {
     }
   };
 
-  const mapStatus = (status: unknown): CustomerStatus => {
-    const statusMap: Record<string, CustomerStatus> = {
-      '未上线': 'not_online',
-      '已上线未验收': 'online_not_accepted',
-      '已验收': 'accepted',
-      '不上线': 'not_going_online',
-      '延期上线': 'delayed_online',
-      '部分上线': 'partially_online',
-    };
-    return statusMap[String(status)] || 'not_online';
-  };
-
   const downloadTemplate = () => {
     const template = [
       {
         '客户名称': '示例客户',
+        '客户状态': '未上线',
         '销售订单号': 'SO2024001',
         '实施订单号': 'IM2024001',
         '实施费': 100000,
         '实施人天': 10,
         '开通时间': '2024-01-01',
+        '版本': '专业版',
+        '购买模块': '进销存',
         '行业背景': '制造业',
-        '特殊要求': '需要定制开发',
-        '状态': '未上线',
+        '业务员': '张三',
+        '实施类型': '单模块',
+        '到期日': '2025-12-31',
+        '交付顾问': '李四',
       },
     ];
     
@@ -175,6 +176,23 @@ export default function NewCustomerPage() {
     XLSX.utils.book_append_sheet(wb, ws, '客户导入模板');
     XLSX.writeFile(wb, '客户导入模板.xlsx');
   };
+
+  const formFields = [
+    { key: 'name', label: '客户名称', required: true, placeholder: '请输入客户名称' },
+    { key: 'status', label: '客户状态', placeholder: '如：未上线、已上线、已验收等' },
+    { key: 'sales_order_no', label: '销售订单号', placeholder: '请输入销售订单号' },
+    { key: 'implementation_order_no', label: '实施订单号', placeholder: '请输入实施订单号' },
+    { key: 'implementation_fee', label: '实施费（元）', placeholder: '请输入实施费', type: 'number' },
+    { key: 'implementation_days', label: '实施人天', placeholder: '请输入实施人天', type: 'number' },
+    { key: 'opened_at', label: '开通时间', type: 'date' },
+    { key: 'version', label: '版本', placeholder: '如：标准版、专业版、旗舰版' },
+    { key: 'modules', label: '购买模块', placeholder: '如：财务、进销存、生产等' },
+    { key: 'industry', label: '行业背景', placeholder: '请输入行业' },
+    { key: 'salesperson', label: '业务员', placeholder: '请输入业务员' },
+    { key: 'implementation_type', label: '实施类型', placeholder: '如：单模块、多模块等' },
+    { key: 'expiry_date', label: '到期日', placeholder: '如：2025-12-31' },
+    { key: 'delivery_consultant', label: '交付顾问', placeholder: '请输入交付顾问' },
+  ];
 
   return (
     <div className="h-full p-6 overflow-auto">
@@ -202,162 +220,23 @@ export default function NewCustomerPage() {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">客户名称 <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="请输入客户名称"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="status">客户状态</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(v) => setFormData({ ...formData, status: v as CustomerStatus })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" side="bottom" align="start">
-                        {Object.entries(STATUS_CONFIG).map(([key, value]) => (
-                          <SelectItem key={key} value={key}>{value.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="sales_order_no">销售订单号</Label>
-                    <Input
-                      id="sales_order_no"
-                      value={formData.sales_order_no}
-                      onChange={(e) => setFormData({ ...formData, sales_order_no: e.target.value })}
-                      placeholder="请输入销售订单号"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="implementation_order_no">实施订单号</Label>
-                    <Input
-                      id="implementation_order_no"
-                      value={formData.implementation_order_no}
-                      onChange={(e) => setFormData({ ...formData, implementation_order_no: e.target.value })}
-                      placeholder="请输入实施订单号"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="implementation_fee">实施费（元）</Label>
-                    <Input
-                      id="implementation_fee"
-                      type="number"
-                      min="0"
-                      value={formData.implementation_fee}
-                      onChange={(e) => setFormData({ ...formData, implementation_fee: e.target.value })}
-                      placeholder="请输入实施费"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="implementation_days">实施人天</Label>
-                    <Input
-                      id="implementation_days"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.implementation_days}
-                      onChange={(e) => setFormData({ ...formData, implementation_days: e.target.value })}
-                      placeholder="请输入实施人天"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="opened_at">开通时间</Label>
-                    <Input
-                      id="opened_at"
-                      type="date"
-                      value={formData.opened_at}
-                      onChange={(e) => setFormData({ ...formData, opened_at: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="version">产品版本</Label>
-                    <Select
-                      value={formData.version}
-                      onValueChange={(v) => setFormData({ ...formData, version: v as ProductVersion })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择版本" />
-                      </SelectTrigger>
-                      <SelectContent position="popper" side="bottom" align="start">
-                        {Object.entries(VERSION_CONFIG).map(([key, value]) => (
-                          <SelectItem key={key} value={key}>{value.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>产品模块</Label>
-                    <div className="flex flex-wrap gap-2 p-3 border rounded-md min-h-[42px]">
-                      {MODULE_OPTIONS.map((module) => (
-                        <label
-                          key={module.value}
-                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors ${
-                            formData.modules.includes(module.value)
-                              ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                              : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="hidden"
-                            checked={formData.modules.includes(module.value)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({ ...formData, modules: [...formData.modules, module.value] });
-                              } else {
-                                setFormData({ ...formData, modules: formData.modules.filter(m => m !== module.value) });
-                              }
-                            }}
-                          />
-                          {module.label}
-                        </label>
-                      ))}
+                  {formFields.map(({ key, label, required, placeholder, type }) => (
+                    <div key={key} className="space-y-2">
+                      <Label htmlFor={key}>
+                        {label} {required && <span className="text-red-500">*</span>}
+                      </Label>
+                      <Input
+                        id={key}
+                        type={type || 'text'}
+                        min={type === 'number' ? '0' : undefined}
+                        step={type === 'number' ? '0.01' : undefined}
+                        value={(formData as Record<string, string>)[key]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        placeholder={placeholder}
+                        required={required}
+                      />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="industry">行业背景</Label>
-                    <Select
-                      value={formData.industry}
-                      onValueChange={(v) => setFormData({ ...formData, industry: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择行业" />
-                      </SelectTrigger>
-                      <SelectContent position="popper" side="bottom" align="start">
-                        {INDUSTRY_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>{option}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="delivery_consultant">交付顾问</Label>
-                  <Input
-                    id="delivery_consultant"
-                    value={formData.delivery_consultant}
-                    onChange={(e) => setFormData({ ...formData, delivery_consultant: e.target.value })}
-                    placeholder="请输入交付顾问"
-                  />
+                  ))}
                 </div>
 
                 <div className="space-y-2">
@@ -420,8 +299,7 @@ export default function NewCustomerPage() {
                 <h4 className="font-medium mb-2">字段说明：</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• <strong>客户名称</strong>：必填字段</li>
-                  <li>• <strong>状态</strong>：未上线、已上线未验收、已验收、不上线、延期上线、部分上线</li>
-                  <li>• 其他字段均为选填</li>
+                  <li>• 其他字段均为选填，均为文本输入</li>
                 </ul>
               </div>
             </CardContent>

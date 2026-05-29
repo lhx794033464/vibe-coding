@@ -24,7 +24,7 @@ import {
   FileDown,
   Pencil
 } from 'lucide-react';
-import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG, INDUSTRY_OPTIONS, ProductVersion, ProductModule, VERSION_CONFIG, MODULE_OPTIONS, MODULE_CONFIG } from '@/types';
+import { Customer, FollowUpRecord } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
@@ -78,12 +78,15 @@ export default function CustomerDetailPage({ params }: PageProps) {
     implementation_fee: '',
     implementation_days: '',
     opened_at: '',
-    version: '' as ProductVersion | '',
-    modules: [] as ProductModule[],
+    version: '',
+    modules: '',
     industry: '',
     special_requirements: '',
     delivery_consultant: '',
-    status: '' as CustomerStatus,
+    status: '',
+    salesperson: '',
+    implementation_type: '',
+    expiry_date: '',
   });
   const [generatingDoc, setGeneratingDoc] = useState(false);
 
@@ -117,11 +120,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
           implementation_days: data.data.implementation_days || '',
           opened_at: data.data.opened_at ? data.data.opened_at.split('T')[0] : '',
           version: data.data.version || '',
-          modules: data.data.modules || [],
+          modules: Array.isArray(data.data.modules) ? data.data.modules.join(', ') : (data.data.modules || ''),
           industry: data.data.industry || '',
           special_requirements: data.data.special_requirements || '',
           delivery_consultant: data.data.delivery_consultant || '',
-          status: data.data.status,
+          status: data.data.status || '',
+          salesperson: data.data.salesperson || '',
+          implementation_type: data.data.implementation_type || '',
+          expiry_date: data.data.expiry_date || '',
         });
       }
     } catch (error) {
@@ -428,7 +434,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     );
   }
 
-  const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
+  const statusLabel = customer.status || '未知';
 
   // 计算已消耗人天和剩余人天（从实施日志计算）
   const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
@@ -446,8 +452,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </Button>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-              <Badge className={`${statusConfig?.bgColor} ${statusConfig?.color}`}>
-                {statusConfig?.label}
+              <Badge variant="outline">
+                {statusLabel}
               </Badge>
             </div>
           </div>
@@ -487,15 +493,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     </div>
                     <div className="space-y-2">
                       <Label>客户状态</Label>
-                      <select
-                        className="w-full border rounded-md px-3 py-2"
+                      <Input
                         value={editForm.status}
-                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value as CustomerStatus })}
-                      >
-                        {Object.entries(STATUS_CONFIG).map(([key, value]) => (
-                          <option key={key} value={key}>{value.label}</option>
-                        ))}
-                      </select>
+                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        placeholder="如：已上线、未上线、实施中"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>销售订单号</Label>
@@ -540,58 +542,51 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     </div>
                     <div className="space-y-2">
                       <Label>产品版本</Label>
-                      <select
-                        className="w-full border rounded-md px-3 py-2"
+                      <Input
                         value={editForm.version}
-                        onChange={(e) => setEditForm({ ...editForm, version: e.target.value as ProductVersion })}
-                      >
-                        <option value="">请选择</option>
-                        {Object.entries(VERSION_CONFIG).map(([key, value]) => (
-                          <option key={key} value={key}>{value.label}</option>
-                        ))}
-                      </select>
+                        onChange={(e) => setEditForm({ ...editForm, version: e.target.value })}
+                        placeholder="如：专业版、标准版"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>产品模块</Label>
-                      <div className="flex flex-wrap gap-2 p-3 border rounded-md min-h-[42px]">
-                        {MODULE_OPTIONS.map((module) => (
-                          <label
-                            key={module.value}
-                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors ${
-                              editForm.modules.includes(module.value)
-                                ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                                : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="hidden"
-                              checked={editForm.modules.includes(module.value)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setEditForm({ ...editForm, modules: [...editForm.modules, module.value] });
-                                } else {
-                                  setEditForm({ ...editForm, modules: editForm.modules.filter(m => m !== module.value) });
-                                }
-                              }}
-                            />
-                            {module.label}
-                          </label>
-                        ))}
-                      </div>
+                      <Input
+                        value={editForm.modules}
+                        onChange={(e) => setEditForm({ ...editForm, modules: e.target.value })}
+                        placeholder="如：进销存、财务+进销存"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>行业背景</Label>
-                      <select
-                        className="w-full border rounded-md px-3 py-2"
+                      <Input
                         value={editForm.industry}
                         onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
-                      >
-                        <option value="">请选择</option>
-                        {INDUSTRY_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
+                        placeholder="请输入行业"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>业务员</Label>
+                      <Input
+                        value={editForm.salesperson}
+                        onChange={(e) => setEditForm({ ...editForm, salesperson: e.target.value })}
+                        placeholder="请输入业务员"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>实施类型</Label>
+                      <Input
+                        value={editForm.implementation_type}
+                        onChange={(e) => setEditForm({ ...editForm, implementation_type: e.target.value })}
+                        placeholder="如：新购、续费、增购"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>到期日</Label>
+                      <Input
+                        value={editForm.expiry_date}
+                        onChange={(e) => setEditForm({ ...editForm, expiry_date: e.target.value })}
+                        placeholder="如：2025-12-31"
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -622,28 +617,27 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<Calendar className="w-4 h-4" />} label="开通时间" value={customer.opened_at ? format(new Date(customer.opened_at), 'yyyy-MM-dd') : null} />
                     <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
                     <InfoItem icon={<User className="w-4 h-4" />} label="交付顾问" value={(customer as any).delivery_consultant} />
+                    <InfoItem icon={<User className="w-4 h-4" />} label="业务员" value={(customer as any).salesperson} />
+                    <InfoItem icon={<FileText className="w-4 h-4" />} label="实施类型" value={(customer as any).implementation_type} />
+                    <InfoItem icon={<Calendar className="w-4 h-4" />} label="到期日" value={(customer as any).expiry_date} />
                   </div>
                   {/* 产品版本和模块 */}
-                  {(customer.version || (customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : String(customer.modules).length > 0))) && (
+                  {(customer.version || customer.modules) && (
                     <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       {customer.version && (
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">产品版本:</span>
-                          <Badge className={VERSION_CONFIG[customer.version]?.color}>
-                            {VERSION_CONFIG[customer.version]?.label}
+                          <Badge variant="outline">
+                            {customer.version}
                           </Badge>
                         </div>
                       )}
-                      {customer.modules && Array.isArray(customer.modules) && customer.modules.length > 0 && (
+                      {customer.modules && (
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">产品模块:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {customer.modules.map((module) => (
-                              <Badge key={module} variant="outline" className="text-xs">
-                                {MODULE_CONFIG[module]?.label}
-                              </Badge>
-                            ))}
-                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {Array.isArray(customer.modules) ? customer.modules.join(', ') : String(customer.modules)}
+                          </Badge>
                         </div>
                       )}
                     </div>

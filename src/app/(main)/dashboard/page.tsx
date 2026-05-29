@@ -11,7 +11,7 @@ import {
   BarChart3,
   Loader2
 } from 'lucide-react';
-import { TimeRange, STATUS_CONFIG, CustomerStatus } from '@/types';
+import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -29,7 +29,7 @@ interface DashboardStats {
   totalCustomersChange: number;
   onlineRateChange: number;
   acceptanceRateChange: number;
-  statusDistribution: Record<CustomerStatus, number>;
+  statusDistribution: Record<string, number>;
 }
 
 const initialStats: DashboardStats = {
@@ -102,7 +102,7 @@ export default function DashboardPage() {
     return Object.entries(stats.statusDistribution)
       .sort(([, a], [, b]) => b - a)
       .map(([status, count]) => ({
-        status: status as CustomerStatus,
+        status: status,
         count,
         percentage: stats.totalCustomers > 0 
           ? ((count / stats.totalCustomers) * 100).toFixed(1) 
@@ -248,8 +248,8 @@ export default function DashboardPage() {
               <div key={status} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${STATUS_CONFIG[status]?.bgColor}`}></span>
-                    <span className="text-sm font-medium text-gray-700">{STATUS_CONFIG[status]?.label}</span>
+                    <span className={`w-3 h-3 rounded-full bg-primary`}></span>
+                    <span className="text-sm font-medium text-gray-700">{status}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-gray-900">{count}</span>
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2.5">
                   <div
-                    className={`h-2.5 rounded-full transition-all duration-300 ${STATUS_CONFIG[status]?.bgColor}`}
+                    className={`h-2.5 rounded-full transition-all duration-300 bg-primary`}
                     style={{ width: `${percentage}%` }}
                   ></div>
                 </div>

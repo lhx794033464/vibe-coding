@@ -19,7 +19,6 @@ import {
   ImageRun,
 } from 'docx';
 import { format } from 'date-fns';
-import { MODULE_CONFIG, ProductModule, ProductVersion, VERSION_CONFIG } from '@/types';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -53,12 +52,12 @@ export async function POST(request: NextRequest) {
       .sort((a: any, b: any) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime());
 
     // 格式化版本名称
-    const versionName = (customer as any).version ? (VERSION_CONFIG[(customer as any).version as ProductVersion]?.label || (customer as any).version) : '-';
+    const versionName = (customer as any).version ? String((customer as any).version) : '-';
     
     // 格式化模块名称（兼容数组和字符串格式）
     const modulesName = (customer as any).modules && (Array.isArray((customer as any).modules) ? (customer as any).modules.length > 0 : ((customer as any).modules as string).length > 0)
       ? (Array.isArray((customer as any).modules) 
-          ? (customer as any).modules.map((m: string) => MODULE_CONFIG[m as ProductModule]?.label || m).join('+')
+          ? (customer as any).modules.map((m: string) => String(m)).join('+')
           : String((customer as any).modules))
       : '-';
 

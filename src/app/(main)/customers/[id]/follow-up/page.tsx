@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Calendar, Clock, CheckCircle } from 'lucide-react';
-import { Customer, FollowUpRecord, CustomerStatus, STATUS_CONFIG } from '@/types';
+import { Customer, FollowUpRecord } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
@@ -166,7 +166,7 @@ export default function FollowUpPage({ params }: PageProps) {
     );
   }
 
-  const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
+
 
   return (
     <div className="h-full p-6 overflow-auto">
@@ -180,8 +180,8 @@ export default function FollowUpPage({ params }: PageProps) {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-              <Badge className={`mt-1 ${statusConfig?.bgColor} ${statusConfig?.color}`}>
-                {statusConfig?.label}
+              <Badge className="mt-1 bg-muted text-foreground">
+                {customer.status || '未设置'}
               </Badge>
             </div>
           </div>

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Plus, AlertCircle, MessageSquare, Loader2, FileSpreadsheet, Download, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
+import { Customer } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -205,9 +205,10 @@ export default function CustomersPage() {
             </SelectTrigger>
             <SelectContent position="popper" side="bottom" align="start">
               <SelectItem value="all">全部状态</SelectItem>
-              {Object.entries(STATUS_CONFIG).map(([key, value]) => (
-                <SelectItem key={key} value={key}>{value.label}</SelectItem>
-              ))}
+              <SelectItem value="已上线">已上线</SelectItem>
+              <SelectItem value="未上线">未上线</SelectItem>
+              <SelectItem value="实施中">实施中</SelectItem>
+              <SelectItem value="已验收">已验收</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -222,7 +223,6 @@ export default function CustomersPage() {
             </Card>
           ) : (
             filteredCustomers.map((customer) => {
-              const statusConfig = STATUS_CONFIG[customer.status as CustomerStatus];
               const isStale = isStaleFollowUp(customer);
               
               return (
@@ -231,7 +231,7 @@ export default function CustomersPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1">
                         {/* 状态标识 */}
-                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${statusConfig?.bgColor}`}></div>
+                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === '已上线' ? 'bg-green-500' : customer.status === '实施中' ? 'bg-blue-500' : customer.status === '已验收' ? 'bg-purple-500' : 'bg-gray-400'}`}></div>
                         
                         {/* 客户信息 */}
                         <div className="flex-1 min-w-0">
@@ -243,10 +243,10 @@ export default function CustomersPage() {
                             >
                               {customer.name}
                             </Link>
-                            <Badge className={`${statusConfig?.bgColor} ${statusConfig?.color}`}>
-                              {statusConfig?.label}
+                            <Badge className={customer.status === '已上线' ? 'bg-green-100 text-green-700' : customer.status === '实施中' ? 'bg-blue-100 text-blue-700' : customer.status === '已验收' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}>
+                              {customer.status || '未设置'}
                             </Badge>
-                            {isStale && customer.status !== 'accepted' && (
+                            {isStale && customer.status !== '已验收' && (
                               <Badge variant="outline" className="text-orange-600 border-orange-300">
                                 <AlertCircle className="w-3 h-3 mr-1" />
                                 需跟进
@@ -254,18 +254,18 @@ export default function CustomersPage() {
                             )}
                           </div>
                           {/* 第二行：版本 + 模块 */}
-                          {(customer.version || (customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : String(customer.modules).length > 0))) && (
+                          {(customer.version || customer.modules) && (
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               {customer.version && (
-                                <Badge className={VERSION_CONFIG[customer.version as ProductVersion]?.color}>
-                                  {VERSION_CONFIG[customer.version as ProductVersion]?.label}
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-200" variant="outline">
+                                  {customer.version}
                                 </Badge>
                               )}
-                              {customer.modules && (Array.isArray(customer.modules) ? customer.modules.length > 0 : false) && (
+                              {customer.modules && (
                                 <div className="flex items-center gap-1 flex-wrap">
-                                  {(customer.modules as string[]).map((module) => (
-                                    <Badge key={module} variant="outline" className="text-xs px-1.5 py-0">
-                                      {MODULE_CONFIG[module as ProductModule]?.label}
+                                  {(Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean).map((module: string, idx: number) => (
+                                    <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
+                                      {module.trim()}
                                     </Badge>
                                   ))}
                                 </div>
@@ -386,7 +386,7 @@ export default function CustomersPage() {
                             <p className="font-medium text-sm">{item.customerName}</p>
                             {item.isOnline && (
                               <span className={`text-xs px-1.5 py-0.5 rounded ${item.isOnline === '是' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                {item.isOnline === '是' ? '已上线' : '未上线'}
+                                {item.isOnline === '是' ? '已上线' : item.isOnline}
                               </span>
                             )}
                             {item.version && (
@@ -397,9 +397,9 @@ export default function CustomersPage() {
                             {item.modules && <span>购买模块：{item.modules}</span>}
                             {item.implementationType && <span>实施类型：{item.implementationType}</span>}
                             {item.salesperson && <span>业务员：{item.salesperson}</span>}
-                            {item.applyMonth && <span>申请月：{item.applyMonth}</span>}
+                            {item.applyMonth && <span>开通时间：{item.applyMonth}</span>}
                             {item.expiryDate && <span>到期日：{item.expiryDate}</span>}
-                            {item.implementationPrice && <span>实施成交价：{item.implementationPrice}</span>}
+                            {item.implementationPrice && <span>实施费：{item.implementationPrice}</span>}
                             {item.purchaseDays && <span>购买人天：{item.purchaseDays}</span>}
                             {item.salesOrder && <span>销售订单：{item.salesOrder}</span>}
                             {item.implementationOrder && <span>实施订单号：{item.implementationOrder}</span>}

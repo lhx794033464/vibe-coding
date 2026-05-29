@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbGetCustomers, dbGetCommissionRecords, dbCreateCommissionRecord, dbUpdateCommissionRecord, dbDeleteCommissionRecord } from '@/services/dbService';
-import { MODULE_CONFIG, COMMISSION_CONFIG, ProductModule } from '@/types';
+import { COMMISSION_CONFIG } from '@/types';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 function calculateCommission(
   implementationFee: number,
   implementationDays: number,
-  modules: ProductModule[],
+  modules: string[],
 ): {
   commissionType: 'percentage' | 'daily';
   totalCommission: number;
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       const implementationFee = parseFloat(customer.implementation_fee || '0');
       const implementationDays = parseFloat(customer.implementation_days || '0');
       const rawModules = customer.modules;
-      const modules: ProductModule[] = Array.isArray(rawModules) ? rawModules : (typeof rawModules === 'string' && rawModules.length > 0 ? [rawModules] : []);
+      const modules: string[] = Array.isArray(rawModules) ? rawModules : (typeof rawModules === 'string' && rawModules.length > 0 ? [rawModules] : []);
 
       const commission = calculateCommission(implementationFee, implementationDays, modules);
 
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
         implementationFee,
         implementationDays,
         modules,
-        modulesLabel: modules.map((m: ProductModule) => MODULE_CONFIG[m]?.label || m).join('+'),
+        modulesLabel: modules.map((m: string) => String(m)).join('+'),
         standardFee: commission.standardFee,
         feeRatio: commission.feeRatio,
         commissionType: commission.commissionType,

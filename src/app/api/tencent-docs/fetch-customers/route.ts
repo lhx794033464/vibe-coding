@@ -80,21 +80,21 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
-// 从一行CSV数据中提取客户信息
+// 从一行CSV数据中提取客户信息（字段名映射到数据库列名）
 function extractCustomerFromRow(cols: string[]) {
   return {
-    isOnline: cols[COL_IS_ONLINE] || '',
-    applyMonth: cols[COL_APPLY_MONTH] || '',
+    status: cols[COL_IS_ONLINE] || '',           // 是否上线 → 客户状态
+    opened_at: cols[COL_APPLY_MONTH] || '',      // 申请月 → 开通时间
     customerName: cols[COL_CUSTOMER] || '',
-    implementationType: cols[COL_IMPL_TYPE] || '',
-    salesperson: cols[COL_SALESPERSON] || '',
-    expiryDate: cols[COL_EXPIRY_DATE] || '',
-    salesOrder: cols[COL_SALES_ORDER] || '',
-    implementationOrder: cols[COL_IMPL_ORDER] || '',
-    implementationPrice: cols[COL_IMPL_PRICE] || '',
-    purchaseDays: cols[COL_PURCHASE_DAYS] || '',
-    modules: cols[COL_MODULE] || '',
-    version: cols[COL_VERSION] || '',
+    implementation_type: cols[COL_IMPL_TYPE] || '',  // 实施类型
+    salesperson: cols[COL_SALESPERSON] || '',        // 业务员
+    expiry_date: cols[COL_EXPIRY_DATE] || '',        // 到期日
+    sales_order_no: cols[COL_SALES_ORDER] || '',     // 销售订单
+    implementation_order_no: cols[COL_IMPL_ORDER] || '', // 实施订单号
+    implementation_fee: cols[COL_IMPL_PRICE] || '',  // 实施成交价 → 实施费
+    implementation_days: cols[COL_PURCHASE_DAYS] || '', // 购买人天
+    modules: cols[COL_MODULE] || '',                 // 购买模块
+    version: cols[COL_VERSION] || '',                // 版本
     deliverer: cols[COL_DELIVERER] || '',
   };
 }
@@ -162,15 +162,15 @@ export async function GET(request: NextRequest) {
       uniqueCount: customerMap.size,
       data: Array.from(customerMap.values()).map(r => ({
         customerName: r.customerName,
-        isOnline: r.isOnline,
-        applyMonth: r.applyMonth,
-        implementationType: r.implementationType,
-        salesperson: r.salesperson,
-        expiryDate: r.expiryDate,
-        salesOrder: r.salesOrder,
-        implementationOrder: r.implementationOrder,
-        implementationPrice: r.implementationPrice,
-        purchaseDays: r.purchaseDays,
+        status: r.status,                            // 是否上线 → 客户状态
+        opened_at: r.opened_at,                      // 申请月 → 开通时间
+        implementation_type: r.implementation_type,  // 实施类型
+        salesperson: r.salesperson,                  // 业务员
+        expiry_date: r.expiry_date,                  // 到期日
+        sales_order_no: r.sales_order_no,            // 销售订单
+        implementation_order_no: r.implementation_order_no, // 实施订单号
+        implementation_fee: r.implementation_fee,    // 实施成交价 → 实施费
+        implementation_days: r.implementation_days,  // 购买人天
         modules: r.modulesList.join('、'),
         version: r.version,
         deliverer: r.deliverer,
@@ -217,26 +217,20 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 判断是否上线状态
-        const isOnline = customer.isOnline === '是';
-        let status = isOnline ? 'online' : 'not_online';
-
         const customerData: Record<string, any> = {
           name: customerName,
-          status,
+          status: customer.status || '',                        // 是否上线 → 客户状态
+          opened_at: customer.opened_at || null,               // 申请月 → 开通时间
           delivery_consultant: customer.deliverer || userInfo.username,
           modules: customer.modules ? customer.modules.split('、') : [],
           version: customer.version || null,
-          sales_order_no: customer.salesOrder || null,
-          implementation_order_no: customer.implementationOrder || null,
-          product_amount: customer.implementationPrice ? parseInt(customer.implementationPrice) : null,
-          implementation_days: customer.purchaseDays ? parseFloat(customer.purchaseDays) : null,
-          // 新增字段
-          is_online: customer.isOnline || null,
-          apply_month: customer.applyMonth || null,
-          implementation_type: customer.implementationType || null,
-          salesperson: customer.salesperson || null,
-          expiry_date: customer.expiryDate || null,
+          sales_order_no: customer.sales_order_no || null,
+          implementation_order_no: customer.implementation_order_no || null,
+          implementation_fee: customer.implementation_fee ? parseFloat(customer.implementation_fee) : null,  // 实施成交价 → 实施费
+          implementation_days: customer.implementation_days ? parseFloat(customer.implementation_days) : null,
+          implementation_type: customer.implementation_type || null,   // 实施类型
+          salesperson: customer.salesperson || null,                   // 业务员
+          expiry_date: customer.expiry_date || null,                   // 到期日
         };
 
         // 检查是否已存在：存在则覆盖更新，不存在则新增
