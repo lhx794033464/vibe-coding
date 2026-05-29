@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { TencentDocsClient } from '@/lib/tencentDocsClient';
-import { dbGetCustomers, dbCreateCustomer } from '@/services/dbService';
+import { dbGetCustomers, dbCreateCustomer, dbUpdateCustomer } from '@/services/dbService';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { getSupabaseClient, getSupabaseServiceRoleKey } from '@/storage/database/supabase-client';
@@ -200,27 +200,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '客户数据不能为空' }, { status: 400 });
     }
 
-    // 获取已有客户列表，避免重复
+    // 获取已有客户列表，用于判断新增还是覆盖
     const userId = userInfo.id;
     const isAdmin = userInfo.role === 'admin';
     const existingCustomers = await dbGetCustomers({ userId, isAdmin });
-    const existingNames = new Set(existingCustomers.map(c => c.name));
+    const existingMap = new Map(existingCustomers.map(c => [c.name, c]));
 
     let imported = 0;
-    let skipped = 0;
+    let updated = 0;
     const errors: string[] = [];
 
     for (const customer of customers) {
       try {
         const customerName = customer.customerName || '';
         if (!customerName) {
-          skipped++;
-          continue;
-        }
-
-        // 检查是否已存在
-        if (existingNames.has(customerName)) {
-          skipped++;
           continue;
         }
 
@@ -228,7 +221,7 @@ export async function POST(request: NextRequest) {
         const isOnline = customer.isOnline === '是';
         let status = isOnline ? 'online' : 'not_online';
 
-        await dbCreateCustomer({
+        const customerData: Record<string, any> = {
           name: customerName,
           status,
           delivery_consultant: customer.deliverer || userInfo.username,
@@ -244,11 +237,18 @@ export async function POST(request: NextRequest) {
           implementation_type: customer.implementationType || null,
           salesperson: customer.salesperson || null,
           expiry_date: customer.expiryDate || null,
-          user_id: userId,
-        });
+        };
 
-        existingNames.add(customerName);
-        imported++;
+        // 检查是否已存在：存在则覆盖更新，不存在则新增
+        const existing = existingMap.get(customerName);
+        if (existing) {
+          await dbUpdateCustomer(existing.id, customerData);
+          updated++;
+        } else {
+          customerData.user_id = userId;
+          await dbCreateCustomer(customerData);
+          imported++;
+        }
       } catch (e) {
         errors.push(`导入 ${customer.customerName} 失败: ${e instanceof Error ? e.message : '未知错误'}`);
       }
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       imported,
-      skipped,
+      updated,
       errors,
     });
   } catch (error) {
