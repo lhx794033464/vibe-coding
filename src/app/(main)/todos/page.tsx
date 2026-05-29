@@ -102,7 +102,11 @@ export default function TodosPage() {
 
   const isOverdue = (todo: Todo) => {
     if (todo.completed || !todo.due_date) return false;
-    return new Date(todo.due_date) < new Date();
+    const dueDate = new Date(todo.due_date);
+    dueDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return dueDate < today;
   };
 
   const pendingTodos = useMemo(() => {
@@ -179,7 +183,9 @@ export default function TodosPage() {
       }
       // Reset form
       setNewContent('');
-      setNewDueDate('');
+      const now = new Date();
+      const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      setNewDueDate(utc8.toISOString().slice(0, 10));
       setNewPriority('medium');
       setNewCustomerId('');
       loadData();
