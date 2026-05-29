@@ -69,7 +69,11 @@ export default function TodosPage() {
 
   // Create form state (right panel)
   const [newContent, setNewContent] = useState('');
-  const [newDueDate, setNewDueDate] = useState('');
+  const [newDueDate, setNewDueDate] = useState(() => {
+    const now = new Date();
+    const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    return utc8.toISOString().slice(0, 10);
+  });
   const [newPriority, setNewPriority] = useState('medium');
   const [newCustomerId, setNewCustomerId] = useState('');
   const [creating, setCreating] = useState(false);
@@ -343,25 +347,24 @@ export default function TodosPage() {
                       >
                         {/* Content area */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {todo.content}
+                            </p>
                             <span className={cn(
-                              'text-xs px-1.5 py-0.5 rounded border font-medium',
+                              'text-xs px-1.5 py-0.5 rounded border font-medium shrink-0',
                               pConfig.color
                             )}>
                               {pConfig.label}
                             </span>
                             {overdue && (
-                              <span className="text-xs text-red-600 font-medium">已逾期</span>
+                              <span className="text-xs text-red-600 font-medium shrink-0">已逾期</span>
                             )}
                           </div>
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {todo.content}
-                          </p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                             {todo.due_date && (
-                              <span className={cn('flex items-center gap-1', overdue && 'text-red-600')}>
-                                <Calendar className="w-3 h-3" />
-                                {todo.due_date}
+                              <span className={cn(overdue && 'text-red-600')}>
+                                {todo.due_date.slice(0, 10)}
                               </span>
                             )}
                             {customerName && (
