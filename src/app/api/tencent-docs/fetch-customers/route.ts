@@ -4,6 +4,7 @@ import { TencentDocsClient } from '@/lib/tencentDocsClient';
 import { dbGetCustomers, dbCreateCustomer } from '@/services/dbService';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { getSupabaseClient, getSupabaseServiceRoleKey } from '@/storage/database/supabase-client';
 
 const CONFIG_FILE = path.join('/tmp', 'tencent_docs_config.json');
 
@@ -18,13 +19,29 @@ const COL_CUSTOMER = 4;
 const COL_MODULE = 15;
 const COL_END = 16; // 读取到P列
 
-async function getToken(): Promise<string> {
+async function getToken(request?: NextRequest): Promise<string> {
+  // 1. 从 URL 参数获取
+  if (request) {
+    const urlToken = request.nextUrl.searchParams.get('token');
+    if (urlToken) return urlToken;
+  }
+  // 2. 从数据库 system_config 读取
+  try {
+    const supabase = getSupabaseClient(getSupabaseServiceRoleKey());
+    const { data } = await supabase
+      .from('system_config')
+      .select('value')
+      .eq('key', 'tencent_docs_token')
+      .single();
+    if (data?.value) return data.value;
+  } catch {}
+  // 3. 从本地配置文件读取
   try {
     const data = await readFile(CONFIG_FILE, 'utf-8');
     const config = JSON.parse(data);
     if (config.token) return config.token;
   } catch {}
-  throw new Error('未配置腾讯文档 Token');
+  throw new Error('未配置腾讯文档 Token，请在系统配置中设置');
 }
 
 // 解析CSV行（处理引号内的逗号）
@@ -55,10 +72,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 支持从 query 参数传入 token，或从配置文件读取
-    const { searchParams } = new URL(request.url);
-    const tokenFromQuery = searchParams.get('token');
-    const token = tokenFromQuery || await getToken();
+    const token = await getToken(request);
 
     const client = new TencentDocsClient(token);
 
