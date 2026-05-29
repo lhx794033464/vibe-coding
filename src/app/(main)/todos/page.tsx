@@ -491,13 +491,8 @@ export default function TodosPage() {
                   {/* Timeline */}
                   <div className="relative">
                     {completedGroupedByDate.map((group, gi) => (
-                      <div key={gi} className="relative pl-6 pb-4 last:pb-0">
-                        {/* Timeline line */}
-                        {gi < completedGroupedByDate.length - 1 && (
-                          <div className="absolute left-[7px] top-5 bottom-0 w-px bg-border" />
-                        )}
-                        {/* Timeline dot */}
-                        <div className="absolute left-0 top-1.5 w-[15px] h-[15px] rounded-full border-2 border-muted-foreground/30 bg-muted" />
+                      <div key={gi} className="pb-4 last:pb-0">
+
                         {/* Date header */}
                         <p className="text-xs font-medium text-muted-foreground mb-2">{group.label}</p>
                         {/* Items */}
