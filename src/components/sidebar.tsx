@@ -98,12 +98,12 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         <div className={`border-b border-gray-200 ${collapsed ? 'p-3' : 'p-6'}`}>
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
             {/* Logo */}
-            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
               <Image
                 src="/logo.png"
                 alt="Logo"
-                width={40}
-                height={40}
+                width={28}
+                height={28}
                 className="object-contain"
               />
             </div>
