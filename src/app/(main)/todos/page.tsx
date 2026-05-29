@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Check, Clock, Search, Calendar, Link2, Trash2, Loader2, Edit3, ChevronRight, Plus, Undo2 } from 'lucide-react';
+import { Check, Clock, Search, Calendar, Link2, Trash2, Loader2, Edit3, ChevronDown, ChevronRight, Plus, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,6 +64,7 @@ export default function TodosPage() {
   const [editContent, setEditContent] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editPriority, setEditPriority] = useState('medium');
+  const [showCompleted, setShowCompleted] = useState(true);
   const [editCustomerId, setEditCustomerId] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -481,15 +482,26 @@ export default function TodosPage() {
               <>
                 <div className="border-t mx-4" />
                 <div className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-                    <h3 className="font-semibold text-muted-foreground">
-                      已完成 ({completedTodos.length})
-                    </h3>
+                  <div
+                    className="flex items-center justify-between mb-3 cursor-pointer select-none"
+                    onClick={() => setShowCompleted(!showCompleted)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-muted-foreground">
+                        已办 ({completedTodos.length})
+                      </h3>
+                    </div>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
+                      {showCompleted ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
 
                   {/* Timeline */}
-                  <div className="relative">
+                  <div className={`relative overflow-hidden transition-all duration-300 ${showCompleted ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                     {completedGroupedByDate.map((group, gi) => (
                       <div key={gi} className="pb-4 last:pb-0">
 
