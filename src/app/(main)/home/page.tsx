@@ -367,33 +367,72 @@ export default function HomePage() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
+      let todoActionResult = '';
+      let buffer = '';
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           
-          const chunk = decoder.decode(value);
-          assistantMessage += chunk;
+          buffer += decoder.decode(value, { stream: true });
+          
+          // 解析 SSE 数据行
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // 保留最后一个可能不完整的行
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            
+            const dataStr = trimmed.slice(6);
+            if (dataStr === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                assistantMessage += `\n\n⚠️ ${parsed.error}`;
+              } else if (parsed.content) {
+                assistantMessage += parsed.content;
+              }
+              if (parsed.todoAction && parsed.actionResult) {
+                todoActionResult = parsed.actionResult;
+              }
+            } catch {
+              // 忽略无法解析的行
+            }
+          }
+          
+          // 过滤掉操作指令代码块（不显示给用户）
+          const displayContent = assistantMessage
+            .replace(/```\s*TODO_\w+\|[\s\S]*?```/g, '')
+            .trim();
           
           // 实时更新消息
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
-            // 检查 lastMessage 是否存在且为助手消息
             if (lastMessage && lastMessage.role === 'assistant') {
-              lastMessage.content = assistantMessage;
+              lastMessage.content = displayContent;
             }
             return newMessages;
           });
+        }
+        
+        // 最终内容：如果有待办操作结果，追加到消息中
+        let finalContent = assistantMessage
+          .replace(/```\s*TODO_\w+\|[\s\S]*?```/g, '')
+          .trim();
+        if (todoActionResult) {
+          finalContent += `\n\n> ${todoActionResult}`;
         }
         
         // 标记流式结束
         setMessages(prev => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
-          // 检查 lastMessage 是否存在且为助手消息
           if (lastMessage && lastMessage.role === 'assistant') {
+            lastMessage.content = finalContent;
             lastMessage.isStreaming = false;
           }
           return newMessages;
@@ -401,7 +440,7 @@ export default function HomePage() {
         
         // 保存到全局状态
         addMessage({ role: 'user', content: userMessage });
-        addMessage({ role: 'assistant', content: assistantMessage });
+        addMessage({ role: 'assistant', content: finalContent });
       }
     } catch (error) {
       // 如果是中断请求导致的错误，不显示错误信息
