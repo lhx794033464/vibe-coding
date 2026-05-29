@@ -6,7 +6,7 @@ import { getCurrentUserInfo } from '@/lib/serverAuth';
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const customerId = searchParams.get('customerId');
+    const customerId = searchParams.get('customer_id') || searchParams.get('customerId');
 
     // 数据隔离
     const userInfo = await getCurrentUserInfo(request);
