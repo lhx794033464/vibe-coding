@@ -180,8 +180,8 @@ export default function FollowUpPage({ params }: PageProps) {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-              <Badge className="mt-1 bg-muted text-foreground">
-                {customer.status || '未设置'}
+              <Badge className={`mt-1 ${customer.status === '是' ? 'bg-green-100 text-green-700' : customer.status === '否' ? 'bg-red-100 text-red-700' : 'bg-muted text-foreground'}`}>
+                {customer.status === '是' ? '已上线' : customer.status === '否' ? '未上线' : customer.status || '未设置'}
               </Badge>
             </div>
           </div>

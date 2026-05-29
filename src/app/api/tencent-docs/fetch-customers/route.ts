@@ -162,15 +162,15 @@ export async function GET(request: NextRequest) {
       uniqueCount: customerMap.size,
       data: Array.from(customerMap.values()).map(r => ({
         customerName: r.customerName,
-        status: r.status,                            // 是否上线 → 客户状态
-        opened_at: r.opened_at,                      // 申请月 → 开通时间
-        implementation_type: r.implementation_type,  // 实施类型
-        salesperson: r.salesperson,                  // 业务员
-        expiry_date: r.expiry_date,                  // 到期日
-        sales_order_no: r.sales_order_no,            // 销售订单
-        implementation_order_no: r.implementation_order_no, // 实施订单号
-        implementation_fee: r.implementation_fee,    // 实施成交价 → 实施费
-        implementation_days: r.implementation_days,  // 购买人天
+        status: r.status,                              // 是否上线 → 客户状态
+        applyMonth: r.opened_at,                       // 申请月 → 开通时间（前端驼峰）
+        implementationType: r.implementation_type,     // 实施类型
+        salesperson: r.salesperson,                    // 业务员
+        expiryDate: r.expiry_date,                     // 到期日
+        salesOrder: r.sales_order_no,                  // 销售订单
+        implementationOrder: r.implementation_order_no,// 实施订单号
+        implementationPrice: r.implementation_fee,     // 实施成交价 → 实施费（前端驼峰）
+        implementationDays: r.implementation_days,     // 购买人天
         modules: r.modulesList.join('、'),
         version: r.version,
         deliverer: r.deliverer,

@@ -33,10 +33,10 @@ export default function CustomersPage() {
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchData, setFetchData] = useState<{
     customerName: string; modules: string; deliverer?: string;
-    isOnline?: string; applyMonth?: string; implementationType?: string;
-    salesperson?: string; expiryDate?: string; salesOrder?: string;
-    implementationOrder?: string; implementationPrice?: string;
-    purchaseDays?: string; version?: string;
+    status?: string; opened_at?: string; implementation_type?: string;
+    salesperson?: string; expiry_date?: string; sales_order_no?: string;
+    implementation_order_no?: string; implementation_fee?: string;
+    implementation_days?: string; version?: string;
   }[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -231,7 +231,7 @@ export default function CustomersPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1">
                         {/* 状态标识 */}
-                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === '已上线' ? 'bg-green-500' : customer.status === '实施中' ? 'bg-blue-500' : customer.status === '已验收' ? 'bg-purple-500' : 'bg-gray-400'}`}></div>
+                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === '是' || customer.status === '已上线' ? 'bg-green-500' : customer.status === '实施中' ? 'bg-blue-500' : customer.status === '已验收' ? 'bg-purple-500' : 'bg-red-400'}`}></div>
                         
                         {/* 客户信息 */}
                         <div className="flex-1 min-w-0">
@@ -243,8 +243,8 @@ export default function CustomersPage() {
                             >
                               {customer.name}
                             </Link>
-                            <Badge className={customer.status === '已上线' ? 'bg-green-100 text-green-700' : customer.status === '实施中' ? 'bg-blue-100 text-blue-700' : customer.status === '已验收' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}>
-                              {customer.status || '未设置'}
+                            <Badge className={customer.status === '是' || customer.status === '已上线' ? 'bg-green-100 text-green-700' : customer.status === '实施中' ? 'bg-blue-100 text-blue-700' : customer.status === '已验收' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-600'}>
+                              {customer.status === '是' ? '已上线' : customer.status === '否' ? '未上线' : customer.status || '未设置'}
                             </Badge>
                             {isStale && customer.status !== '已验收' && (
                               <Badge variant="outline" className="text-orange-600 border-orange-300">
@@ -384,9 +384,9 @@ export default function CustomersPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium text-sm">{item.customerName}</p>
-                            {item.isOnline && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${item.isOnline === '是' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                {item.isOnline === '是' ? '已上线' : item.isOnline}
+                            {item.status && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${item.status === '是' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                {item.status === '是' ? '已上线' : item.status === '否' ? '未上线' : item.status}
                               </span>
                             )}
                             {item.version && (
@@ -395,14 +395,14 @@ export default function CustomersPage() {
                           </div>
                           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
                             {item.modules && <span>购买模块：{item.modules}</span>}
-                            {item.implementationType && <span>实施类型：{item.implementationType}</span>}
+                            {item.implementation_type && <span>实施类型：{item.implementation_type}</span>}
                             {item.salesperson && <span>业务员：{item.salesperson}</span>}
-                            {item.applyMonth && <span>开通时间：{item.applyMonth}</span>}
-                            {item.expiryDate && <span>到期日：{item.expiryDate}</span>}
-                            {item.implementationPrice && <span>实施费：{item.implementationPrice}</span>}
-                            {item.purchaseDays && <span>购买人天：{item.purchaseDays}</span>}
-                            {item.salesOrder && <span>销售订单：{item.salesOrder}</span>}
-                            {item.implementationOrder && <span>实施订单号：{item.implementationOrder}</span>}
+                            {item.opened_at && <span>开通时间：{item.opened_at}</span>}
+                            {item.expiry_date && <span>到期日：{item.expiry_date}</span>}
+                            {item.implementation_fee && <span>实施费：{item.implementation_fee}</span>}
+                            {item.implementation_days && <span>购买人天：{item.implementation_days}</span>}
+                            {item.sales_order_no && <span>销售订单：{item.sales_order_no}</span>}
+                            {item.implementation_order_no && <span>实施订单号：{item.implementation_order_no}</span>}
                           </div>
                         </div>
                       </label>

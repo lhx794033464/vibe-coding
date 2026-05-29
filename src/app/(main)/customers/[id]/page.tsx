@@ -435,6 +435,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
   }
 
   const statusLabel = customer.status || '未知';
+  const isOnline = statusLabel === '是' || statusLabel === '已上线';
+  const statusBadgeClass = isOnline
+    ? 'bg-green-100 text-green-700 border-green-200'
+    : 'bg-red-100 text-red-700 border-red-200';
 
   // 计算已消耗人天和剩余人天（从实施日志计算）
   const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
@@ -452,8 +456,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </Button>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-              <Badge variant="outline">
-                {statusLabel}
+              <Badge variant="outline" className={statusBadgeClass}>
+                {isOnline ? '已上线' : '未上线'}
               </Badge>
             </div>
           </div>
