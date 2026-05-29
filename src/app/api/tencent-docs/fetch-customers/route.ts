@@ -217,23 +217,34 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const customerData: Record<string, any> = {
-          name: customerName,
-          status: customer.status || '',                        // 是否上线 → 客户状态
-          opened_at: customer.opened_at || null,               // 申请月 → 开通时间
-          delivery_consultant: customer.deliverer || userInfo.username,
-          modules: customer.modules ? customer.modules.split('、') : [],
-          version: customer.version || null,
-          sales_order_no: customer.sales_order_no || null,
-          implementation_order_no: customer.implementation_order_no || null,
-          implementation_fee: customer.implementation_fee ? parseFloat(customer.implementation_fee) : null,  // 实施成交价 → 实施费
-          implementation_days: customer.implementation_days ? parseFloat(customer.implementation_days) : null,
-          implementation_type: customer.implementation_type || null,   // 实施类型
-          salesperson: customer.salesperson || null,                   // 业务员
-          expiry_date: customer.expiry_date || null,                   // 到期日
+        // 构建客户数据：只包含有值的字段，空值不覆盖已有数据
+        const customerData: Record<string, any> = {};
+        const setIfValue = (key: string, value: any) => {
+          if (value !== null && value !== undefined && value !== '') {
+            customerData[key] = value;
+          }
         };
 
-        // 检查是否已存在：存在则覆盖更新，不存在则新增
+        setIfValue('name', customerName);
+        setIfValue('status', customer.status);                                       // 是否上线 → 客户状态
+        setIfValue('opened_at', customer.opened_at || customer.applyMonth);          // 申请月 → 开通时间
+        setIfValue('delivery_consultant', customer.deliverer || userInfo.username);
+        setIfValue('modules', customer.modules ? customer.modules.split('、') : null);
+        setIfValue('version', customer.version);
+        setIfValue('sales_order_no', customer.sales_order_no || customer.salesOrder);
+        setIfValue('implementation_order_no', customer.implementation_order_no || customer.implementationOrder);
+        const feeVal = customer.implementation_fee || customer.implementationPrice;
+        setIfValue('implementation_fee', feeVal ? parseFloat(String(feeVal)) : null);
+        const daysVal = customer.implementation_days || customer.implementationDays;
+        setIfValue('implementation_days', daysVal ? parseFloat(String(daysVal)) : null);
+        setIfValue('implementation_type', customer.implementation_type || customer.implementationType);
+        setIfValue('salesperson', customer.salesperson);
+        setIfValue('expiry_date', customer.expiry_date || customer.expiryDate);
+
+        // 至少需要有客户名称
+        if (!customerData.name) {
+          continue;
+        }
         const existing = existingMap.get(customerName);
         if (existing) {
           await dbUpdateCustomer(existing.id, customerData);
