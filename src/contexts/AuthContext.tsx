@@ -19,6 +19,7 @@ interface AuthContextType {
   register: (username: string, password: string, email?: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   getAuthHeader: () => Record<string, string>;
+  refreshUser: (newToken?: string, newUser?: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -136,6 +137,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {};
   };
 
+  // 刷新当前用户信息（修改用户名后调用）
+  const refreshUser = (newToken?: string, newUser?: User) => {
+    try {
+      const sessionStr = localStorage.getItem('auth_session');
+      if (!sessionStr) return;
+      const session = JSON.parse(sessionStr);
+      if (newToken && newUser) {
+        localStorage.setItem('auth_session', JSON.stringify({
+          token: newToken,
+          user: newUser,
+        }));
+      } else if (newUser) {
+        localStorage.setItem('auth_session', JSON.stringify({
+          ...session,
+          user: newUser,
+        }));
+      } else if (newToken) {
+        localStorage.setItem('auth_session', JSON.stringify({
+          ...session,
+          token: newToken,
+        }));
+      }
+      updateAuthState();
+    } catch (error) {
+      console.error('刷新用户信息失败:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user,
@@ -146,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       getAuthHeader,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

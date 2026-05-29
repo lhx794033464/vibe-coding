@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbGetUserById, dbUpdateUser, dbDeleteUser, dbGetAllUsers } from '@/services/dbService';
-import { getCurrentUserInfo } from '@/lib/serverAuth';
-
-// 获取用户详情
+import { getCurrentUserInfo } from '@/lib/serverAuth';// 获取用户详情
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,7 +42,15 @@ export async function PUT(
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
 
-    return NextResponse.json({ data: updatedUser });
+    // 如果修改的是当前登录用户自己，生成新 Token 返回
+    const response: Record<string, unknown> = { data: updatedUser };
+    if (userInfo && id === userInfo.id) {
+      const random = Math.random().toString(36).substring(2);
+      const newToken = Buffer.from(`${updatedUser.id}:${updatedUser.username}:${updatedUser.role}:${random}`).toString('base64');
+      response.newToken = newToken;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('更新用户失败:', error);
     return NextResponse.json({ error: '更新用户失败' }, { status: 500 });

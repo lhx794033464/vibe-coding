@@ -38,7 +38,7 @@ export default function UsersManagementPage() {
     is_active: true,
   });
 
-  const { isAuthenticated, isAdmin, getAuthHeader } = useAuth();
+  const { isAuthenticated, isAdmin, getAuthHeader, refreshUser } = useAuth();
 
   useEffect(() => {
     // 检查是否是管理员
@@ -89,6 +89,16 @@ export default function UsersManagementPage() {
         console.log('更新用户响应:', result);
         
         if (response.ok) {
+          // 如果修改的是当前登录用户，刷新本地认证信息
+          if (result.newToken && result.data) {
+            refreshUser(result.newToken, {
+              id: result.data.id,
+              username: result.data.username,
+              email: result.data.email,
+              role: result.data.role,
+              display_name: result.data.display_name,
+            });
+          }
           setOpenDialog(false);
           loadUsers();
           resetForm();
