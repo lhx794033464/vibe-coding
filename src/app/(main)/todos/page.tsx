@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Check, Clock, Search, Calendar, Link2, Trash2, Loader2, Edit3, ChevronRight, Plus } from 'lucide-react';
+import { Check, Clock, Search, Calendar, Link2, Trash2, Loader2, Edit3, ChevronRight, Plus, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -247,6 +247,20 @@ export default function TodosPage() {
     }
   };
 
+  const handleReopen = async (id: string) => {
+    try {
+      const res = await fetch(`/api/todos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ completed: false, completed_at: null }),
+      });
+      if (!res.ok) throw new Error('撤销失败');
+      loadData();
+    } catch (error) {
+      console.error('撤销待办失败:', error);
+    }
+  };
+
   const openEditDialog = (todo: Todo) => {
     setEditTodoId(todo.id);
     setEditContent(todo.content);
@@ -285,6 +299,36 @@ export default function TodosPage() {
     high: { label: '高', color: 'text-red-600 bg-red-50 border-red-200' },
     medium: { label: '中', color: 'text-amber-600 bg-amber-50 border-amber-200' },
     low: { label: '低', color: 'text-green-600 bg-green-50 border-green-200' },
+  };
+
+  const formatDueDate = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const dueDate = new Date(dateStr);
+    dueDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((dueDate.getTime() - today.getTime()) / (86400000));
+    if (diffDays === 0) return '今天';
+    if (diffDays === 1) return '明天';
+    if (diffDays === 2) return '后天';
+    return dateStr.slice(0, 10);
+  };
+
+  const handleUndoComplete = async (todoId: string) => {
+    try {
+      const res = await fetch(`/api/todos/${todoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ completed: false, completed_at: null }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '撤销失败');
+      }
+      await loadData();
+    } catch (error) {
+      console.error('撤销失败:', error);
+    }
   };
 
   const getCustomerName = (customerId: string | null) => {
@@ -354,15 +398,15 @@ export default function TodosPage() {
                         {/* Content area */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {todo.content}
-                            </p>
                             <span className={cn(
                               'text-xs px-1.5 py-0.5 rounded border font-medium shrink-0',
                               pConfig.color
                             )}>
                               {pConfig.label}
                             </span>
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {todo.content}
+                            </p>
                             {overdue && (
                               <span className="text-xs text-red-600 font-medium shrink-0">已逾期</span>
                             )}
@@ -370,7 +414,7 @@ export default function TodosPage() {
                           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                             {todo.due_date && (
                               <span className={cn(overdue && 'text-red-600')}>
-                                {todo.due_date.slice(0, 10)}
+                                {formatDueDate(todo.due_date)}
                               </span>
                             )}
                             {customerName && (
@@ -453,9 +497,7 @@ export default function TodosPage() {
                           <div className="absolute left-[7px] top-5 bottom-0 w-px bg-border" />
                         )}
                         {/* Timeline dot */}
-                        <div className="absolute left-0 top-1.5 w-[15px] h-[15px] rounded-full border-2 border-muted-foreground/40 bg-muted flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-muted-foreground" />
-                        </div>
+                        <div className="absolute left-0 top-1.5 w-[15px] h-[15px] rounded-full border-2 border-muted-foreground/30 bg-muted" />
                         {/* Date header */}
                         <p className="text-xs font-medium text-muted-foreground mb-2">{group.label}</p>
                         {/* Items */}
@@ -468,16 +510,36 @@ export default function TodosPage() {
                                 className="flex items-center gap-3 py-1.5 px-3 rounded-md hover:bg-muted/30 group"
                               >
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-muted-foreground line-through truncate">
-                                    {todo.content}
-                                  </p>
+                                  <div className="flex items-center gap-1.5">
+                                    {todo.priority && (
+                                      <span className={`inline-block px-1 py-0 rounded text-[10px] font-medium ${
+                                        todo.priority === 'high' ? 'bg-red-100 text-red-600' :
+                                        todo.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
+                                        'bg-blue-100 text-blue-600'
+                                      }`}>
+                                        {todo.priority === 'high' ? '高' : todo.priority === 'medium' ? '中' : '低'}
+                                      </span>
+                                    )}
+                                    <p className="text-sm text-muted-foreground line-through truncate">
+                                      {todo.content}
+                                    </p>
+                                  </div>
                                   {customerName && (
-                                    <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground/60 flex items-center gap-1 mt-0.5">
                                       <Link2 className="w-3 h-3" />
                                       {customerName}
                                     </span>
                                   )}
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-muted-foreground/40 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleReopen(todo.id)}
+                                  title="撤销完成"
+                                >
+                                  <Undo2 className="w-3.5 h-3.5" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
