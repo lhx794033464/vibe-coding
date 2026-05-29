@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, MessageSquare, Loader2 } from 'lucide-react';
+import { Search, Plus, AlertCircle, MessageSquare, Loader2, FileSpreadsheet, Download, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Customer, CustomerStatus, STATUS_CONFIG, VERSION_CONFIG, MODULE_CONFIG, ProductVersion, ProductModule } from '@/types';
@@ -27,6 +27,14 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // 腾讯文档获取相关状态
+  const [showFetchDialog, setShowFetchDialog] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchData, setFetchData] = useState<{ customerName: string; modules: string; deliverer?: string }[]>([]);
+  const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
 
   useEffect(() => {
     fetchCustomers();
@@ -57,6 +65,77 @@ export default function CustomersPage() {
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  // 从腾讯文档获取客户信息
+  const handleFetchFromTencentDocs = async () => {
+    setFetchLoading(true);
+    setFetchData([]);
+    setSelectedCustomers(new Set());
+    setImportResult(null);
+    setShowFetchDialog(true);
+    try {
+      const response = await fetch('/api/tencent-docs/fetch-customers', {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setFetchData(data.data || []);
+        // 默认全选
+        setSelectedCustomers(new Set((data.data || []).map((d: { customerName: string }) => d.customerName)));
+      } else {
+        alert(data.error || '获取失败');
+      }
+    } catch (error) {
+      console.error('获取腾讯文档客户信息失败:', error);
+      alert('获取失败，请检查网络连接');
+    } finally {
+      setFetchLoading(false);
+    }
+  };
+
+  // 批量导入选中的客户
+  const handleImportCustomers = async () => {
+    if (selectedCustomers.size === 0) return;
+    setImporting(true);
+    try {
+      const customersToImport = fetchData.filter(c => selectedCustomers.has(c.customerName));
+      const response = await fetch('/api/tencent-docs/fetch-customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ customers: customersToImport }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setImportResult({ imported: data.imported, skipped: data.skipped });
+        // 刷新客户列表
+        fetchCustomers();
+      } else {
+        alert(data.error || '导入失败');
+      }
+    } catch (error) {
+      console.error('导入客户失败:', error);
+      alert('导入失败');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const toggleCustomerSelection = (name: string) => {
+    setSelectedCustomers(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCustomers.size === fetchData.length) {
+      setSelectedCustomers(new Set());
+    } else {
+      setSelectedCustomers(new Set(fetchData.map(d => d.customerName)));
+    }
+  };
 
   // 检查是否长时间未跟进（超过7天）
   const isStaleFollowUp = (customer: CustomerWithDays) => {
@@ -92,6 +171,10 @@ export default function CustomersPage() {
             <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleFetchFromTencentDocs}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              腾讯文档获取
+            </Button>
             <Button onClick={() => router.push('/customers/new')}>
               <Plus className="w-4 h-4 mr-2" />
               添加客户
@@ -226,6 +309,117 @@ export default function CustomersPage() {
           )}
         </div>
       </div>
+
+      {/* 腾讯文档获取弹窗 */}
+      {showFetchDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* 弹窗标题 */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold">从腾讯文档获取客户信息</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {fetchLoading ? '正在获取...' : fetchData.length > 0 ? `共获取到 ${fetchData.length} 条客户信息` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowFetchDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 内容区 */}
+            <div className="flex-1 overflow-auto p-4">
+              {fetchLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                  <p className="text-gray-500">正在从腾讯文档获取客户数据...</p>
+                </div>
+              ) : importResult ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Check className="w-12 h-12 text-green-500 mb-3" />
+                  <p className="text-lg font-medium">导入完成</p>
+                  <p className="text-gray-500 mt-1">
+                    成功导入 {importResult.imported} 个客户，跳过 {importResult.skipped} 个（已存在）
+                  </p>
+                  <Button className="mt-4" onClick={() => setShowFetchDialog(false)}>
+                    完成
+                  </Button>
+                </div>
+              ) : fetchData.length > 0 ? (
+                <div>
+                  {/* 全选/取消全选 */}
+                  <div className="flex items-center gap-2 mb-3 pb-3 border-b">
+                    <input
+                      type="checkbox"
+                      checked={selectedCustomers.size === fetchData.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-600">
+                      全选（已选 {selectedCustomers.size}/{fetchData.length}）
+                    </span>
+                  </div>
+                  {/* 客户列表 */}
+                  <div className="space-y-2">
+                    {fetchData.map((item) => (
+                      <label
+                        key={item.customerName}
+                        className="flex items-start gap-3 p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomers.has(item.customerName)}
+                          onChange={() => toggleCustomerSelection(item.customerName)}
+                          className="w-4 h-4 mt-0.5 rounded border-gray-300"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.customerName}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            购买模块：{item.modules || '无'}
+                            {item.deliverer && <span className="ml-2">交付人：{item.deliverer}</span>}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <p className="text-gray-500">未获取到客户信息</p>
+                </div>
+              )}
+            </div>
+
+            {/* 底部操作 */}
+            {!fetchLoading && !importResult && fetchData.length > 0 && (
+              <div className="flex items-center justify-end gap-2 p-4 border-t">
+                <Button variant="outline" onClick={() => setShowFetchDialog(false)}>
+                  取消
+                </Button>
+                <Button
+                  onClick={handleImportCustomers}
+                  disabled={selectedCustomers.size === 0 || importing}
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      导入中...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      导入选中的 {selectedCustomers.size} 个客户
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
