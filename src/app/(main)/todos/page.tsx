@@ -527,7 +527,7 @@ export default function TodosPage() {
                                         {priorityConfig[todo.priority as keyof typeof priorityConfig]?.label || '中'}
                                       </span>
                                     )}
-                                    <p className="text-sm text-foreground line-through truncate">
+                                    <p className="text-sm text-muted-foreground line-through truncate">
                                       {todo.content}
                                     </p>
                                   </div>
