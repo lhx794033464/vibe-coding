@@ -519,12 +519,11 @@ export default function TodosPage() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     {todo.priority && (
-                                      <span className={`inline-block px-1 py-0 rounded text-[10px] font-medium ${
-                                        todo.priority === 'high' ? 'bg-red-100 text-red-600' :
-                                        todo.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
-                                        'bg-blue-100 text-blue-600'
-                                      }`}>
-                                        {todo.priority === 'high' ? '高' : todo.priority === 'medium' ? '中' : '低'}
+                                      <span className={cn(
+                                        'text-xs px-1.5 py-0.5 rounded border font-medium shrink-0',
+                                        priorityConfig[todo.priority as keyof typeof priorityConfig]?.color || priorityConfig.medium.color
+                                      )}>
+                                        {priorityConfig[todo.priority as keyof typeof priorityConfig]?.label || '中'}
                                       </span>
                                     )}
                                     <p className="text-sm text-muted-foreground line-through truncate">
