@@ -263,6 +263,77 @@ export class TencentDocsClient {
   }
 
   /**
+   * 获取 Excel 表格指定区域的单元格数据（支持分批读取）
+   */
+  async getSheetCellData(args: {
+    fileId: string;
+    sheetId: string;
+    startRow: number;
+    endRow: number;
+    startCol: number;
+    endCol: number;
+    returnCsv?: boolean;
+  }): Promise<SheetCellDataResult> {
+    return this.callTool('sheet.get_cell_data', {
+      file_id: args.fileId,
+      sheet_id: args.sheetId,
+      start_row: args.startRow,
+      end_row: args.endRow,
+      start_col: args.startCol,
+      end_col: args.endCol,
+      return_csv: args.returnCsv ?? true,
+    }) as Promise<SheetCellDataResult>;
+  }
+
+  /**
+   * 分批获取 Excel 表格全量数据（自动按行分批读取）
+   */
+  async getSheetAllData(args: {
+    fileId: string;
+    sheetId: string;
+    startCol: number;
+    endCol: number;
+    batchSize?: number;
+    maxRows?: number;
+  }): Promise<string[]> {
+    const batchSize = args.batchSize || 500;
+    const maxRows = args.maxRows || 10000;
+    const allRows: string[] = [];
+    let startRow = 0;
+
+    while (startRow < maxRows) {
+      const endRow = startRow + batchSize;
+      const result = await this.getSheetCellData({
+        fileId: args.fileId,
+        sheetId: args.sheetId,
+        startRow,
+        endRow,
+        startCol: args.startCol,
+        endCol: args.endCol,
+        returnCsv: true,
+      });
+
+      const csvData = result.csv_data || '';
+      const rows = csvData.split('\n').filter((line: string) => line.trim());
+
+      if (rows.length === 0) break;
+
+      // 第一批包含表头，后续批次跳过
+      const dataRows = startRow === 0 ? rows : rows.slice(1);
+      if (dataRows.length === 0) break;
+
+      allRows.push(...dataRows);
+
+      // 如果返回行数少于请求数，说明已到末尾
+      if (rows.length < batchSize) break;
+
+      startRow = endRow;
+    }
+
+    return allRows;
+  }
+
+  /**
    * 获取 Excel 表格内容（通过 get_content 获取）
    */
   async getExcelContent(fileId: string): Promise<ContentResult> {
@@ -301,6 +372,11 @@ interface SearchResult {
   files: SearchFileItem[];
   has_next: boolean;
   page_token?: string;
+}
+
+interface SheetCellDataResult {
+  csv_data?: string;
+  cells?: unknown[];
 }
 
 interface ContentResult {
@@ -347,6 +423,7 @@ export type {
   SpaceNodeResult,
   SearchFileItem,
   SearchResult,
+  SheetCellDataResult,
   ContentResult,
   SmartSheetTable,
   SmartSheetTablesResult,

@@ -9,6 +9,14 @@ const CONFIG_FILE = path.join('/tmp', 'tencent_docs_config.json');
 
 // 文档 file_id（从用户提供的URL提取）
 const DOC_FILE_ID = 'DTUZjZ3Jmc0JKdXF3';
+// 实施交付汇总表 sheet_id（从URL tab参数获取）
+const SHEET_ID = 'rafiwj';
+
+// 关键列索引（0-based）：D=3交付人，E=4客户，P=15购买模块
+const COL_DELIVERER = 3;
+const COL_CUSTOMER = 4;
+const COL_MODULE = 15;
+const COL_END = 16; // 读取到P列
 
 async function getToken(): Promise<string> {
   try {
@@ -19,60 +27,27 @@ async function getToken(): Promise<string> {
   throw new Error('未配置腾讯文档 Token');
 }
 
-// 解析实施交付汇总表的 Markdown 表格
-function parseDeliveryTable(content: string): { customerName: string; modules: string; deliverer: string }[] {
-  const lines = content.split('\n');
-  const results: { customerName: string; modules: string; deliverer: string }[] = [];
-
-  // 找到实施交付汇总表
-  let tableStartIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('实施交付汇总表')) {
-      tableStartIdx = i;
-      break;
+// 解析CSV行（处理引号内的逗号）
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
     }
   }
-
-  if (tableStartIdx === -1) return results;
-
-  // 解析表头获取列索引
-  const headerLine = lines[tableStartIdx + 1];
-  if (!headerLine) return results;
-
-  const headerCols = headerLine.split('|');
-  const colIndex: Record<string, number> = {};
-  headerCols.forEach((col, idx) => {
-    const name = col.trim();
-    if (name) colIndex[name] = idx;
-  });
-
-  const delivererIdx = colIndex['交付人'];
-  const customerIdx = colIndex['客户'];
-  const moduleIdx = colIndex['购买模块'];
-
-  if (delivererIdx === undefined || customerIdx === undefined || moduleIdx === undefined) {
-    return results;
-  }
-
-  // 跳过表头和分隔行，解析数据行
-  for (let i = tableStartIdx + 3; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim().startsWith('|')) break; // 表格结束
-
-    const cols = line.split('|');
-    const deliverer = (cols[delivererIdx] || '').trim();
-    const customerName = (cols[customerIdx] || '').trim();
-    const modules = (cols[moduleIdx] || '').trim();
-
-    if (deliverer && customerName) {
-      results.push({ customerName, modules, deliverer });
-    }
-  }
-
-  return results;
+  result.push(current.trim());
+  return result;
 }
 
-// GET: 从腾讯文档获取客户信息（只获取客户名称+购买模块）
+// GET: 从腾讯文档获取客户信息（分批读取全量数据）
 export async function GET(request: NextRequest) {
   const userInfo = await getCurrentUserInfo(request);
   if (!userInfo) {
@@ -87,16 +62,45 @@ export async function GET(request: NextRequest) {
 
     const client = new TencentDocsClient(token);
 
-    // 获取文档内容
-    const contentResult = await client.getContent(DOC_FILE_ID);
-    const content = (contentResult as { content: string }).content;
+    // 一次性读取全量数据（sheet.get_cell_data 支持大范围读取）
+    const result = await client.getSheetCellData({
+      fileId: DOC_FILE_ID,
+      sheetId: SHEET_ID,
+      startRow: 0,
+      endRow: 10000, // 足够覆盖5000+行
+      startCol: COL_DELIVERER,
+      endCol: COL_END,
+      returnCsv: true,
+    });
 
-    // 解析实施交付汇总表
-    const allRecords = parseDeliveryTable(content);
+    const csvData = result.csv_data || '';
+    const allRows = csvData.split('\n').filter((line: string) => line.trim());
 
-    // 按当前用户名匹配D列（交付人），所有用户统一按此规则过滤
+    // 解析表头确认列顺序
+    if (allRows.length === 0) {
+      return NextResponse.json({ success: true, total: 0, myCount: 0, uniqueCount: 0, data: [] });
+    }
+
+    const headerCols = parseCsvLine(allRows[0]);
+
+    // 过滤匹配当前用户名的行
+    // 列顺序（从D列开始）：交付人(0), 客户(1), ..., 购买模块(12), 版本(13)
+    const MODULE_COL_IDX = 12; // 购买模块列
+
+    // 过滤匹配当前用户名的行
     const username = userInfo.username;
-    const myRecords = allRecords.filter(r => r.deliverer === username);
+    const myRecords: { customerName: string; modules: string; deliverer: string }[] = [];
+
+    for (let i = 1; i < allRows.length; i++) {
+      const cols = parseCsvLine(allRows[i]);
+      const deliverer = cols[0] || ''; // D列：交付人
+      const customerName = cols[1] || ''; // E列：客户
+      const modules = cols[MODULE_COL_IDX] || ''; // P列：购买模块
+
+      if (deliverer === username && customerName) {
+        myRecords.push({ customerName, modules, deliverer });
+      }
+    }
 
     // 去重：同一客户名只保留一条（合并购买模块）
     const customerMap = new Map<string, { customerName: string; modules: string[]; deliverer: string }>();
@@ -117,7 +121,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      total: allRecords.length,
+      total: allRows.length - 1, // 减去表头
       myCount: myRecords.length,
       uniqueCount: customerMap.size,
       data: Array.from(customerMap.values()).map(r => ({
