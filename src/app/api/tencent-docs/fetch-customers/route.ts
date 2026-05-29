@@ -94,10 +94,9 @@ export async function GET(request: NextRequest) {
     // 解析实施交付汇总表
     const allRecords = parseDeliveryTable(content);
 
-    // 按当前用户名过滤（admin 默认获取全部，普通用户只获取自己的）
+    // 按当前用户名匹配D列（交付人），所有用户统一按此规则过滤
     const username = userInfo.username;
-    const isAdmin = userInfo.role === 'admin';
-    const myRecords = isAdmin ? allRecords : allRecords.filter(r => r.deliverer === username);
+    const myRecords = allRecords.filter(r => r.deliverer === username);
 
     // 去重：同一客户名只保留一条（合并购买模块）
     const customerMap = new Map<string, { customerName: string; modules: string[]; deliverer: string }>();
