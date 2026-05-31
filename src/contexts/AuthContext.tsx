@@ -191,25 +191,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = (newToken?: string, newUser?: User) => {
     try {
       const sessionStr = localStorage.getItem('auth_session');
-      if (!sessionStr) return;
-      const session = JSON.parse(sessionStr);
-      if (newToken && newUser) {
-        localStorage.setItem('auth_session', JSON.stringify({
-          token: newToken,
-          user: newUser,
-        }));
-      } else if (newUser) {
-        localStorage.setItem('auth_session', JSON.stringify({
-          ...session,
-          user: newUser,
-        }));
-      } else if (newToken) {
-        localStorage.setItem('auth_session', JSON.stringify({
-          ...session,
-          token: newToken,
-        }));
+      let session: Record<string, unknown> | null = null;
+      if (sessionStr) {
+        session = JSON.parse(sessionStr);
       }
-      updateAuthState();
+
+      const updatedSession: Record<string, unknown> = { ...(session || {}), updated_at: Date.now() };
+      if (newToken) {
+        updatedSession.token = newToken;
+      }
+      if (newUser) {
+        updatedSession.user = newUser;
+        // 直接更新 React state，确保侧边栏等组件立即同步
+        setUser(newUser);
+        setIsAdmin(newUser.role === 'admin');
+      }
+
+      localStorage.setItem('auth_session', JSON.stringify(updatedSession));
+      if (newToken) {
+        document.cookie = `auth_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      }
     } catch (error) {
       console.error('刷新用户信息失败:', error);
     }

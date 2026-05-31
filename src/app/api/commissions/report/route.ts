@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// 获取提成上报列表
-// 管理员：查看所有上报；普通用户：查看自己的上报
+// 获取提成申报列表
+// 管理员：查看所有申报；普通用户：查看自己的申报
 export async function GET(request: NextRequest) {
   try {
     const userInfo = await getCurrentUserInfo(request);
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .order('created_at', { ascending: false });
 
-    // 普通用户只能看自己的上报
+    // 普通用户只能看自己的申报
     if (userInfo.role !== 'admin') {
       query = query.eq('user_id', userInfo.id);
     }
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('获取提成上报列表失败:', error);
-      return NextResponse.json({ error: '获取提成上报列表失败' }, { status: 500 });
+      console.error('获取提成申报列表失败:', error);
+      return NextResponse.json({ error: '获取提成申报列表失败' }, { status: 500 });
     }
 
     return NextResponse.json({ data: data || [] });
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 普通用户上报提成
+// 普通用户申报提成
 export async function POST(request: NextRequest) {
   try {
     const userInfo = await getCurrentUserInfo(request);
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     const sb = getSupabaseClient();
 
-    // 检查是否已上报
+    // 检查是否已申报
     const { data: existing } = await sb
       .from('commission_reports')
       .select('id')
@@ -90,14 +90,14 @@ export async function POST(request: NextRequest) {
         .eq('id', existing.id);
 
       if (error) {
-        console.error('更新提成上报失败:', error);
-        return NextResponse.json({ error: '更新提成上报失败' }, { status: 500 });
+        console.error('更新提成申报失败:', error);
+        return NextResponse.json({ error: '更新提成申报失败' }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true, message: '已重新上报' });
+      return NextResponse.json({ success: true, message: '已重新申报' });
     }
 
-    // 新建上报
+    // 新建申报
     const { error } = await sb.from('commission_reports').insert({
       user_id: userInfo.id,
       username: userInfo.username,
@@ -110,14 +110,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error('创建提成上报失败:', error);
-      return NextResponse.json({ error: '创建提成上报失败' }, { status: 500 });
+      console.error('创建提成申报失败:', error);
+      return NextResponse.json({ error: '创建提成申报失败' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: '上报成功' });
+    return NextResponse.json({ success: true, message: '申报成功' });
   } catch (error) {
-    console.error('提成上报失败:', error);
-    return NextResponse.json({ error: '提成上报失败' }, { status: 500 });
+    console.error('提成申报失败:', error);
+    return NextResponse.json({ error: '提成申报失败' }, { status: 500 });
   }
 }
 
@@ -157,8 +157,8 @@ export async function PATCH(request: NextRequest) {
       .eq('id', id);
 
     if (error) {
-      console.error('审核提成上报失败:', error);
-      return NextResponse.json({ error: '审核提成上报失败' }, { status: 500 });
+      console.error('审核提成申报失败:', error);
+      return NextResponse.json({ error: '审核提成申报失败' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

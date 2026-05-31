@@ -63,7 +63,7 @@ export default function CommissionsPage() {
   const [scheduleMonth, setScheduleMonth] = useState('');
   const [scheduling, setScheduling] = useState(false);
 
-  // 上报相关状态
+  // 申报相关状态
   const [reporting, setReporting] = useState(false);
   const [reportStatus, setReportStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
   const [reportComment, setReportComment] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export default function CommissionsPage() {
         setReportComment(null);
       }
     } catch (error) {
-      console.error('获取上报状态失败:', error);
+      console.error('获取申报状态失败:', error);
     }
   };
 
@@ -123,7 +123,7 @@ export default function CommissionsPage() {
         setReports(data.data || []);
       }
     } catch (error) {
-      console.error('获取提成上报列表失败:', error);
+      console.error('获取提成申报列表失败:', error);
     } finally {
       setReportsLoading(false);
     }
@@ -148,8 +148,14 @@ export default function CommissionsPage() {
 
   const handleReportCommission = async () => {
     if (commissions.length === 0) {
-      alert('本月暂无可上报的提成数据');
+      alert('本月暂无可申报的提成数据');
       return;
+    }
+
+    // 如果已经申报过且已审核，提示是否重新申报
+    if (reportStatus !== 'none' && reportStatus !== 'pending') {
+      const confirmed = window.confirm('本月提成已申报，是否重新申报？');
+      if (!confirmed) return;
     }
 
     setReporting(true);
@@ -176,13 +182,13 @@ export default function CommissionsPage() {
       const data = await response.json();
       if (response.ok) {
         setReportStatus('pending');
-        alert(data.message || '上报成功');
+        alert(data.message || '申报成功');
       } else {
-        alert(data.error || '上报失败');
+        alert(data.error || '申报失败');
       }
     } catch (error) {
-      console.error('提成上报失败:', error);
-      alert('提成上报失败');
+      console.error('提成申报失败:', error);
+      alert('提成申报失败');
     } finally {
       setReporting(false);
     }
@@ -542,7 +548,7 @@ export default function CommissionsPage() {
             <h1 className="text-2xl font-bold text-gray-900">提成管理</h1>
             <p className="text-gray-500 mt-1">当月验收完成客户的提成计算</p>
           </div>
-          {/* 普通用户显示上报按钮 */}
+          {/* 普通用户显示申报按钮 */}
           {!isAdmin && (
             <div className="flex items-center gap-3">
               {reportStatus !== 'none' && (
@@ -563,17 +569,17 @@ export default function CommissionsPage() {
                 {reporting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    上报中...
+                    申报中...
                   </>
                 ) : reportStatus === 'pending' ? (
                   <>
                     <Send className="w-4 h-4 mr-2" />
-                    已上报
+                    已申报
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4 mr-2" />
-                    上报提成
+                    申报提成
                   </>
                 )}
               </Button>
@@ -599,7 +605,7 @@ export default function CommissionsPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold">提成上报审核</h2>
+            <h2 className="text-lg font-semibold">提成申报审核</h2>
             {reports.filter(r => r.status === 'pending').length > 0 && (
               <Badge className="bg-red-100 text-red-800 border-red-300">
                 {reports.filter(r => r.status === 'pending').length} 条待审核
@@ -617,7 +623,7 @@ export default function CommissionsPage() {
           ) : reports.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
-                本月暂无提成上报
+                本月暂无提成申报
               </CardContent>
             </Card>
           ) : (
@@ -650,7 +656,7 @@ export default function CommissionsPage() {
                           </div>
                         </div>
                         <div className="mt-2 text-xs text-gray-500">
-                          上报时间: {format(new Date(report.created_at), 'yyyy-MM-dd HH:mm')}
+                          申报时间: {format(new Date(report.created_at), 'yyyy-MM-dd HH:mm')}
                           {report.reviewed_at && ` | 审核时间: ${format(new Date(report.reviewed_at), 'yyyy-MM-dd HH:mm')}`}
                           {report.reviewed_by && ` | 审核人: ${report.reviewed_by}`}
                           {report.review_comment && ` | 备注: ${report.review_comment}`}
@@ -1213,12 +1219,12 @@ export default function CommissionsPage() {
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{reviewAction === 'approved' ? '通过审核' : '驳回上报'}</DialogTitle>
+            <DialogTitle>{reviewAction === 'approved' ? '通过审核' : '驳回申报'}</DialogTitle>
             <DialogDescription>
               {reviewingReport && (
                 <>
                   用户 <span className="font-semibold">{reviewingReport.username}</span> 的
-                  {format(new Date(reviewingReport.month + '-01'), 'yyyy年M月')} 提成上报
+                  {format(new Date(reviewingReport.month + '-01'), 'yyyy年M月')} 提成申报
                   （应提总额: ¥{Number(reviewingReport.total_commission).toFixed(2)}）
                 </>
               )}
@@ -1269,15 +1275,15 @@ export default function CommissionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 上报详情对话框 */}
+      {/* 申报详情对话框 */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>提成上报详情</DialogTitle>
+            <DialogTitle>提成申报详情</DialogTitle>
             <DialogDescription>
               {detailReport && (
                 <>
-                  {detailReport.username} - {format(new Date(detailReport.month + '-01'), 'yyyy年M月')} 提成上报
+                  {detailReport.username} - {format(new Date(detailReport.month + '-01'), 'yyyy年M月')} 提成申报
                 </>
               )}
             </DialogDescription>
