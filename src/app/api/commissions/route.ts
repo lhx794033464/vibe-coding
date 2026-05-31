@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
         implementationFee,
         implementationDays,
         modules,
-        modulesLabel: modules.map((m: string) => String(m)).join('+'),
+        modulesLabel: modules.map((m: string) => m === 'finance' ? '财务' : m).join('+'),
         standardFee: commission.standardFee,
         feeRatio: commission.feeRatio,
         commissionType: commission.commissionType,
