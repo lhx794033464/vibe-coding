@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbGetCustomers, dbGetSchedules, dbCreateSchedule, dbCreateImplementationLog } from '@/services/dbService';
+import { dbGetCustomers, dbGetSchedules, dbCreateSchedule, dbCreateImplementationLog, dbCreateTodo } from '@/services/dbService';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
@@ -45,25 +45,37 @@ export async function POST(request: NextRequest) {
 当用户提到客户/公司名称时，必须从以下客户列表中选择最匹配的一个：
 ${customerListStr}
 
+## 核心概念区分（非常重要！）
+
+### 待办事项 vs 日程
+- **待办事项**：交付人员的个人工作任务、待处理事项、跟进事项。当用户说"提醒我"、"帮我记一下"、"创建待办"、"添加任务"、"今日待办"、"我要做什么"等，必须使用 create_todo。
+- **日程**：仅用于记录培训排期，即为客户安排的培训时间和计划。只有当用户明确提到"培训排期"、"安排培训"、"培训日程"时才使用 create_schedule。
+
+**判断规则**：除非明确提到"培训排期"或"培训日程"，否则用户提到的"日程"、"安排"等含义都应归类为待办事项。
+
 ## 支持的操作类型：
-1. create_schedule - 创建日程排期
+1. create_todo - 创建待办事项
+   参数：content（待办内容）, date（截止日期，格式yyyy-MM-dd）, priority（优先级：high/medium/low，默认medium）, customer_name（可选，关联客户名称，必须从客户列表中选择）
+
+2. create_schedule - 创建培训排期（仅用于培训排期）
    参数：customer_name（必须从客户列表中选择）, date（日期，格式yyyy-MM-dd）, notes（可选，备注）
 
-2. create_log - 创建实施日志
+3. create_log - 创建实施日志
    参数：customer_name（必须从客户列表中选择）, consumed_days（消耗人天，数字）, content（实施纪要）
 
-3. query_customer - 查询客户
+4. query_customer - 查询客户
    参数：customer_name（可选，从客户列表中选择）
 
-4. query_schedule - 查询日程
+5. query_schedule - 查询日程排期
    参数：date（可选，日期格式yyyy-MM-dd）
 
-5. general - 普通对话
+6. general - 普通对话
    参数：response（回复内容）
 
 ## 重要规则：
 - 如果语音中包含日期（今天、明天、后天、下周一等），提取为date参数
 - 如果语音中包含公司名，匹配到客户列表后放入customer_name参数
+- 默认创建的是待办事项(create_todo)，只有明确是培训排期时才创建日程(create_schedule)
 
 ## 日期解析规则：
 - "今天" → 当天日期
@@ -77,7 +89,13 @@ ${customerListStr}
 
 ## 示例：
 用户："明天去华瑞科技做调研"
-返回：{"action": "create_schedule", "params": {"customer_name": "华瑞科技", "date": "${tomorrowDate}", "notes": "调研"}, "response": "已为您创建日程：明天调研（华瑞科技）"}
+返回：{"action": "create_todo", "params": {"content": "去华瑞科技做调研", "date": "${tomorrowDate}", "priority": "medium", "customer_name": "华瑞科技"}, "response": "已为您创建待办：明天去华瑞科技做调研"}
+
+用户："帮我记一下明天要跟进客户"
+返回：{"action": "create_todo", "params": {"content": "跟进客户", "date": "${tomorrowDate}", "priority": "medium"}, "response": "已为您创建待办：明天跟进客户"}
+
+用户："明天安排华瑞科技培训"
+返回：{"action": "create_schedule", "params": {"customer_name": "华瑞科技", "date": "${tomorrowDate}", "notes": "培训"}, "response": "已为您创建培训排期：明天华瑞科技培训"}
 
 用户："今天给华瑞科技记录2天人天"
 返回：{"action": "create_log", "params": {"customer_name": "华瑞科技", "consumed_days": "2", "content": "实施工作"}, "response": "已记录实施日志：华瑞科技，消耗2天"}
@@ -121,6 +139,42 @@ ${customerListStr}
     };
 
     switch (intent.action) {
+      case 'create_todo': {
+        const { content, date, priority = 'medium', customer_name } = intent.params || {};
+
+        if (!content) {
+          result = { success: false, message: '请提供待办内容' };
+          break;
+        }
+
+        let customerId: string | undefined;
+        if (customer_name) {
+          let matchedCustomer = customers.find((c: any) => c.name === customer_name);
+          if (!matchedCustomer) {
+            matchedCustomer = customers.find((c: any) =>
+              c.name.includes(customer_name) || customer_name.includes(c.name)
+            );
+          }
+          if (matchedCustomer) customerId = matchedCustomer.id;
+        }
+
+        const todo = await dbCreateTodo({
+          content,
+          due_date: date || todayDate,
+          priority,
+          customer_id: customerId || null,
+          user_id: userInfo?.id || null,
+          completed: false,
+        });
+
+        result = {
+          success: true,
+          data: todo,
+          message: `已创建待办：${content}${date ? `（截止：${date}）` : ''}${customer_name ? ` | 关联客户：${customer_name}` : ''}`
+        };
+        break;
+      }
+
       case 'create_schedule': {
         const { customer_name, date, notes = '' } = intent.params || {};
 
