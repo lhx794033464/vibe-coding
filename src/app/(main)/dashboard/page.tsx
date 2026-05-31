@@ -21,6 +21,8 @@ interface DashboardStats {
   acceptedCustomers: number;
   onlineRate: number;
   acceptanceRate: number;
+  oneMonthOnlineRate: number;
+  fourMonthsOnlineRate: number;
   // 上期数据
   lastMonthTotalCustomers: number;
   lastMonthOnlineRate: number;
@@ -38,6 +40,8 @@ const initialStats: DashboardStats = {
   acceptedCustomers: 0,
   onlineRate: 0,
   acceptanceRate: 0,
+  oneMonthOnlineRate: 0,
+  fourMonthsOnlineRate: 0,
   lastMonthTotalCustomers: 0,
   lastMonthOnlineRate: 0,
   lastMonthAcceptanceRate: 0,
@@ -166,7 +170,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 核心指标卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">客户总数</CardTitle>
@@ -229,6 +233,32 @@ export default function DashboardPage() {
             </div>
             <p className="text-xs text-gray-500 mt-1">
               {stats.acceptedCustomers} / {stats.totalCustomers} 已验收
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">1个月上线率</CardTitle>
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-emerald-600">{stats.oneMonthOnlineRate}%</div>
+            <p className="text-xs text-gray-500 mt-1">
+              开通&gt;30天客户中已上线
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">4个月上线率</CardTitle>
+            <TrendingUp className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-orange-600">{stats.fourMonthsOnlineRate}%</div>
+            <p className="text-xs text-gray-500 mt-1">
+              开通&gt;120天客户中已上线
             </p>
           </CardContent>
         </Card>

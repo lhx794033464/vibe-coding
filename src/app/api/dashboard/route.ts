@@ -52,16 +52,26 @@ export async function GET(request: NextRequest) {
 
     const totalCustomers = customers.length;
 
-    // 状态映射：status 字段现在是自由文本
-    // "是" = 已上线, "否" = 未上线, "延期上线" = 延期上线, 其他
-    const onlineKeywords = ['是', '已上线', 'accepted', 'online_not_accepted', 'partially_online'];
-    const acceptedKeywords = ['是', '已上线', 'accepted'];
-
-    const onlineCustomers = customers.filter((c: any) => onlineKeywords.includes(c.status)).length;
-    const acceptedCustomers = customers.filter((c: any) => acceptedKeywords.includes(c.status)).length;
+    // 状态判断：status 为上线状态，acceptance_status 为验收状态
+    const onlineCustomers = customers.filter((c: any) => c.status === 'online').length;
+    const acceptedCustomers = customers.filter((c: any) => c.acceptance_status === 'accepted').length;
 
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100) : 0;
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100) : 0;
+
+    // 1个月上线率：开通时间 > 30天的客户中已上线的比例
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const customersOverOneMonth = customers.filter((c: any) => new Date(c.opened_at) <= oneMonthAgo);
+    const oneMonthOnlineRate = customersOverOneMonth.length > 0
+      ? (customersOverOneMonth.filter((c: any) => c.status === 'online').length / customersOverOneMonth.length * 100)
+      : 0;
+
+    // 4个月上线率：开通时间 > 120天的客户中已上线的比例
+    const fourMonthsAgo = new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000);
+    const customersOverFourMonths = customers.filter((c: any) => new Date(c.opened_at) <= fourMonthsAgo);
+    const fourMonthsOnlineRate = customersOverFourMonths.length > 0
+      ? (customersOverFourMonths.filter((c: any) => c.status === 'online').length / customersOverFourMonths.length * 100)
+      : 0;
 
     // 上月数据
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -74,8 +84,8 @@ export async function GET(request: NextRequest) {
     });
 
     const lastMonthTotalCustomers = lastMonthCustomers.length;
-    const lastMonthOnlineCustomers = lastMonthCustomers.filter((c: any) => onlineKeywords.includes(c.status)).length;
-    const lastMonthAcceptedCustomers = lastMonthCustomers.filter((c: any) => acceptedKeywords.includes(c.status)).length;
+    const lastMonthOnlineCustomers = lastMonthCustomers.filter((c: any) => c.status === 'online').length;
+    const lastMonthAcceptedCustomers = lastMonthCustomers.filter((c: any) => c.acceptance_status === 'accepted').length;
 
     const lastMonthOnlineRate = lastMonthTotalCustomers > 0 ? (lastMonthOnlineCustomers / lastMonthTotalCustomers * 100) : 0;
     const lastMonthAcceptanceRate = lastMonthTotalCustomers > 0 ? (lastMonthAcceptedCustomers / lastMonthTotalCustomers * 100) : 0;
@@ -87,15 +97,10 @@ export async function GET(request: NextRequest) {
     const onlineRateChange = onlineRate - lastMonthOnlineRate;
     const acceptanceRateChange = acceptanceRate - lastMonthAcceptanceRate;
 
-    // 状态分布 - 使用中文标签，按实际 status 值动态统计
+    // 状态分布 - 按实际 status 和 acceptance_status 值统计
     const statusLabelMap: Record<string, string> = {
-      '是': '已上线',
-      '否': '未上线',
-      '延期上线': '延期上线',
-      'accepted': '已验收',
-      'online_not_accepted': '已上线未验收',
-      'partially_online': '部分上线',
-      'not_going_online': '不准备上线',
+      'online': '已上线',
+      'not_online': '未上线',
     };
 
     const statusDistribution: Record<string, number> = {};
@@ -110,6 +115,8 @@ export async function GET(request: NextRequest) {
       acceptedCustomers,
       onlineRate: Math.round(onlineRate * 10) / 10,
       acceptanceRate: Math.round(acceptanceRate * 10) / 10,
+      oneMonthOnlineRate: Math.round(oneMonthOnlineRate * 10) / 10,
+      fourMonthsOnlineRate: Math.round(fourMonthsOnlineRate * 10) / 10,
       lastMonthTotalCustomers,
       lastMonthOnlineRate: Math.round(lastMonthOnlineRate * 10) / 10,
       lastMonthAcceptanceRate: Math.round(lastMonthAcceptanceRate * 10) / 10,
