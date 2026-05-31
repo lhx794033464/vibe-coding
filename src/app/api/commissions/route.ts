@@ -109,12 +109,19 @@ export async function GET(request: NextRequest) {
       const paidFinanceDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.finance_days || '0'), 0);
       const paidOtherDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.other_days || '0'), 0);
 
-      const financeMaxDays = modules.includes('finance')
-        ? implementationDays
-        : 0;
-      const otherModuleCount = modules.filter((m: string) => m !== 'finance').length;
-      const otherMaxDays = otherModuleCount * implementationDays;
-      const totalMaxDays = financeMaxDays + otherMaxDays;
+      // 计算可提人天上限：有模块信息时按模块数×人天，无模块时按总人天
+      let totalMaxDays: number;
+      let financeMaxDays = 0;
+      let otherMaxDays = 0;
+      if (modules.length === 0 && implementationDays > 0) {
+        // 无模块信息时，总人天即为可提上限
+        totalMaxDays = implementationDays;
+      } else {
+        financeMaxDays = modules.includes('finance') ? implementationDays : 0;
+        const otherModuleCount = modules.filter((m: string) => m !== 'finance').length;
+        otherMaxDays = otherModuleCount * implementationDays;
+        totalMaxDays = financeMaxDays + otherMaxDays;
+      }
       const paidDays = paidFinanceDays + paidOtherDays;
       const remainingDays = Math.max(0, totalMaxDays - paidDays);
       const remainingCommission = Math.max(0, commission.totalCommission - paidCommission);
