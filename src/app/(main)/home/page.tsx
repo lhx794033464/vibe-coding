@@ -44,16 +44,7 @@ const QUICK_QUESTIONS = [
     text: '今天有什么待办事项？',
     category: '待办',
   },
-  {
-    icon: '🔍',
-    text: '金蝶云星辰凭证怎么导入？',
-    category: '产品',
-  },
-  {
-    icon: '⚙️',
-    text: '进销存模块如何初始化？',
-    category: '产品',
-  },
+
   {
     icon: '💡',
     text: '客户说系统太复杂怎么处理？',
