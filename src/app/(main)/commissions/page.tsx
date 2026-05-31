@@ -8,14 +8,31 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2, Bell } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList } from 'lucide-react';
 import { CommissionCalculation } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface CommissionReport {
+  id: string;
+  user_id: string;
+  username: string;
+  month: string;
+  total_commission: number;
+  paid_commission: number;
+  remaining_commission: number;
+  commission_details: CommissionCalculation[];
+  status: 'pending' | 'approved' | 'rejected';
+  review_comment: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function CommissionsPage() {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, isAdmin, user } = useAuth();
   const [commissions, setCommissions] = useState<CommissionCalculation[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -46,9 +63,71 @@ export default function CommissionsPage() {
   const [scheduleMonth, setScheduleMonth] = useState('');
   const [scheduling, setScheduling] = useState(false);
 
+  // 上报相关状态
+  const [reporting, setReporting] = useState(false);
+  const [reportStatus, setReportStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
+  const [reportComment, setReportComment] = useState<string | null>(null);
+
+  // 管理员审核相关状态
+  const [reports, setReports] = useState<CommissionReport[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewingReport, setReviewingReport] = useState<CommissionReport | null>(null);
+  const [reviewAction, setReviewAction] = useState<'approved' | 'rejected'>('approved');
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewing, setReviewing] = useState(false);
+
+  // 详情弹窗
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailReport, setDetailReport] = useState<CommissionReport | null>(null);
+
   useEffect(() => {
     fetchCommissions();
   }, [currentMonth]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchReports();
+    } else {
+      fetchMyReportStatus();
+    }
+  }, [currentMonth, isAdmin]);
+
+  const fetchMyReportStatus = async () => {
+    try {
+      const response = await fetch(`/api/commissions/report?month=${currentMonth}`, {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await response.json();
+      if (response.ok && data.data && data.data.length > 0) {
+        const report = data.data[0];
+        setReportStatus(report.status);
+        setReportComment(report.review_comment);
+      } else {
+        setReportStatus('none');
+        setReportComment(null);
+      }
+    } catch (error) {
+      console.error('获取上报状态失败:', error);
+    }
+  };
+
+  const fetchReports = async () => {
+    setReportsLoading(true);
+    try {
+      const response = await fetch(`/api/commissions/report?month=${currentMonth}`, {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setReports(data.data || []);
+      }
+    } catch (error) {
+      console.error('获取提成上报列表失败:', error);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
 
   const fetchCommissions = async () => {
     setLoading(true);
@@ -64,6 +143,83 @@ export default function CommissionsPage() {
       console.error('获取提成列表失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReportCommission = async () => {
+    if (commissions.length === 0) {
+      alert('本月暂无可上报的提成数据');
+      return;
+    }
+
+    setReporting(true);
+    try {
+      const totalCommission = commissions.reduce((sum, c) => sum + (c.totalCommission || 0), 0);
+      const totalPaid = commissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
+      const totalRemaining = commissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
+
+      const response = await fetch('/api/commissions/report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          month: currentMonth,
+          total_commission: totalCommission,
+          paid_commission: totalPaid,
+          remaining_commission: totalRemaining,
+          commission_details: commissions,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setReportStatus('pending');
+        alert(data.message || '上报成功');
+      } else {
+        alert(data.error || '上报失败');
+      }
+    } catch (error) {
+      console.error('提成上报失败:', error);
+      alert('提成上报失败');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const handleReview = async () => {
+    if (!reviewingReport) return;
+
+    setReviewing(true);
+    try {
+      const response = await fetch('/api/commissions/report', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          id: reviewingReport.id,
+          status: reviewAction,
+          review_comment: reviewComment,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setReviewDialogOpen(false);
+        setReviewingReport(null);
+        setReviewComment('');
+        fetchReports();
+      } else {
+        alert(data.error || '审核失败');
+      }
+    } catch (error) {
+      console.error('审核失败:', error);
+      alert('审核失败');
+    } finally {
+      setReviewing(false);
     }
   };
 
@@ -356,6 +512,19 @@ export default function CommissionsPage() {
   const totalPaid = commissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
   const totalRemaining = commissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">待审核</Badge>;
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-800 border-green-300">已通过</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800 border-red-300">已驳回</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -373,6 +542,43 @@ export default function CommissionsPage() {
             <h1 className="text-2xl font-bold text-gray-900">提成管理</h1>
             <p className="text-gray-500 mt-1">当月验收完成客户的提成计算</p>
           </div>
+          {/* 普通用户显示上报按钮 */}
+          {!isAdmin && (
+            <div className="flex items-center gap-3">
+              {reportStatus !== 'none' && (
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(reportStatus)}
+                  {reportComment && (
+                    <span className="text-xs text-gray-500 max-w-[200px] truncate" title={reportComment}>
+                      {reportComment}
+                    </span>
+                  )}
+                </div>
+              )}
+              <Button
+                onClick={handleReportCommission}
+                disabled={reporting || commissions.length === 0 || reportStatus === 'pending'}
+                variant={reportStatus === 'pending' ? 'outline' : 'default'}
+              >
+                {reporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    上报中...
+                  </>
+                ) : reportStatus === 'pending' ? (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    已上报
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    上报提成
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
       {/* 月份选择 */}
@@ -387,6 +593,119 @@ export default function CommissionsPage() {
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
+
+      {/* 管理员审核区域 */}
+      {isAdmin && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold">提成上报审核</h2>
+            {reports.filter(r => r.status === 'pending').length > 0 && (
+              <Badge className="bg-red-100 text-red-800 border-red-300">
+                {reports.filter(r => r.status === 'pending').length} 条待审核
+              </Badge>
+            )}
+          </div>
+          
+          {reportsLoading ? (
+            <Card>
+              <CardContent className="py-8 text-center text-gray-500">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                加载中...
+              </CardContent>
+            </Card>
+          ) : reports.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-gray-500">
+                本月暂无提成上报
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {reports.map((report) => (
+                <Card key={report.id} className={
+                  report.status === 'pending' ? 'border-yellow-200 bg-yellow-50/30' :
+                  report.status === 'approved' ? 'border-green-200 bg-green-50/30' :
+                  'border-red-200 bg-red-50/30'
+                }>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="font-semibold text-gray-900">{report.username}</h3>
+                          {getStatusBadge(report.status)}
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-gray-500">应提总额</p>
+                            <p className="font-medium">¥{Number(report.total_commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">已提金额</p>
+                            <p className="font-medium text-green-600">¥{Number(report.paid_commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">待提金额</p>
+                            <p className="font-medium text-orange-600">¥{Number(report.remaining_commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          上报时间: {format(new Date(report.created_at), 'yyyy-MM-dd HH:mm')}
+                          {report.reviewed_at && ` | 审核时间: ${format(new Date(report.reviewed_at), 'yyyy-MM-dd HH:mm')}`}
+                          {report.reviewed_by && ` | 审核人: ${report.reviewed_by}`}
+                          {report.review_comment && ` | 备注: ${report.review_comment}`}
+                        </div>
+                      </div>
+                      <div className="ml-4 flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setDetailReport(report);
+                            setDetailDialogOpen(true);
+                          }}
+                        >
+                          查看详情
+                        </Button>
+                        {report.status === 'pending' && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700"
+                              onClick={() => {
+                                setReviewingReport(report);
+                                setReviewAction('approved');
+                                setReviewComment('');
+                                setReviewDialogOpen(true);
+                              }}
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              通过
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setReviewingReport(report);
+                                setReviewAction('rejected');
+                                setReviewComment('');
+                                setReviewDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="w-4 h-4 mr-1" />
+                              驳回
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -889,6 +1208,152 @@ export default function CommissionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 管理员审核对话框 */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{reviewAction === 'approved' ? '通过审核' : '驳回上报'}</DialogTitle>
+            <DialogDescription>
+              {reviewingReport && (
+                <>
+                  用户 <span className="font-semibold">{reviewingReport.username}</span> 的
+                  {format(new Date(reviewingReport.month + '-01'), 'yyyy年M月')} 提成上报
+                  （应提总额: ¥{Number(reviewingReport.total_commission).toFixed(2)}）
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reviewComment">审核备注</Label>
+              <Textarea
+                id="reviewComment"
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder={reviewAction === 'rejected' ? '请填写驳回原因' : '可选'}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={handleReview}
+              disabled={reviewing || (reviewAction === 'rejected' && !reviewComment.trim())}
+              variant={reviewAction === 'rejected' ? 'destructive' : 'default'}
+              className={reviewAction === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
+            >
+              {reviewing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  处理中...
+                </>
+              ) : reviewAction === 'approved' ? (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  确认通过
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  确认驳回
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 上报详情对话框 */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>提成上报详情</DialogTitle>
+            <DialogDescription>
+              {detailReport && (
+                <>
+                  {detailReport.username} - {format(new Date(detailReport.month + '-01'), 'yyyy年M月')} 提成上报
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {detailReport && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="text-xs text-gray-500">应提总额</p>
+                    <p className="text-lg font-bold">¥{Number(detailReport.total_commission).toFixed(2)}</p>
+                  </div>
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <p className="text-xs text-gray-500">已提金额</p>
+                    <p className="text-lg font-bold text-green-600">¥{Number(detailReport.paid_commission).toFixed(2)}</p>
+                  </div>
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <p className="text-xs text-gray-500">待提金额</p>
+                    <p className="text-lg font-bold text-orange-600">¥{Number(detailReport.remaining_commission).toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {Array.isArray(detailReport.commission_details) && detailReport.commission_details.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-700">客户提成明细:</p>
+                    {detailReport.commission_details.map((detail: CommissionCalculation, idx: number) => (
+                      <div key={idx} className="p-3 bg-gray-50 rounded-lg border">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{detail.customerName}</span>
+                            {detail.modulesLabel && (
+                              <Badge variant="outline" className="text-xs">{detail.modulesLabel}</Badge>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-500">
+                            {detail.commissionType === 'percentage' ? '按比例' : '按天计算'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">实施费: </span>
+                            <span>¥{(detail.implementationFee || 0).toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">实施人天: </span>
+                            <span>{(detail.implementationDays || 0).toFixed(1)}天</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">应提金额: </span>
+                            <span className="text-blue-600">¥{(detail.totalCommission || 0).toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">已提金额: </span>
+                            <span className="text-green-600">¥{(detail.paidCommission || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">无明细数据</p>
+                )}
+
+                {detailReport.review_comment && (
+                  <div className="p-3 bg-gray-50 rounded-lg border">
+                    <p className="text-sm text-gray-500">审核备注</p>
+                    <p className="text-sm mt-1">{detailReport.review_comment}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       </div>
     </div>
   );
