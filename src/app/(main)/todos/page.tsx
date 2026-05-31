@@ -79,6 +79,12 @@ export default function TodosPage() {
   const [newCustomerId, setNewCustomerId] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Animation tracking
+  const [newTodoIds, setNewTodoIds] = useState<Set<string>>(new Set());
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  const [newlyCompletedIds, setNewlyCompletedIds] = useState<Set<string>>(new Set());
+  const [reopeningIds, setReopeningIds] = useState<Set<string>>(new Set());
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -182,6 +188,9 @@ export default function TodosPage() {
         const err = await res.json();
         throw new Error(err.error || '创建失败');
       }
+      const result = await res.json();
+      const newTodo: Todo = result.data;
+
       // Reset form
       setNewContent('');
       const now = new Date();
@@ -189,7 +198,26 @@ export default function TodosPage() {
       setNewDueDate(utc8.toISOString().slice(0, 10));
       setNewPriority('medium');
       setNewCustomerId('');
-      loadData();
+
+      // Optimistically add to state with animation
+      if (newTodo) {
+        const customerName = newCustomerId
+          ? customers.find(c => c.id === newCustomerId)?.name || null
+          : null;
+        const todoWithCustomerName = { ...newTodo, customer_name: customerName || undefined };
+        setTodos(prev => [todoWithCustomerName, ...prev]);
+        setNewTodoIds(prev => new Set(prev).add(newTodo.id));
+        // Remove animation class after animation completes
+        setTimeout(() => {
+          setNewTodoIds(prev => {
+            const next = new Set(prev);
+            next.delete(newTodo.id);
+            return next;
+          });
+        }, 500);
+      } else {
+        loadData();
+      }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '创建失败';
       console.error('创建失败:', msg);
@@ -201,15 +229,43 @@ export default function TodosPage() {
 
   const handleComplete = async (id: string) => {
     try {
+      // Start fade-out animation in pending list
+      setCompletingIds(prev => new Set(prev).add(id));
+
       const res = await fetch(`/api/todos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ completed: true }),
       });
       if (!res.ok) throw new Error('操作失败');
-      loadData();
+
+      // After animation completes (300ms), update state
+      setTimeout(() => {
+        setTodos(prev => prev.map(t =>
+          t.id === id ? { ...t, completed: true, completed_at: new Date().toISOString() } : t
+        ));
+        setCompletingIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        // Trigger appear animation in completed list
+        setNewlyCompletedIds(prev => new Set(prev).add(id));
+        setTimeout(() => {
+          setNewlyCompletedIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }, 500);
+      }, 300);
     } catch (error) {
       console.error('完成待办失败:', error);
+      setCompletingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -228,7 +284,10 @@ export default function TodosPage() {
       setShowDelayDialog(false);
       setDelayTodoId(null);
       setDelayDays(1);
-      loadData();
+      // Optimistic update
+      setTodos(prev => prev.map(t =>
+        t.id === delayTodoId ? { ...t, due_date: newDate.toISOString().split('T')[0] } : t
+      ));
     } catch (error) {
       console.error('延期待办失败:', error);
     }
@@ -242,7 +301,7 @@ export default function TodosPage() {
         headers: { ...getAuthHeader() },
       });
       if (!res.ok) throw new Error('删除失败');
-      loadData();
+      setTodos(prev => prev.filter(t => t.id !== id));
     } catch (error) {
       console.error('删除待办失败:', error);
     }
@@ -250,15 +309,43 @@ export default function TodosPage() {
 
   const handleReopen = async (id: string) => {
     try {
+      // Start animation in completed list
+      setReopeningIds(prev => new Set(prev).add(id));
+
       const res = await fetch(`/api/todos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ completed: false, completed_at: null }),
       });
       if (!res.ok) throw new Error('撤销失败');
-      loadData();
+
+      // After animation, update state
+      setTimeout(() => {
+        setTodos(prev => prev.map(t =>
+          t.id === id ? { ...t, completed: false, completed_at: null } : t
+        ));
+        setReopeningIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        // Trigger appear animation in pending list
+        setNewTodoIds(prev => new Set(prev).add(id));
+        setTimeout(() => {
+          setNewTodoIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }, 500);
+      }, 300);
     } catch (error) {
       console.error('撤销待办失败:', error);
+      setReopeningIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -286,9 +373,22 @@ export default function TodosPage() {
         }),
       });
       if (!res.ok) throw new Error('修改失败');
+      const result = await res.json();
       setShowEditDialog(false);
       setEditTodoId(null);
-      loadData();
+      // Optimistic update with server data
+      if (result.data) {
+        setTodos(prev => prev.map(t => t.id === editTodoId ? { ...t, ...result.data } : t));
+      } else {
+        const customerName = editCustomerId
+          ? customers.find(c => c.id === editCustomerId)?.name || null
+          : null;
+        setTodos(prev => prev.map(t =>
+          t.id === editTodoId
+            ? { ...t, content: editContent.trim(), due_date: editDueDate || null, priority: editPriority, customer_id: editCustomerId || null, customer_name: customerName || undefined }
+            : t
+        ));
+      }
     } catch (error) {
       console.error('修改待办失败:', error);
     } finally {
@@ -316,20 +416,7 @@ export default function TodosPage() {
   };
 
   const handleUndoComplete = async (todoId: string) => {
-    try {
-      const res = await fetch(`/api/todos/${todoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ completed: false, completed_at: null }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '撤销失败');
-      }
-      await loadData();
-    } catch (error) {
-      console.error('撤销失败:', error);
-    }
+    handleReopen(todoId);
   };
 
   const getCustomerName = (customerId: string | null) => {
@@ -387,13 +474,17 @@ export default function TodosPage() {
                     const pConfig = priorityConfig[todo.priority as keyof typeof priorityConfig] || priorityConfig.medium;
                     const customerName = todo.customer_name || getCustomerName(todo.customer_id);
                     const overdue = isOverdue(todo);
+                    const isNew = newTodoIds.has(todo.id);
+                    const isCompleting = completingIds.has(todo.id);
 
                     return (
                       <div
                         key={todo.id}
                         className={cn(
                           'flex items-center gap-3 p-3 rounded-md border transition-colors hover:bg-muted/50',
-                          overdue && 'border-red-200 bg-red-50/50'
+                          overdue && 'border-red-200 bg-red-50/50',
+                          isNew && 'anim-new-todo',
+                          isCompleting && 'anim-completing'
                         )}
                       >
                         {/* Content area */}
@@ -512,10 +603,17 @@ export default function TodosPage() {
                         <div className="space-y-1.5">
                           {group.items.map(todo => {
                             const customerName = todo.customer_name || getCustomerName(todo.customer_id);
+                            const isNewlyCompleted = newlyCompletedIds.has(todo.id);
+                            const isReopening = reopeningIds.has(todo.id);
+
                             return (
                               <div
                                 key={todo.id}
-                                className="flex items-center gap-3 py-1.5 px-3 rounded-md hover:bg-muted/30 group"
+                                className={cn(
+                                  'flex items-center gap-3 py-1.5 px-3 rounded-md hover:bg-muted/30 group',
+                                  isNewlyCompleted && 'anim-completed-in',
+                                  isReopening && 'anim-reopening'
+                                )}
                               >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5">

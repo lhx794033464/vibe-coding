@@ -245,3 +245,65 @@ body {
 .typing-cursor {
   animation: typing-cursor 0.8s ease-in-out infinite;
 }
+
+/* ===== 待办事项动画 ===== */
+
+/* 新增待办：从上方浮现 */
+@keyframes todo-slide-down-in {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 完成待办：缩小消失 */
+@keyframes todo-shrink-fade-out {
+  from {
+    opacity: 1;
+    max-height: 80px;
+    margin-bottom: 8px;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    overflow: hidden;
+  }
+}
+
+/* 已完成待办：从上方滑入 */
+@keyframes todo-completed-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.anim-new-todo {
+  animation: todo-slide-down-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-completing {
+  animation: todo-shrink-fade-out 0.3s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+.anim-completed-in {
+  animation: todo-completed-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-reopening {
+  animation: todo-shrink-fade-out 0.3s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
