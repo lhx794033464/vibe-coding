@@ -201,14 +201,12 @@ export default function CustomersPage() {
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="状态筛选" />
+              <SelectValue placeholder="上线状态筛选" />
             </SelectTrigger>
             <SelectContent position="popper" side="bottom" align="start">
               <SelectItem value="all">全部状态</SelectItem>
-              <SelectItem value="已上线">已上线</SelectItem>
-              <SelectItem value="未上线">未上线</SelectItem>
-              <SelectItem value="实施中">实施中</SelectItem>
-              <SelectItem value="已验收">已验收</SelectItem>
+              <SelectItem value="online">已上线</SelectItem>
+              <SelectItem value="not_online">未上线</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -231,11 +229,11 @@ export default function CustomersPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1">
                         {/* 状态标识 */}
-                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === '是' || customer.status === '已上线' ? 'bg-green-500' : customer.status === '实施中' ? 'bg-blue-500' : customer.status === '已验收' ? 'bg-purple-500' : 'bg-red-400'}`}></div>
+                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`}></div>
                         
                         {/* 客户信息 */}
                         <div className="flex-1 min-w-0">
-                          {/* 第一行：客户名称 + 状态 */}
+                          {/* 第一行：客户名称 + 上线状态 + 验收状态 */}
                           <div className="flex items-start gap-2 flex-wrap">
                             <Link 
                               href={`/customers/${customer.id}`}
@@ -243,10 +241,13 @@ export default function CustomersPage() {
                             >
                               {customer.name}
                             </Link>
-                            <Badge className={customer.status === '是' || customer.status === '已上线' ? 'bg-green-100 text-green-700' : customer.status === '实施中' ? 'bg-blue-100 text-blue-700' : customer.status === '已验收' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-600'}>
-                              {customer.status === '是' ? '已上线' : customer.status === '否' ? '未上线' : customer.status || '未设置'}
+                            <Badge className={customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
+                              {customer.status === 'online' ? '已上线' : '未上线'}
                             </Badge>
-                            {isStale && customer.status !== '已验收' && (
+                            {customer.acceptance_status === 'accepted' && (
+                              <Badge className="bg-purple-100 text-purple-700">已验收</Badge>
+                            )}
+                            {isStale && customer.acceptance_status !== 'accepted' && (
                               <Badge variant="outline" className="text-orange-600 border-orange-300">
                                 <AlertCircle className="w-3 h-3 mr-1" />
                                 需跟进

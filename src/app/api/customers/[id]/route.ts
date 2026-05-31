@@ -60,6 +60,11 @@ export async function PUT(
       delete body.status;
     }
 
+    // acceptance_status 为空字符串时不更新
+    if (body.acceptance_status === '' || body.acceptance_status === null) {
+      delete body.acceptance_status;
+    }
+
     const data = await dbUpdateCustomer(id, body);
 
     if (!data) {

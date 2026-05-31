@@ -135,7 +135,7 @@ export default function FollowUpPage({ params }: PageProps) {
           ...getAuthHeader(),
         },
         body: JSON.stringify({
-          status: 'accepted',
+          acceptance_status: 'accepted',
         }),
       });
 
@@ -180,13 +180,16 @@ export default function FollowUpPage({ params }: PageProps) {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-              <Badge className={`mt-1 ${customer.status === '是' ? 'bg-green-100 text-green-700' : customer.status === '否' ? 'bg-red-100 text-red-700' : 'bg-muted text-foreground'}`}>
-                {customer.status === '是' ? '已上线' : customer.status === '否' ? '未上线' : customer.status || '未设置'}
+              <Badge className={`mt-1 ${customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {customer.status === 'online' ? '已上线' : '未上线'}
+              </Badge>
+              <Badge className={`mt-1 ml-2 ${customer.acceptance_status === 'accepted' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
+                {customer.acceptance_status === 'accepted' ? '已验收' : '未验收'}
               </Badge>
             </div>
           </div>
           <div className="flex gap-2">
-            {customer.status !== 'accepted' && (
+            {customer.acceptance_status !== 'accepted' && (
               <Button variant="outline" onClick={handleMarkAccepted}>
                 <CheckCircle className="w-4 h-4 mr-2" />
                 确认验收

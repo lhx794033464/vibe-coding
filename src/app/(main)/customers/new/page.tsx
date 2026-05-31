@@ -21,7 +21,8 @@ export default function NewCustomerPage() {
   const [importLoading, setImportLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    status: '',
+    status: 'not_online',
+    acceptance_status: 'not_accepted',
     sales_order_no: '',
     implementation_order_no: '',
     implementation_fee: '',
@@ -115,7 +116,8 @@ export default function NewCustomerPage() {
             },
             body: JSON.stringify({
               name: row['客户名称'] || row['name'] || '',
-              status: row['客户状态'] || row['status'] || null,
+              status: row['上线状态'] || row['status'] || null,
+              acceptance_status: row['验收状态'] || row['acceptance_status'] || null,
               sales_order_no: row['销售订单号'] || row['sales_order_no'] || null,
               implementation_order_no: row['实施订单号'] || row['implementation_order_no'] || null,
               implementation_fee: row['实施费'] || row['implementation_fee'] || null,
@@ -160,7 +162,8 @@ export default function NewCustomerPage() {
     const template = [
       {
         '客户名称': '示例客户',
-        '客户状态': '未上线',
+        '上线状态': '未上线',
+        '验收状态': '未验收',
         '销售订单号': 'SO2024001',
         '实施订单号': 'IM2024001',
         '实施费': 100000,
@@ -184,7 +187,6 @@ export default function NewCustomerPage() {
 
   const formFields = [
     { key: 'name', label: '客户名称', required: true, placeholder: '请输入客户名称' },
-    { key: 'status', label: '客户状态', placeholder: '如：未上线、已上线、已验收等' },
     { key: 'sales_order_no', label: '销售订单号', placeholder: '请输入销售订单号' },
     { key: 'implementation_order_no', label: '实施订单号', placeholder: '请输入实施订单号' },
     { key: 'implementation_fee', label: '实施费（元）', placeholder: '请输入实施费', type: 'number' },
@@ -242,6 +244,32 @@ export default function NewCustomerPage() {
                       />
                     </div>
                   ))}
+                  {/* 上线状态 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="status">上线状态</Label>
+                    <select
+                      id="status"
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="not_online">未上线</option>
+                      <option value="online">已上线</option>
+                    </select>
+                  </div>
+                  {/* 验收状态 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="acceptance_status">验收状态</Label>
+                    <select
+                      id="acceptance_status"
+                      value={formData.acceptance_status}
+                      onChange={(e) => setFormData({ ...formData, acceptance_status: e.target.value })}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="not_accepted">未验收</option>
+                      <option value="accepted">已验收</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

@@ -49,6 +49,7 @@ export const customers = pgTable("customers", {
 	industry: varchar({ length: 100 }),
 	specialRequirements: text("special_requirements"),
 	status: varchar({ length: 50 }).default('not_online').notNull(),
+	acceptanceStatus: varchar("acceptance_status", { length: 50 }).default('not_accepted'),
 	lastFollowUpAt: timestamp("last_follow_up_at", { withTimezone: true, mode: 'string' }),
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),

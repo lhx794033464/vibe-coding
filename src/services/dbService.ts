@@ -192,6 +192,7 @@ export async function dbAuthenticateUser(username: string, password: string): Pr
 
 export async function dbGetCustomers(filters?: {
   status?: string;
+  acceptanceStatus?: string;
   search?: string;
   userId?: string;
   isAdmin?: boolean;
@@ -209,6 +210,11 @@ export async function dbGetCustomers(filters?: {
   // 状态筛选
   if (filters?.status && filters.status !== 'all') {
     query = query.eq('status', filters.status);
+  }
+
+  // 验收状态筛选
+  if (filters?.acceptanceStatus && filters.acceptanceStatus !== 'all') {
+    query = query.eq('acceptance_status', filters.acceptanceStatus);
   }
 
   // 按名称精确筛选

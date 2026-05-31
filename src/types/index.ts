@@ -39,7 +39,8 @@ export interface Customer {
   modules: string | null; // 改为文本字段
   industry: string | null;
   special_requirements: string | null;
-  status: string; // 改为文本字段
+  status: string; // 上线状态：online/not_online
+  acceptance_status: string; // 验收状态：accepted/not_accepted
   last_follow_up_at: string | null;
   user_id: string;
   created_at: string;

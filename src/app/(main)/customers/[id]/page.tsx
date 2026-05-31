@@ -84,6 +84,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     special_requirements: '',
     delivery_consultant: '',
     status: '',
+    acceptance_status: '',
     salesperson: '',
     implementation_type: '',
     expiry_date: '',
@@ -125,6 +126,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           special_requirements: data.data.special_requirements || '',
           delivery_consultant: data.data.delivery_consultant || '',
           status: data.data.status || '',
+          acceptance_status: data.data.acceptance_status || '',
           salesperson: data.data.salesperson || '',
           implementation_type: data.data.implementation_type || '',
           expiry_date: data.data.expiry_date || '',
@@ -403,7 +405,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           ...getAuthHeader(),
         },
         body: JSON.stringify({
-          status: 'accepted',
+          acceptance_status: 'accepted',
         }),
       });
 
@@ -434,11 +436,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
     );
   }
 
-  const statusLabel = customer.status || '未知';
-  const isOnline = statusLabel === '是' || statusLabel === '已上线';
+  const isOnline = customer.status === 'online';
+  const isAccepted = customer.acceptance_status === 'accepted';
   const statusBadgeClass = isOnline
     ? 'bg-green-100 text-green-700 border-green-200'
     : 'bg-red-100 text-red-700 border-red-200';
+  const acceptanceBadgeClass = isAccepted
+    ? 'bg-purple-100 text-purple-700 border-purple-200'
+    : 'bg-gray-100 text-gray-700 border-gray-200';
 
   // 计算已消耗人天和剩余人天（从实施日志计算）
   const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
@@ -459,10 +464,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
               <Badge variant="outline" className={statusBadgeClass}>
                 {isOnline ? '已上线' : '未上线'}
               </Badge>
+              <Badge variant="outline" className={acceptanceBadgeClass}>
+                {isAccepted ? '已验收' : '未验收'}
+              </Badge>
             </div>
           </div>
           <div className="flex gap-2">
-            {customer.status !== 'accepted' && (
+            {!isAccepted && (
               <Button variant="outline" onClick={handleMarkAccepted}>
               <CheckCircle className="w-4 h-4 mr-2" />
               确认验收
@@ -496,12 +504,28 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>客户状态</Label>
-                      <Input
+                      <Label>上线状态</Label>
+                      <select
+                        className="w-full border rounded-md px-3 py-2 bg-background text-foreground text-sm"
                         value={editForm.status}
                         onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                        placeholder="如：已上线、未上线、实施中"
-                      />
+                      >
+                        <option value="">请选择</option>
+                        <option value="online">已上线</option>
+                        <option value="not_online">未上线</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>验收状态</Label>
+                      <select
+                        className="w-full border rounded-md px-3 py-2 bg-background text-foreground text-sm"
+                        value={editForm.acceptance_status}
+                        onChange={(e) => setEditForm({ ...editForm, acceptance_status: e.target.value })}
+                      >
+                        <option value="">请选择</option>
+                        <option value="accepted">已验收</option>
+                        <option value="not_accepted">未验收</option>
+                      </select>
                     </div>
                     <div className="space-y-2">
                       <Label>销售订单号</Label>

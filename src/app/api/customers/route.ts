@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status') || undefined;
+    const acceptanceStatus = searchParams.get('acceptance_status') || undefined;
     const search = searchParams.get('search') || undefined;
 
     // 数据隔离：获取当前用户信息
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
 
     const customers = await dbGetCustomers({
       status,
+      acceptanceStatus,
       search,
       userId: userInfo?.id,
       isAdmin,

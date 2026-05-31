@@ -66,14 +66,14 @@ export async function GET(request: NextRequest) {
 
     // 当月验收完成的客户
     const acceptedCustomers = allCustomers.filter((c: any) => {
-      if (c.status !== 'accepted') return false;
+      if (c.acceptance_status !== 'accepted') return false;
       const updatedAt = new Date(c.updated_at);
       return updatedAt >= monthStart && updatedAt <= monthEnd;
     });
 
     // 设置下次计提月份为当前月份的客户
     const scheduledCustomers = allCustomers.filter((c: any) =>
-      c.status === 'accepted' && c.next_commission_month === monthParam
+      c.acceptance_status === 'accepted' && c.next_commission_month === monthParam
     );
 
     // 合并去重
