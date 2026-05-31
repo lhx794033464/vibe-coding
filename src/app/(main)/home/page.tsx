@@ -29,27 +29,9 @@ function getGreeting(): string {
 
 // 快捷问题列表
 const QUICK_QUESTIONS = [
-  {
-    icon: '💼',
-    text: '我有哪些未上线客户？',
-    category: '工作',
-  },
-  {
-    icon: '📊',
-    text: '我的客户上线率是多少？',
-    category: '数据',
-  },
-  {
-    icon: '📝',
-    text: '今天有什么待办事项？',
-    category: '待办',
-  },
-
-  {
-    icon: '💡',
-    text: '客户说系统太复杂怎么处理？',
-    category: '技巧',
-  },
+  { text: '上线率' },
+  { text: '验收率' },
+  { text: '今日待办' },
 ];
 
 // 消息类型
@@ -529,30 +511,6 @@ export default function HomePage() {
                 <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
               </div>
 
-              {/* 快捷问题 - 移动端隐藏 */}
-              <div className="hidden sm:block space-y-4">
-                <p className="text-sm font-medium text-slate-500 flex items-center gap-2 justify-center">
-                  <Search className="w-4 h-4" />
-                  试试这些问题
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  {QUICK_QUESTIONS.map((q, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleQuickQuestion(q.text)}
-                      className="flex items-center gap-3 px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-left hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md transition-all group"
-                    >
-                      <span className="text-xl flex-shrink-0">{q.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-700 truncate group-hover:text-blue-600 font-medium">
-                          {q.text}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">{q.category}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           ) : (
             <div className={`space-y-6 ${isClearing ? 'message-fade-out' : ''}`}>
@@ -618,6 +576,19 @@ export default function HomePage() {
       <div className="flex-shrink-0 border-t border-slate-100 bg-white/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
           <form onSubmit={handleSubmit}>
+            {/* 快捷提问胶囊 */}
+            <div className="flex items-center justify-center gap-2 mb-2">
+              {QUICK_QUESTIONS.map((q, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => handleQuickQuestion(q.text)}
+                  className="px-4 py-1.5 bg-white border border-slate-200 rounded-full text-sm text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                >
+                  {q.text}
+                </button>
+              ))}
+            </div>
             <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-2 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all">
               <textarea
                 ref={inputRef}
