@@ -46,29 +46,34 @@ export default function NewCustomerPage() {
 
     setLoading(true);
     try {
+      const submitData: Record<string, unknown> = {
+        name: formData.name,
+        sales_order_no: formData.sales_order_no || null,
+        implementation_order_no: formData.implementation_order_no || null,
+        implementation_fee: formData.implementation_fee ? parseInt(formData.implementation_fee) : null,
+        implementation_days: formData.implementation_days ? parseFloat(formData.implementation_days) : null,
+        opened_at: formData.opened_at || null,
+        version: formData.version || null,
+        modules: formData.modules || null,
+        industry: formData.industry || null,
+        salesperson: formData.salesperson || null,
+        implementation_type: formData.implementation_type || null,
+        expiry_date: formData.expiry_date || null,
+        delivery_consultant: formData.delivery_consultant || null,
+        special_requirements: formData.special_requirements || null,
+      };
+      // status 列有 NOT NULL 约束和默认值 'not_online'，空值时不传该字段让数据库使用默认值
+      if (formData.status) {
+        submitData.status = formData.status;
+      }
+
       const response = await fetch('/api/customers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({
-          name: formData.name,
-          status: formData.status || null,
-          sales_order_no: formData.sales_order_no || null,
-          implementation_order_no: formData.implementation_order_no || null,
-          implementation_fee: formData.implementation_fee ? parseInt(formData.implementation_fee) : null,
-          implementation_days: formData.implementation_days ? parseFloat(formData.implementation_days) : null,
-          opened_at: formData.opened_at || null,
-          version: formData.version || null,
-          modules: formData.modules || null,
-          industry: formData.industry || null,
-          salesperson: formData.salesperson || null,
-          implementation_type: formData.implementation_type || null,
-          expiry_date: formData.expiry_date || null,
-          delivery_consultant: formData.delivery_consultant || null,
-          special_requirements: formData.special_requirements || null,
-        }),
+        body: JSON.stringify(submitData),
       });
 
       if (response.ok) {

@@ -34,8 +34,22 @@ export async function POST(request: NextRequest) {
 
     // 自动关联创建者
     const userInfo = await getCurrentUserInfo(request);
+
+    // 处理 modules 字段：数据库要求 text[] 类型，前端可能传入字符串
+    let modules = body.modules;
+    if (typeof modules === 'string' && modules.trim()) {
+      modules = modules.split(/[+,，、\s]+/).map((s: string) => s.trim()).filter(Boolean);
+    } else if (modules === '' || modules === null) {
+      modules = null;
+    }
+
+    // status 有 NOT NULL 约束和默认值，空值时不传让数据库用默认值
+    const status = body.status || undefined;
+
     const customerData = {
       ...body,
+      status,
+      modules,
       user_id: userInfo?.id || null,
       delivery_consultant: userInfo?.username || body.delivery_consultant || null,
     };

@@ -47,6 +47,19 @@ export async function PUT(
     }
 
     const body = await request.json();
+
+    // 处理 modules 字段：数据库要求 text[] 类型，前端可能传入字符串
+    if (typeof body.modules === 'string' && body.modules.trim()) {
+      body.modules = body.modules.split(/[+,，、\s]+/).map((s: string) => s.trim()).filter(Boolean);
+    } else if (body.modules === '') {
+      body.modules = null;
+    }
+
+    // status 有 NOT NULL 约束，空字符串时不更新该字段
+    if (body.status === '' || body.status === null) {
+      delete body.status;
+    }
+
     const data = await dbUpdateCustomer(id, body);
 
     if (!data) {
