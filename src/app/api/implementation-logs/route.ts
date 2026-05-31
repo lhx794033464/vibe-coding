@@ -29,10 +29,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customer_id, log_date, content, consumed_days, remaining_days } = body;
+    const { customer_id, log_date, summary, consumed_days, meeting_link } = body;
 
     if (!customer_id) {
       return NextResponse.json({ error: '客户ID不能为空' }, { status: 400 });
+    }
+
+    if (!summary || !consumed_days) {
+      return NextResponse.json({ error: '请填写实施纪要和消耗人天' }, { status: 400 });
     }
 
     const userInfo = await getCurrentUserInfo(request);
@@ -40,9 +44,9 @@ export async function POST(request: NextRequest) {
     const data = await dbCreateImplementationLog({
       customer_id,
       log_date: log_date || new Date().toISOString().split('T')[0],
-      content: content || '',
+      summary: summary || '',
       consumed_days: consumed_days || '0',
-      remaining_days: remaining_days || '0',
+      meeting_link: meeting_link || null,
       user_id: userInfo?.id || null,
     });
 
