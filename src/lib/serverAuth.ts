@@ -10,15 +10,30 @@ export async function getCurrentUserId(request: NextRequest): Promise<string | n
   return userInfo?.id || null;
 }
 
+// 从请求中获取认证 Token（优先从 Authorization header，其次从 cookie）
+function getAuthToken(request: NextRequest): string | null {
+  // 优先从 Authorization header 获取
+  const authHeader = request.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+
+  // 其次从 cookie 获取
+  const cookieToken = request.cookies.get('auth_token')?.value;
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  return null;
+}
+
 // 从请求中获取当前用户信息（包含username和role）
 export async function getCurrentUserInfo(request: NextRequest): Promise<{ id: string; username: string; role: string } | null> {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = getAuthToken(request);
+    if (!token) {
       return null;
     }
-
-    const token = authHeader.substring(7);
 
     // 尝试Base64解码
     let decoded: string;

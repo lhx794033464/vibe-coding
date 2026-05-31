@@ -37,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setIsAuthenticated(false);
         setIsAdmin(false);
+        // 清除 cookie
+        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         return;
       }
       const session = JSON.parse(sessionStr);
@@ -44,14 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session.user);
         setIsAuthenticated(true);
         setIsAdmin(session.user.role === 'admin');
+        // 同步写入 cookie（用于跨标签页/SSR 场景）
+        document.cookie = `auth_token=${session.token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
       } else {
         localStorage.removeItem('auth_session');
+        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         setUser(null);
         setIsAuthenticated(false);
         setIsAdmin(false);
       }
     } catch {
       localStorage.removeItem('auth_session');
+      document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       setUser(null);
       setIsAuthenticated(false);
       setIsAdmin(false);
@@ -60,6 +66,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     updateAuthState();
+
+    // 如果 localStorage 中没有 auth_session，但 cookie 中有 auth_token，
+    // 尝试从 cookie 恢复会话（处理新标签页打开时 localStorage 为空的场景）
+    const sessionStr = localStorage.getItem('auth_session');
+    if (!sessionStr) {
+      const cookieToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth_token='))
+        ?.split('=')[1];
+      if (cookieToken) {
+        // 从 cookie 中的 token 解析用户信息并恢复会话
+        try {
+          const decoded = atob(cookieToken);
+          const parts = decoded.split(':');
+          if (parts.length >= 3) {
+            const restoredSession = {
+              token: cookieToken,
+              user: {
+                id: parts[0],
+                username: parts[1],
+                role: parts[2],
+              },
+            };
+            localStorage.setItem('auth_session', JSON.stringify(restoredSession));
+            updateAuthState();
+          }
+        } catch {
+          // cookie 中的 token 无效，清除
+          document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        }
+      }
+    }
+
     setLoading(false);
   }, []);
 
@@ -120,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('auth_session');
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setUser(null);
     setIsAuthenticated(false);
     setIsAdmin(false);
@@ -128,7 +168,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getAuthHeader = (): Record<string, string> => {
     try {
       const sessionStr = localStorage.getItem('auth_session');
-      if (!sessionStr) return {};
+      if (!sessionStr) {
+        // fallback: 从 cookie 中读取 token
+        const cookieToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('auth_token='))
+          ?.split('=')[1];
+        if (cookieToken) {
+          return { Authorization: `Bearer ${cookieToken}` };
+        }
+        return {};
+      }
       const session = JSON.parse(sessionStr);
       if (session?.token) {
         return { Authorization: `Bearer ${session.token}` };
