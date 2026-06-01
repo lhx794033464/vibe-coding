@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, MessageSquare, Loader2, FileSpreadsheet, Download, Check, X } from 'lucide-react';
+import { Search, Plus, AlertCircle, MessageSquare, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Customer } from '@/types';
@@ -27,6 +27,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [acceptanceFilter, setAcceptanceFilter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   // 腾讯文档获取相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
@@ -227,10 +228,31 @@ export default function CustomersPage() {
               );
             })}
           </div>
+          {/* 排列方式切换 */}
+          <div className="flex items-center gap-1 ml-auto border rounded-lg p-0.5">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode('list')}
+              title="列表视图"
+            >
+              <LayoutList className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode('grid')}
+              title="双列视图"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* 客户列表 */}
-        <div className="grid gap-4">
+        <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-4' : 'grid gap-4'}>
           {filteredCustomers.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-gray-500">
@@ -244,77 +266,151 @@ export default function CustomersPage() {
               return (
                 <Card key={customer.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-3 sm:p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        {/* 状态标识 */}
-                        <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`}></div>
-                        
-                        {/* 客户信息 */}
-                        <div className="flex-1 min-w-0">
-                          {/* 第一行：客户名称 + 上线状态 + 验收状态 */}
-                          <div className="flex items-start gap-2 flex-wrap">
+                    {viewMode === 'grid' ? (
+                      /* 双列视图 - 紧凑垂直布局 */
+                      <div className="flex flex-col gap-2">
+                        {/* 客户名称 + 状态 */}
+                        <div className="flex items-start gap-2">
+                          <div className={`w-1.5 h-6 rounded-full flex-shrink-0 mt-0.5 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                          <div className="flex-1 min-w-0">
                             <Link 
                               href={`/customers/${customer.id}`}
-                              className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors break-words"
+                              className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors truncate block"
                             >
                               {customer.name}
                             </Link>
-                            <Badge className={customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
-                              {customer.status === 'online' ? '已上线' : '未上线'}
-                            </Badge>
-                            {customer.acceptance_status === 'accepted' && (
-                              <Badge className="bg-purple-100 text-purple-700">已验收</Badge>
-                            )}
-                            {isStale && customer.acceptance_status !== 'accepted' && (
-                              <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                <AlertCircle className="w-3 h-3 mr-1" />
-                                需跟进
-                              </Badge>
-                            )}
-                          </div>
-                          {/* 第二行：版本 + 模块 */}
-                          {(customer.version || customer.modules) && (
-                            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                              {customer.version && (
-                                <Badge className="bg-blue-50 text-blue-700 border-blue-200" variant="outline">
-                                  {customer.version}
-                                </Badge>
-                              )}
-                              {customer.modules && (
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  {(Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean).map((module: string, idx: number) => (
-                                    <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
-                                      {module.trim()}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {/* 第三行：人天 + 最近跟进 */}
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-500 mt-2">
-                            <span className="whitespace-nowrap">
-                              人天: 总{formatDays(customer.implementation_days)} / 
-                              已耗{formatDays(customer.consumed_days)} / 
-                              余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
-                            </span>
-                            {(customer as any).delivery_consultant && (
-                              <span className="text-xs whitespace-nowrap text-blue-600">
-                                顾问: {(customer as any).delivery_consultant}
-                              </span>
-                            )}
-                            {customer.last_follow_up_at ? (
-                              <span className="text-xs whitespace-nowrap">
-                                最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-orange-500 whitespace-nowrap">暂无跟进</span>
-                            )}
                           </div>
                         </div>
+                        {/* 状态标签 */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className={`text-xs ${customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                            {customer.status === 'online' ? '已上线' : '未上线'}
+                          </Badge>
+                          {customer.acceptance_status === 'accepted' && (
+                            <Badge className="text-xs bg-purple-100 text-purple-700">已验收</Badge>
+                          )}
+                          {isStale && customer.acceptance_status !== 'accepted' && (
+                            <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                              <AlertCircle className="w-3 h-3 mr-0.5" />
+                              需跟进
+                            </Badge>
+                          )}
+                        </div>
+                        {/* 版本 + 模块 */}
+                        {(customer.version || customer.modules) && (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {customer.version && (
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs" variant="outline">
+                                {customer.version}
+                              </Badge>
+                            )}
+                            {customer.modules && (
+                              (Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean).slice(0, 2).map((module: string, idx: number) => (
+                                <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
+                                  {module.trim()}
+                                </Badge>
+                              ))
+                            )}
+                          </div>
+                        )}
+                        {/* 人天 + 最近跟进 */}
+                        <div className="flex flex-col gap-0.5 text-xs text-gray-500">
+                          <span className="whitespace-nowrap">
+                            人天: 总{formatDays(customer.implementation_days)} / 已耗{formatDays(customer.consumed_days)} / 余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
+                          </span>
+                          {(customer as any).delivery_consultant && (
+                            <span className="text-blue-600">顾问: {(customer as any).delivery_consultant}</span>
+                          )}
+                          {customer.last_follow_up_at ? (
+                            <span>最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}</span>
+                          ) : (
+                            <span className="text-orange-500">暂无跟进</span>
+                          )}
+                        </div>
+                        {/* 跟进按钮 */}
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => router.push(`/customers/${customer.id}/follow-up`)}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-1" />
+                          跟进
+                        </Button>
                       </div>
-                      
-                      {/* 操作按钮 */}
+                    ) : (
+                      /* 列表视图 - 原有横向布局 */
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1">
+                          {/* 状态标识 */}
+                          <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                          
+                          {/* 客户信息 */}
+                          <div className="flex-1 min-w-0">
+                            {/* 第一行：客户名称 + 上线状态 + 验收状态 */}
+                            <div className="flex items-start gap-2 flex-wrap">
+                              <Link 
+                                href={`/customers/${customer.id}`}
+                                className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors break-words"
+                              >
+                                {customer.name}
+                              </Link>
+                              <Badge className={customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
+                                {customer.status === 'online' ? '已上线' : '未上线'}
+                              </Badge>
+                              {customer.acceptance_status === 'accepted' && (
+                                <Badge className="bg-purple-100 text-purple-700">已验收</Badge>
+                              )}
+                              {isStale && customer.acceptance_status !== 'accepted' && (
+                                <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  需跟进
+                                </Badge>
+                              )}
+                            </div>
+                            {/* 第二行：版本 + 模块 */}
+                            {(customer.version || customer.modules) && (
+                              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                {customer.version && (
+                                  <Badge className="bg-blue-50 text-blue-700 border-blue-200" variant="outline">
+                                    {customer.version}
+                                  </Badge>
+                                )}
+                                {customer.modules && (
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {(Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean).map((module: string, idx: number) => (
+                                      <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
+                                        {module.trim()}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {/* 第三行：人天 + 最近跟进 */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-500 mt-2">
+                              <span className="whitespace-nowrap">
+                                人天: 总{formatDays(customer.implementation_days)} / 
+                                已耗{formatDays(customer.consumed_days)} / 
+                                余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
+                              </span>
+                              {(customer as any).delivery_consultant && (
+                                <span className="text-xs whitespace-nowrap text-blue-600">
+                                  顾问: {(customer as any).delivery_consultant}
+                                </span>
+                              )}
+                              {customer.last_follow_up_at ? (
+                                <span className="text-xs whitespace-nowrap">
+                                  最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-orange-500 whitespace-nowrap">暂无跟进</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* 操作按钮 */}
                       <div className="flex items-center justify-end gap-2 sm:flex-shrink-0">
                         <Button
                           variant="default"
@@ -327,6 +423,7 @@ export default function CustomersPage() {
                         </Button>
                       </div>
                     </div>
+                    )}
                   </CardContent>
                 </Card>
               );
