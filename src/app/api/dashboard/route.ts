@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const timeRange = searchParams.get('timeRange') || 'all';
+    const customStartDate = searchParams.get('startDate');
+    const customEndDate = searchParams.get('endDate');
 
     // 计算时间范围
     const now = new Date();
@@ -28,6 +30,13 @@ export async function GET(request: NextRequest) {
         } else {
           startDate = new Date(now.getFullYear() - 1, 11, 1);
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        }
+        break;
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          startDate = new Date(customStartDate);
+          endDate = new Date(customEndDate);
+          endDate.setDate(endDate.getDate() + 1); // 包含结束日期当天
         }
         break;
       case 'all':

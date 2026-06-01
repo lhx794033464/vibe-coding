@@ -82,7 +82,7 @@ export interface DashboardStats {
 }
 
 // 时间范围类型
-export type TimeRange = 'month' | 'year' | 'all';
+export type TimeRange = 'month' | 'year' | 'all' | 'custom';
 
 // 提成记录类型
 export interface CommissionRecord {

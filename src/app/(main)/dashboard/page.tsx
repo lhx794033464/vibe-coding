@@ -9,7 +9,8 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Loader2
+  Loader2,
+  Calendar
 } from 'lucide-react';
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,8 @@ export default function DashboardPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -73,7 +76,7 @@ export default function DashboardPage() {
     if (!isInitialLoading) {
       fetchStats();
     }
-  }, [timeRange]);
+  }, [timeRange, customStartDate, customEndDate]);
 
   const fetchStats = async () => {
     // 首次加载显示全屏loading，后续只显示更新状态
@@ -84,7 +87,11 @@ export default function DashboardPage() {
     }
     
     try {
-      const response = await fetch(`/api/dashboard?timeRange=${timeRange}`, {
+      let url = `/api/dashboard?timeRange=${timeRange}`;
+      if (timeRange === 'custom' && customStartDate && customEndDate) {
+        url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      const response = await fetch(url, {
         headers: { ...getAuthHeader() },
       });
       const data = await response.json();
@@ -148,7 +155,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">数据看板</h1>
           <p className="text-gray-500 mt-1">客户跟进数据总览</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {isUpdating && (
             <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
@@ -164,8 +171,30 @@ export default function DashboardPage() {
               <SelectItem value="month">本月</SelectItem>
               <SelectItem value="year">本年</SelectItem>
               <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="custom">自定义</SelectItem>
             </SelectContent>
           </Select>
+          {timeRange === 'custom' && (
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                max={customEndDate || undefined}
+              />
+              <span className="text-sm text-gray-400">至</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                min={customStartDate || undefined}
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+          )}
         </div>
       </div>
 
