@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { FlowChartProvider } from '@/contexts/FlowChartContext';
+import { HolidayProvider } from '@/contexts/HolidayContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from '@/components/sidebar';
 import { Loader2 } from 'lucide-react';
@@ -44,19 +45,21 @@ export default function MainLayout({
   return (
     <ChatProvider>
       <FlowChartProvider>
-        <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar 
-              collapsed={sidebarCollapsed}
-              onCollapsedChange={setSidebarCollapsed}
-            />
-            <main className={`flex-1 overflow-auto transition-all duration-300 ${
-              sidebarCollapsed ? 'sm:ml-16' : 'sm:ml-[200px]'
-            }`}>
-              {children}
-            </main>
+        <HolidayProvider>
+          <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden">
+              <Sidebar 
+                collapsed={sidebarCollapsed}
+                onCollapsedChange={setSidebarCollapsed}
+              />
+              <main className={`flex-1 overflow-auto transition-all duration-300 ${
+                sidebarCollapsed ? 'sm:ml-16' : 'sm:ml-[200px]'
+              }`}>
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
+        </HolidayProvider>
       </FlowChartProvider>
     </ChatProvider>
   );

@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, addHours } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { useHolidays } from '@/contexts/HolidayContext';
 
 // 类型定义
 interface Customer {
@@ -47,40 +48,13 @@ interface Schedule {
   customer_name?: string;
 }
 
-// 法定节假日数据（从API动态获取国务院最新安排）
-// holidayData 在组件内部使用 useState 管理
+// 法定节假日数据从全局 HolidayContext 获取（应用启动时即加载）
 
 function formatDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function getDateStatus(date: Date, holidayData: { holidays: Record<string, string>; workdaysOnWeekend: Set<string> }): { 
-  isHoliday: boolean; 
-  isWorkday: boolean; 
-  holidayName: string | null;
-  isWeekend: boolean;
-} {
-  const dateStr = formatDate(date);
-  const dayOfWeek = date.getDay();
-  const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
-  
-  const holidayName = holidayData.holidays[dateStr] || null;
-  if (holidayName) {
-    return { isHoliday: true, isWorkday: false, holidayName, isWeekend: false };
-  }
-  
-  if (holidayData.workdaysOnWeekend.has(dateStr)) {
-    return { isHoliday: false, isWorkday: true, holidayName: '调休', isWeekend: false };
-  }
-  
-  if (isWeekendDay) {
-    return { isHoliday: false, isWorkday: false, holidayName: null, isWeekend: true };
-  }
-  
-  return { isHoliday: false, isWorkday: true, holidayName: null, isWeekend: false };
 }
 
 function generateCalendarData(centerDate: Date): Date[] {
@@ -118,11 +92,8 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   
-  // 法定节假日数据（从API动态获取国务院最新安排）
-  const [holidayData, setHolidayData] = useState<{
-    holidays: Record<string, string>;
-    workdaysOnWeekend: Set<string>;
-  }>({ holidays: {}, workdaysOnWeekend: new Set() });
+  // 法定节假日数据从全局 Context 获取（应用启动时即加载）
+  const { getDateStatus, loaded: holidayLoaded } = useHolidays();
   
   // 会议相关状态
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
@@ -140,34 +111,6 @@ export default function SchedulePage() {
   } | null>(null);
 
   const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
-
-  // 获取假日数据
-  useEffect(() => {
-    const fetchHolidays = async () => {
-      try {
-        const currentYear = new Date().getFullYear();
-        const res = await fetch(`/api/holidays?year=${currentYear - 1},${currentYear},${currentYear + 1}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        
-        const mergedHolidays: Record<string, string> = {};
-        const mergedWorkdays: string[] = [];
-        
-        for (const yearData of Object.values(data) as Array<{ holidays: Record<string, string>; workdaysOnWeekend: string[] }>) {
-          Object.assign(mergedHolidays, yearData.holidays);
-          mergedWorkdays.push(...yearData.workdaysOnWeekend);
-        }
-        
-        setHolidayData({
-          holidays: mergedHolidays,
-          workdaysOnWeekend: new Set(mergedWorkdays),
-        });
-      } catch (err) {
-        console.error('获取假日数据失败:', err);
-      }
-    };
-    fetchHolidays();
-  }, []);
 
   // 获取客户列表
   useEffect(() => {
@@ -409,7 +352,7 @@ export default function SchedulePage() {
           <div className="grid grid-cols-7 gap-1">
             {calendarDates.map((date, index) => {
               const dateStr = formatDate(date);
-              const dateStatus = getDateStatus(date, holidayData);
+              const dateStatus = getDateStatus(date);
               const todayClass = isToday(date);
               const { isFirst, month } = isFirstOfMonth(date);
               const dateSchedules = getSchedulesForDate(date);
@@ -497,7 +440,7 @@ export default function SchedulePage() {
         <div className="lg:hidden max-w-3xl mx-auto space-y-2">
           {calendarDates.map((date, index) => {
             const dateStr = formatDate(date);
-            const dateStatus = getDateStatus(date, holidayData);
+            const dateStatus = getDateStatus(date);
             const todayClass = isToday(date);
             const { isFirst, month } = isFirstOfMonth(date);
             const dateSchedules = getSchedulesForDate(date);
