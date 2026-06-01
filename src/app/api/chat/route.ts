@@ -33,8 +33,16 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
   try {
     const customers = await dbGetCustomers({ userId, isAdmin });
     if (customers.length > 0) {
+      const statusLabel: Record<string, string> = { 'online': '已上线', 'not_online': '未上线', '延期上线': '延期上线' };
+      const acceptLabel: Record<string, string> = { 'accepted': '已验收', 'not_accepted': '未验收' };
+      const onlineCount = customers.filter(c => c.status === 'online').length;
+      const acceptedCount = customers.filter(c => c.acceptance_status === 'accepted').length;
+      const onlineRate = customers.length > 0 ? Math.round(onlineCount / customers.length * 1000) / 10 : 0;
+      const acceptanceRate = customers.length > 0 ? Math.round(acceptedCount / customers.length * 1000) / 10 : 0;
+
       customersData = `\n\n【客户列表】(共${customers.length}个)\n` + 
-        customers.map(c => `- ${c.name} | 状态: ${c.status} | 交付顾问: ${c.delivery_consultant || '未分配'}`).join('\n');
+        customers.map(c => `- ${c.name} | 上线状态: ${statusLabel[c.status] || c.status || '未知'} | 验收状态: ${acceptLabel[c.acceptance_status] || c.acceptance_status || '未知'} | 交付顾问: ${c.delivery_consultant || '未分配'}`).join('\n') +
+        `\n\n【统计数据】上线率: ${onlineRate}% (${onlineCount}/${customers.length}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${customers.length})`;
     }
   } catch {}
 
@@ -57,6 +65,19 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
   return `你是"小蝶"，金蝶云星辰交付集成平台的智能助手。今天是${today}。
 
 你可以帮助交付人员管理客户、日程和待办事项。请用简洁专业的中文回复。
+
+## 业务指标计算口径（非常重要）
+
+### 上线率
+- 计算公式：上线率 = 已上线客户数 / 总客户数 × 100%
+- "已上线"对应客户字段 status = "online"，"未上线"对应 status = "not_online"
+- 回答上线率相关问题时，必须使用【统计数据】中给出的上线率数值，不要自行计算
+
+### 验收率
+- 计算公式：验收率 = 已验收客户数 / 总客户数 × 100%
+- "已验收"对应客户字段 acceptance_status = "accepted"，"未验收"对应 acceptance_status = "not_accepted"
+- 验收状态和上线状态是两个独立字段，已验收不等于已上线，反之亦然
+- 回答验收率相关问题时，必须使用【统计数据】中给出的验收率数值，不要自行计算
 
 ## 核心概念区分（非常重要）
 
