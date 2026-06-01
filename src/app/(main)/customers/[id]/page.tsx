@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,8 +23,16 @@ import {
   TrendingUp,
   Trash2,
   FileDown,
-  Pencil
+  Pencil,
+  Upload,
+  Eye
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Customer, FollowUpRecord } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -91,6 +99,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
     expiry_date: '',
   });
   const [generatingDoc, setGeneratingDoc] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadCustomer = async () => {
@@ -390,6 +401,72 @@ export default function CustomerDetailPage({ params }: PageProps) {
       alert('生成验收单失败，请重试');
     } finally {
       setGeneratingDoc(false);
+    }
+  };
+
+  // 上传验收单
+  const handleUploadAcceptanceDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!customer || !e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    setUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('customer_id', customer.id);
+
+      const response = await fetch('/api/acceptance-doc/upload', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '上传失败');
+      }
+
+      // 更新客户信息中的验收单key
+      setCustomer({ ...customer, acceptance_doc_key: data.file_key } as any);
+      alert('验收单上传成功');
+    } catch (error: any) {
+      console.error('上传验收单失败:', error);
+      alert(error.message || '上传验收单失败，请重试');
+    } finally {
+      setUploadingDoc(false);
+      // 重置 file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // 查看验收单
+  const handleViewAcceptanceDoc = async () => {
+    if (!customer) return;
+    
+    setViewingDoc(true);
+    try {
+      const response = await fetch(`/api/acceptance-doc/view?customer_id=${customer.id}`, {
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '获取验收单失败');
+      }
+
+      // 在新标签页打开签名URL
+      window.open(data.url, '_blank');
+    } catch (error: any) {
+      console.error('查看验收单失败:', error);
+      alert(error.message || '查看验收单失败，请重试');
+    } finally {
+      setViewingDoc(false);
     }
   };
 
@@ -745,15 +822,44 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 实施日志
               </CardTitle>
               <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={handleGenerateAcceptanceDoc}
-                  disabled={generatingDoc || implementationLogs.length === 0}
-                >
-                  <FileDown className="w-4 h-4 mr-1" />
-                  {generatingDoc ? '生成中...' : '验收单'}
-                </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                  onChange={handleUploadAcceptanceDoc}
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <FileDown className="w-4 h-4 mr-1" />
+                      验收单
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleGenerateAcceptanceDoc}
+                      disabled={generatingDoc || implementationLogs.length === 0}
+                    >
+                      <FileDown className="w-4 h-4 mr-2" />
+                      {generatingDoc ? '生成中...' : '生成验收单'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingDoc}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadingDoc ? '上传中...' : '上传验收单'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleViewAcceptanceDoc}
+                      disabled={viewingDoc || !(customer as any)?.acceptance_doc_key}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {viewingDoc ? '加载中...' : '查看验收单'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button size="sm" onClick={() => setShowLogForm(!showLogForm)}>
                   <Plus className="w-4 h-4 mr-1" />
                   添加

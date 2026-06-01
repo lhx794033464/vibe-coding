@@ -52,6 +52,7 @@ export interface Customer {
   expiry_date: string | null; // 到期日
   is_online: string | null; // 是否上线
   apply_month: string | null; // 申请月
+  acceptance_doc_key: string | null; // 验收单文件key
 }
 
 // 跟进记录类型

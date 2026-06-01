@@ -61,6 +61,7 @@ export const customers = pgTable("customers", {
 	onlineAt: timestamp("online_at", { withTimezone: true, mode: 'string' }),
 	acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: 'string' }),
 	nextCommissionMonth: varchar("next_commission_month", { length: 7 }),
+	acceptanceDocKey: varchar("acceptance_doc_key", { length: 500 }),
 }, (table) => [
 	index("customers_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
 	index("customers_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
