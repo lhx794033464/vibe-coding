@@ -577,7 +577,7 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto p-4">
           <form onSubmit={handleSubmit}>
             {/* 快捷提问胶囊 */}
-            <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="flex items-center justify-start gap-2 mb-2">
               {QUICK_QUESTIONS.map((q, index) => (
                 <button
                   key={index}
