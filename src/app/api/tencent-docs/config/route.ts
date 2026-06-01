@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 const CONFIG_FILE = path.join('/tmp', 'tencent_docs_config.json');
+const CONFIG_KEY = 'tencent_docs_token';
 
 interface TencentDocsConfig {
   token: string;
@@ -11,7 +13,52 @@ interface TencentDocsConfig {
   updated_at: string;
 }
 
+async function loadConfigFromDb(): Promise<TencentDocsConfig | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('system_config')
+      .select('value, updated_at')
+      .eq('key', CONFIG_KEY)
+      .single();
+    if (error || !data) return null;
+    const parsed = JSON.parse(data.value);
+    return {
+      token: parsed.token,
+      updated_by: parsed.updated_by,
+      updated_at: data.updated_at,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function saveConfigToDb(config: TencentDocsConfig): Promise<void> {
+  const supabase = getSupabaseClient();
+  const value = JSON.stringify({
+    token: config.token,
+    updated_by: config.updated_by,
+  });
+  await supabase
+    .from('system_config')
+    .upsert({ key: CONFIG_KEY, value, updated_at: new Date().toISOString() });
+}
+
+async function deleteConfigFromDb(): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    await supabase.from('system_config').delete().eq('key', CONFIG_KEY);
+  } catch {
+    // 忽略
+  }
+}
+
 async function loadConfig(): Promise<TencentDocsConfig | null> {
+  // 优先从数据库读取（生产环境持久化）
+  const dbConfig = await loadConfigFromDb();
+  if (dbConfig) return dbConfig;
+
+  // 回退到本地文件（开发环境兼容）
   try {
     const data = await readFile(CONFIG_FILE, 'utf-8');
     return JSON.parse(data);
@@ -21,16 +68,25 @@ async function loadConfig(): Promise<TencentDocsConfig | null> {
 }
 
 async function saveConfig(config: TencentDocsConfig): Promise<void> {
-  await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+  // 同时保存到数据库（持久化）和本地文件
+  await Promise.all([
+    saveConfigToDb(config),
+    writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8'),
+  ]);
 }
 
 async function deleteConfig(): Promise<void> {
-  try {
-    const { unlink } = await import('fs/promises');
-    await unlink(CONFIG_FILE);
-  } catch {
-    // 文件不存在则忽略
-  }
+  await Promise.all([
+    deleteConfigFromDb(),
+    (async () => {
+      try {
+        const { unlink } = await import('fs/promises');
+        await unlink(CONFIG_FILE);
+      } catch {
+        // 文件不存在则忽略
+      }
+    })(),
+  ]);
 }
 
 // GET: 获取配置（Token 脱敏）
