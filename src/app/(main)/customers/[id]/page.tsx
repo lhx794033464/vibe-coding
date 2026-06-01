@@ -13,6 +13,7 @@ import {
   ArrowLeft, 
   Plus, 
   CheckCircle, 
+  XCircle,
   ExternalLink,
   Calendar,
   User,
@@ -392,6 +393,31 @@ export default function CustomerDetailPage({ params }: PageProps) {
     }
   };
 
+  const handleCancelAcceptance = async () => {
+    if (!customer) return;
+    
+    if (!confirm('确定撤回此客户的验收状态吗？撤回后该客户将变为未验收状态。')) return;
+
+    try {
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          acceptance_status: 'not_accepted',
+        }),
+      });
+
+      if (response.ok) {
+        fetchCustomer(customer.id);
+      }
+    } catch (error) {
+      console.error('撤回验收状态失败:', error);
+    }
+  };
+
   const handleMarkAccepted = async () => {
     if (!customer) return;
     
@@ -470,12 +496,17 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </div>
           </div>
           <div className="flex gap-2">
-            {!isAccepted && (
+            {!isAccepted ? (
               <Button variant="outline" onClick={handleMarkAccepted}>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              确认验收
-            </Button>
-          )}
+                <CheckCircle className="w-4 h-4 mr-2" />
+                确认验收
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={handleCancelAcceptance} className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                <XCircle className="w-4 h-4 mr-2" />
+                取消验收
+              </Button>
+            )}
           <Button variant="outline" onClick={() => setEditing(!editing)}>
             {editing ? '取消编辑' : '编辑档案'}
           </Button>
