@@ -402,6 +402,12 @@ export default function TodosPage() {
     low: { label: '低', color: 'text-green-600 bg-green-50 border-green-200' },
   };
 
+  const completedPriorityConfig = {
+    high: { label: '高', color: 'text-muted-foreground bg-muted border-border' },
+    medium: { label: '中', color: 'text-muted-foreground bg-muted border-border' },
+    low: { label: '低', color: 'text-muted-foreground bg-muted border-border' },
+  };
+
   const formatDueDate = (dateStr: string | null) => {
     if (!dateStr) return '';
     const dueDate = new Date(dateStr);
@@ -618,9 +624,9 @@ export default function TodosPage() {
                                     {todo.priority && (
                                       <span className={cn(
                                         'text-xs px-1.5 py-0.5 rounded border font-medium shrink-0',
-                                        priorityConfig[todo.priority as keyof typeof priorityConfig]?.color || priorityConfig.medium.color
+                                        completedPriorityConfig[todo.priority as keyof typeof completedPriorityConfig]?.color || completedPriorityConfig.medium.color
                                       )}>
-                                        {priorityConfig[todo.priority as keyof typeof priorityConfig]?.label || '中'}
+                                        {completedPriorityConfig[todo.priority as keyof typeof completedPriorityConfig]?.label || '中'}
                                       </span>
                                     )}
                                     <p className="text-sm text-muted-foreground line-through truncate">
