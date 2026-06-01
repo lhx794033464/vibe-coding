@@ -274,11 +274,18 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {sortedDistribution.map(({ status, count, percentage }) => (
+            {sortedDistribution.map(({ status, count, percentage }) => {
+              const statusColorMap: Record<string, { dot: string; bar: string }> = {
+                '已上线': { dot: 'bg-green-400', bar: 'bg-green-300' },
+                '未上线': { dot: 'bg-red-400', bar: 'bg-red-300' },
+                '延期上线': { dot: 'bg-blue-400', bar: 'bg-blue-300' },
+              };
+              const colors = statusColorMap[status] || { dot: 'bg-primary', bar: 'bg-primary' };
+              return (
               <div key={status} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full bg-primary`}></span>
+                    <span className={`w-3 h-3 rounded-full ${colors.dot}`}></span>
                     <span className="text-sm font-medium text-gray-700">{status}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -288,12 +295,13 @@ export default function DashboardPage() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2.5">
                   <div
-                    className={`h-2.5 rounded-full transition-all duration-300 bg-primary`}
+                    className={`h-2.5 rounded-full transition-all duration-300 ${colors.bar}`}
                     style={{ width: `${percentage}%` }}
                   ></div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
