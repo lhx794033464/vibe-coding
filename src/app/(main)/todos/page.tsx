@@ -568,35 +568,33 @@ export default function TodosPage() {
               )}
             </div>
 
-            {/* Divider */}
-            {completedGroupedByDate.length > 0 && (
-              <>
-                <div className="border-t mx-4" />
-                <div className="p-4">
-                  <div
-                    className="flex items-center justify-between mb-3 cursor-pointer select-none"
-                    onClick={() => setShowCompleted(!showCompleted)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-primary" />
-                      <h3 className="font-semibold text-foreground">
-                        已办 ({completedTodos.length})
-                      </h3>
-                    </div>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
-                      {showCompleted ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
+            {/* Divider + 已办标题始终显示 */}
+            <div className="border-t mx-4" />
+            <div className="p-4">
+              <div
+                className="flex items-center justify-between mb-3 cursor-pointer select-none"
+                onClick={() => setShowCompleted(!showCompleted)}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-primary" />
+                  <h3 className="font-semibold text-foreground">
+                    已办 ({completedTodos.length})
+                  </h3>
+                </div>
+                <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
+                  {showCompleted ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
 
-                  {/* Timeline */}
-                  <div className={`relative overflow-hidden transition-all duration-300 ${showCompleted ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+              {/* Timeline */}
+              {completedGroupedByDate.length > 0 && (
+              <div className={`relative overflow-hidden transition-all duration-300 ${showCompleted ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                     {completedGroupedByDate.map((group, gi) => (
                       <div key={gi} className="pb-4 last:pb-0">
-
                         {/* Date header */}
                         <p className="text-xs font-medium text-muted-foreground mb-2">{group.label}</p>
                         {/* Items */}
@@ -660,9 +658,11 @@ export default function TodosPage() {
                       </div>
                     ))}
                   </div>
+              )}
+              {completedGroupedByDate.length === 0 && (
+                <p className="text-xs text-muted-foreground/60 py-2">暂无已办事项</p>
+              )}
                 </div>
-              </>
-            )}
 
             {pendingTodos.length === 0 && completedGroupedByDate.length === 0 && (
               <div className="p-8 text-center text-muted-foreground">
