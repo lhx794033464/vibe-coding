@@ -15,6 +15,7 @@ import {
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -33,6 +34,7 @@ interface DashboardStats {
   onlineRateChange: number;
   acceptanceRateChange: number;
   statusDistribution: Record<string, number>;
+  acceptanceDistribution: Record<string, number>;
 }
 
 const initialStats: DashboardStats = {
@@ -56,6 +58,11 @@ const initialStats: DashboardStats = {
     not_going_online: 0,
     delayed_online: 0,
     partially_online: 0,
+  },
+  acceptanceDistribution: {
+    '已验收': 0,
+    '未上线未验收': 0,
+    '已上线未验收': 0,
   },
 };
 
@@ -106,20 +113,19 @@ export default function DashboardPage() {
     }
   };
 
-  // 将状态分布按数量降序排列
-  const getSortedStatusDistribution = () => {
-    if (!stats?.statusDistribution) return [];
-    
-    return Object.entries(stats.statusDistribution)
-      .sort(([, a], [, b]) => b - a)
-      .map(([status, count]) => ({
-        status: status,
-        count,
-        percentage: stats.totalCustomers > 0 
-          ? ((count / stats.totalCustomers) * 100).toFixed(1) 
-          : '0.0'
-      }));
-  };
+  // 上线状态饼图数据
+  const onlinePieData = [
+    { name: '已上线', value: stats.statusDistribution?.['已上线'] || 0, fill: '#86efac' },
+    { name: '未上线', value: stats.statusDistribution?.['未上线'] || 0, fill: '#fca5a5' },
+    { name: '延期上线', value: stats.statusDistribution?.['延期上线'] || 0, fill: '#93c5fd' },
+  ].filter(d => d.value > 0);
+
+  // 验收状态饼图数据
+  const acceptancePieData = [
+    { name: '已验收', value: stats.acceptanceDistribution?.['已验收'] || 0, fill: '#86efac' },
+    { name: '未上线未验收', value: stats.acceptanceDistribution?.['未上线未验收'] || 0, fill: '#fca5a5' },
+    { name: '已上线未验收', value: stats.acceptanceDistribution?.['已上线未验收'] || 0, fill: '#fde68a' },
+  ].filter(d => d.value > 0);
 
   // 格式化变动显示
   const formatChange = (change: number, isRate: boolean = false) => {
@@ -144,8 +150,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  const sortedDistribution = getSortedStatusDistribution();
 
   return (
     <div className="min-h-screen p-4 sm:p-6 overflow-auto">
@@ -294,46 +298,127 @@ export default function DashboardPage() {
       </div>
 
       {/* 客户状态分布图表 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-gray-400" />
-            客户状态分布
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {sortedDistribution.map(({ status, count, percentage }) => {
-              const statusColorMap: Record<string, { dot: string; bar: string }> = {
-                '已上线': { dot: 'bg-green-400', bar: 'bg-green-300' },
-                '未上线': { dot: 'bg-red-400', bar: 'bg-red-300' },
-                '延期上线': { dot: 'bg-blue-400', bar: 'bg-blue-300' },
-              };
-              const colors = statusColorMap[status] || { dot: 'bg-primary', bar: 'bg-primary' };
-              return (
-              <div key={status} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${colors.dot}`}></span>
-                    <span className="text-sm font-medium text-gray-700">{status}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-gray-900">{count}</span>
-                    <span className="text-sm text-gray-500 w-14 text-right">{percentage}%</span>
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 上线状态饼图 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-gray-400" />
+              上线状态分布
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.statusDistribution && Object.keys(stats.statusDistribution).length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="w-[160px] h-[160px] flex-shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={onlinePieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {onlinePieData.map((entry, index) => (
+                          <Cell key={`online-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} 家`, name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2.5">
-                  <div
-                    className={`h-2.5 rounded-full transition-all duration-300 ${colors.bar}`}
-                    style={{ width: `${percentage}%` }}
-                  ></div>
+                <div className="space-y-3 flex-1">
+                  {onlinePieData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.fill }}></span>
+                        <span className="text-sm text-gray-700">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900">{item.value}</span>
+                        <span className="text-xs text-gray-500 w-10 text-right">
+                          {onlinePieData.reduce((s, d) => s + d.value, 0) > 0
+                            ? Math.round((item.value / onlinePieData.reduce((s, d) => s + d.value, 0)) * 100)
+                            : 0}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 验收状态饼图 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-gray-400" />
+              验收状态分布
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.acceptanceDistribution && Object.keys(stats.acceptanceDistribution).length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="w-[160px] h-[160px] flex-shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={acceptancePieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {acceptancePieData.map((entry, index) => (
+                          <Cell key={`acceptance-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} 家`, name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-3 flex-1">
+                  {acceptancePieData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.fill }}></span>
+                        <span className="text-sm text-gray-700">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900">{item.value}</span>
+                        <span className="text-xs text-gray-500 w-10 text-right">
+                          {acceptancePieData.reduce((s, d) => s + d.value, 0) > 0
+                            ? Math.round((item.value / acceptancePieData.reduce((s, d) => s + d.value, 0)) * 100)
+                            : 0}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

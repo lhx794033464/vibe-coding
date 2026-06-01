@@ -118,6 +118,24 @@ export async function GET(request: NextRequest) {
       statusDistribution[label] = (statusDistribution[label] || 0) + 1;
     });
 
+    // 验收状态分布 - 已验收 / 未上线未验收 / 已上线未验收
+    const acceptanceDistribution: Record<string, number> = {
+      '已验收': 0,
+      '未上线未验收': 0,
+      '已上线未验收': 0,
+    };
+    customers.forEach((c: any) => {
+      const isOnline = c.status === 'online';
+      const isAccepted = c.acceptance_status === 'accepted';
+      if (isAccepted) {
+        acceptanceDistribution['已验收']++;
+      } else if (isOnline) {
+        acceptanceDistribution['已上线未验收']++;
+      } else {
+        acceptanceDistribution['未上线未验收']++;
+      }
+    });
+
     return NextResponse.json({
       totalCustomers,
       onlineCustomers,
@@ -133,6 +151,7 @@ export async function GET(request: NextRequest) {
       onlineRateChange: Math.round(onlineRateChange * 10) / 10,
       acceptanceRateChange: Math.round(acceptanceRateChange * 10) / 10,
       statusDistribution,
+      acceptanceDistribution,
     });
   } catch (error) {
     console.error('获取看板数据失败:', error);
