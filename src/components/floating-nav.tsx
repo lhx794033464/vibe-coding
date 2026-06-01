@@ -46,9 +46,9 @@ export function FloatingNav() {
   const [dragging, setDragging] = useState(false);
   // 是否隐藏到侧边
   const [hidden, setHidden] = useState(false);
-  // 长按计时器
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  // 拖拽起始位置与是否发生拖拽
   const dragStartPos = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
   const fabRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -136,47 +136,47 @@ export function FloatingNav() {
   // 触摸事件
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
-    longPressTimer.current = setTimeout(() => {
-      setMenuOpen(true);
-    }, 400);
+    hasDragged.current = false;
     handleDragStart(touch.clientX, touch.clientY);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
     const touch = e.touches[0];
+    const dx = touch.clientX - dragStartPos.current.x;
+    const dy = touch.clientY - dragStartPos.current.y;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      hasDragged.current = true;
+    }
     handleDragMove(touch.clientX, touch.clientY);
   };
 
   const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
     handleDragEnd();
+    if (!hasDragged.current) {
+      setMenuOpen(prev => !prev);
+    }
   };
 
   // 鼠标事件（模拟器调试用）
   const handleMouseDown = (e: React.MouseEvent) => {
-    longPressTimer.current = setTimeout(() => {
-      setMenuOpen(true);
-    }, 400);
+    hasDragged.current = false;
     handleDragStart(e.clientX, e.clientY);
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragStartPos.current.x;
+      const dy = e.clientY - dragStartPos.current.y;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        hasDragged.current = true;
+      }
       handleDragMove(e.clientX, e.clientY);
     };
     const handleMouseUp = () => {
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-      }
       handleDragEnd();
+      if (!hasDragged.current) {
+        setMenuOpen(prev => !prev);
+      }
     };
     if (dragging) {
       document.addEventListener('mousemove', handleMouseMove);
