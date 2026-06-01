@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, MessageSquare, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid } from 'lucide-react';
+import { Search, Plus, AlertCircle, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Customer } from '@/types';
@@ -327,16 +327,6 @@ export default function CustomersPage() {
                             <span className="text-orange-500">暂无跟进</span>
                           )}
                         </div>
-                        {/* 跟进按钮 */}
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => router.push(`/customers/${customer.id}/follow-up`)}
-                        >
-                          <MessageSquare className="w-4 h-4 mr-1" />
-                          跟进
-                        </Button>
                       </div>
                     ) : (
                       /* 列表视图 - 原有横向布局 */
@@ -409,20 +399,7 @@ export default function CustomersPage() {
                             </div>
                           </div>
                         </div>
-                        
-                        {/* 操作按钮 */}
-                      <div className="flex items-center justify-end gap-2 sm:flex-shrink-0">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => router.push(`/customers/${customer.id}/follow-up`)}
-                          className="w-full sm:w-auto"
-                        >
-                          <MessageSquare className="w-4 h-4 mr-1" />
-                          跟进
-                        </Button>
-                      </div>
-                    </div>
+                        </div>
                     )}
                   </CardContent>
                 </Card>
