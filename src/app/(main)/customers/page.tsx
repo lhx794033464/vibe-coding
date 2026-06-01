@@ -386,8 +386,12 @@ export default function CustomersPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium text-sm">{item.customerName}</p>
                             {item.status && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${item.status === '是' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                                {item.status === '是' ? '已上线' : item.status === '否' ? '未上线' : item.status}
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                item.status === 'online' ? 'bg-green-100 text-green-700' :
+                                item.status === '延期上线' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-600'
+                              }`}>
+                                {item.status === 'online' ? '已上线' : item.status === 'not_online' ? '未上线' : item.status}
                               </span>
                             )}
                             {item.version && (

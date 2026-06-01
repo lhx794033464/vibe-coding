@@ -53,10 +53,25 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
+// 将腾讯文档 A 列原始值映射为标准上线状态
+function mapOnlineStatus(rawValue: string): string {
+  const v = (rawValue || '').trim();
+  // 已上线的值
+  if (v === '是' || v === '已上线' || v === 'online' || v.toLowerCase() === 'yes' || v === '1') {
+    return 'online';
+  }
+  // 延期上线
+  if (v === '延期上线' || v === '延期') {
+    return '延期上线';
+  }
+  // 未上线的值（否、未上线、空值等）
+  return 'not_online';
+}
+
 // 从一行CSV数据中提取客户信息（字段名映射到数据库列名）
 function extractCustomerFromRow(cols: string[]) {
   return {
-    status: cols[COL_IS_ONLINE] || '',           // 是否上线 → 客户状态
+    status: mapOnlineStatus(cols[COL_IS_ONLINE] || ''),    // 是否上线 → 标准上线状态
     opened_at: cols[COL_APPLY_MONTH] || '',      // 申请月 → 开通时间
     customerName: cols[COL_CUSTOMER] || '',
     implementation_type: cols[COL_IMPL_TYPE] || '',  // 实施类型
@@ -199,7 +214,7 @@ export async function POST(request: NextRequest) {
         };
 
         setIfValue('name', customerName);
-        setIfValue('status', customer.status);                                       // 是否上线 → 客户状态
+        setIfValue('status', mapOnlineStatus(customer.status || ''));                // 标准化上线状态
         setIfValue('opened_at', customer.opened_at || customer.applyMonth);          // 申请月 → 开通时间
         setIfValue('delivery_consultant', customer.deliverer || userInfo.username);
         setIfValue('modules', customer.modules ? customer.modules.split('、') : null);
