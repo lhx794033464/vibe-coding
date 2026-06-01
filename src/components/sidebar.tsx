@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FloatingNav } from '@/components/floating-nav';
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -41,14 +42,7 @@ const adminNavItems = [
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 
-// 移动端底部导航栏只显示这4个
-const mobileNavItems = [
-  { href: '/home', label: '智能助手', icon: Home },
-  { href: '/todos', label: '待办事项', icon: CheckSquare },
-  { href: '/schedule', label: '日程排期', icon: Calendar },
-  { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
-  { href: '/customers', label: '客户列表', icon: Users },
-];
+
 
 export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
@@ -236,33 +230,10 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         </div>
       </aside>
 
-      {/* 移动端底部导航栏 */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 flex items-center justify-around px-2 z-50">
-        {mobileNavItems.map((item) => {
-          const Icon = item.icon;
-          let isActive = pathname === item.href;
-          
-          // 特殊处理：customers路径
-          if (item.href === '/customers' && pathname?.startsWith('/customers/')) {
-            isActive = true;
-          }
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-col items-center justify-center w-16 h-14 rounded-lg transition-colors ${
-                isActive
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Icon className="w-6 h-6" />
-              <span className="text-[10px] mt-0.5 whitespace-nowrap">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* 移动端使用悬浮导航 */}
+      <div className="sm:hidden">
+        <FloatingNav />
+      </div>
     </>
   );
 }

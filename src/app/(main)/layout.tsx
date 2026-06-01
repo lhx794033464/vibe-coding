@@ -54,7 +54,7 @@ export default function MainLayout({
               />
               <main className={`flex-1 overflow-auto transition-all duration-300 ${
                 sidebarCollapsed ? 'sm:ml-16' : 'sm:ml-[200px]'
-              }`}>
+              } ml-0`}>
                 {children}
               </main>
             </div>
