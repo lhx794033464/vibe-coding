@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { TencentDocsClient } from '@/lib/tencentDocsClient';
-import { readFile } from 'fs/promises';
-import path from 'path';
+import { getTencentDocsToken } from '@/lib/tencentDocsConfig';
 
-const CONFIG_FILE = path.join('/tmp', 'tencent_docs_config.json');
-
-async function getClient(): Promise<TencentDocsClient> {
-  try {
-    const data = await readFile(CONFIG_FILE, 'utf-8');
-    const config = JSON.parse(data);
-    if (!config.token) throw new Error('未配置 Token');
-    return new TencentDocsClient(config.token);
-  } catch {
-    throw new Error('未配置腾讯文档 Token，请先在设置中配置');
-  }
+async function getClient(request?: NextRequest): Promise<TencentDocsClient> {
+  const token = await getTencentDocsToken(request);
+  return new TencentDocsClient(token);
 }
 
 // GET: 查询空间节点或搜索文档

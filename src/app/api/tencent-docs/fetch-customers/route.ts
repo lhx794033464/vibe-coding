@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { TencentDocsClient } from '@/lib/tencentDocsClient';
 import { dbGetCustomers, dbCreateCustomer, dbUpdateCustomer } from '@/services/dbService';
-import { readFile } from 'fs/promises';
-import path from 'path';
-import { getSupabaseClient, getSupabaseServiceRoleKey } from '@/storage/database/supabase-client';
-
-const CONFIG_FILE = path.join('/tmp', 'tencent_docs_config.json');
+import { getTencentDocsToken } from '@/lib/tencentDocsConfig';
 
 // 文档 file_id（从用户提供的URL提取）
 const DOC_FILE_ID = 'DTUZjZ3Jmc0JKdXF3';
@@ -35,30 +31,7 @@ const COL_VERSION = 16;        // Q: 版本
 const READ_START_COL = 0;      // 从A列开始
 const READ_END_COL = 17;       // 读到Q列
 
-async function getToken(request?: NextRequest): Promise<string> {
-  // 1. 从 URL 参数获取
-  if (request) {
-    const urlToken = request.nextUrl.searchParams.get('token');
-    if (urlToken) return urlToken;
-  }
-  // 2. 从数据库 system_config 读取
-  try {
-    const supabase = getSupabaseClient(getSupabaseServiceRoleKey());
-    const { data } = await supabase
-      .from('system_config')
-      .select('value')
-      .eq('key', 'tencent_docs_token')
-      .single();
-    if (data?.value) return data.value;
-  } catch {}
-  // 3. 从本地配置文件读取
-  try {
-    const data = await readFile(CONFIG_FILE, 'utf-8');
-    const config = JSON.parse(data);
-    if (config.token) return config.token;
-  } catch {}
-  throw new Error('未配置腾讯文档 Token，请在系统配置中设置');
-}
+
 
 // 解析CSV行（处理引号内的逗号）
 function parseCsvLine(line: string): string[] {
@@ -107,7 +80,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const token = await getToken(request);
+    const token = await getTencentDocsToken(request);
     const client = new TencentDocsClient(token);
 
     // 一次性读取全量数据
