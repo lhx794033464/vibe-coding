@@ -490,9 +490,9 @@ export default function HomePage() {
 
       {/* 对话区域 */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-6">
+        <div className="max-w-3xl mx-auto px-6 py-6 h-full">
           {messages.length === 0 ? (
-            <div className={`space-y-8 py-8 ${showWelcome ? 'welcome-fade-in' : ''}`}>
+            <div className={`flex flex-col items-center justify-center h-full ${showWelcome ? 'welcome-fade-in' : ''}`}>
               {/* 欢迎信息 */}
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
@@ -506,7 +506,7 @@ export default function HomePage() {
               </div>
 
               {/* 语音提示 */}
-              <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
                 <Mic className="w-4 h-4" />
                 <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
               </div>
