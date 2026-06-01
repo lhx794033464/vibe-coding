@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, AlertCircle, MessageSquare, Loader2, FileSpreadsheet, Download, Check, X } from 'lucide-react';
@@ -27,6 +26,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [acceptanceFilter, setAcceptanceFilter] = useState<string>('all');
 
   // 腾讯文档获取相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
@@ -44,7 +44,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [statusFilter]);
+  }, [statusFilter, acceptanceFilter]);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -52,6 +52,9 @@ export default function CustomersPage() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
+      }
+      if (acceptanceFilter !== 'all') {
+        params.append('acceptance_status', acceptanceFilter);
       }
       
       const response = await fetch(`/api/customers?${params.toString()}`, {
@@ -199,16 +202,31 @@ export default function CustomersPage() {
               className="pl-10"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="上线状态筛选" />
-            </SelectTrigger>
-            <SelectContent position="popper" side="bottom" align="start">
-              <SelectItem value="all">全部状态</SelectItem>
-              <SelectItem value="online">已上线</SelectItem>
-              <SelectItem value="not_online">未上线</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { key: 'all', label: '全部', statusVal: 'all', acceptanceVal: 'all' },
+              { key: 'not_online', label: '未上线', statusVal: 'not_online', acceptanceVal: 'all' },
+              { key: 'online', label: '已上线', statusVal: 'online', acceptanceVal: 'all' },
+              { key: 'online_not_accepted', label: '已上线未验收', statusVal: 'online', acceptanceVal: 'not_accepted' },
+              { key: 'accepted', label: '已验收', statusVal: 'all', acceptanceVal: 'accepted' },
+            ].map((filter) => {
+              const isActive = statusFilter === filter.statusVal && acceptanceFilter === filter.acceptanceVal;
+              return (
+                <Button
+                  key={filter.key}
+                  variant={isActive ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter(filter.statusVal);
+                    setAcceptanceFilter(filter.acceptanceVal);
+                  }}
+                  className="text-xs"
+                >
+                  {filter.label}
+                </Button>
+              );
+            })}
+          </div>
         </div>
 
         {/* 客户列表 */}
