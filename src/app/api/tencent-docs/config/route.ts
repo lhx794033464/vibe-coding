@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 const CONFIG_FILE = path.join('/tmp', 'tencent_docs_config.json');
 const CONFIG_KEY = 'tencent_docs_token';
+const ENV_KEY = 'TENCENT_DOCS_TOKEN';
 
 interface TencentDocsConfig {
   token: string;
@@ -22,10 +23,34 @@ async function loadConfigFromDb(): Promise<TencentDocsConfig | null> {
       .eq('key', CONFIG_KEY)
       .single();
     if (error || !data) return null;
-    const parsed = JSON.parse(data.value);
+
+    // value 可能是纯 token 字符串，也可能是 JSON 对象
+    let token = '';
+    let updated_by = '';
+    if (typeof data.value === 'string') {
+      try {
+        const parsed = JSON.parse(data.value);
+        if (typeof parsed === 'object' && parsed.token) {
+          token = parsed.token;
+          updated_by = parsed.updated_by || '';
+        } else {
+          // JSON.parse 返回了字符串/数字等，直接用作 token
+          token = String(parsed);
+        }
+      } catch {
+        // 不是 JSON，直接当作纯 token 字符串
+        token = data.value;
+      }
+    } else if (typeof data.value === 'object' && data.value !== null) {
+      token = (data.value as Record<string, string>).token || '';
+      updated_by = (data.value as Record<string, string>).updated_by || '';
+    }
+
+    if (!token) return null;
+
     return {
-      token: parsed.token,
-      updated_by: parsed.updated_by,
+      token,
+      updated_by,
       updated_at: data.updated_at,
     };
   } catch {
@@ -96,23 +121,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '未授权' }, { status: 401 });
   }
 
+  // 检查环境变量
+  const envToken = process.env[ENV_KEY];
+  const envConfigured = !!envToken;
+
   const config = await loadConfig();
-  if (!config) {
-    return NextResponse.json({ configured: false });
+  if (!config && !envConfigured) {
+    return NextResponse.json({
+      configured: false,
+      env_configured: false,
+      message: `未配置腾讯文档 Token，请设置环境变量 ${ENV_KEY} 或通过此接口保存 Token`,
+    });
   }
 
-  // 脱敏 Token：只显示前后4位
-  const token = config.token;
-  const maskedToken = token.length > 8
-    ? `${token.substring(0, 4)}${'*'.repeat(token.length - 8)}${token.substring(token.length - 4)}`
-    : '****';
-
-  return NextResponse.json({
+  const result: Record<string, unknown> = {
     configured: true,
-    token: maskedToken,
-    updated_by: config.updated_by,
-    updated_at: config.updated_at,
-  });
+    env_configured: envConfigured,
+  };
+
+  // 如果环境变量已配置，提示来源
+  if (envConfigured) {
+    result.token_source = '环境变量';
+    result.token = `${envToken.substring(0, 4)}${'*'.repeat(Math.max(0, envToken.length - 8))}${envToken.length > 8 ? envToken.substring(envToken.length - 4) : ''}`;
+  }
+
+  // 数据库/文件中的配置（脱敏）
+  if (config) {
+    const token = config.token;
+    const maskedToken = token.length > 8
+      ? `${token.substring(0, 4)}${'*'.repeat(token.length - 8)}${token.substring(token.length - 4)}`
+      : '****';
+
+    if (!envConfigured) {
+      result.token_source = '数据库/本地文件';
+      result.token = maskedToken;
+    }
+    result.updated_by = config.updated_by;
+    result.updated_at = config.updated_at;
+  }
+
+  return NextResponse.json(result);
 }
 
 // POST: 保存配置
