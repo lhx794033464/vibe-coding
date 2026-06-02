@@ -227,27 +227,29 @@ export default function DashboardPage() {
           {isUpdating && (
             <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
-          <Select 
-            value={timeRange} 
-            onValueChange={(v) => setTimeRange(v as TimeRange)}
-            disabled={isUpdating}
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" side="bottom">
-              <SelectItem value="month">本月</SelectItem>
-              <SelectItem value="year">本年</SelectItem>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="custom">自定义</SelectItem>
-            </SelectContent>
-          </Select>
-          {timeRange === 'custom' && (
+          {timeRange !== 'custom' ? (
+            <Select 
+              value={timeRange} 
+              onValueChange={(v) => setTimeRange(v as TimeRange)}
+              disabled={isUpdating}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom">
+                <SelectItem value="month">本月</SelectItem>
+                <SelectItem value="year">本年</SelectItem>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="custom">自定义</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
             <DateRangePicker
               startDate={customStartDate}
               endDate={customEndDate}
               onStartChange={setCustomStartDate}
               onEndChange={setCustomEndDate}
+              onClear={() => setTimeRange('all')}
             />
           )}
         </div>
@@ -493,23 +495,25 @@ export default function DashboardPage() {
                     <SelectItem value="答疑顾问">答疑顾问</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={distTimeRange} onValueChange={(v) => setDistTimeRange(v as TimeRange)}>
-                  <SelectTrigger className="w-24 h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom">
-                    <SelectItem value="all">全部</SelectItem>
-                    <SelectItem value="month">本月</SelectItem>
-                    <SelectItem value="year">本年</SelectItem>
-                    <SelectItem value="custom">自定义</SelectItem>
-                  </SelectContent>
-                </Select>
-                {distTimeRange === 'custom' && (
+                {distTimeRange !== 'custom' ? (
+                  <Select value={distTimeRange} onValueChange={(v) => setDistTimeRange(v as TimeRange)}>
+                    <SelectTrigger className="w-24 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="month">本月</SelectItem>
+                      <SelectItem value="year">本年</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
                   <DateRangePicker
                     startDate={distStartDate}
                     endDate={distEndDate}
                     onStartChange={setDistStartDate}
                     onEndChange={setDistEndDate}
+                    onClear={() => setDistTimeRange('all')}
                   />
                 )}
               </div>
@@ -560,23 +564,25 @@ export default function DashboardPage() {
                     <SelectItem value="答疑顾问">答疑顾问</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={rankingTimeRange} onValueChange={(v) => setRankingTimeRange(v as TimeRange)}>
-                  <SelectTrigger className="w-24 h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom">
-                    <SelectItem value="all">全部</SelectItem>
-                    <SelectItem value="month">本月</SelectItem>
-                    <SelectItem value="year">本年</SelectItem>
-                    <SelectItem value="custom">自定义</SelectItem>
-                  </SelectContent>
-                </Select>
-                {rankingTimeRange === 'custom' && (
+                {rankingTimeRange !== 'custom' ? (
+                  <Select value={rankingTimeRange} onValueChange={(v) => setRankingTimeRange(v as TimeRange)}>
+                    <SelectTrigger className="w-24 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="month">本月</SelectItem>
+                      <SelectItem value="year">本年</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
                   <DateRangePicker
                     startDate={rankingStartDate}
                     endDate={rankingEndDate}
                     onStartChange={setRankingStartDate}
                     onEndChange={setRankingEndDate}
+                    onClear={() => setRankingTimeRange('all')}
                   />
                 )}
                 <Select

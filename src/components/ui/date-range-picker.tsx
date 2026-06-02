@@ -11,6 +11,7 @@ interface DateRangePickerProps {
   placeholder?: string;
   className?: string;
   label?: string;
+  onClear?: () => void;
 }
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -43,6 +44,7 @@ export function DateRangePicker({
   placeholder = '选择日期范围',
   className = '',
   label,
+  onClear,
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
@@ -107,9 +109,13 @@ export function DateRangePicker({
 
   const clearValue = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onStartChange('');
-    onEndChange('');
-    setPhase('start');
+    if (onClear) {
+      onClear();
+    } else {
+      onStartChange('');
+      onEndChange('');
+      setPhase('start');
+    }
   };
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
