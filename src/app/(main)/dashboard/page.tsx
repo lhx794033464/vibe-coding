@@ -489,13 +489,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* 项目人天分布表 */}
         <Card>
-          <CardHeader className="flex flex-col gap-3 space-y-0">
-            <div className="flex items-center justify-between">
+          <CardHeader className="space-y-0">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-gray-400" />
                 项目人天分布
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <Select value={distRoleType} onValueChange={(v) => setDistRoleType(v === '全部' ? '' : v)}>
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue placeholder="全部" />
@@ -555,13 +555,13 @@ export default function DashboardPage() {
 
         {/* 顾问排行表 */}
         <Card>
-          <CardHeader className="flex flex-col gap-3 space-y-0">
-            <div className="flex items-center justify-between">
+          <CardHeader className="space-y-0">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-gray-400" />
                 顾问排行
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <Select value={rankingRoleType} onValueChange={(v) => setRankingRoleType(v === '全部' ? '' : v)}>
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue placeholder="全部" />
