@@ -26,13 +26,8 @@ export async function GET(request: NextRequest) {
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         break;
       case 'year':
-        if (now.getMonth() === 11) {
-          startDate = new Date(now.getFullYear(), 11, 1);
-          endDate = new Date(now.getFullYear() + 1, 0, 1);
-        } else {
-          startDate = new Date(now.getFullYear() - 1, 11, 1);
-          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        }
+        startDate = new Date(now.getFullYear(), 0, 1); // 当年1月1日
+        endDate = new Date(now.getFullYear() + 1, 0, 1); // 次年1月1日
         break;
       case 'custom':
         if (customStartDate && customEndDate) {
