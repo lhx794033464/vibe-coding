@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid } from 'lucide-react';
+import { Search, Plus, AlertCircle, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Customer } from '@/types';
@@ -25,8 +25,12 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerWithDays[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [acceptanceFilter, setAcceptanceFilter] = useState<string>('all');
+  const [consultantFilter, setFilterConsultant] = useState<string>('all');
+  const [implTypeFilter, setFilterImplType] = useState<string>('all');
+  const [onlineStatusFilter, setFilterOnlineStatus] = useState<string>('all');
+  const [acceptanceStatusFilter, setFilterAcceptanceStatus] = useState<string>('all');
+  const [openedStartFilter, setFilterOpenDateStart] = useState<string>('');
+  const [openedEndFilter, setFilterOpenDateEnd] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,23 +49,16 @@ export default function CustomersPage() {
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; updated: number } | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
-  }, [statusFilter, acceptanceFilter]);
+  }, []);
 
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') {
-        params.append('status', statusFilter);
-      }
-      if (acceptanceFilter !== 'all') {
-        params.append('acceptance_status', acceptanceFilter);
-      }
-      
-      const response = await fetch(`/api/customers?${params.toString()}`, {
+      const response = await fetch(`/api/customers`, {
         headers: { ...getAuthHeader() },
       });
       const data = await response.json();
@@ -75,14 +72,61 @@ export default function CustomersPage() {
     }
   };
 
+  // 获取筛选选项
+  const consultantOptions = [...new Set(customers.map(c => c.delivery_consultant).filter(Boolean))].sort();
+  const implTypeOptions = [...new Set(customers.map(c => c.implementation_type).filter(Boolean))].sort();
+
   // 搜索时重置页码
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, acceptanceFilter]);
+  }, [search, consultantFilter, implTypeFilter, onlineStatusFilter, acceptanceStatusFilter, openedStartFilter, openedEndFilter]);
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCustomers = customers.filter(c => {
+    // 搜索条件：支持搜索名称、交付顾问、实施类型
+    const searchLower = search.toLowerCase();
+    const matchSearch = !search || 
+      c.name.toLowerCase().includes(searchLower) ||
+      (c.delivery_consultant || '').toLowerCase().includes(searchLower) ||
+      (c.implementation_type || '').toLowerCase().includes(searchLower) ||
+      (c.salesperson || '').toLowerCase().includes(searchLower) ||
+      (c.version || '').toLowerCase().includes(searchLower) ||
+      (Array.isArray(c.modules) ? c.modules.join(',') : (c.modules || '')).toLowerCase().includes(searchLower);
+
+    // 交付顾问筛选
+    const matchConsultant = consultantFilter === 'all' || c.delivery_consultant === consultantFilter;
+    
+    // 实施类型筛选
+    const matchImplType = implTypeFilter === 'all' || c.implementation_type === implTypeFilter;
+    
+    // 上线状态筛选
+    const matchOnline = onlineStatusFilter === 'all' || c.status === onlineStatusFilter;
+    
+    // 验收状态筛选
+    const matchAcceptance = acceptanceStatusFilter === 'all' || c.acceptance_status === acceptanceStatusFilter;
+    
+    // 开通时间范围筛选
+    let matchOpenDate = true;
+    if (openedStartFilter || openedEndFilter) {
+      const openedAt = c.opened_at;
+      if (!openedAt) {
+        matchOpenDate = false;
+      } else {
+        try {
+          const openDate = new Date((c.opened_at || '').replace(/\//g, '-'));
+          if (openedStartFilter) {
+            matchOpenDate = matchOpenDate && openDate >= new Date(openedStartFilter);
+          }
+          if (openedEndFilter) {
+            matchOpenDate = matchOpenDate && openDate <= new Date(openedEndFilter);
+          }
+        } catch {
+          matchOpenDate = false;
+        }
+      }
+    }
+    
+    return matchSearch && matchConsultant && matchImplType && matchOnline && matchAcceptance && matchOpenDate;
+  });
 
   // 分页计算
   const isShowAll = pageSize === 0;
@@ -219,29 +263,36 @@ export default function CustomersPage() {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {[
-                { key: 'all', label: '全部', statusVal: 'all', acceptanceVal: 'all' },
-                { key: 'not_online', label: '未上线', statusVal: 'not_online', acceptanceVal: 'all' },
-                { key: 'online', label: '已上线', statusVal: 'online', acceptanceVal: 'all' },
-                { key: 'online_not_accepted', label: '已上线未验收', statusVal: 'online', acceptanceVal: 'not_accepted' },
-                { key: 'accepted', label: '已验收', statusVal: 'all', acceptanceVal: 'accepted' },
-              ].map((filter) => {
-                const isActive = statusFilter === filter.statusVal && acceptanceFilter === filter.acceptanceVal;
-                return (
-                  <Button
-                    key={filter.key}
-                    variant={isActive ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => {
-                      setStatusFilter(filter.statusVal);
-                      setAcceptanceFilter(filter.acceptanceVal);
-                    }}
-                    className="text-xs"
-                  >
-                    {filter.label}
-                  </Button>
-                );
-              })}
+              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={consultantFilter} onChange={(e) => setFilterConsultant(e.target.value)}>
+                <option value="all">全部顾问</option>
+                {customers.filter(c => c.delivery_consultant).map(c => c.delivery_consultant as string).filter((v, i, a) => a.indexOf(v) === i).sort().map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={implTypeFilter} onChange={(e) => setFilterImplType(e.target.value)}>
+                <option value="all">全部类型</option>
+                <option value="一对一交付">一对一交付</option>
+                <option value="自助交付">自助交付</option>
+              </select>
+              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={onlineStatusFilter} onChange={(e) => setFilterOnlineStatus(e.target.value)}>
+                <option value="all">全部上线状态</option>
+                <option value="not_online">未上线</option>
+                <option value="online">已上线</option>
+                <option value="delayed">延期上线</option>
+              </select>
+              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={acceptanceStatusFilter} onChange={(e) => setFilterAcceptanceStatus(e.target.value)}>
+                <option value="all">全部验收状态</option>
+                <option value="not_accepted">未验收</option>
+                <option value="accepted">已验收</option>
+              </select>
+              <div className="flex items-center gap-1">
+                <Input type="date" className="text-sm h-8 w-[130px]" value={openedStartFilter} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterOpenDateStart(e.target.value)} placeholder="开通起始" />
+                <span className="text-muted-foreground text-xs">至</span>
+                <Input type="date" className="text-sm h-8 w-[130px]" value={openedEndFilter} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterOpenDateEnd(e.target.value)} placeholder="开通截止" />
+                {(openedStartFilter || openedEndFilter) && (
+                  <Button variant="ghost" size="sm" className="h-8 px-1 text-xs" onClick={() => { setFilterOpenDateStart(''); setFilterOpenDateEnd(''); }}>清除</Button>
+                )}
+              </div>
             </div>
           </div>
           {/* 第二行：排列方式 + 每页数量 */}
