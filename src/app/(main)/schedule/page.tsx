@@ -439,7 +439,7 @@ export default function SchedulePage() {
                         </div>
                       )}
                       {!isWeekendOrHoliday && !dailySummary[dateStr] && activeConsultants.length > 0 && (
-                        <div className="text-xs text-green-500">全部空缺</div>
+                        <div className="text-xs text-green-500">余{activeConsultants.length * 2}</div>
                       )}
                     </div>
                   </div>
@@ -661,7 +661,7 @@ export default function SchedulePage() {
                   <div
                     className={cn(
                       'flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors',
-                      count >= 2 ? 'bg-green-50' : count > 0 ? 'bg-yellow-50' : 'bg-red-50'
+                      count >= 2 ? 'bg-red-50' : 'bg-green-50'
                     )}
                     onClick={() => setExpandedConsultant(isExpanded ? null : consultant.id)}
                   >
@@ -676,7 +676,7 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         'text-sm font-medium',
-                        count >= 2 ? 'text-green-600' : count > 0 ? 'text-yellow-600' : 'text-red-500'
+                        count >= 2 ? 'text-red-600' : 'text-green-600'
                       )}>
                         {count}/2
                       </span>
