@@ -620,6 +620,13 @@ export default function DashboardPage() {
                       fourMonthsOnlineRate: '四个月上线率',
                       acceptanceRate: '验收率',
                     };
+                    const total = rankingData.length;
+                    // 从绿到红的渐变：第1名最绿，最后1名最红
+                    const t = total > 1 ? index / (total - 1) : 0;
+                    const r = Math.round(34 + t * (239 - 34));
+                    const g = Math.round(197 + t * (68 - 197));
+                    const b = Math.round(94 + t * (68 - 94));
+                    const barColor = `rgb(${r}, ${g}, ${b})`;
                     return (
                       <div key={consultant.name} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
@@ -633,18 +640,14 @@ export default function DashboardPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-medium text-gray-900 truncate">{consultant.name}</span>
-                            <span className="text-lg font-bold text-gray-900">{rate}%</span>
+                            <span className="text-lg font-bold" style={{ color: barColor }}>{rate}%</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
                               className="h-2 rounded-full transition-all duration-500"
                               style={{
                                 width: `${Math.min(rate, 100)}%`,
-                                backgroundColor:
-                                  rate >= 80 ? '#86efac' :
-                                  rate >= 60 ? '#fde68a' :
-                                  rate >= 40 ? '#fed7aa' :
-                                  '#fca5a5',
+                                backgroundColor: barColor,
                               }}
                             />
                           </div>
