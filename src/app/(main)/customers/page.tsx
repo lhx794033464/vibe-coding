@@ -28,6 +28,8 @@ export default function CustomersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [acceptanceFilter, setAcceptanceFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // 同步相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
@@ -73,9 +75,19 @@ export default function CustomersPage() {
     }
   };
 
+  // 搜索时重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, acceptanceFilter]);
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  // 分页计算
+  const isShowAll = pageSize === 0;
+  const paginatedCustomers = isShowAll ? filteredCustomers : filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalPages = isShowAll ? 1 : Math.ceil(filteredCustomers.length / pageSize);
 
   // 同步客户信息
   const handleFetchFromTencentDocs = async () => {
@@ -179,7 +191,7 @@ export default function CustomersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">客户列表</h1>
-            <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户</p>
+            <p className="text-gray-500 mt-1">共 {filteredCustomers.length} 个客户{!isShowAll && filteredCustomers.length > 0 ? ` · 第 ${currentPage}/${totalPages} 页` : ''}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleFetchFromTencentDocs}>
@@ -190,6 +202,7 @@ export default function CustomersPage() {
               <Plus className="w-4 h-4 mr-2" />
               添加客户
             </Button>
+            </div>
           </div>
         </div>
 
@@ -229,8 +242,19 @@ export default function CustomersPage() {
               );
             })}
           </div>
-          {/* 排列方式切换 */}
-          <div className="flex items-center gap-1 ml-auto border rounded-lg p-0.5">
+          {/* 排列方式切换 + 每页数量 */}
+          <div className="flex items-center gap-2 ml-auto">
+            <select
+              className="text-sm border rounded-md px-2 py-1 bg-background text-foreground"
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+            >
+              <option value={50}>每页50</option>
+              <option value={100}>每页100</option>
+              <option value={200}>每页200</option>
+              <option value={0}>全部显示</option>
+            </select>
+            <div className="flex items-center gap-1 border rounded-lg p-0.5">
             <Button
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
@@ -261,7 +285,7 @@ export default function CustomersPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredCustomers.map((customer) => {
+            paginatedCustomers.map((customer) => {
               const isStale = isStaleFollowUp(customer);
               
               return (
@@ -408,6 +432,47 @@ export default function CustomersPage() {
             })
           )}
         </div>
+
+        {/* 分页控制 */}
+        {!isShowAll && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(1)}
+            >
+              首页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            >
+              上一页
+            </Button>
+            <span className="text-sm text-muted-foreground px-2">
+              {currentPage} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            >
+              下一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+            >
+              末页
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* 同步弹窗 */}
