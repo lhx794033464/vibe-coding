@@ -27,11 +27,11 @@ const COL_PURCHASE_DAYS = 11;  // L: 购买人天
 // 14: 模块类型（不需要）
 const COL_MODULE = 15;         // P: 购买模块
 const COL_VERSION = 16;        // Q: 版本
-const COL_PROJECT_NOTES = 17;  // R: 项目备注
-const COL_IS_ACCEPTED = 18;    // S: 是否验收
+const COL_PROJECT_NOTES = 22;  // W: 项目备注
+const COL_IS_ACCEPTED = 24;    // Y: 是否验收
 
 const READ_START_COL = 0;      // 从A列开始
-const READ_END_COL = 19;       // 读到S列
+const READ_END_COL = 25;       // 读到Y列
 
 
 
@@ -177,6 +177,8 @@ export async function GET(request: NextRequest) {
         modules: r.modulesList.join('、'),
         version: r.version,
         deliverer: r.deliverer,
+        projectNotes: r.industry,                              // 项目备注 → industry字段
+        acceptanceStatus: r.acceptance_status,                 // 是否验收 → 验收状态
       })),
     });
   } catch (error) {

@@ -593,7 +593,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左侧：客户档案 */}
+        {/* 左侧：客户档案 - 2/3宽度 */}
+        {/* 右侧：实施日志+跟进记录 - 1/3宽度 */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader>
