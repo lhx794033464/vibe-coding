@@ -315,10 +315,11 @@ export default function SchedulePage() {
     return activeConsultants.length * 2;
   };
 
-  const isAdminAllSatisfied = (date: Date): boolean => {
+  const isAdminAllSatisfied = (date: Date): boolean | null => {
+    // 数据未加载完时返回 null，不显示颜色
+    if (activeConsultants.length === 0) return null;
     const dateStr = formatDate(date);
     const summary = dailySummary[dateStr];
-    if (!summary && activeConsultants.length === 0) return true;
     if (!summary) return false;
     return summary.allSatisfied;
   };
@@ -383,6 +384,8 @@ export default function SchedulePage() {
                       'relative min-h-[100px] border rounded-lg transition-colors cursor-pointer',
                       isWeekendOrHoliday
                         ? 'bg-gray-100 border-gray-300'
+                        : allSatisfied === null
+                        ? 'bg-white border-gray-200 hover:border-gray-400'
                         : allSatisfied
                         ? 'bg-red-50 border-red-200 hover:border-red-400'
                         : 'bg-green-50 border-green-200 hover:border-green-400',
@@ -515,6 +518,8 @@ export default function SchedulePage() {
                     'flex items-center gap-4 p-4 border rounded-lg transition-colors cursor-pointer',
                     isWeekendOrHoliday
                       ? 'bg-gray-100 border-gray-300'
+                      : allSatisfied === null
+                      ? 'bg-white border-gray-200'
                       : allSatisfied
                       ? 'bg-red-50 border-red-200'
                       : 'bg-green-50 border-green-200',
