@@ -93,6 +93,7 @@ export function DateRangePicker({
   }, [phase, viewYear, viewMonth, startD, onStartChange, onEndChange]);
 
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [yearPickerBase, setYearPickerBase] = useState(() => new Date().getFullYear());
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
@@ -103,9 +104,6 @@ export function DateRangePicker({
     if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
     else setViewMonth(viewMonth + 1);
   };
-
-  const prevYear = () => setViewYear(viewYear - 1);
-  const nextYear = () => setViewYear(viewYear + 1);
 
   const clearValue = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -174,39 +172,38 @@ export function DateRangePicker({
 
           {/* Month/Year navigation */}
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-0.5">
-              <button type="button" onClick={prevYear} className="p-1 hover:bg-muted/50 rounded" title="上一年">
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <ChevronLeft className="w-3.5 h-3.5 -ml-2" />
-              </button>
-              <button type="button" onClick={prevMonth} className="p-1 hover:bg-muted/50 rounded" title="上一月">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            </div>
+            <button type="button" onClick={prevMonth} className="p-1 hover:bg-muted/50 rounded">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
             <button
               type="button"
-              onClick={() => setShowYearPicker(!showYearPicker)}
+              onClick={() => { setShowYearPicker(!showYearPicker); setYearPickerBase(viewYear); }}
               className="text-sm font-medium hover:bg-muted/50 rounded px-2 py-0.5"
             >
               {viewYear}年{viewMonth + 1}月
             </button>
-            <div className="flex items-center gap-0.5">
-              <button type="button" onClick={nextMonth} className="p-1 hover:bg-muted/50 rounded" title="下一月">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={nextYear} className="p-1 hover:bg-muted/50 rounded" title="下一年">
-                <ChevronRight className="w-3.5 h-3.5" />
-                <ChevronRight className="w-3.5 h-3.5 -ml-2" />
-              </button>
-            </div>
+            <button type="button" onClick={nextMonth} className="p-1 hover:bg-muted/50 rounded">
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Year picker overlay */}
           {showYearPicker && (
             <div className="mb-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <button type="button" onClick={() => setYearPickerBase(yearPickerBase - 12)} className="p-1 hover:bg-muted/50 rounded">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {yearPickerBase - 4} - {yearPickerBase + 7}
+                </span>
+                <button type="button" onClick={() => setYearPickerBase(yearPickerBase + 12)} className="p-1 hover:bg-muted/50 rounded">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
               <div className="grid grid-cols-4 gap-1">
                 {Array.from({ length: 12 }, (_, i) => {
-                  const y = viewYear - 4 + i;
+                  const y = yearPickerBase - 4 + i;
                   return (
                     <button
                       key={y}
