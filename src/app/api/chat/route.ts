@@ -13,11 +13,12 @@ function getTodayStr(): string {
 // 格式化待办列表
 function formatTodoList(todos: any[]): string {
   if (!todos || todos.length === 0) return '暂无待办事项';
-  return todos.map(t => {
+  return todos.map((t, i) => {
     const status = t.completed ? '✅已完成' : (t.due_date && t.due_date < getTodayStr() ? '⚠️已逾期' : '⏳待办');
     const customer = t.customer_name ? ` [关联客户: ${t.customer_name}]` : '';
     const priority = t.priority === 'high' ? '🔴高' : t.priority === 'medium' ? '🟡中' : '🟢低';
-    return `- [${t.id?.slice(0,8)}] ${priority} ${t.content}${customer} | 截止: ${t.due_date || '无'} | ${status}`;
+    const dueDate = t.due_date ? String(t.due_date).slice(0, 10) : '无';
+    return `${i + 1}. ${priority} ${t.content}${customer} | 截止: ${dueDate} | ${status}`;
   }).join('\n');
 }
 
@@ -73,7 +74,9 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
     const allTodos = await dbGetTodos({ userId });
     const pending = allTodos.filter(t => !t.completed);
     const completed = allTodos.filter(t => t.completed).slice(0, 5);
-    todosData = `\n\n【待办事项】\n待办中(${pending.length}个):\n${formatTodoList(pending)}\n\n最近已完成:\n${formatTodoList(completed)}`;
+    const overdue = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) < getTodayStr());
+    const todayTodo = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) === getTodayStr());
+    todosData = `\n\n【待办事项】今日待办共${pending.length}个(其中${overdue.length}个已逾期):\n${formatTodoList(pending)}\n\n最近已完成:\n${formatTodoList(completed)}`;
   } catch {}
 
   return `你是"小蝶"，金蝶云星辰交付集成平台的智能助手。今天是${today}。
