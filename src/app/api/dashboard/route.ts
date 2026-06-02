@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // 获取客户（根据权限过滤）
+    // 获取客户（管理员获取全部，普通用户获取自己的）
     const visibleCustomers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
 
     // 根据开通时间筛选客户

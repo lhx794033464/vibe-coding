@@ -254,9 +254,21 @@ export async function dbGetCustomers(filters?: {
 
   query = query.order('created_at', { ascending: false });
 
-  const { data, error } = await query;
-  if (error) throw new Error(`获取客户列表失败: ${error.message}`);
-  return data || [];
+  // 分页获取所有数据（Supabase 默认限制1000行）
+  const allData: any[] = [];
+  let offset = 0;
+  const batchSize = 1000;
+
+  while (true) {
+    const { data, error } = await query.range(offset, offset + batchSize - 1);
+    if (error) throw new Error(`获取客户列表失败: ${error.message}`);
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  return allData;
 }
 
 export async function dbGetCustomerById(id: string): Promise<any | null> {
