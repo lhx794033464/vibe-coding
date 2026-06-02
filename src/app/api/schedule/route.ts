@@ -68,17 +68,11 @@ export async function GET(request: NextRequest) {
       for (const [dateStr, userSchedules] of dateUserSchedules) {
         let gapCount = 0;
         const consultantSchedules: { userId: string; userName: string; count: number }[] = [];
+        // 遍历所有在职交付顾问，计算空缺数（只遍历一次，避免重复计算）
         for (const [userId, userName] of activeUserNames) {
           const count = userSchedules.get(userId) || 0;
           if (count < 2) gapCount += (2 - count);
           consultantSchedules.push({ userId, userName, count });
-        }
-        // 也要包含没有任何日程的在职顾问
-        for (const [userId, userName] of activeUserNames) {
-          if (!userSchedules.has(userId)) {
-            consultantSchedules.push({ userId, userName, count: 0 });
-            gapCount += 2;
-          }
         }
         dailySummary[dateStr] = {
           gapCount,
