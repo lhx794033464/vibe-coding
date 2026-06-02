@@ -72,7 +72,7 @@ const initialStats: DashboardStats = {
 };
 
 export default function DashboardPage() {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, isAdmin } = useAuth();
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -426,7 +426,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* 项目人天分布 & 交付顾问排行 */}
+      {/* 项目人天分布 & 交付顾问排行 - 仅管理员可见 */}
+      {isAdmin && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* 项目人天分布表 */}
         <Card>
@@ -540,6 +541,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 }
