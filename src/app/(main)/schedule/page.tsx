@@ -336,12 +336,12 @@ export default function SchedulePage() {
         {isAdmin && (
           <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-red-100 border border-red-200"></div>
+              <div className="w-4 h-4 rounded bg-green-100 border border-green-200"></div>
               <span className="text-gray-500">存在空缺</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-green-100 border border-green-200"></div>
-              <span className="text-gray-500">排期满额</span>
+              <div className="w-4 h-4 rounded bg-red-100 border border-red-200"></div>
+              <span className="text-gray-500">排期满载</span>
             </div>
           </div>
         )}
@@ -384,8 +384,8 @@ export default function SchedulePage() {
                       isWeekendOrHoliday
                         ? 'bg-gray-100 border-gray-300'
                         : allSatisfied
-                        ? 'bg-green-50 border-green-200 hover:border-green-400'
-                        : 'bg-red-50 border-red-200 hover:border-red-400',
+                        ? 'bg-red-50 border-red-200 hover:border-red-400'
+                        : 'bg-green-50 border-green-200 hover:border-green-400',
                       todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''
                     )}
                     onMouseEnter={() => setHoveredDate(dateStr)}
@@ -403,12 +403,12 @@ export default function SchedulePage() {
                         )}
                       </div>
                       {!isWeekendOrHoliday && gapCount > 0 && (
-                        <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
-                          缺{gapCount}
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
+                          余{gapCount}
                         </span>
                       )}
                       {!isWeekendOrHoliday && gapCount === 0 && activeConsultants.length > 0 && (
-                        <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
                           满
                         </span>
                       )}
@@ -439,7 +439,7 @@ export default function SchedulePage() {
                         </div>
                       )}
                       {!isWeekendOrHoliday && !dailySummary[dateStr] && activeConsultants.length > 0 && (
-                        <div className="text-xs text-red-400">全部空缺</div>
+                        <div className="text-xs text-green-500">全部空缺</div>
                       )}
                     </div>
                   </div>
@@ -539,8 +539,8 @@ export default function SchedulePage() {
                     isWeekendOrHoliday
                       ? 'bg-gray-100 border-gray-300'
                       : allSatisfied
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-red-50 border-red-200',
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-green-50 border-green-200',
                     todayClass ? 'ring-2 ring-blue-500 ring-offset-1' : ''
                   )}
                   onClick={() => handleSummaryDateClick(date)}
@@ -562,8 +562,8 @@ export default function SchedulePage() {
                     {!isWeekendOrHoliday ? (
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-gray-400" />
-                        <span className={cn('text-sm font-medium', gapCount > 0 ? 'text-red-600' : 'text-green-600')}>
-                          {gapCount > 0 ? `空缺 ${gapCount} 个` : '排期满额'}
+                        <span className={cn('text-sm font-medium', gapCount > 0 ? 'text-green-600' : 'text-red-600')}>
+                          {gapCount > 0 ? `余 ${gapCount} 个` : '排期满载'}
                         </span>
                       </div>
                     ) : (
@@ -681,8 +681,8 @@ export default function SchedulePage() {
                         {count}/2
                       </span>
                       {count < 2 && (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
-                          缺{2 - count}
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
+                          余{2 - count}
                         </span>
                       )}
                     </div>
