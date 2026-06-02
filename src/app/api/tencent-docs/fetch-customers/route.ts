@@ -135,6 +135,20 @@ export async function GET(request: NextRequest) {
     // 过滤匹配当前用户名的行（管理员获取所有用户的行）
     const username = userInfo.username;
     const isAdmin = userInfo.role === 'admin';
+
+    // 获取在职用户列表，用于过滤
+    const supabase = getSupabaseClient();
+    const { data: activeUsers } = await supabase
+      .from('users')
+      .select('username, employment_status, role_type')
+      .eq('is_active', true);
+    const activeUsernameSet = new Set<string>();
+    const activeEmploymentMap: Record<string, string> = {};
+    (activeUsers || []).forEach((u: any) => {
+      activeUsernameSet.add(u.username);
+      activeEmploymentMap[u.username] = u.employment_status || '在职';
+    });
+
     const myRecords: ReturnType<typeof extractCustomerFromRow>[] = [];
 
     for (let i = 1; i < allRows.length; i++) {
@@ -142,7 +156,13 @@ export async function GET(request: NextRequest) {
       const deliverer = cols[COL_DELIVERER] || '';
       const customerName = cols[COL_CUSTOMER] || '';
 
-      // 管理员获取所有交付顾问的行，普通用户仅获取自己的
+      // 跳过交付人在用户管理中不存在的客户
+      if (deliverer && !activeUsernameSet.has(deliverer)) continue;
+
+      // 跳过离职人员的客户
+      if (deliverer && activeEmploymentMap[deliverer] === '离职') continue;
+
+      // 管理员获取所有在职交付顾问的行，普通用户仅获取自己的
       if (customerName && (isAdmin || deliverer === username)) {
         myRecords.push(extractCustomerFromRow(cols));
       }

@@ -11,10 +11,24 @@ export interface User {
   username: string;
   email: string;
   role: 'admin' | 'user';
+  role_type: '交付顾问' | '答疑顾问';
+  employment_status: '在职' | '离职';
   is_active: boolean;
   created_at: string;
   updated_at: string | null;
 }
+
+const mapUserFromDb = (item: any): User => ({
+  id: item.id,
+  username: item.username,
+  email: item.email,
+  role: item.role as 'admin' | 'user',
+  role_type: (item.role_type as '交付顾问' | '答疑顾问') || '交付顾问',
+  employment_status: (item.employment_status as '在职' | '离职') || '在职',
+  is_active: item.is_active,
+  created_at: item.created_at,
+  updated_at: item.updated_at,
+});
 
 // 生成唯一ID
 export const generateId = () => 
@@ -75,15 +89,7 @@ class SupabaseUsersService {
       return [];
     }
 
-    return data.map((item: any) => ({
-      id: item.id,
-      username: item.username,
-      email: item.email,
-      role: item.role as 'admin' | 'user',
-      is_active: item.is_active,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-    }));
+    return data.map((item: any) => mapUserFromDb(item));
   }
 
   async getById(id: string): Promise<User | null> {
@@ -99,15 +105,7 @@ class SupabaseUsersService {
       return null;
     }
 
-    return {
-      id: data.id,
-      username: data.username,
-      email: data.email,
-      role: data.role as 'admin' | 'user',
-      is_active: data.is_active,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-    };
+    return mapUserFromDb(data);
   }
 
   async getByUsername(username: string): Promise<User | null> {
@@ -123,15 +121,7 @@ class SupabaseUsersService {
       return null;
     }
 
-    return {
-      id: data.id,
-      username: data.username,
-      email: data.email,
-      role: data.role as 'admin' | 'user',
-      is_active: data.is_active,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-    };
+    return mapUserFromDb(data);
   }
 
   async create(data: Omit<User, 'id' | 'created_at' | 'updated_at'> & { password?: string }): Promise<User> {
@@ -141,6 +131,8 @@ class SupabaseUsersService {
       username: data.username,
       email: data.email,
       role: data.role,
+      role_type: data.role_type || '交付顾问',
+      employment_status: data.employment_status || '在职',
       is_active: data.is_active,
     };
 
@@ -158,15 +150,7 @@ class SupabaseUsersService {
       throw new Error('创建用户失败');
     }
 
-    return {
-      id: newUser.id,
-      username: newUser.username,
-      email: newUser.email,
-      role: newUser.role as 'admin' | 'user',
-      is_active: newUser.is_active,
-      created_at: newUser.created_at,
-      updated_at: newUser.updated_at,
-    };
+    return mapUserFromDb(newUser);
   }
 
   async update(id: string, data: Partial<Omit<User, 'id' | 'created_at' | 'updated_at'>> & { password?: string }): Promise<User | null> {
@@ -179,6 +163,8 @@ class SupabaseUsersService {
     if (data.username !== undefined) updateData.username = data.username;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.role !== undefined) updateData.role = data.role;
+    if (data.role_type !== undefined) updateData.role_type = data.role_type;
+    if (data.employment_status !== undefined) updateData.employment_status = data.employment_status;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
     if (data.password) updateData.password_hash = hashPassword(data.password);
 
@@ -193,15 +179,7 @@ class SupabaseUsersService {
       return null;
     }
 
-    return {
-      id: updatedUser.id,
-      username: updatedUser.username,
-      email: updatedUser.email,
-      role: updatedUser.role as 'admin' | 'user',
-      is_active: updatedUser.is_active,
-      created_at: updatedUser.created_at,
-      updated_at: updatedUser.updated_at,
-    };
+    return mapUserFromDb(updatedUser);
   }
 
   async delete(id: string): Promise<boolean> {

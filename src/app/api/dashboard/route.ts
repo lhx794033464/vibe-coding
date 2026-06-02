@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbGetCustomers } from '@/services/dbService';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // 获取看板统计数据
 export async function GET(request: NextRequest) {
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
     const timeRange = searchParams.get('timeRange') || 'all';
     const customStartDate = searchParams.get('startDate');
     const customEndDate = searchParams.get('endDate');
+    const roleType = searchParams.get('roleType') || ''; // 交付顾问/答疑顾问/空=全部
 
     // 计算时间范围
     const now = new Date();
@@ -136,7 +138,17 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 按交付顾问统计
+    // 获取用户的角色类型映射（username -> role_type）
+    const client = getSupabaseClient();
+    const { data: usersData } = await client
+      .from('users')
+      .select('username, role_type');
+    const userRoleTypeMap: Record<string, string> = {};
+    (usersData || []).forEach((u: any) => {
+      userRoleTypeMap[u.username] = u.role_type || '交付顾问';
+    });
+
+    // 按交付顾问统计，支持按 roleType 过滤
     const consultantStats: Record<string, {
       projectCount: number;
       totalDays: number;
@@ -149,6 +161,13 @@ export async function GET(request: NextRequest) {
     }> = {};
     customers.forEach((c: any) => {
       const consultant = c.delivery_consultant || '未分配';
+
+      // 如果指定了角色类型筛选，则过滤
+      if (roleType && consultant !== '未分配') {
+        const consultantRoleType = userRoleTypeMap[consultant];
+        if (consultantRoleType !== roleType) return;
+      }
+
       if (!consultantStats[consultant]) {
         consultantStats[consultant] = {
           projectCount: 0, totalDays: 0,

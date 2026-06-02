@@ -11,6 +11,8 @@ export interface User {
   username: string;
   email: string;
   role: 'admin' | 'user';
+  role_type: '交付顾问' | '答疑顾问';
+  employment_status: '在职' | '离职';
   is_active: boolean;
   created_at: string;
   updated_at: string | null;
@@ -160,6 +162,8 @@ class AuthService {
           username: 'admin',
           email: 'admin@company.com',
           role: 'admin',
+          role_type: '交付顾问',
+          employment_status: '在职',
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -167,9 +171,9 @@ class AuthService {
       }
       
       const session: AuthSession = {
-        user_id: adminUser.id,
-        username: adminUser.username,
-        role: adminUser.role,
+        user_id: adminUser!.id,
+        username: adminUser!.username,
+        role: adminUser!.role,
         // Token格式: Base64(user_id:username:role:random_string) — 使用Base64避免中文header问题
         token: btoa(`${adminUser.id}:${adminUser.username}:${adminUser.role}:${generateId()}`),
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),

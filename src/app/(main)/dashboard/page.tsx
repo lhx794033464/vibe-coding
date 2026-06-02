@@ -84,13 +84,21 @@ export default function DashboardPage() {
   const [distTimeRange, setDistTimeRange] = useState<TimeRange>('all');
   const [distStartDate, setDistStartDate] = useState('');
   const [distEndDate, setDistEndDate] = useState('');
+  const [distRoleType, setDistRoleType] = useState<string>('');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
+  const [rankingTimeRange, setRankingTimeRange] = useState<TimeRange>('all');
+  const [rankingStartDate, setRankingStartDate] = useState('');
+  const [rankingEndDate, setRankingEndDate] = useState('');
+  const [rankingRoleType, setRankingRoleType] = useState<string>('');
 
   const fetchDistribution = async () => {
     try {
       let url = `/api/dashboard?timeRange=${distTimeRange}`;
       if (distTimeRange === 'custom' && distStartDate && distEndDate) {
         url += `&startDate=${distStartDate}&endDate=${distEndDate}`;
+      }
+      if (distRoleType) {
+        url += `&roleType=${encodeURIComponent(distRoleType)}`;
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
@@ -102,9 +110,34 @@ export default function DashboardPage() {
     }
   };
 
+  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
+
+  const fetchRanking = async () => {
+    try {
+      let url = `/api/dashboard?timeRange=${rankingTimeRange}`;
+      if (rankingTimeRange === 'custom' && rankingStartDate && rankingEndDate) {
+        url += `&startDate=${rankingStartDate}&endDate=${rankingEndDate}`;
+      }
+      if (rankingRoleType) {
+        url += `&roleType=${encodeURIComponent(rankingRoleType)}`;
+      }
+      const response = await fetch(url, { headers: { ...getAuthHeader() } });
+      const data = await response.json();
+      if (response.ok && data.consultantRanking) {
+        setRankingData(data.consultantRanking);
+      }
+    } catch (error) {
+      console.error('获取排行数据失败:', error);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) fetchDistribution();
-  }, [isAdmin, distTimeRange, distStartDate, distEndDate]);
+  }, [isAdmin, distTimeRange, distStartDate, distEndDate, distRoleType]);
+
+  useEffect(() => {
+    if (isAdmin) fetchRanking();
+  }, [isAdmin, rankingTimeRange, rankingStartDate, rankingEndDate, rankingRoleType]);
 
   useEffect(() => {
     fetchStats();
@@ -451,7 +484,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* 项目人天分布 & 交付顾问排行 - 仅管理员可见 */}
+      {/* 项目人天分布 & 顾问排行 - 仅管理员可见 */}
       {isAdmin && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* 项目人天分布表 */}
@@ -463,6 +496,16 @@ export default function DashboardPage() {
                 项目人天分布
               </CardTitle>
               <div className="flex items-center gap-2">
+                <Select value={distRoleType} onValueChange={(v) => setDistRoleType(v === '全部' ? '' : v)}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="全部">全部</SelectItem>
+                    <SelectItem value="交付顾问">交付顾问</SelectItem>
+                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={distTimeRange} onValueChange={(v) => setDistTimeRange(v as TimeRange)}>
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue />
@@ -510,32 +553,64 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* 交付顾问排行表 */}
+        {/* 顾问排行表 */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-gray-400" />
-              交付顾问排行
-            </CardTitle>
-            <Select
-              value={rankingDimension}
-              onValueChange={(v) => setRankingDimension(v as typeof rankingDimension)}
-            >
-              <SelectTrigger className="w-36 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom">
-                <SelectItem value="onlineRate">上线率</SelectItem>
-                <SelectItem value="oneMonthOnlineRate">一个月上线率</SelectItem>
-                <SelectItem value="fourMonthsOnlineRate">四个月上线率</SelectItem>
-                <SelectItem value="acceptanceRate">验收率</SelectItem>
-              </SelectContent>
-            </Select>
+          <CardHeader className="flex flex-col gap-3 space-y-0">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-gray-400" />
+                顾问排行
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Select value={rankingRoleType} onValueChange={(v) => setRankingRoleType(v === '全部' ? '' : v)}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="全部">全部</SelectItem>
+                    <SelectItem value="交付顾问">交付顾问</SelectItem>
+                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={rankingTimeRange} onValueChange={(v) => setRankingTimeRange(v as TimeRange)}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="month">本月</SelectItem>
+                    <SelectItem value="year">本年</SelectItem>
+                    <SelectItem value="custom">自定义</SelectItem>
+                  </SelectContent>
+                </Select>
+                {rankingTimeRange === 'custom' && (
+                  <div className="flex items-center gap-1">
+                    <Input type="date" value={rankingStartDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRankingStartDate(e.target.value)} className="w-32 h-7 text-xs" />
+                    <span className="text-xs text-muted-foreground">至</span>
+                    <Input type="date" value={rankingEndDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRankingEndDate(e.target.value)} className="w-32 h-7 text-xs" />
+                  </div>
+                )}
+                <Select
+                  value={rankingDimension}
+                  onValueChange={(v) => setRankingDimension(v as typeof rankingDimension)}
+                >
+                  <SelectTrigger className="w-36 h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom">
+                    <SelectItem value="onlineRate">上线率</SelectItem>
+                    <SelectItem value="oneMonthOnlineRate">一个月上线率</SelectItem>
+                    <SelectItem value="fourMonthsOnlineRate">四个月上线率</SelectItem>
+                    <SelectItem value="acceptanceRate">验收率</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {stats.consultantRanking && stats.consultantRanking.length > 0 ? (
+            {rankingData && rankingData.length > 0 ? (
               <div className="space-y-3">
-                {[...stats.consultantRanking]
+                {[...rankingData]
                   .sort((a, b) => b[rankingDimension] - a[rankingDimension])
                   .map((consultant, index) => {
                     const rate = consultant[rankingDimension];
