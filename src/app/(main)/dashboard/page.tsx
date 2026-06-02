@@ -628,8 +628,8 @@ export default function DashboardPage() {
                     const b = Math.round(94 + t * (68 - 94));
                     const barColor = `rgb(${r}, ${g}, ${b})`;
                     return (
-                      <div key={consultant.name} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                      <div key={consultant.name} className="flex items-center gap-2.5 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                           index === 0 ? 'bg-amber-100 text-amber-700' :
                           index === 1 ? 'bg-gray-200 text-gray-600' :
                           index === 2 ? 'bg-orange-100 text-orange-700' :
@@ -638,22 +638,21 @@ export default function DashboardPage() {
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center justify-between mb-0.5">
                             <span className="text-sm font-medium text-gray-900 truncate">{consultant.name}</span>
-                            <span className="text-lg font-bold" style={{ color: barColor }}>{rate}%</span>
+                            <span className="text-sm font-bold" style={{ color: barColor }}>{rate}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="h-2 rounded-full transition-all duration-500"
-                              style={{
-                                width: `${Math.min(rate, 100)}%`,
-                                backgroundColor: barColor,
-                              }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-xs text-gray-500">{consultant.projectCount} 个项目</span>
-                            <span className="text-xs text-gray-500">{dimensionLabel[rankingDimension]}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className="h-1.5 rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${Math.min(rate, 100)}%`,
+                                  backgroundColor: barColor,
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-400 flex-shrink-0">{consultant.projectCount}个</span>
                           </div>
                         </div>
                       </div>
