@@ -594,8 +594,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 左侧：客户档案 - 2/3宽度 */}
-        {/* 右侧：实施日志+跟进记录 - 1/3宽度 */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -819,8 +818,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
         </div>
 
-        {/* 右侧：实施日志 + 跟进记录 */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* 右侧：实施日志 + 跟进记录 - 1/3宽度 */}
+        <div className="lg:col-span-1 space-y-6">
           {/* 实施日志 */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
