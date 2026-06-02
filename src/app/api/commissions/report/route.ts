@@ -8,7 +8,23 @@ export async function GET(request: NextRequest) {
   try {
     const userInfo = await getCurrentUserInfo(request);
     if (!userInfo) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
+      return NextResponse.json({ error: '未授权，请重新登录' }, { status: 401 });
+    }
+
+    // 验证 admin 角色（token + 数据库双重校验）
+    let isAdminUser = userInfo.role === 'admin';
+    if (!isAdminUser) {
+      try {
+        const sbCheck = getSupabaseClient();
+        const { data: dbUser } = await sbCheck
+          .from('users')
+          .select('role, is_active')
+          .eq('id', userInfo.id)
+          .single();
+        if (dbUser && dbUser.role === 'admin' && dbUser.is_active) {
+          isAdminUser = true;
+        }
+      } catch {}
     }
 
     const sb = getSupabaseClient();
@@ -22,7 +38,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     // 普通用户只能看自己的申报
-    if (userInfo.role !== 'admin') {
+    if (!isAdminUser) {
       query = query.eq('user_id', userInfo.id);
     }
 
@@ -126,11 +142,33 @@ export async function PATCH(request: NextRequest) {
   try {
     const userInfo = await getCurrentUserInfo(request);
     if (!userInfo) {
-      return NextResponse.json({ error: '未授权' }, { status: 401 });
+      console.error('[commission-review] 未授权: 无法解析用户信息');
+      return NextResponse.json({ error: '未授权，请重新登录' }, { status: 401 });
     }
 
-    if (userInfo.role !== 'admin') {
-      return NextResponse.json({ error: '无权操作' }, { status: 403 });
+    // 先检查 token 中的 role
+    let isAdmin = userInfo.role === 'admin';
+
+    // 如果 token 中不是 admin，再从数据库验证（防止 token 过期/不一致）
+    if (!isAdmin) {
+      try {
+        const sb = getSupabaseClient();
+        const { data: dbUser } = await sb
+          .from('users')
+          .select('role, is_active')
+          .eq('id', userInfo.id)
+          .single();
+        if (dbUser && dbUser.role === 'admin' && dbUser.is_active) {
+          isAdmin = true;
+        }
+      } catch (dbErr) {
+        console.error('[commission-review] 数据库验证失败:', dbErr);
+      }
+    }
+
+    if (!isAdmin) {
+      console.error(`[commission-review] 无权操作: userId=${userInfo.id}, username=${userInfo.username}, tokenRole=${userInfo.role}`);
+      return NextResponse.json({ error: '无权审核，仅管理员可操作' }, { status: 403 });
     }
 
     const body = await request.json();
