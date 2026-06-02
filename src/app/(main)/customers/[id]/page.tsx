@@ -62,6 +62,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [showFollowUpForm, setShowFollowUpForm] = useState(false);
   const [showLogForm, setShowLogForm] = useState(false);
+  const logFormRef = useRef<HTMLDivElement>(null);
+  const followUpFormRef = useRef<HTMLDivElement>(null);
   const [followUpForm, setFollowUpForm] = useState({
     follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     content: '',
@@ -592,7 +594,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 左侧：客户档案 */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -814,6 +816,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </CardContent>
           </Card>
 
+        </div>
+
+        {/* 右侧：实施日志 + 跟进记录 */}
+        <div className="lg:col-span-2 space-y-6">
           {/* 实施日志 */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -860,7 +866,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button size="sm" onClick={() => setShowLogForm(!showLogForm)}>
+                <Button size="sm" onClick={() => { setShowLogForm(true); setTimeout(() => logFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }}>
                   <Plus className="w-4 h-4 mr-1" />
                   添加
                 </Button>
@@ -868,7 +874,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               {showLogForm && (
-                <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+                <div ref={logFormRef} className="space-y-3 p-3 bg-gray-50 rounded-lg">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>实施时间</Label>
@@ -914,14 +920,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 </div>
               )}
 
-              {implementationLogs.length === 0 ? (
+              {implementationLogs.length === 0 && !showLogForm ? (
                 <p className="text-gray-500 text-center py-4">暂无实施日志</p>
               ) : (
                 <div className="space-y-3">
                   {implementationLogs.map((log) => (
                     <div key={log.id} className="p-3 border rounded-lg">
                       {editingLogId === log.id ? (
-                        // 编辑模式
                         <div className="space-y-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
@@ -965,7 +970,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
                           </div>
                         </div>
                       ) : (
-                        // 显示模式
                         <>
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-500">
@@ -1013,9 +1017,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
             </CardContent>
           </Card>
-        </div>
 
-        {/* 右侧：跟进记录 */}
+          {/* 跟进记录 */}
         <div className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1076,6 +1079,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
             </CardContent>
           </Card>
+        </div>
         </div>
       </div>
       </div>
