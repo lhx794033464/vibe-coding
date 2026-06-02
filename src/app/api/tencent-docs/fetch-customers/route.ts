@@ -3,6 +3,7 @@ import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { TencentDocsClient } from '@/lib/tencentDocsClient';
 import { dbGetCustomers, dbCreateCustomer, dbUpdateCustomer } from '@/services/dbService';
 import { getTencentDocsToken } from '@/lib/tencentDocsConfig';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // 文档 file_id（从用户提供的URL提取）
 const DOC_FILE_ID = 'DTUZjZ3Jmc0JKdXF3';
@@ -131,8 +132,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, total: 0, myCount: 0, uniqueCount: 0, data: [] });
     }
 
-    // 过滤匹配当前用户名的行
+    // 过滤匹配当前用户名的行（管理员获取所有用户的行）
     const username = userInfo.username;
+    const isAdmin = userInfo.role === 'admin';
     const myRecords: ReturnType<typeof extractCustomerFromRow>[] = [];
 
     for (let i = 1; i < allRows.length; i++) {
@@ -140,7 +142,8 @@ export async function GET(request: NextRequest) {
       const deliverer = cols[COL_DELIVERER] || '';
       const customerName = cols[COL_CUSTOMER] || '';
 
-      if (deliverer === username && customerName) {
+      // 管理员获取所有交付顾问的行，普通用户仅获取自己的
+      if (customerName && (isAdmin || deliverer === username)) {
         myRecords.push(extractCustomerFromRow(cols));
       }
     }
@@ -211,6 +214,18 @@ export async function POST(request: NextRequest) {
     const existingCustomers = await dbGetCustomers({ userId, isAdmin });
     const existingMap = new Map(existingCustomers.map(c => [c.name, c]));
 
+    // 管理员同步时，根据交付顾问查找对应的 user_id
+    const supabase = getSupabaseClient();
+    const userMap = new Map<string, string>(); // username -> user_id
+    if (isAdmin) {
+      const { data: users } = await supabase.from('users').select('id, username');
+      if (users) {
+        for (const u of users) {
+          userMap.set(u.username, u.id);
+        }
+      }
+    }
+
     let imported = 0;
     let updated = 0;
     const errors: string[] = [];
@@ -261,7 +276,13 @@ export async function POST(request: NextRequest) {
           await dbUpdateCustomer(existing.id, customerData);
           updated++;
         } else {
-          customerData.user_id = userId;
+          // 管理员同步时，按交付顾问分配 user_id；普通用户使用自己的 id
+          const delivererName = customer.deliverer || customer.delivery_consultant;
+          if (isAdmin && delivererName && userMap.has(delivererName)) {
+            customerData.user_id = userMap.get(delivererName)!;
+          } else {
+            customerData.user_id = userId;
+          }
           await dbCreateCustomer(customerData);
           imported++;
         }
