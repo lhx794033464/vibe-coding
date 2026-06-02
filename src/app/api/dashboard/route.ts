@@ -136,6 +136,59 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // 按交付顾问统计
+    const consultantStats: Record<string, {
+      projectCount: number;
+      totalDays: number;
+      onlineCount: number;
+      acceptedCount: number;
+      oneMonthTotal: number;
+      oneMonthOnline: number;
+      fourMonthsTotal: number;
+      fourMonthsOnline: number;
+    }> = {};
+    customers.forEach((c: any) => {
+      const consultant = c.delivery_consultant || '未分配';
+      if (!consultantStats[consultant]) {
+        consultantStats[consultant] = {
+          projectCount: 0, totalDays: 0,
+          onlineCount: 0, acceptedCount: 0,
+          oneMonthTotal: 0, oneMonthOnline: 0,
+          fourMonthsTotal: 0, fourMonthsOnline: 0,
+        };
+      }
+      const s = consultantStats[consultant];
+      s.projectCount++;
+      s.totalDays += parseFloat(c.implementation_days || '0');
+      if (c.status === 'online') s.onlineCount++;
+      if (c.acceptance_status === 'accepted') s.acceptedCount++;
+      if (new Date(c.opened_at) <= oneMonthAgo) {
+        s.oneMonthTotal++;
+        if (c.status === 'online') s.oneMonthOnline++;
+      }
+      if (new Date(c.opened_at) <= fourMonthsAgo) {
+        s.fourMonthsTotal++;
+        if (c.status === 'online') s.fourMonthsOnline++;
+      }
+    });
+
+    // 交付顾问分布数据（用于柱状图+折线图）
+    const consultantDistribution = Object.entries(consultantStats).map(([name, s]) => ({
+      name,
+      projectCount: s.projectCount,
+      totalDays: Math.round(s.totalDays * 10) / 10,
+    }));
+
+    // 交付顾问排行数据（用于排行表）
+    const consultantRanking = Object.entries(consultantStats).map(([name, s]) => ({
+      name,
+      projectCount: s.projectCount,
+      onlineRate: s.projectCount > 0 ? Math.round(s.onlineCount / s.projectCount * 1000) / 10 : 0,
+      oneMonthOnlineRate: s.oneMonthTotal > 0 ? Math.round(s.oneMonthOnline / s.oneMonthTotal * 1000) / 10 : 0,
+      fourMonthsOnlineRate: s.fourMonthsTotal > 0 ? Math.round(s.fourMonthsOnline / s.fourMonthsTotal * 1000) / 10 : 0,
+      acceptanceRate: s.projectCount > 0 ? Math.round(s.acceptedCount / s.projectCount * 1000) / 10 : 0,
+    }));
+
     return NextResponse.json({
       totalCustomers,
       onlineCustomers,
@@ -152,6 +205,8 @@ export async function GET(request: NextRequest) {
       acceptanceRateChange: Math.round(acceptanceRateChange * 10) / 10,
       statusDistribution,
       acceptanceDistribution,
+      consultantDistribution,
+      consultantRanking,
     });
   } catch (error) {
     console.error('获取看板数据失败:', error);

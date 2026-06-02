@@ -10,12 +10,13 @@ import {
   TrendingDown,
   BarChart3,
   Loader2,
-  Calendar
+  Calendar,
+  Trophy
 } from 'lucide-react';
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -35,6 +36,8 @@ interface DashboardStats {
   acceptanceRateChange: number;
   statusDistribution: Record<string, number>;
   acceptanceDistribution: Record<string, number>;
+  consultantDistribution: { name: string; projectCount: number; totalDays: number }[];
+  consultantRanking: { name: string; projectCount: number; onlineRate: number; oneMonthOnlineRate: number; fourMonthsOnlineRate: number; acceptanceRate: number }[];
 }
 
 const initialStats: DashboardStats = {
@@ -64,6 +67,8 @@ const initialStats: DashboardStats = {
     '未上线未验收': 0,
     '已上线未验收': 0,
   },
+  consultantDistribution: [],
+  consultantRanking: [],
 };
 
 export default function DashboardPage() {
@@ -74,6 +79,7 @@ export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
 
   useEffect(() => {
     fetchStats();
@@ -412,6 +418,121 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 项目人天分布 & 交付顾问排行 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* 项目人天分布表 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-gray-400" />
+              项目人天分布
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.consultantDistribution && stats.consultantDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={stats.consultantDistribution} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="left" label={{ value: '项目数', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="right" orientation="right" label={{ value: '人天', angle: 90, position: 'insideRight', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+                    formatter={(value: number, name: string) => {
+                      if (name === '项目数量') return [`${value} 个`, name];
+                      return [`${value} 天`, name];
+                    }}
+                  />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="projectCount" name="项目数量" fill="#93c5fd" radius={[4, 4, 0, 0]} barSize={40} />
+                  <Line yAxisId="right" type="monotone" dataKey="totalDays" name="人天数" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 交付顾问排行表 */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-gray-400" />
+              交付顾问排行
+            </CardTitle>
+            <Select
+              value={rankingDimension}
+              onValueChange={(v) => setRankingDimension(v as typeof rankingDimension)}
+            >
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom">
+                <SelectItem value="onlineRate">上线率</SelectItem>
+                <SelectItem value="oneMonthOnlineRate">一个月上线率</SelectItem>
+                <SelectItem value="fourMonthsOnlineRate">四个月上线率</SelectItem>
+                <SelectItem value="acceptanceRate">验收率</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            {stats.consultantRanking && stats.consultantRanking.length > 0 ? (
+              <div className="space-y-3">
+                {[...stats.consultantRanking]
+                  .sort((a, b) => b[rankingDimension] - a[rankingDimension])
+                  .map((consultant, index) => {
+                    const rate = consultant[rankingDimension];
+                    const dimensionLabel: Record<string, string> = {
+                      onlineRate: '上线率',
+                      oneMonthOnlineRate: '一个月上线率',
+                      fourMonthsOnlineRate: '四个月上线率',
+                      acceptanceRate: '验收率',
+                    };
+                    return (
+                      <div key={consultant.name} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                          index === 0 ? 'bg-amber-100 text-amber-700' :
+                          index === 1 ? 'bg-gray-200 text-gray-600' :
+                          index === 2 ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-900 truncate">{consultant.name}</span>
+                            <span className="text-lg font-bold text-gray-900">{rate}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="h-2 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.min(rate, 100)}%`,
+                                backgroundColor:
+                                  rate >= 80 ? '#86efac' :
+                                  rate >= 60 ? '#fde68a' :
+                                  rate >= 40 ? '#fed7aa' :
+                                  '#fca5a5',
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-gray-500">{consultant.projectCount} 个项目</span>
+                            <span className="text-xs text-gray-500">{dimensionLabel[rankingDimension]}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             ) : (
               <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
