@@ -156,8 +156,12 @@ export default function CommissionsPage() {
   };
 
   const handleReportCommission = async () => {
-    if (commissions.length === 0) {
-      alert('本月暂无可申报的提成数据');
+    // 只申报金额不为零且已计提的客户
+    const reportableCommissions = commissions.filter(c =>
+      (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0
+    );
+    if (reportableCommissions.length === 0) {
+      alert('本月暂无可申报的提成数据（需已计提且金额不为零）');
       return;
     }
 
@@ -169,9 +173,9 @@ export default function CommissionsPage() {
 
     setReporting(true);
     try {
-      const totalCommission = commissions.reduce((sum, c) => sum + (c.totalCommission || 0), 0);
-      const totalPaid = commissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
-      const totalRemaining = commissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
+      const totalCommission = reportableCommissions.reduce((sum, c) => sum + (c.totalCommission || 0), 0);
+      const totalPaid = reportableCommissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
+      const totalRemaining = reportableCommissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
 
       const response = await fetch('/api/commissions/report', {
         method: 'POST',
@@ -184,7 +188,7 @@ export default function CommissionsPage() {
           total_commission: totalCommission,
           paid_commission: totalPaid,
           remaining_commission: totalRemaining,
-          commission_details: commissions,
+          commission_details: reportableCommissions,
         }),
       });
 
@@ -545,10 +549,11 @@ export default function CommissionsPage() {
     setCurrentMonth(format(date, 'yyyy-MM'));
   };
 
-  // 计算总提成
-  const totalCommission = commissions.reduce((sum, c) => sum + (c.totalCommission || 0), 0);
-  const totalPaid = commissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
-  const totalRemaining = commissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
+  // 计算总提成（只统计已计提且金额不为零的）
+  const reportableCommissions = commissions.filter(c => (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0);
+  const totalCommission = reportableCommissions.reduce((sum, c) => sum + (c.totalCommission || 0), 0);
+  const totalPaid = reportableCommissions.reduce((sum, c) => sum + (c.paidCommission || 0), 0);
+  const totalRemaining = reportableCommissions.reduce((sum, c) => sum + (c.remainingCommission || 0), 0);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -586,7 +591,7 @@ export default function CommissionsPage() {
     }
   };
 
-  // 按交付顾问分组提成申报
+  // 按交付顾问分组提成申报（只包含金额不为零且已计提的）
   const groupReportsByConsultant = (reportList: CommissionReport[]) => {
     const grouped: Record<string, { report: CommissionReport; details: CommissionCalculation[] }> = {};
     reportList.forEach(report => {
@@ -595,10 +600,13 @@ export default function CommissionsPage() {
         grouped[key] = { report, details: [] };
       }
       if (Array.isArray(report.commission_details)) {
-        grouped[key].details.push(...report.commission_details);
+        // 只添加金额不为零且已计提的明细
+        const filtered = report.commission_details.filter(d => (d.totalCommission || 0) > 0 && (d.paidCommission || 0) > 0);
+        grouped[key].details.push(...filtered);
       }
     });
-    return Object.entries(grouped);
+    // 过滤掉没有符合条件明细的顾问
+    return Object.entries(grouped).filter(([, { details }]) => details.length > 0);
   };
 
   if (loading) {
@@ -633,7 +641,7 @@ export default function CommissionsPage() {
               )}
               <Button
                 onClick={handleReportCommission}
-                disabled={reporting || commissions.length === 0 || reportStatus === 'pending'}
+                disabled={reporting || commissions.filter(c => (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0).length === 0 || reportStatus === 'pending'}
                 variant={reportStatus === 'pending' ? 'outline' : 'default'}
               >
                 {reporting ? (
@@ -910,6 +918,9 @@ export default function CommissionsPage() {
                             <Badge variant="outline" className="text-xs">
                               {commission.modulesLabel}
                             </Badge>
+                          )}
+                          {(commission.paidCommission || 0) > 0 && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1.5 py-0">已计提</Badge>
                           )}
                         </div>
                         
