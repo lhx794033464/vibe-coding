@@ -10,6 +10,7 @@ interface DateRangePickerProps {
   onEndChange: (date: string) => void;
   placeholder?: string;
   className?: string;
+  label?: string;
 }
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -41,6 +42,7 @@ export function DateRangePicker({
   onEndChange,
   placeholder = '选择日期范围',
   className = '',
+  label,
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
@@ -66,7 +68,7 @@ export function DateRangePicker({
     ? `${formatDate(startD)} - ${formatDate(endD)}`
     : startD
       ? `${formatDate(startD)} - ...`
-      : placeholder;
+      : null;
 
   const hasValue = startD !== null;
 
@@ -145,9 +147,14 @@ export function DateRangePicker({
         className={`flex items-center gap-1.5 text-sm border rounded-md px-2 py-1.5 bg-background text-foreground hover:bg-muted/50 transition-colors ${hasValue ? 'border-primary/50 bg-primary/5' : ''}`}
       >
         <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        <span className={`truncate max-w-[180px] ${hasValue ? 'text-foreground' : 'text-muted-foreground'}`}>
-          {displayText}
-        </span>
+        {label && (
+          <span className="text-muted-foreground shrink-0">{label}</span>
+        )}
+        {displayText ? (
+          <span className="truncate max-w-[180px] text-foreground">{displayText}</span>
+        ) : !label ? (
+          <span className="truncate max-w-[180px] text-muted-foreground">{placeholder}</span>
+        ) : null}
         {hasValue && (
           <X className="w-3 h-3 shrink-0 text-muted-foreground hover:text-foreground" onClick={clearValue} />
         )}

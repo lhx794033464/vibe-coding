@@ -11,6 +11,7 @@ interface SearchableSelectProps {
   allLabel?: string;
   allValue?: string;
   className?: string;
+  label?: string;
 }
 
 export function SearchableSelect({
@@ -21,6 +22,7 @@ export function SearchableSelect({
   allLabel = '全部',
   allValue = 'all',
   className = '',
+  label,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -38,15 +40,15 @@ export function SearchableSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedOption = value === allValue
-    ? allLabel
-    : options.find(o => o.value === value)?.label || value;
+  const hasFilter = value !== allValue && value !== '';
+
+  const selectedOption = hasFilter
+    ? options.find(o => o.value === value)?.label || value
+    : null;
 
   const filteredOptions = options.filter(o =>
     o.label.toLowerCase().includes(search.toLowerCase())
   );
-
-  const hasFilter = value !== allValue;
 
   return (
     <div ref={ref} className={`relative ${className}`}>
@@ -58,15 +60,22 @@ export function SearchableSelect({
         }}
         className={`flex items-center gap-1 text-sm border rounded-md px-2 py-1.5 bg-background text-foreground hover:bg-muted/50 transition-colors min-w-[80px] ${hasFilter ? 'border-primary/50 bg-primary/5' : ''}`}
       >
-        <span className="truncate max-w-[100px]">{selectedOption}</span>
-        {hasFilter && (
-          <X
-            className="w-3 h-3 shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange(allValue);
-            }}
-          />
+        {label && (
+          <span className="text-muted-foreground shrink-0">{label}</span>
+        )}
+        {hasFilter ? (
+          <>
+            <span className="truncate max-w-[120px]">{selectedOption}</span>
+            <X
+              className="w-3 h-3 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(allValue);
+              }}
+            />
+          </>
+        ) : (
+          !label && <span className="truncate max-w-[100px]">{allLabel}</span>
         )}
         <ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" />
       </button>

@@ -267,18 +267,20 @@ export default function CustomersPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <SearchableSelect
                 options={customers.filter(c => c.delivery_consultant).map(c => c.delivery_consultant as string).filter((v, i, a) => a.indexOf(v) === i).sort().map(name => ({ value: name, label: name }))}
-                value={consultantFilter === 'all' ? '' : consultantFilter}
-                onChange={(v) => setFilterConsultant(v || 'all')}
-                placeholder="交付顾问"
+                value={consultantFilter}
+                onChange={(v) => setFilterConsultant(v)}
+                placeholder="搜索交付顾问"
+                label="交付顾问"
               />
               <SearchableSelect
                 options={[
                   { value: '一对一交付', label: '一对一交付' },
                   { value: '自助交付', label: '自助交付' },
                 ]}
-                value={implTypeFilter === 'all' ? '' : implTypeFilter}
-                onChange={(v) => setFilterImplType(v || 'all')}
-                placeholder="实施类型"
+                value={implTypeFilter}
+                onChange={(v) => setFilterImplType(v)}
+                placeholder="搜索实施类型"
+                label="实施类型"
               />
               <SearchableSelect
                 options={[
@@ -286,25 +288,28 @@ export default function CustomersPage() {
                   { value: 'online', label: '已上线' },
                   { value: 'delayed', label: '延期上线' },
                 ]}
-                value={onlineStatusFilter === 'all' ? '' : onlineStatusFilter}
-                onChange={(v) => setFilterOnlineStatus(v || 'all')}
-                placeholder="上线状态"
+                value={onlineStatusFilter}
+                onChange={(v) => setFilterOnlineStatus(v)}
+                placeholder="搜索上线状态"
+                label="上线状态"
               />
               <SearchableSelect
                 options={[
                   { value: 'not_accepted', label: '未验收' },
                   { value: 'accepted', label: '已验收' },
                 ]}
-                value={acceptanceStatusFilter === 'all' ? '' : acceptanceStatusFilter}
-                onChange={(v) => setFilterAcceptanceStatus(v || 'all')}
-                placeholder="验收状态"
+                value={acceptanceStatusFilter}
+                onChange={(v) => setFilterAcceptanceStatus(v)}
+                placeholder="搜索验收状态"
+                label="验收状态"
               />
               <DateRangePicker
                 startDate={openedStartFilter}
                 endDate={openedEndFilter}
                 onStartChange={setFilterOpenDateStart}
                 onEndChange={setFilterOpenDateEnd}
-                placeholder="开通时间"
+                placeholder="选择日期范围"
+                label="开通时间"
               />
             </div>
           </div>
