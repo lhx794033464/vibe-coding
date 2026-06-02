@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList, FileText, Eye, Clock, CheckCheck } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, ChevronDown, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList, FileText, Eye, Clock, CheckCheck } from 'lucide-react';
 import { CommissionCalculation } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -83,6 +83,16 @@ export default function CommissionsPage() {
 
   // 管理员标签切换
   const [adminTab, setAdminTab] = useState<'pending' | 'reviewed'>('pending');
+  const [collapsedConsultants, setCollapsedConsultants] = useState<Set<string>>(new Set());
+
+  const toggleConsultant = (name: string) => {
+    setCollapsedConsultants(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
 
   // 验收单预览
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
@@ -747,8 +757,12 @@ export default function CommissionsPage() {
                   return (
                     <Card key={consultantName} className="overflow-hidden">
                       {/* 顾问头部 */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b">
+                      <div
+                        className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b cursor-pointer select-none"
+                        onClick={() => toggleConsultant(consultantName)}
+                      >
                         <div className="flex items-center gap-3">
+                          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${collapsedConsultants.has(consultantName) ? '-rotate-90' : ''}`} />
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
                             {consultantName.charAt(0)}
                           </div>
@@ -759,7 +773,8 @@ export default function CommissionsPage() {
                             </p>
                           </div>
                         </div>
-                        {report.status === 'pending' && (
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                          {report.status === 'pending' && (
                           <div className="flex items-center gap-2">
                             <Button
                               size="sm"
@@ -801,8 +816,10 @@ export default function CommissionsPage() {
                           </div>
                         )}
                       </div>
+                      </div>
 
                       {/* 客户明细列表 */}
+                      {!collapsedConsultants.has(consultantName) && (
                       <div className="divide-y">
                         {details.map((detail, idx) => (
                           <div key={idx} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors">
@@ -845,6 +862,7 @@ export default function CommissionsPage() {
                           </div>
                         ))}
                       </div>
+                      )}
                     </Card>
                   );
                 })}
