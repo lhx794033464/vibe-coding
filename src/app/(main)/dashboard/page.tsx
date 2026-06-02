@@ -487,7 +487,7 @@ export default function DashboardPage() {
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue placeholder="全部" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom">
                     <SelectItem value="全部">全部</SelectItem>
                     <SelectItem value="交付顾问">交付顾问</SelectItem>
                     <SelectItem value="答疑顾问">答疑顾问</SelectItem>
@@ -497,7 +497,7 @@ export default function DashboardPage() {
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom">
                     <SelectItem value="all">全部</SelectItem>
                     <SelectItem value="month">本月</SelectItem>
                     <SelectItem value="year">本年</SelectItem>
@@ -554,7 +554,7 @@ export default function DashboardPage() {
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue placeholder="全部" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom">
                     <SelectItem value="全部">全部</SelectItem>
                     <SelectItem value="交付顾问">交付顾问</SelectItem>
                     <SelectItem value="答疑顾问">答疑顾问</SelectItem>
@@ -564,7 +564,7 @@ export default function DashboardPage() {
                   <SelectTrigger className="w-24 h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom">
                     <SelectItem value="all">全部</SelectItem>
                     <SelectItem value="month">本月</SelectItem>
                     <SelectItem value="year">本年</SelectItem>
