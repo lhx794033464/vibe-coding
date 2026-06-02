@@ -572,6 +572,15 @@ export default function CustomerDetailPage({ params }: PageProps) {
               <Badge variant="outline" className={acceptanceBadgeClass}>
                 {isAccepted ? '已验收' : '未验收'}
               </Badge>
+              <Badge variant="outline" className={
+                customer?.commission_status === '已计提' 
+                  ? 'bg-green-50 text-green-700 border-green-200' 
+                  : customer?.commission_status === '部分计提'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-gray-50 text-gray-600 border-gray-200'
+              }>
+                {customer?.commission_status || '未计提'}
+              </Badge>
             </div>
           </div>
           <div className="flex gap-2">

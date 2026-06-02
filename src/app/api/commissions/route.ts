@@ -129,6 +129,7 @@ export async function GET(request: NextRequest) {
       return {
         customerId: customer.id,
         customerName: customer.name,
+        commissionStatus: customer.commission_status || '未计提',
         implementationFee,
         implementationDays,
         modules,
@@ -159,13 +160,16 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const totalCommission = results.reduce((sum: number, r: any) => sum + r.totalCommission, 0);
-    const totalPaid = results.reduce((sum: number, r: any) => sum + r.paidCommission, 0);
+    // 过滤掉已计提的客户（标记已计提后从提成管理中隐藏）
+    const visibleResults = results.filter((r: any) => r.commissionStatus !== '已计提');
+
+    const totalCommission = visibleResults.reduce((sum: number, r: any) => sum + r.totalCommission, 0);
+    const totalPaid = visibleResults.reduce((sum: number, r: any) => sum + r.paidCommission, 0);
 
     return NextResponse.json({
-      data: results,
+      data: visibleResults,
       summary: {
-        totalCustomers: results.length,
+        totalCustomers: visibleResults.length,
         totalCommission: Math.round(totalCommission * 100) / 100,
         confirmedCommission: Math.round(totalPaid * 100) / 100,
         pendingCommission: Math.round((totalCommission - totalPaid) * 100) / 100,

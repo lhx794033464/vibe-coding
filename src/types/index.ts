@@ -53,6 +53,7 @@ export interface Customer {
   is_online: string | null; // 是否上线
   apply_month: string | null; // 申请月
   acceptance_doc_key: string | null; // 验收单文件key
+  commission_status: string; // 计提状态：已计提/未计提/部分计提
 }
 
 // 跟进记录类型
