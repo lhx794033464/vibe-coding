@@ -473,7 +473,7 @@ export default function DashboardPage() {
 
       {/* 项目人天分布 & 顾问排行 - 仅管理员可见 */}
       {isAdmin && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
         {/* 项目人天分布表 */}
         <Card>
           <CardHeader className="space-y-0">
@@ -520,11 +520,7 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={distData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="name" tick={({ x, y, payload }) => (
-                    <g transform={`translate(${x},${y})`}>
-                      <text fontSize={12} textAnchor="end" transform="rotate(-30)" fill="currentColor">{payload.value}</text>
-                    </g>
-                  )} height={50} interval={0} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
                   <YAxis yAxisId="left" label={{ value: '项目数', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
                   <YAxis yAxisId="right" orientation="right" label={{ value: '人天', angle: 90, position: 'insideRight', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
                   <Tooltip
