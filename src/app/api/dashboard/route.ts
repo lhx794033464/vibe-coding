@@ -143,7 +143,13 @@ export async function GET(request: NextRequest) {
       userRoleTypeMap[u.username] = u.role_type || '交付顾问';
     });
 
-    // 按交付顾问统计，支持按 roleType 过滤
+    // 获取用户管理中存在的在职用户名集合
+    const activeUsernames = new Set<string>();
+    (usersData || []).forEach((u: any) => {
+      activeUsernames.add(u.username);
+    });
+
+    // 按交付顾问统计，支持按 roleType 过滤，仅显示用户管理中存在的顾问
     const consultantStats: Record<string, {
       projectCount: number;
       totalDays: number;
@@ -155,10 +161,13 @@ export async function GET(request: NextRequest) {
       fourMonthsOnline: number;
     }> = {};
     customers.forEach((c: any) => {
-      const consultant = c.delivery_consultant || '未分配';
+      const consultant = c.delivery_consultant || '';
+
+      // 过滤：仅显示用户管理中存在的顾问，跳过未分配和不存在的顾问
+      if (!consultant || !activeUsernames.has(consultant)) return;
 
       // 如果指定了角色类型筛选，则过滤
-      if (roleType && consultant !== '未分配') {
+      if (roleType) {
         const consultantRoleType = userRoleTypeMap[consultant];
         if (consultantRoleType !== roleType) return;
       }
