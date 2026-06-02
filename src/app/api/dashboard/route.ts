@@ -56,6 +56,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // 只统计实施类型为"一对一交付"的项目
+    customers = customers.filter((c: any) => c.implementation_type === '一对一交付');
+
     const totalCustomers = customers.length;
 
     // 状态判断：status 为上线状态，acceptance_status 为验收状态
