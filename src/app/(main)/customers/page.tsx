@@ -204,48 +204,50 @@ export default function CustomersPage() {
             </Button>
             </div>
           </div>
-        </div>
 
-        {/* 搜索和筛选 */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="搜索客户名称..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
+          {/* 搜索和筛选 */}
+        <div className="space-y-3">
+          {/* 第一行：搜索框 + 筛选按钮 */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="搜索客户名称..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { key: 'all', label: '全部', statusVal: 'all', acceptanceVal: 'all' },
+                { key: 'not_online', label: '未上线', statusVal: 'not_online', acceptanceVal: 'all' },
+                { key: 'online', label: '已上线', statusVal: 'online', acceptanceVal: 'all' },
+                { key: 'online_not_accepted', label: '已上线未验收', statusVal: 'online', acceptanceVal: 'not_accepted' },
+                { key: 'accepted', label: '已验收', statusVal: 'all', acceptanceVal: 'accepted' },
+              ].map((filter) => {
+                const isActive = statusFilter === filter.statusVal && acceptanceFilter === filter.acceptanceVal;
+                return (
+                  <Button
+                    key={filter.key}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setStatusFilter(filter.statusVal);
+                      setAcceptanceFilter(filter.acceptanceVal);
+                    }}
+                    className="text-xs"
+                  >
+                    {filter.label}
+                  </Button>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {[
-              { key: 'all', label: '全部', statusVal: 'all', acceptanceVal: 'all' },
-              { key: 'not_online', label: '未上线', statusVal: 'not_online', acceptanceVal: 'all' },
-              { key: 'online', label: '已上线', statusVal: 'online', acceptanceVal: 'all' },
-              { key: 'online_not_accepted', label: '已上线未验收', statusVal: 'online', acceptanceVal: 'not_accepted' },
-              { key: 'accepted', label: '已验收', statusVal: 'all', acceptanceVal: 'accepted' },
-            ].map((filter) => {
-              const isActive = statusFilter === filter.statusVal && acceptanceFilter === filter.acceptanceVal;
-              return (
-                <Button
-                  key={filter.key}
-                  variant={isActive ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setStatusFilter(filter.statusVal);
-                    setAcceptanceFilter(filter.acceptanceVal);
-                  }}
-                  className="text-xs"
-                >
-                  {filter.label}
-                </Button>
-              );
-            })}
-          </div>
-          {/* 排列方式切换 + 每页数量 */}
-          <div className="flex items-center gap-2 ml-auto">
+          {/* 第二行：排列方式 + 每页数量 */}
+          <div className="flex items-center gap-3">
             <select
-              className="text-sm border rounded-md px-2 py-1 bg-background text-foreground"
+              className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground"
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
             >
@@ -255,24 +257,25 @@ export default function CustomersPage() {
               <option value={0}>全部显示</option>
             </select>
             <div className="flex items-center gap-1 border rounded-lg p-0.5">
-            <Button
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setViewMode('list')}
-              title="列表视图"
-            >
-              <LayoutList className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setViewMode('grid')}
-              title="双列视图"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
+              <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setViewMode('list')}
+                title="列表视图"
+              >
+                <LayoutList className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setViewMode('grid')}
+                title="双列视图"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
