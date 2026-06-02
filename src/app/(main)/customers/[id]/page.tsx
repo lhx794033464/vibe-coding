@@ -695,7 +695,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>行业背景</Label>
+                      <Label>项目备注</Label>
                       <Input
                         value={editForm.industry}
                         onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
@@ -753,7 +753,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<TrendingUp className="w-4 h-4" />} label="实施费" value={customer.implementation_fee ? `${customer.implementation_fee.toLocaleString()} 元` : null} />
                     <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${parseFloat(customer.implementation_days).toFixed(2)} 天` : null} />
                     <InfoItem icon={<Calendar className="w-4 h-4" />} label="开通时间" value={customer.opened_at ? format(new Date(customer.opened_at), 'yyyy-MM-dd') : null} />
-                    <InfoItem icon={<Building className="w-4 h-4" />} label="行业背景" value={customer.industry} />
+                    <InfoItem icon={<Building className="w-4 h-4" />} label="项目备注" value={customer.industry} />
                     <InfoItem icon={<User className="w-4 h-4" />} label="交付顾问" value={(customer as any).delivery_consultant} />
                     <InfoItem icon={<User className="w-4 h-4" />} label="业务员" value={(customer as any).salesperson} />
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="实施类型" value={(customer as any).implementation_type} />

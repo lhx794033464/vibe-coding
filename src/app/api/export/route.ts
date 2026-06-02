@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       '开通时间': c.opened_at ? format(new Date(c.opened_at), 'yyyy-MM-dd') : '',
       '产品版本': c.version || '',
       '产品模块': c.modules ? c.modules.map((m: string) => String(m)).join('、') : '',
-      '行业背景': c.industry || '',
+      '项目备注': c.industry || '',
       '特殊要求': c.special_requirements || '',
       '状态': statusMap[c.status] || c.status,
       '最后跟进时间': c.last_follow_up_at || '',

@@ -29,7 +29,7 @@ export default function CustomersPage() {
   const [acceptanceFilter, setAcceptanceFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
-  // 腾讯文档获取相关状态
+  // 同步相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchData, setFetchData] = useState<{
@@ -38,6 +38,7 @@ export default function CustomersPage() {
     salesperson?: string; expiry_date?: string; sales_order_no?: string;
     implementation_order_no?: string; implementation_fee?: string;
     implementation_days?: string; version?: string;
+    acceptance_status?: string; industry?: string;
   }[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -76,7 +77,7 @@ export default function CustomersPage() {
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // 从腾讯文档获取客户信息
+  // 同步客户信息
   const handleFetchFromTencentDocs = async () => {
     setFetchLoading(true);
     setFetchData([]);
@@ -96,7 +97,7 @@ export default function CustomersPage() {
         alert(data.error || '获取失败');
       }
     } catch (error) {
-      console.error('获取腾讯文档客户信息失败:', error);
+      console.error('获取腾讯文档同步信息失败:', error);
       alert('获取失败，请检查网络连接');
     } finally {
       setFetchLoading(false);
@@ -183,7 +184,7 @@ export default function CustomersPage() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleFetchFromTencentDocs}>
               <FileSpreadsheet className="w-4 h-4 mr-2" />
-              腾讯文档获取
+              同步
             </Button>
             <Button onClick={() => router.push('/customers/new')}>
               <Plus className="w-4 h-4 mr-2" />
@@ -409,14 +410,14 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* 腾讯文档获取弹窗 */}
+      {/* 同步弹窗 */}
       {showFetchDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗标题 */}
             <div className="flex items-center justify-between p-4 border-b">
               <div>
-                <h3 className="text-lg font-semibold">从腾讯文档获取客户信息</h3>
+                <h3 className="text-lg font-semibold">从同步客户信息</h3>
                 <p className="text-sm text-gray-500 mt-0.5">
                   {fetchLoading ? '正在获取...' : fetchData.length > 0 ? `共获取到 ${fetchData.length} 条客户信息` : ''}
                 </p>
@@ -434,7 +435,7 @@ export default function CustomersPage() {
               {fetchLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
-                  <p className="text-gray-500">正在从腾讯文档获取客户数据...</p>
+                  <p className="text-gray-500">正在同步客户数据...</p>
                 </div>
               ) : importResult ? (
                 <div className="flex flex-col items-center justify-center py-12">
@@ -500,6 +501,8 @@ export default function CustomersPage() {
                             {item.implementation_days && <span>购买人天：{item.implementation_days}</span>}
                             {item.sales_order_no && <span>销售订单：{item.sales_order_no}</span>}
                             {item.implementation_order_no && <span>实施订单号：{item.implementation_order_no}</span>}
+                            {item.acceptance_status && <span>验收状态：{item.acceptance_status === 'accepted' ? '已验收' : item.acceptance_status === 'not_accepted' ? '未验收' : item.acceptance_status}</span>}
+                            {item.industry && <span>项目备注：{item.industry}</span>}
                           </div>
                         </div>
                       </label>

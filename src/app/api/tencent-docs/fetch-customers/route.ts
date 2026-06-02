@@ -27,9 +27,11 @@ const COL_PURCHASE_DAYS = 11;  // L: 购买人天
 // 14: 模块类型（不需要）
 const COL_MODULE = 15;         // P: 购买模块
 const COL_VERSION = 16;        // Q: 版本
+const COL_PROJECT_NOTES = 17;  // R: 项目备注
+const COL_IS_ACCEPTED = 18;    // S: 是否验收
 
 const READ_START_COL = 0;      // 从A列开始
-const READ_END_COL = 17;       // 读到Q列
+const READ_END_COL = 19;       // 读到S列
 
 
 
@@ -68,6 +70,17 @@ function mapOnlineStatus(rawValue: string): string {
   return 'not_online';
 }
 
+// 将腾讯文档"是否验收"列原始值映射为标准验收状态
+function mapAcceptanceStatus(rawValue: string): string {
+  const v = (rawValue || '').trim();
+  // 已验收的值
+  if (v === '是' || v === '已验收' || v === 'accepted' || v.toLowerCase() === 'yes' || v === '1') {
+    return 'accepted';
+  }
+  // 未验收（否、未验收、空值等）
+  return 'not_accepted';
+}
+
 // 从一行CSV数据中提取客户信息（字段名映射到数据库列名）
 function extractCustomerFromRow(cols: string[]) {
   return {
@@ -84,6 +97,8 @@ function extractCustomerFromRow(cols: string[]) {
     modules: cols[COL_MODULE] || '',                 // 购买模块
     version: cols[COL_VERSION] || '',                // 版本
     deliverer: cols[COL_DELIVERER] || '',
+    industry: cols[COL_PROJECT_NOTES] || '',          // 项目备注 → industry字段
+    acceptance_status: mapAcceptanceStatus(cols[COL_IS_ACCEPTED] || ''),  // 是否验收 → 验收状态
   };
 }
 
@@ -228,6 +243,8 @@ export async function POST(request: NextRequest) {
         setIfValue('implementation_type', customer.implementation_type || customer.implementationType);
         setIfValue('salesperson', customer.salesperson);
         setIfValue('expiry_date', customer.expiry_date || customer.expiryDate);
+        setIfValue('industry', customer.projectNotes || customer.industry);
+        setIfValue('acceptance_status', mapAcceptanceStatus(customer.acceptanceStatus || customer.acceptance_status));
 
         // 至少需要有客户名称
         if (!customerData.name) {
