@@ -262,10 +262,23 @@ export function DateRangePicker({
               onClick={() => {
                 const now = new Date();
                 const todayStr = formatDate(now);
-                onStartChange(todayStr);
-                onEndChange(todayStr);
-                setPhase('start');
-                setIsOpen(false);
+                if (startD && !endD) {
+                  // 已选起始日期，今天作为终止日期
+                  if (now < startD) {
+                    onStartChange(todayStr);
+                    onEndChange(formatDate(startD));
+                  } else {
+                    onEndChange(todayStr);
+                  }
+                  setPhase('start');
+                  setIsOpen(false);
+                } else {
+                  // 无起始日期，今天作为起止日期
+                  onStartChange(todayStr);
+                  onEndChange(todayStr);
+                  setPhase('start');
+                  setIsOpen(false);
+                }
               }}
               className="flex-1 text-xs py-1 text-center hover:bg-muted/50 rounded border"
             >
