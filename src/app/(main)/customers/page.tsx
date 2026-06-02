@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, AlertCircle, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
@@ -263,36 +265,47 @@ export default function CustomersPage() {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={consultantFilter} onChange={(e) => setFilterConsultant(e.target.value)}>
-                <option value="all">全部顾问</option>
-                {customers.filter(c => c.delivery_consultant).map(c => c.delivery_consultant as string).filter((v, i, a) => a.indexOf(v) === i).sort().map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={implTypeFilter} onChange={(e) => setFilterImplType(e.target.value)}>
-                <option value="all">全部类型</option>
-                <option value="一对一交付">一对一交付</option>
-                <option value="自助交付">自助交付</option>
-              </select>
-              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={onlineStatusFilter} onChange={(e) => setFilterOnlineStatus(e.target.value)}>
-                <option value="all">全部上线状态</option>
-                <option value="not_online">未上线</option>
-                <option value="online">已上线</option>
-                <option value="delayed">延期上线</option>
-              </select>
-              <select className="text-sm border rounded-md px-2 py-1.5 bg-background text-foreground" value={acceptanceStatusFilter} onChange={(e) => setFilterAcceptanceStatus(e.target.value)}>
-                <option value="all">全部验收状态</option>
-                <option value="not_accepted">未验收</option>
-                <option value="accepted">已验收</option>
-              </select>
-              <div className="flex items-center gap-1">
-                <Input type="date" className="text-sm h-8 w-[130px]" value={openedStartFilter} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterOpenDateStart(e.target.value)} placeholder="开通起始" />
-                <span className="text-muted-foreground text-xs">至</span>
-                <Input type="date" className="text-sm h-8 w-[130px]" value={openedEndFilter} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterOpenDateEnd(e.target.value)} placeholder="开通截止" />
-                {(openedStartFilter || openedEndFilter) && (
-                  <Button variant="ghost" size="sm" className="h-8 px-1 text-xs" onClick={() => { setFilterOpenDateStart(''); setFilterOpenDateEnd(''); }}>清除</Button>
-                )}
-              </div>
+              <SearchableSelect
+                options={customers.filter(c => c.delivery_consultant).map(c => c.delivery_consultant as string).filter((v, i, a) => a.indexOf(v) === i).sort().map(name => ({ value: name, label: name }))}
+                value={consultantFilter === 'all' ? '' : consultantFilter}
+                onChange={(v) => setFilterConsultant(v || 'all')}
+                placeholder="交付顾问"
+              />
+              <SearchableSelect
+                options={[
+                  { value: '一对一交付', label: '一对一交付' },
+                  { value: '自助交付', label: '自助交付' },
+                ]}
+                value={implTypeFilter === 'all' ? '' : implTypeFilter}
+                onChange={(v) => setFilterImplType(v || 'all')}
+                placeholder="实施类型"
+              />
+              <SearchableSelect
+                options={[
+                  { value: 'not_online', label: '未上线' },
+                  { value: 'online', label: '已上线' },
+                  { value: 'delayed', label: '延期上线' },
+                ]}
+                value={onlineStatusFilter === 'all' ? '' : onlineStatusFilter}
+                onChange={(v) => setFilterOnlineStatus(v || 'all')}
+                placeholder="上线状态"
+              />
+              <SearchableSelect
+                options={[
+                  { value: 'not_accepted', label: '未验收' },
+                  { value: 'accepted', label: '已验收' },
+                ]}
+                value={acceptanceStatusFilter === 'all' ? '' : acceptanceStatusFilter}
+                onChange={(v) => setFilterAcceptanceStatus(v || 'all')}
+                placeholder="验收状态"
+              />
+              <DateRangePicker
+                startDate={openedStartFilter}
+                endDate={openedEndFilter}
+                onStartChange={setFilterOpenDateStart}
+                onEndChange={setFilterOpenDateEnd}
+                placeholder="开通时间"
+              />
             </div>
           </div>
           {/* 第二行：排列方式 + 每页数量 */}

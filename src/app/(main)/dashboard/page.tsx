@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { 
   Users, 
   CheckCircle, 
@@ -243,25 +243,12 @@ export default function DashboardPage() {
             </SelectContent>
           </Select>
           {timeRange === 'custom' && (
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                max={customEndDate || undefined}
-              />
-              <span className="text-sm text-gray-400">至</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                min={customStartDate || undefined}
-                max={new Date().toISOString().split('T')[0]}
-              />
-            </div>
+            <DateRangePicker
+              startDate={customStartDate}
+              endDate={customEndDate}
+              onStartChange={setCustomStartDate}
+              onEndChange={setCustomEndDate}
+            />
           )}
         </div>
       </div>
@@ -518,11 +505,12 @@ export default function DashboardPage() {
                   </SelectContent>
                 </Select>
                 {distTimeRange === 'custom' && (
-                  <div className="flex items-center gap-1">
-                    <Input type="date" value={distStartDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDistStartDate(e.target.value)} className="w-32 h-7 text-xs" />
-                    <span className="text-xs text-muted-foreground">至</span>
-                    <Input type="date" value={distEndDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDistEndDate(e.target.value)} className="w-32 h-7 text-xs" />
-                  </div>
+                  <DateRangePicker
+                    startDate={distStartDate}
+                    endDate={distEndDate}
+                    onStartChange={setDistStartDate}
+                    onEndChange={setDistEndDate}
+                  />
                 )}
               </div>
             </div>
@@ -584,11 +572,12 @@ export default function DashboardPage() {
                   </SelectContent>
                 </Select>
                 {rankingTimeRange === 'custom' && (
-                  <div className="flex items-center gap-1">
-                    <Input type="date" value={rankingStartDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRankingStartDate(e.target.value)} className="w-32 h-7 text-xs" />
-                    <span className="text-xs text-muted-foreground">至</span>
-                    <Input type="date" value={rankingEndDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRankingEndDate(e.target.value)} className="w-32 h-7 text-xs" />
-                  </div>
+                  <DateRangePicker
+                    startDate={rankingStartDate}
+                    endDate={rankingEndDate}
+                    onStartChange={setRankingStartDate}
+                    onEndChange={setRankingEndDate}
+                  />
                 )}
                 <Select
                   value={rankingDimension}
