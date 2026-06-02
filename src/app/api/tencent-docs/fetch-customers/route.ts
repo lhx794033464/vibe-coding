@@ -254,6 +254,10 @@ export async function POST(request: NextRequest) {
         }
         const existing = existingMap.get(customerName);
         if (existing) {
+          // 已计提或部分计提的客户不同步，仅同步未计提的客户
+          if (existing.commission_status === '已计提' || existing.commission_status === '部分计提') {
+            continue;
+          }
           await dbUpdateCustomer(existing.id, customerData);
           updated++;
         } else {
