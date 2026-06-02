@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList, FileText, Eye, Clock, CheckCheck } from 'lucide-react';
 import { CommissionCalculation } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -80,6 +80,15 @@ export default function CommissionsPage() {
   // 详情弹窗
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [detailReport, setDetailReport] = useState<CommissionReport | null>(null);
+
+  // 管理员标签切换
+  const [adminTab, setAdminTab] = useState<'pending' | 'reviewed'>('pending');
+
+  // 验收单预览
+  const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
+  const [previewDocName, setPreviewDocName] = useState('');
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     fetchCommissions();
@@ -554,6 +563,44 @@ export default function CommissionsPage() {
     }
   };
 
+  // 预览验收单
+  const handlePreviewDoc = async (customerId: string, customerName: string) => {
+    setPreviewDocName(customerName);
+    setPreviewLoading(true);
+    setPreviewDialogOpen(true);
+    setPreviewDocUrl(null);
+    try {
+      const response = await fetch(`/api/acceptance-doc/view?customer_id=${customerId}`, {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await response.json();
+      if (data.has_doc && data.url) {
+        setPreviewDocUrl(data.url);
+      } else {
+        setPreviewDocUrl(null);
+      }
+    } catch {
+      setPreviewDocUrl(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // 按交付顾问分组提成申报
+  const groupReportsByConsultant = (reportList: CommissionReport[]) => {
+    const grouped: Record<string, { report: CommissionReport; details: CommissionCalculation[] }> = {};
+    reportList.forEach(report => {
+      const key = report.username;
+      if (!grouped[key]) {
+        grouped[key] = { report, details: [] };
+      }
+      if (Array.isArray(report.commission_details)) {
+        grouped[key].details.push(...report.commission_details);
+      }
+    });
+    return Object.entries(grouped);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -623,19 +670,40 @@ export default function CommissionsPage() {
         </Button>
       </div>
 
-      {/* 管理员审核区域 */}
-      {isAdmin && (
+      {/* 管理员视图 */}
+      {isAdmin ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold">提成申报审核</h2>
-            {reports.filter(r => r.status === 'pending').length > 0 && (
-              <Badge className="bg-red-100 text-red-800 border-red-300">
-                {reports.filter(r => r.status === 'pending').length} 条待审核
-              </Badge>
-            )}
+          {/* 标签切换 */}
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+            <button
+              onClick={() => setAdminTab('pending')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                adminTab === 'pending'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              待审核
+              {reports.filter(r => r.status === 'pending').length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-xs bg-destructive/10 text-destructive rounded-full">
+                  {reports.filter(r => r.status === 'pending').length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setAdminTab('reviewed')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                adminTab === 'reviewed'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <CheckCheck className="w-4 h-4" />
+              已审核
+            </button>
           </div>
-          
+
           {reportsLoading ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
@@ -643,64 +711,51 @@ export default function CommissionsPage() {
                 加载中...
               </CardContent>
             </Card>
-          ) : reports.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-gray-500">
-                本月暂无提成申报
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {reports.map((report) => (
-                <Card key={report.id} className={
-                  report.status === 'pending' ? 'border-yellow-200 bg-yellow-50/30' :
-                  report.status === 'approved' ? 'border-green-200 bg-green-50/30' :
-                  'border-red-200 bg-red-50/30'
-                }>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-semibold text-gray-900">{report.username}</h3>
-                          {getStatusBadge(report.status)}
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <p className="text-gray-500">应提总额</p>
-                            <p className="font-medium">¥{Number(report.total_commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          ) : (() => {
+            const filteredReports = adminTab === 'pending'
+              ? reports.filter(r => r.status === 'pending')
+              : reports.filter(r => r.status === 'approved' || r.status === 'rejected');
+
+            if (filteredReports.length === 0) {
+              return (
+                <Card>
+                  <CardContent className="py-8 text-center text-gray-500">
+                    {adminTab === 'pending' ? '暂无待审核的提成申报' : '暂无已审核的提成申报'}
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            const grouped = groupReportsByConsultant(filteredReports);
+
+            return (
+              <div className="space-y-4">
+                {grouped.map(([consultantName, { report, details }]) => {
+                  const pendingCount = details.length;
+                  const totalAmount = details.reduce((s, d) => s + (d.implementationFee || 0), 0);
+                  const totalDays = details.reduce((s, d) => s + (d.implementationDays || 0), 0);
+                  const totalCommission = details.reduce((s, d) => s + (d.totalCommission || 0), 0);
+
+                  return (
+                    <Card key={consultantName} className="overflow-hidden">
+                      {/* 顾问头部 */}
+                      <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                            {consultantName.charAt(0)}
                           </div>
                           <div>
-                            <p className="text-gray-500">已提金额</p>
-                            <p className="font-medium text-green-600">¥{Number(report.paid_commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">待提金额</p>
-                            <p className="font-medium text-orange-600">¥{Number(report.remaining_commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            <h3 className="font-semibold text-sm">{consultantName}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              {pendingCount}个客户 · 实施金额 ¥{totalAmount.toLocaleString()} · 计提人天 {totalDays.toFixed(1)}天 · 计提金额 ¥{totalCommission.toFixed(2)}
+                            </p>
                           </div>
                         </div>
-                        <div className="mt-2 text-xs text-gray-500">
-                          申报时间: {format(new Date(report.created_at), 'yyyy-MM-dd HH:mm')}
-                          {report.reviewed_at && ` | 审核时间: ${format(new Date(report.reviewed_at), 'yyyy-MM-dd HH:mm')}`}
-                          {report.reviewed_by && ` | 审核人: ${report.reviewed_by}`}
-                          {report.review_comment && ` | 备注: ${report.review_comment}`}
-                        </div>
-                      </div>
-                      <div className="ml-4 flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setDetailReport(report);
-                            setDetailDialogOpen(true);
-                          }}
-                        >
-                          查看详情
-                        </Button>
                         {report.status === 'pending' && (
-                          <>
+                          <div className="flex items-center gap-2">
                             <Button
                               size="sm"
-                              className="bg-green-600 hover:bg-green-700"
+                              className="bg-green-600 hover:bg-green-700 h-7 text-xs"
                               onClick={() => {
                                 setReviewingReport(report);
                                 setReviewAction('approved');
@@ -708,12 +763,13 @@ export default function CommissionsPage() {
                                 setReviewDialogOpen(true);
                               }}
                             >
-                              <CheckCircle className="w-4 h-4 mr-1" />
+                              <CheckCircle className="w-3.5 h-3.5 mr-1" />
                               通过
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
+                              className="h-7 text-xs"
                               onClick={() => {
                                 setReviewingReport(report);
                                 setReviewAction('rejected');
@@ -721,239 +777,262 @@ export default function CommissionsPage() {
                                 setReviewDialogOpen(true);
                               }}
                             >
-                              <XCircle className="w-4 h-4 mr-1" />
+                              <XCircle className="w-3.5 h-3.5 mr-1" />
                               驳回
                             </Button>
-                          </>
+                          </div>
+                        )}
+                        {(report.status === 'approved' || report.status === 'rejected') && (
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(report.status)}
+                            {report.review_comment && (
+                              <span className="text-xs text-muted-foreground max-w-[200px] truncate" title={report.review_comment}>
+                                {report.review_comment}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+
+                      {/* 客户明细列表 */}
+                      <div className="divide-y">
+                        {details.map((detail, idx) => (
+                          <div key={idx} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <span className="text-xs text-muted-foreground w-5 shrink-0">{idx + 1}</span>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="text-sm font-medium truncate">{detail.customerName}</span>
+                                {detail.modulesLabel && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                    {detail.modulesLabel}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-6 shrink-0 text-sm">
+                              <div className="text-right w-24">
+                                <p className="text-[10px] text-muted-foreground leading-tight">实施金额</p>
+                                <p className="font-medium text-xs">¥{(detail.implementationFee || 0).toLocaleString()}</p>
+                              </div>
+                              <div className="text-right w-16">
+                                <p className="text-[10px] text-muted-foreground leading-tight">计提人天</p>
+                                <p className="font-medium text-xs">{(detail.implementationDays || 0).toFixed(1)}天</p>
+                              </div>
+                              <div className="text-right w-24">
+                                <p className="text-[10px] text-muted-foreground leading-tight">计提金额</p>
+                                <p className="font-medium text-xs text-primary">¥{(detail.totalCommission || 0).toFixed(2)}</p>
+                              </div>
+                              <div className="w-12 flex justify-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  title="预览验收单"
+                                  onClick={() => handlePreviewDoc(detail.customerId, detail.customerName)}
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
-      )}
+      ) : (
+        <>
+          {/* 普通用户统计卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">应提总额</p>
+                    <p className="text-2xl font-bold text-gray-900">¥{totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">已提金额</p>
+                    <p className="text-2xl font-bold text-green-600">¥{totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">待提金额</p>
+                    <p className="text-2xl font-bold text-orange-600">¥{totalRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">应提总额</p>
-                <p className="text-2xl font-bold text-gray-900">¥{totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">已提金额</p>
-                <p className="text-2xl font-bold text-green-600">¥{totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">待提金额</p>
-                <p className="text-2xl font-bold text-orange-600">¥{totalRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          {/* 普通用户提成列表 */}
+          <div className="space-y-4">
+            {commissions.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-gray-500">
+                  本月暂无验收完成的客户
+                </CardContent>
+              </Card>
+            ) : (
+              commissions.map((commission) => (
+                <Card key={commission.customerId}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        {/* 客户名称和模块 */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-gray-900">{commission.customerName}</h3>
+                          {commission.modules && Array.isArray(commission.modules) && commission.modules.length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {commission.modulesLabel}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {/* 提成详情 */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-gray-500">实施费</p>
+                            <p className="font-medium">¥{(commission.implementationFee || 0).toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">实施人天</p>
+                            <p className="font-medium">{(commission.implementationDays || 0).toFixed(2)} 天</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">提成类型</p>
+                            <p className="font-medium">
+                              {commission.commissionType === 'percentage' 
+                                ? `按比例 (${((commission.commissionRate || 0) * 100).toFixed(0)}%)` 
+                                : '按天计算'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">验收时间</p>
+                            <p className="font-medium">{commission.acceptedAt ? format(new Date(commission.acceptedAt), 'yyyy-MM-dd') : '-'}</p>
+                          </div>
+                        </div>
 
-      {/* 提成列表 */}
-      <div className="space-y-4">
-        {commissions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center text-gray-500">
-              本月暂无验收完成的客户
-            </CardContent>
-          </Card>
-        ) : (
-          commissions.map((commission) => (
-            <Card key={commission.customerId}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    {/* 客户名称和模块 */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-gray-900">{commission.customerName}</h3>
-                      {commission.modules && Array.isArray(commission.modules) && commission.modules.length > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          {commission.modulesLabel}
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    {/* 提成详情 */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">实施费</p>
-                        <p className="font-medium">¥{(commission.implementationFee || 0).toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">实施人天</p>
-                        <p className="font-medium">{(commission.implementationDays || 0).toFixed(2)} 天</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">提成类型</p>
-                        <p className="font-medium">
-                          {commission.commissionType === 'percentage' 
-                            ? `按比例 (${((commission.commissionRate || 0) * 100).toFixed(0)}%)` 
-                            : '按天计算'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">验收时间</p>
-                        <p className="font-medium">{commission.acceptedAt ? format(new Date(commission.acceptedAt), 'yyyy-MM-dd') : '-'}</p>
-                      </div>
-                    </div>
-
-                    {/* 提成进度 */}
-                    <div className="mt-3">
-                      {commission.commissionType === 'daily' ? (
-                        // 按天计算时显示人天进度
-                        (() => {
-                          // 使用后端返回的人天数据
-                          const paidFinanceDays = commission.paidFinanceDays || 0;
-                          const paidOtherDays = commission.paidOtherDays || 0;
-                          const financeMaxDays = commission.financeMaxDays || 0;
-                          const otherMaxDays = commission.otherMaxDays || 0;
-                          const totalPaidDays = paidFinanceDays + paidOtherDays;
-                          const totalMaxDays = commission.totalMaxDays || commission.implementationDays;
-                          const progressPercent = totalMaxDays > 0 ? (totalPaidDays / totalMaxDays) * 100 : 0;
-                          
-                          return (
+                        {/* 提成进度 */}
+                        <div className="mt-3">
+                          {commission.commissionType === 'daily' ? (
+                            (() => {
+                              const paidFinanceDays = commission.paidFinanceDays || 0;
+                              const paidOtherDays = commission.paidOtherDays || 0;
+                              const totalPaidDays = paidFinanceDays + paidOtherDays;
+                              const totalMaxDays = commission.totalMaxDays || commission.implementationDays;
+                              const progressPercent = totalMaxDays > 0 ? (totalPaidDays / totalMaxDays) * 100 : 0;
+                              return (
+                                <>
+                                  <div className="flex items-center justify-between text-sm mb-1">
+                                    <span className="text-gray-500">提成进度（人天）</span>
+                                    <span className="font-medium">
+                                      {totalPaidDays.toFixed(1)}天 / {totalMaxDays.toFixed(1)}天
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(progressPercent, 100)}%` }}></div>
+                                  </div>
+                                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>财务: {paidFinanceDays.toFixed(1)}天</span>
+                                    <span>其他: {paidOtherDays.toFixed(1)}天</span>
+                                  </div>
+                                </>
+                              );
+                            })()
+                          ) : (
                             <>
                               <div className="flex items-center justify-between text-sm mb-1">
-                                <span className="text-gray-500">提成进度（人天）</span>
+                                <span className="text-gray-500">提成进度</span>
                                 <span className="font-medium">
-                                  {totalPaidDays.toFixed(1)}天 / {totalMaxDays.toFixed(1)}天
+                                  ¥{(commission.paidCommission || 0).toFixed(2)} / ¥{(commission.totalCommission || 0).toFixed(2)}
                                 </span>
                               </div>
                               <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-green-500 h-2 rounded-full transition-all"
-                                  style={{ width: `${Math.min(progressPercent, 100)}%` }}
-                                ></div>
-                              </div>
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>财务: {paidFinanceDays.toFixed(1)}天</span>
-                                <span>其他: {paidOtherDays.toFixed(1)}天</span>
+                                <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(((commission.paidCommission || 0) / (commission.totalCommission || 1)) * 100, 100)}%` }}></div>
                               </div>
                             </>
-                          );
-                        })()
-                      ) : (
-                        // 按比例计算时显示金额进度
-                        <>
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-gray-500">提成进度</span>
-                            <span className="font-medium">
-                              ¥{(commission.paidCommission || 0).toFixed(2)} / ¥{(commission.totalCommission || 0).toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-green-500 h-2 rounded-full transition-all"
-                              style={{ width: `${Math.min(((commission.paidCommission || 0) / (commission.totalCommission || 1)) * 100, 100)}%` }}
-                            ></div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 计提按钮 */}
-                  <div className="ml-4 flex flex-col items-end gap-2">
-                    <div className="flex items-center gap-2">
-                      {/* 标记已计提 */}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        title="标记已计提"
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={() => handleMarkCommissioned(commission)}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </Button>
-                      {/* 设置下次计提时间 - 只有还有剩余时才显示 */}
-                      {hasRemainingCommission(commission) && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          title="设置下次计提时间"
-                          onClick={() => openScheduleDialog(commission)}
-                        >
-                          <Bell className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button
-                        onClick={() => openCommissionDialog(commission)}
-                        disabled={!hasRemainingCommission(commission)}
-                      >
-                        计提提成
-                      </Button>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {(() => {
-                        const remainingDays = getListRemainingDays(commission);
-                        return `剩余: ${remainingDays.toFixed(1)}天`;
-                      })()}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 已提记录 */}
-                {commission.records && commission.records.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm text-gray-500 mb-2">已提记录:</p>
-                    <div className="space-y-1">
-                      {commission.records.map((record: { id: string; amount: string; remark: string | null; created_at: string }) => (
-                        <div key={record.id} className="flex items-center justify-between text-sm group">
-                          <span className="text-gray-600">
-                            {format(new Date(record.created_at), 'yyyy-MM-dd HH:mm')}
-                            {record.remark && ` - ${record.remark}`}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-green-600">+¥{parseFloat(record.amount).toFixed(2)}</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => openDeleteDialog(record.id, commission.customerId)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          )}
                         </div>
-                      ))}
+                      </div>
+
+                      {/* 计提按钮 */}
+                      <div className="ml-4 flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="icon" title="标记已计提" className="text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleMarkCommissioned(commission)}>
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
+                          {hasRemainingCommission(commission) && (
+                            <Button variant="outline" size="icon" title="设置下次计提时间" onClick={() => openScheduleDialog(commission)}>
+                              <Bell className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button onClick={() => openCommissionDialog(commission)} disabled={!hasRemainingCommission(commission)}>
+                            计提提成
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {(() => {
+                            const remainingDays = getListRemainingDays(commission);
+                            return `剩余: ${remainingDays.toFixed(1)}天`;
+                          })()}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+
+                    {/* 已提记录 */}
+                    {commission.records && commission.records.length > 0 && (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-sm text-gray-500 mb-2">已提记录:</p>
+                        <div className="space-y-1">
+                          {commission.records.map((record: { id: string; amount: string; remark: string | null; created_at: string }) => (
+                            <div key={record.id} className="flex items-center justify-between text-sm group">
+                              <span className="text-gray-600">
+                                {format(new Date(record.created_at), 'yyyy-MM-dd HH:mm')}
+                                {record.remark && ` - ${record.remark}`}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-green-600">+¥{parseFloat(record.amount).toFixed(2)}</span>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => openDeleteDialog(record.id, commission.customerId)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </>
+      )}
 
       {/* 提成对话框 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -1308,86 +1387,33 @@ export default function CommissionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 申报详情对话框 */}
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+      {/* 验收单预览对话框 */}
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh]">
           <DialogHeader>
-            <DialogTitle>提成申报详情</DialogTitle>
-            <DialogDescription>
-              {detailReport && (
-                <>
-                  {detailReport.username} - {format(new Date(detailReport.month + '-01'), 'yyyy年M月')} 提成申报
-                </>
-              )}
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              验收单 - {previewDocName}
+            </DialogTitle>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            {detailReport && (
-              <>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <p className="text-xs text-gray-500">应提总额</p>
-                    <p className="text-lg font-bold">¥{Number(detailReport.total_commission).toFixed(2)}</p>
-                  </div>
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <p className="text-xs text-gray-500">已提金额</p>
-                    <p className="text-lg font-bold text-green-600">¥{Number(detailReport.paid_commission).toFixed(2)}</p>
-                  </div>
-                  <div className="p-3 bg-orange-50 rounded-lg">
-                    <p className="text-xs text-gray-500">待提金额</p>
-                    <p className="text-lg font-bold text-orange-600">¥{Number(detailReport.remaining_commission).toFixed(2)}</p>
-                  </div>
-                </div>
-
-                {Array.isArray(detailReport.commission_details) && detailReport.commission_details.length > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium text-gray-700">客户提成明细:</p>
-                    {detailReport.commission_details.map((detail: CommissionCalculation, idx: number) => (
-                      <div key={idx} className="p-3 bg-gray-50 rounded-lg border">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{detail.customerName}</span>
-                            {detail.modulesLabel && (
-                              <Badge variant="outline" className="text-xs">{detail.modulesLabel}</Badge>
-                            )}
-                          </div>
-                          <span className="text-sm text-gray-500">
-                            {detail.commissionType === 'percentage' ? '按比例' : '按天计算'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-gray-500">实施费: </span>
-                            <span>¥{(detail.implementationFee || 0).toLocaleString()}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">实施人天: </span>
-                            <span>{(detail.implementationDays || 0).toFixed(1)}天</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">应提金额: </span>
-                            <span className="text-blue-600">¥{(detail.totalCommission || 0).toFixed(2)}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">已提金额: </span>
-                            <span className="text-green-600">¥{(detail.paidCommission || 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">无明细数据</p>
-                )}
-
-                {detailReport.review_comment && (
-                  <div className="p-3 bg-gray-50 rounded-lg border">
-                    <p className="text-sm text-gray-500">审核备注</p>
-                    <p className="text-sm mt-1">{detailReport.review_comment}</p>
-                  </div>
-                )}
-              </>
+          <div className="flex-1 overflow-auto py-2">
+            {previewLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">加载中...</span>
+              </div>
+            ) : previewDocUrl ? (
+              <iframe
+                src={previewDocUrl}
+                className="w-full border rounded-lg"
+                style={{ height: '60vh' }}
+                title="验收单预览"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <FileText className="w-12 h-12 mb-3 opacity-30" />
+                <p>该客户暂未上传验收单</p>
+              </div>
             )}
           </div>
         </DialogContent>
