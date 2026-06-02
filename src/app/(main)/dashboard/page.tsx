@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { 
   Users, 
   CheckCircle, 
@@ -80,6 +81,30 @@ export default function DashboardPage() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
+  const [distTimeRange, setDistTimeRange] = useState<TimeRange>('all');
+  const [distStartDate, setDistStartDate] = useState('');
+  const [distEndDate, setDistEndDate] = useState('');
+  const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
+
+  const fetchDistribution = async () => {
+    try {
+      let url = `/api/dashboard?timeRange=${distTimeRange}`;
+      if (distTimeRange === 'custom' && distStartDate && distEndDate) {
+        url += `&startDate=${distStartDate}&endDate=${distEndDate}`;
+      }
+      const response = await fetch(url, { headers: { ...getAuthHeader() } });
+      const data = await response.json();
+      if (response.ok && data.consultantDistribution) {
+        setDistData(data.consultantDistribution);
+      }
+    } catch (error) {
+      console.error('获取人天分布数据失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) fetchDistribution();
+  }, [isAdmin, distTimeRange, distStartDate, distEndDate]);
 
   useEffect(() => {
     fetchStats();
@@ -431,16 +456,38 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* 项目人天分布表 */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-gray-400" />
-              项目人天分布
-            </CardTitle>
+          <CardHeader className="flex flex-col gap-3 space-y-0">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-gray-400" />
+                项目人天分布
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Select value={distTimeRange} onValueChange={(v) => setDistTimeRange(v as TimeRange)}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="month">本月</SelectItem>
+                    <SelectItem value="year">本年</SelectItem>
+                    <SelectItem value="custom">自定义</SelectItem>
+                  </SelectContent>
+                </Select>
+                {distTimeRange === 'custom' && (
+                  <div className="flex items-center gap-1">
+                    <Input type="date" value={distStartDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDistStartDate(e.target.value)} className="w-32 h-7 text-xs" />
+                    <span className="text-xs text-muted-foreground">至</span>
+                    <Input type="date" value={distEndDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDistEndDate(e.target.value)} className="w-32 h-7 text-xs" />
+                  </div>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {stats.consultantDistribution && stats.consultantDistribution.length > 0 ? (
+            {distData && distData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={stats.consultantDistribution} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <ComposedChart data={distData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                   <YAxis yAxisId="left" label={{ value: '项目数', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
