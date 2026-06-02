@@ -821,11 +821,19 @@ export default function CommissionsPage() {
                       {/* 客户明细列表 */}
                       {!collapsedConsultants.has(consultantName) && (
                       <div className="divide-y">
-                        {details.map((detail, idx) => (
-                          <div key={idx} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className="text-xs text-muted-foreground w-5 shrink-0">{idx + 1}</span>
+                        {details.map((detail, idx) => {
+                          const fee = detail.implementationFee || 0;
+                          const days = detail.implementationDays || 0;
+                          const discount = days > 0 ? (fee / (1500 * days)) * 100 : 0;
+                          const isDaily = detail.commissionType === 'daily';
+                          const financeDays = isDaily ? (detail.financeMaxDays || 0) : 0;
+                          const otherDays = isDaily ? (detail.otherMaxDays || 0) : 0;
+
+                          return (
+                          <div key={idx} className="px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                            <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="text-xs text-muted-foreground w-5 shrink-0">{idx + 1}</span>
                                 <span className="text-sm font-medium truncate">{detail.customerName}</span>
                                 {detail.modulesLabel && (
                                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
@@ -833,21 +841,7 @@ export default function CommissionsPage() {
                                   </Badge>
                                 )}
                               </div>
-                            </div>
-                            <div className="flex items-center gap-6 shrink-0 text-sm">
-                              <div className="text-right w-24">
-                                <p className="text-[10px] text-muted-foreground leading-tight">实施金额</p>
-                                <p className="font-medium text-xs">¥{(detail.implementationFee || 0).toLocaleString()}</p>
-                              </div>
-                              <div className="text-right w-16">
-                                <p className="text-[10px] text-muted-foreground leading-tight">计提人天</p>
-                                <p className="font-medium text-xs">{(detail.implementationDays || 0).toFixed(1)}天</p>
-                              </div>
-                              <div className="text-right w-24">
-                                <p className="text-[10px] text-muted-foreground leading-tight">计提金额</p>
-                                <p className="font-medium text-xs text-primary">¥{(detail.totalCommission || 0).toFixed(2)}</p>
-                              </div>
-                              <div className="w-12 flex justify-center">
+                              <div className="w-10 flex justify-center shrink-0">
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -859,8 +853,39 @@ export default function CommissionsPage() {
                                 </Button>
                               </div>
                             </div>
+                            <div className="flex items-center gap-4 mt-1.5 pl-7 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">实施金额</span>
+                                <span className="ml-1 font-medium">¥{fee.toLocaleString()}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">购买人天</span>
+                                <span className="ml-1 font-medium">{days.toFixed(1)}天</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">实施折扣</span>
+                                <span className={`ml-1 font-medium ${discount > 50 ? 'text-primary' : 'text-orange-500'}`}>{discount.toFixed(2)}%</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">计提人天</span>
+                                {isDaily && (financeDays > 0 || otherDays > 0) ? (
+                                  <span className="ml-1 font-medium">
+                                    {financeDays > 0 && <span>财务{financeDays.toFixed(1)}天</span>}
+                                    {financeDays > 0 && otherDays > 0 && <span className="text-muted-foreground"> + </span>}
+                                    {otherDays > 0 && <span>其他{otherDays.toFixed(1)}天</span>}
+                                  </span>
+                                ) : (
+                                  <span className="ml-1 font-medium">{days.toFixed(1)}天</span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">计提金额</span>
+                                <span className="ml-1 font-medium text-primary">¥{(detail.totalCommission || 0).toFixed(2)}</span>
+                              </div>
+                            </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       )}
                     </Card>
