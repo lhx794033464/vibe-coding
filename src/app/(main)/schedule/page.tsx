@@ -419,29 +419,6 @@ export default function SchedulePage() {
                         <span className="text-xs text-gray-500">{dateStatus.holidayName}</span>
                       </div>
                     )}
-
-                    {/* 管理员视图：简要显示顾问日程数 */}
-                    <div className="px-2 pb-2 space-y-0.5">
-                      {!isWeekendOrHoliday && dailySummary[dateStr]?.consultantSchedules?.slice(0, 4).map((cs) => (
-                        <div key={cs.userId} className="text-xs flex items-center justify-between">
-                          <span className="text-gray-600 truncate">{cs.userName}</span>
-                          <span className={cn(
-                            'font-medium ml-1',
-                            cs.count >= 2 ? 'text-green-600' : cs.count > 0 ? 'text-yellow-600' : 'text-red-500'
-                          )}>
-                            {cs.count}
-                          </span>
-                        </div>
-                      ))}
-                      {!isWeekendOrHoliday && dailySummary[dateStr]?.consultantSchedules?.length > 4 && (
-                        <div className="text-xs text-gray-400">
-                          +{dailySummary[dateStr].consultantSchedules.length - 4} 更多
-                        </div>
-                      )}
-                      {!isWeekendOrHoliday && !dailySummary[dateStr] && activeConsultants.length > 0 && (
-                        <div className="text-xs text-green-500">余{activeConsultants.length * 2}</div>
-                      )}
-                    </div>
                   </div>
                 );
               }
@@ -639,74 +616,83 @@ export default function SchedulePage() {
 
       {/* 管理员：日期排期详情对话框 */}
       <Dialog open={showSummaryDetail} onOpenChange={setShowSummaryDetail}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              排期详情 - {summaryDetailDate}
-            </DialogTitle>
-            <DialogDescription>
-              查看所有顾问的排期情况
-            </DialogDescription>
-          </DialogHeader>
+        <div className="relative">
+          <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto [&>button]:hidden">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                排期详情 - {summaryDetailDate}
+              </DialogTitle>
+              <DialogDescription>
+                查看所有顾问的排期情况
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-2 mt-2">
-            {activeConsultants.map((consultant) => {
-              const consultantSchedules = getSchedulesForDateAndUser(summaryDetailDate, consultant.id);
-              const count = consultantSchedules.length;
-              const isExpanded = expandedConsultant === consultant.id;
+            <div className="space-y-2 mt-2">
+              {activeConsultants.map((consultant) => {
+                const consultantSchedules = getSchedulesForDateAndUser(summaryDetailDate, consultant.id);
+                const count = consultantSchedules.length;
+                const isExpanded = expandedConsultant === consultant.id;
 
-              return (
-                <div key={consultant.id} className="border rounded-lg overflow-hidden">
-                  <div
-                    className={cn(
-                      'flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors',
-                      count >= 2 ? 'bg-red-50' : 'bg-green-50'
-                    )}
-                    onClick={() => setExpandedConsultant(isExpanded ? null : consultant.id)}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                return (
+                  <div key={consultant.id} className="border rounded-lg overflow-hidden">
+                    <div
+                      className={cn(
+                        'flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors',
+                        count >= 2 ? 'bg-red-50' : 'bg-green-50'
                       )}
-                      <span className="font-medium text-gray-800">{consultant.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        'text-sm font-medium',
-                        count >= 2 ? 'text-red-600' : 'text-green-600'
-                      )}>
-                        {count}/2
-                      </span>
-                      {count < 2 && (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
-                          余{2 - count}
+                      onClick={() => setExpandedConsultant(isExpanded ? null : consultant.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
+                        )}
+                        <span className="font-medium text-gray-800">{consultant.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          'text-sm font-medium',
+                          count >= 2 ? 'text-red-600' : 'text-green-600'
+                        )}>
+                          {count}/2
                         </span>
-                      )}
+                        {count < 2 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
+                            余{2 - count}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    
+                    {isExpanded && (
+                      <div className="p-3 bg-white border-t space-y-1.5">
+                        {consultantSchedules.length === 0 ? (
+                          <p className="text-sm text-gray-400">暂无排期</p>
+                        ) : (
+                          consultantSchedules.map(s => (
+                            <div key={s.id} className="flex items-center justify-between text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded">
+                              <span>{s.customer_name || '未知客户'}</span>
+                              {s.notes && <span className="text-gray-400 ml-2 text-xs">{s.notes}</span>}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
-                  
-                  {isExpanded && (
-                    <div className="p-3 bg-white border-t space-y-1.5">
-                      {consultantSchedules.length === 0 ? (
-                        <p className="text-sm text-gray-400">暂无排期</p>
-                      ) : (
-                        consultantSchedules.map(s => (
-                          <div key={s.id} className="flex items-center justify-between text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded">
-                            <span>{s.customer_name || '未知客户'}</span>
-                            {s.notes && <span className="text-gray-400 ml-2 text-xs">{s.notes}</span>}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </DialogContent>
+                );
+              })}
+            </div>
+          </DialogContent>
+          {/* 关闭按钮放在弹窗外部 */}
+          <button
+            onClick={() => setShowSummaryDetail(false)}
+            className="absolute -top-2 -right-2 z-50 w-8 h-8 rounded-full bg-white border border-gray-300 shadow-md flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </Dialog>
 
       {/* 添加日程对话框（普通用户） */}
