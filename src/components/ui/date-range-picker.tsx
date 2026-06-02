@@ -92,6 +92,8 @@ export function DateRangePicker({
     }
   }, [phase, viewYear, viewMonth, startD, onStartChange, onEndChange]);
 
+  const [showYearPicker, setShowYearPicker] = useState(false);
+
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
     else setViewMonth(viewMonth - 1);
@@ -101,6 +103,9 @@ export function DateRangePicker({
     if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
     else setViewMonth(viewMonth + 1);
   };
+
+  const prevYear = () => setViewYear(viewYear - 1);
+  const nextYear = () => setViewYear(viewYear + 1);
 
   const clearValue = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -167,18 +172,55 @@ export function DateRangePicker({
             {phase === 'start' ? '请选择起始日期' : '请选择终止日期'}
           </div>
 
-          {/* Month navigation */}
+          {/* Month/Year navigation */}
           <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={prevMonth} className="p-1 hover:bg-muted/50 rounded">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-sm font-medium">
+            <div className="flex items-center gap-0.5">
+              <button type="button" onClick={prevYear} className="p-1 hover:bg-muted/50 rounded" title="上一年">
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-3.5 h-3.5 -ml-2" />
+              </button>
+              <button type="button" onClick={prevMonth} className="p-1 hover:bg-muted/50 rounded" title="上一月">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowYearPicker(!showYearPicker)}
+              className="text-sm font-medium hover:bg-muted/50 rounded px-2 py-0.5"
+            >
               {viewYear}年{viewMonth + 1}月
-            </span>
-            <button type="button" onClick={nextMonth} className="p-1 hover:bg-muted/50 rounded">
-              <ChevronRight className="w-4 h-4" />
             </button>
+            <div className="flex items-center gap-0.5">
+              <button type="button" onClick={nextMonth} className="p-1 hover:bg-muted/50 rounded" title="下一月">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={nextYear} className="p-1 hover:bg-muted/50 rounded" title="下一年">
+                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-3.5 h-3.5 -ml-2" />
+              </button>
+            </div>
           </div>
+
+          {/* Year picker overlay */}
+          {showYearPicker && (
+            <div className="mb-2">
+              <div className="grid grid-cols-4 gap-1">
+                {Array.from({ length: 12 }, (_, i) => {
+                  const y = viewYear - 4 + i;
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => { setViewYear(y); setShowYearPicker(false); }}
+                      className={`text-xs py-1.5 rounded hover:bg-muted/50 ${y === viewYear ? 'bg-primary text-primary-foreground font-medium' : ''}`}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Weekday headers */}
           <div className="grid grid-cols-7 gap-0 mb-1">
@@ -216,46 +258,21 @@ export function DateRangePicker({
             })}
           </div>
 
-          {/* Quick actions */}
+          {/* Quick action */}
           <div className="flex gap-1 mt-2 pt-2 border-t">
             <button
               type="button"
               onClick={() => {
                 const now = new Date();
-                onStartChange(formatDate(new Date(now.getFullYear(), now.getMonth(), 1)));
-                onEndChange(formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
+                const todayStr = formatDate(now);
+                onStartChange(todayStr);
+                onEndChange(todayStr);
                 setPhase('start');
                 setIsOpen(false);
               }}
               className="flex-1 text-xs py-1 text-center hover:bg-muted/50 rounded border"
             >
-              本月
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const now = new Date();
-                onStartChange(formatDate(new Date(now.getFullYear(), 0, 1)));
-                onEndChange(formatDate(new Date(now.getFullYear(), 11, 31)));
-                setPhase('start');
-                setIsOpen(false);
-              }}
-              className="flex-1 text-xs py-1 text-center hover:bg-muted/50 rounded border"
-            >
-              本年
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const now = new Date();
-                onStartChange(formatDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
-                onEndChange(formatDate(new Date(now.getFullYear(), now.getMonth(), 0)));
-                setPhase('start');
-                setIsOpen(false);
-              }}
-              className="flex-1 text-xs py-1 text-center hover:bg-muted/50 rounded border"
-            >
-              上月
+              今天
             </button>
           </div>
         </div>
