@@ -74,22 +74,43 @@ const initialStats: DashboardStats = {
 
 export default function DashboardPage() {
   const { getAuthHeader, isAdmin } = useAuth();
+
+  // 从 localStorage 恢复日期记忆
+  const getStoredDates = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem('dashboard_date_memory');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  };
+
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [timeRange, setTimeRange] = useState<TimeRange>('all');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [timeRange, setTimeRange] = useState<TimeRange>(() => getStoredDates()?.timeRange ?? 'all');
+  const [customStartDate, setCustomStartDate] = useState(() => getStoredDates()?.customStartDate ?? '');
+  const [customEndDate, setCustomEndDate] = useState(() => getStoredDates()?.customEndDate ?? '');
   const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
-  const [distTimeRange, setDistTimeRange] = useState<TimeRange>('all');
-  const [distStartDate, setDistStartDate] = useState('');
-  const [distEndDate, setDistEndDate] = useState('');
-  const [distRoleType, setDistRoleType] = useState<string>('');
+  const [distTimeRange, setDistTimeRange] = useState<TimeRange>(() => getStoredDates()?.distTimeRange ?? 'all');
+  const [distStartDate, setDistStartDate] = useState(() => getStoredDates()?.distStartDate ?? '');
+  const [distEndDate, setDistEndDate] = useState(() => getStoredDates()?.distEndDate ?? '');
+  const [distRoleType, setDistRoleType] = useState<string>('交付顾问');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
-  const [rankingTimeRange, setRankingTimeRange] = useState<TimeRange>('all');
-  const [rankingStartDate, setRankingStartDate] = useState('');
-  const [rankingEndDate, setRankingEndDate] = useState('');
-  const [rankingRoleType, setRankingRoleType] = useState<string>('');
+  const [rankingTimeRange, setRankingTimeRange] = useState<TimeRange>(() => getStoredDates()?.rankingTimeRange ?? 'all');
+  const [rankingStartDate, setRankingStartDate] = useState(() => getStoredDates()?.rankingStartDate ?? '');
+  const [rankingEndDate, setRankingEndDate] = useState(() => getStoredDates()?.rankingEndDate ?? '');
+  const [rankingRoleType, setRankingRoleType] = useState<string>('交付顾问');
+
+  // 日期记忆：任一日期相关状态变化时保存到 localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('dashboard_date_memory', JSON.stringify({
+        timeRange, customStartDate, customEndDate,
+        distTimeRange, distStartDate, distEndDate,
+        rankingTimeRange, rankingStartDate, rankingEndDate,
+      }));
+    } catch { /* ignore */ }
+  }, [timeRange, customStartDate, customEndDate, distTimeRange, distStartDate, distEndDate, rankingTimeRange, rankingStartDate, rankingEndDate]);
 
   const fetchDistribution = async () => {
     try {
