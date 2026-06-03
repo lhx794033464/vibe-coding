@@ -257,7 +257,7 @@ export default function FlowChartPage() {
                     handleGenerate();
                   }
                 }}
-                placeholder="请简明扼要地描述您的业务流程，如有分支或返回结构请描述清楚。例如：如果质量有问题则退货，如果产品不合格则重新执行生产"
+                placeholder="用编号描述流程，分支用&quot;如果…则…否则…&quot;，循环用&quot;返回到第N步&quot;。&#10;示例：①创建采购申请单 ②审批，如果通过则生成采购订单，否则退回 ③采购入库 ④质检，不合格则返回第③步"
                 className="h-[200px] resize-none overflow-y-auto"
                 disabled={isGenerating}
               />
@@ -299,9 +299,39 @@ export default function FlowChartPage() {
             </div>
 
             {/* Tips 区域 */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-xs font-bold text-blue-700 mb-2">📝 提示词规范</h4>
+                <ul className="text-xs text-blue-600 space-y-1.5 leading-relaxed">
+                  <li>• <b>编号列举步骤</b>：①创建销售订单 ②审核 ③出库</li>
+                  <li>• <b>分支用&quot;如果…则…否则…&quot;</b>：如果审核通过则生成出库单，否则退回修改</li>
+                  <li>• <b>循环用&quot;返回到第N步&quot;</b>：质量不合格则返回到第②步重新生产</li>
+                  <li>• <b>多分支逐条写</b>：审核结果为通过→出库，为驳回→修改，为暂缓→等待</li>
+                  <li>• <b>使用金蝶标准单据名</b>：采购订单、销售出库单、付款单等</li>
+                  <li>• <b>复杂流程拆分描述</b>：先写主干，再补充分支和回路</li>
+                </ul>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <h4 className="text-xs font-bold text-amber-700 mb-2">💡 示例</h4>
+                <div className="text-xs text-amber-700 space-y-2 leading-relaxed">
+                  <div>
+                    <p className="font-medium mb-0.5">带分支：</p>
+                    <p className="text-amber-600">①创建采购申请单 ②审批，如果通过则生成采购订单，否则退回修改 ③采购入库 ④付款</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-0.5">带循环：</p>
+                    <p className="text-amber-600">①生产领料 ②生产加工 ③质检，如果不合格则返回第②步，如果合格则产品入库</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-0.5">多分支：</p>
+                    <p className="text-amber-600">①客户下单 ②信用审核，通过→③生成销售订单，额度不足→④预付款，黑名单→⑤拒绝</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <h4 className="text-xs font-bold text-amber-700 mb-2">💡 Tips</h4>
+                <h4 className="text-xs font-bold text-amber-700 mb-2">⚡ 操作</h4>
                 <ul className="text-xs text-amber-600 space-y-1">
                   <li>• 拖拽画布：Space+左键</li>
                   <li>• 支持异步生成，生成过程中可浏览其他界面</li>

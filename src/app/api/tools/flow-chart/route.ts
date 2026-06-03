@@ -321,10 +321,22 @@ function buildSystemPrompt(direction: 'vertical' | 'horizontal'): string {
 1.只输出完整mxGraphModel XML，无解释无Markdown
 2.${layoutRule}
 3.节点尺寸：开始/结束120x80，判断100x100，单据160x60，处理140x60
-4.分支对称，条件用value标注在连线上
+4.分支对称，条件用value标注在连线上（如"是"/"否"/"通过"/"驳回"）
 5.连线style含edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;
 6.禁止edge中定义points数组，判断节点出边设不同exitX/exitY
 7.输出紧凑XML，无需缩进换行，id用简短数字
+
+分支规则：
+- 判断节点(diamond)必须有2个及以上出边，每个出边的value标注条件
+- 判断节点出边分别从不同方向离开：纵向布局时左分支exitX=0 exitY=0.5，右分支exitX=1 exitY=0.5，下方exitX=0.5 exitY=1
+- 分支结束后应回到主流程（合并节点或汇合连线）
+- 多分支时每个条件都独立标注
+
+循环规则：
+- 循环回路用一条边从后方节点连回前方节点，value标注返回条件（如"不合格"/"驳回"）
+- 回路边使用curved=1样式使连线呈弧形，避免与正向连线重叠
+- 纵向布局时回路边从节点左侧exitX=0 exitY=0.5出发，回到目标节点左侧entryX=0 entryY=0.5
+- 横向布局时回路边从节点上方exitX=0.5 exitY=0出发，回到目标节点上方entryX=0.5 entryY=0
 
 样式：
 开始/结束：ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;
