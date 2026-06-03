@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbGetCustomerById, dbGetImplementationLogs } from '@/services/dbService';
+import { dbGetCustomerById, dbGetImplementationLogs, dbGetAllUsers } from '@/services/dbService';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import {
   Document,
@@ -50,6 +50,21 @@ export async function POST(request: NextRequest) {
     // 获取实施日志
     const implementationLogs = (await dbGetImplementationLogs({ customerId: customer_id }))
       .sort((a: any, b: any) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime());
+
+    // 获取参会人员：交付顾问 + 所有参与过实施日志的顾问
+    const allUsers = await dbGetAllUsers();
+    const userIdToName = new Map(allUsers.map((u: any) => [u.id, u.username]));
+    const participantIds = new Set<string>();
+    // 客户的交付顾问
+    participantIds.add((customer as any).user_id);
+    // 实施日志中出现的顾问
+    implementationLogs.forEach((log: any) => {
+      if (log.user_id) participantIds.add(log.user_id);
+    });
+    const participants = Array.from(participantIds)
+      .map(id => userIdToName.get(id))
+      .filter(Boolean)
+      .join('、');
 
     // 格式化版本名称
     const versionName = (customer as any).version ? String((customer as any).version) : '-';
@@ -188,7 +203,7 @@ export async function POST(request: NextRequest) {
                   tableHeader: true,
                   children: [
                     createLabelCell('参会人员', outerBorder, innerBorder, 'left'),
-                    createValueCell('', outerBorder, innerBorder, 3, 'right'),
+                    createValueCell(participants || '', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
                 
@@ -387,7 +402,7 @@ function getBordersForPosition(
 }
 
 function createImplementationParagraphs(
-  logs: Array<{ log_date: string; consumed_days: string; content: string }>
+  logs: Array<{ log_date: string; consumed_days: string; summary: string; content?: string }>
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
   const lineSpacing = { line: 360, lineRule: 'auto' as const };
@@ -409,7 +424,7 @@ function createImplementationParagraphs(
   } else {
     logs.forEach((log, index) => {
       const dateStr = format(new Date(log.log_date), 'M/d');
-      const summary = log.content || '';
+      const summary = log.summary || log.content || '';
       
       paragraphs.push(
         new Paragraph({
