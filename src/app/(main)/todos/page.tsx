@@ -68,6 +68,7 @@ export default function TodosPage() {
   const [editDueDate, setEditDueDate] = useState('');
   const [editPriority, setEditPriority] = useState('medium');
   const [showCompleted, setShowCompleted] = useState(true);
+  const [collapsedDateGroups, setCollapsedDateGroups] = useState<Set<string>>(new Set());
   const [editCustomerId, setEditCustomerId] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -158,16 +159,26 @@ export default function TodosPage() {
 
   // Group completed todos by date
   const completedGroupedByDate = useMemo(() => {
-    const groups: { date: string; label: string; items: Todo[] }[] = [];
+    const groups: { dateKey: string; label: string; items: Todo[] }[] = [];
     completedTodos.forEach(todo => {
-      const dateStr = todo.completed_at
-        ? new Date(todo.completed_at).toLocaleDateString('zh-CN')
-        : new Date(todo.created_at).toLocaleDateString('zh-CN');
-      const existing = groups.find(g => g.date === dateStr);
+      const dateVal = todo.completed_at || todo.created_at;
+      const d = new Date(dateVal);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const today = new Date();
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      let label: string;
+      if (dateKey === todayKey) label = '今天';
+      else if (dateKey === yesterdayKey) label = '昨天';
+      else label = dateKey;
+
+      const existing = groups.find(g => g.dateKey === dateKey);
       if (existing) {
         existing.items.push(todo);
       } else {
-        groups.push({ date: dateStr, label: dateStr, items: [todo] });
+        groups.push({ dateKey, label, items: [todo] });
       }
     });
     return groups;
@@ -602,11 +613,32 @@ export default function TodosPage() {
               {/* Timeline */}
               {completedGroupedByDate.length > 0 && (
               <div className={`relative overflow-hidden transition-all duration-300 ${showCompleted ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                    {completedGroupedByDate.map((group, gi) => (
+                    {completedGroupedByDate.map((group, gi) => {
+                      const isCollapsed = collapsedDateGroups.has(group.dateKey);
+                      return (
                       <div key={gi} className="pb-4 last:pb-0">
-                        {/* Date header */}
-                        <p className="text-xs font-medium text-muted-foreground mb-2">{group.label}</p>
+                        {/* Date header - clickable to collapse */}
+                        <button
+                          className="flex items-center gap-1.5 mb-2 cursor-pointer select-none group-date"
+                          onClick={() => setCollapsedDateGroups(prev => {
+                            const next = new Set(prev);
+                            if (next.has(group.dateKey)) next.delete(group.dateKey);
+                            else next.add(group.dateKey);
+                            return next;
+                          })}
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          )}
+                          <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
+                          {isCollapsed && (
+                            <span className="text-xs text-muted-foreground/40">{group.items.length}项</span>
+                          )}
+                        </button>
                         {/* Items */}
+                        {!isCollapsed && (
                         <div className="space-y-1.5">
                           {group.items.map(todo => {
                             const customerName = todo.customer_name || getCustomerName(todo.customer_id);
@@ -664,8 +696,9 @@ export default function TodosPage() {
                             );
                           })}
                         </div>
+                        )}
                       </div>
-                    ))}
+                    )})}
                   </div>
               )}
               {completedGroupedByDate.length === 0 && (
