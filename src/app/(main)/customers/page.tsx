@@ -101,10 +101,19 @@ export default function CustomersPage() {
     const matchImplType = implTypeFilter === 'all' || c.implementation_type === implTypeFilter;
     
     // 上线状态筛选
-    const matchOnline = onlineStatusFilter === 'all' || c.status === onlineStatusFilter;
+    const onlineStatusMap: Record<string, string> = {
+      'not_online': '未上线',
+      'online': '已上线',
+      'delayed': '延期上线',
+    };
+    const matchOnline = onlineStatusFilter === 'all' || c.status === onlineStatusMap[onlineStatusFilter];
     
     // 验收状态筛选
-    const matchAcceptance = acceptanceStatusFilter === 'all' || c.acceptance_status === acceptanceStatusFilter;
+    const acceptanceStatusMap: Record<string, string> = {
+      'not_accepted': '未验收',
+      'accepted': '已验收',
+    };
+    const matchAcceptance = acceptanceStatusFilter === 'all' || c.acceptance_status === acceptanceStatusMap[acceptanceStatusFilter];
     
     // 开通时间范围筛选
     let matchOpenDate = true;
