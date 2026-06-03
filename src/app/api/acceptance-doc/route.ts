@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('合同编号\n（实施订单号）', outerBorder, innerBorder, 'left', true),
+                    createLabelCell('合同编号', outerBorder, innerBorder, 'left'),
                     createValueCell((customer as any).implementation_order_no || '', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
@@ -295,7 +295,7 @@ function createLabelCell(
           children: [
             new TextRun({
               text: line,
-              bold: true,
+              bold: false,
               size: 24,
               font: '微软雅黑',
             }),
@@ -309,7 +309,7 @@ function createLabelCell(
           children: [
             new TextRun({
               text: text,
-              bold: true,
+              bold: false,
               size: 24,
               font: '微软雅黑',
             }),
@@ -419,7 +419,7 @@ function createImplementationParagraphs(
           children: [
             new TextRun({
               text: `${index + 1}、${dateStr}`,
-              bold: true,
+              bold: false,
               size: 15,
               font: '微软雅黑',
             }),
@@ -433,6 +433,7 @@ function createImplementationParagraphs(
           children: [
             new TextRun({
               text: summary,
+              bold: true,
               size: 15,
               font: '微软雅黑',
             }),
