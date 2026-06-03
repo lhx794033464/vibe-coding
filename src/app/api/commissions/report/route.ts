@@ -80,37 +80,69 @@ export async function POST(request: NextRequest) {
 
     const sb = getSupabaseClient();
 
-    // 检查是否已申报
-    const { data: existing } = await sb
+    // 检查是否已有申报
+    const { data: existingReports } = await sb
       .from('commission_reports')
-      .select('id')
+      .select('id, status, commission_details')
       .eq('user_id', userInfo.id)
-      .eq('month', month)
-      .single();
+      .eq('month', month);
 
-    if (existing) {
-      // 已存在则更新
+    // 检查是否有已审批的申报，提取已申报的客户ID
+    const approvedReports = (existingReports || []).filter((r: any) => r.status === 'approved');
+    const approvedCustomerIds = new Set<string>();
+    for (const report of approvedReports) {
+      const details = report.commission_details || [];
+      for (const d of details) {
+        if (d.customerId) approvedCustomerIds.add(d.customerId);
+      }
+    }
+
+    // 过滤掉与已审批申报重复的客户
+    const newDetails = (commission_details || []).filter((d: any) => !approvedCustomerIds.has(d.customerId));
+
+    // 如果所有客户都已申报过，提示无需申报
+    if (commission_details?.length > 0 && newDetails.length === 0) {
+      return NextResponse.json({
+        error: '所有客户已在已审批的申报中，无需重复申报',
+        duplicateCustomerIds: [...approvedCustomerIds],
+      }, { status: 400 });
+    }
+
+    // 计算补充申报的金额
+    const filteredTotal = newDetails.reduce((sum: number, d: any) => sum + (d.commissionAmount || 0), 0);
+    const filteredPaid = newDetails.reduce((sum: number, d: any) => sum + (d.paidDays || 0) * (d.dailyRate || 0), 0);
+    const filteredRemaining = filteredTotal - filteredPaid;
+
+    // 查找非approved的已有申报（pending/rejected）
+    const nonApprovedReport = (existingReports || []).find((r: any) => r.status !== 'approved');
+
+    if (nonApprovedReport) {
+      // 更新非approved的申报
       const { error } = await sb
         .from('commission_reports')
         .update({
-          total_commission: total_commission || 0,
-          paid_commission: paid_commission || 0,
-          remaining_commission: remaining_commission || 0,
-          commission_details: commission_details || [],
+          total_commission: filteredTotal || 0,
+          paid_commission: filteredPaid || 0,
+          remaining_commission: filteredRemaining || 0,
+          commission_details: newDetails,
           status: 'pending',
           review_comment: null,
           reviewed_by: null,
           reviewed_at: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', existing.id);
+        .eq('id', nonApprovedReport.id);
 
       if (error) {
         console.error('更新提成申报失败:', error);
         return NextResponse.json({ error: '更新提成申报失败' }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true, message: '已重新申报' });
+      const message = approvedCustomerIds.size > 0
+        ? `已过滤${approvedCustomerIds.size}个已审批客户，补充申报成功`
+        : '已重新申报';
+
+      return NextResponse.json({ success: true, message, filteredCount: approvedCustomerIds.size });
     }
 
     // 新建申报
@@ -118,10 +150,10 @@ export async function POST(request: NextRequest) {
       user_id: userInfo.id,
       username: userInfo.username,
       month,
-      total_commission: total_commission || 0,
-      paid_commission: paid_commission || 0,
-      remaining_commission: remaining_commission || 0,
-      commission_details: commission_details || [],
+      total_commission: filteredTotal || 0,
+      paid_commission: filteredPaid || 0,
+      remaining_commission: filteredRemaining || 0,
+      commission_details: newDetails,
       status: 'pending',
     });
 
@@ -130,7 +162,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '创建提成申报失败' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: '申报成功' });
+    const message = approvedCustomerIds.size > 0
+      ? `已过滤${approvedCustomerIds.size}个已审批客户，补充申报成功`
+      : '申报成功';
+
+    return NextResponse.json({ success: true, message, filteredCount: approvedCustomerIds.size });
   } catch (error) {
     console.error('提成申报失败:', error);
     return NextResponse.json({ error: '提成申报失败' }, { status: 500 });

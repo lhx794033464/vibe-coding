@@ -167,9 +167,9 @@ export default function CommissionsPage() {
     }
   };
 
-  const handleReportCommission = async () => {
+  const handleReportCommission = async (isSupplement = false) => {
     // 只申报金额不为零且已计提的客户
-    const reportableCommissions = commissions.filter(c =>
+    let reportableCommissions = commissions.filter(c =>
       (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0
     );
     if (reportableCommissions.length === 0) {
@@ -177,8 +177,42 @@ export default function CommissionsPage() {
       return;
     }
 
-    // 如果已经申报过且已审核，提示是否重新申报
-    if (reportStatus !== 'none' && reportStatus !== 'pending') {
+    // 补充申报时，先获取已审批申报的客户列表进行前置过滤
+    if (isSupplement && reportStatus === 'approved') {
+      try {
+        const checkRes = await fetch(`/api/commissions/report?month=${currentMonth}`, {
+          headers: { ...getAuthHeader() },
+        });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          const approvedReports = (checkData.data || []).filter((r: any) => r.status === 'approved');
+          // 收集所有已审批申报中的客户ID
+          const approvedCustomerIds = new Set<string>();
+          approvedReports.forEach((report: any) => {
+            const details = report.commission_details || [];
+            details.forEach((d: any) => {
+              if (d.customerId) approvedCustomerIds.add(d.customerId);
+            });
+          });
+          // 过滤掉已审批申报中的客户
+          const beforeCount = reportableCommissions.length;
+          reportableCommissions = reportableCommissions.filter(c => !approvedCustomerIds.has(c.customerId));
+          const duplicateCount = beforeCount - reportableCommissions.length;
+          if (duplicateCount > 0) {
+            alert(`${duplicateCount}个客户已在已审批申报中，无需重复申报，将只申报新增部分`);
+          }
+          if (reportableCommissions.length === 0) {
+            alert('所有客户均已申报并审批通过，无需补充申报');
+            return;
+          }
+        }
+      } catch {
+        // 检查失败时继续申报，后端会做重复过滤
+      }
+
+      const confirmed = window.confirm(`确认补充申报${reportableCommissions.length}个客户的提成？`);
+      if (!confirmed) return;
+    } else if (reportStatus !== 'none' && reportStatus !== 'pending') {
       const confirmed = window.confirm('本月提成已申报，是否重新申报？');
       if (!confirmed) return;
     }
@@ -201,13 +235,19 @@ export default function CommissionsPage() {
           paid_commission: totalPaid,
           remaining_commission: totalRemaining,
           commission_details: reportableCommissions,
+          is_supplement: isSupplement,
         }),
       });
 
       const data = await response.json();
       if (response.ok) {
         setReportStatus('pending');
-        alert(data.message || '申报成功');
+        let message = data.message || '申报成功';
+        // 如果后端检测到重复，附加提示
+        if (data.duplicateCount > 0) {
+          message += `\n\n${data.duplicateCount}个客户已在已审批申报中，已自动跳过`;
+        }
+        alert(message);
       } else {
         alert(data.error || '申报失败');
       }
@@ -712,10 +752,10 @@ export default function CommissionsPage() {
                 </div>
               )}
               <Button
-                onClick={handleReportCommission}
+                onClick={() => handleReportCommission(reportStatus === 'approved')}
                 disabled={reporting || commissions.filter(c => (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0).length === 0 || reportStatus === 'pending'}
-                variant={reportStatus === 'pending' ? 'outline' : reportStatus === 'rejected' ? 'outline' : 'default'}
-                className={reportStatus === 'rejected' ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : ''}
+                variant={reportStatus === 'pending' ? 'outline' : (reportStatus === 'rejected' || reportStatus === 'approved') ? 'outline' : 'default'}
+                className={(reportStatus === 'rejected' || reportStatus === 'approved') ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : ''}
               >
                 {reporting ? (
                   <>
@@ -731,6 +771,11 @@ export default function CommissionsPage() {
                   <>
                     <Send className="w-4 h-4 mr-2" />
                     修改并重新申报
+                  </>
+                ) : reportStatus === 'approved' ? (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    补充申报
                   </>
                 ) : (
                   <>
