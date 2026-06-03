@@ -32,6 +32,7 @@ export default function CustomersPage() {
   const [implTypeFilter, setFilterImplType] = useState<string>('all');
   const [onlineStatusFilter, setFilterOnlineStatus] = useState<string>('all');
   const [acceptanceStatusFilter, setFilterAcceptanceStatus] = useState<string>('all');
+  const [overdueFilter, setFilterOverdue] = useState<string>('all');
   const [openedStartFilter, setFilterOpenDateStart] = useState<string>('');
   const [openedEndFilter, setFilterOpenDateEnd] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -82,7 +83,7 @@ export default function CustomersPage() {
   // 搜索时重置页码
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, consultantFilter, implTypeFilter, onlineStatusFilter, acceptanceStatusFilter, openedStartFilter, openedEndFilter]);
+  }, [search, consultantFilter, implTypeFilter, onlineStatusFilter, acceptanceStatusFilter, openedStartFilter, openedEndFilter, overdueFilter]);
 
   const filteredCustomers = customers.filter(c => {
     // 搜索条件：支持搜索名称、交付顾问、实施类型
@@ -137,7 +138,18 @@ export default function CustomersPage() {
       }
     }
     
-    return matchSearch && matchConsultant && matchImplType && matchOnline && matchAcceptance && matchOpenDate;
+    // 超期未解散筛选
+    const matchOverdue = overdueFilter === 'all' || (() => {
+      const deadline = c.delivery_deadline;
+      if (!deadline) return false;
+      const deadlineDate = new Date(typeof deadline === 'string' ? deadline.split('T')[0] : String(deadline).split('T')[0]);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isOverdue = deadlineDate < today;
+      return overdueFilter === 'overdue' ? isOverdue : !isOverdue;
+    })();
+    
+    return matchSearch && matchConsultant && matchImplType && matchOnline && matchAcceptance && matchOpenDate && matchOverdue;
   });
 
   // 分页计算
@@ -313,6 +325,16 @@ export default function CustomersPage() {
                 placeholder="搜索验收状态"
                 label="验收状态"
               />
+              <SearchableSelect
+                options={[
+                  { value: 'overdue', label: '超期未解散' },
+                  { value: 'not_overdue', label: '未超期' },
+                ]}
+                value={overdueFilter}
+                onChange={(v) => setFilterOverdue(v)}
+                placeholder="搜索超期状态"
+                label="超期状态"
+              />
               <DateRangePicker
                 startDate={openedStartFilter}
                 endDate={openedEndFilter}
@@ -428,6 +450,21 @@ export default function CustomersPage() {
                           {(customer as any).delivery_consultant && (
                             <span className="text-blue-600">顾问: {(customer as any).delivery_consultant}</span>
                           )}
+                          {customer.delivery_deadline && (() => {
+                            const deadlineStr = typeof customer.delivery_deadline === 'string' ? customer.delivery_deadline.split('T')[0] : String(customer.delivery_deadline).split('T')[0];
+                            const deadlineDate = new Date(deadlineStr);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const isOverdue = deadlineDate < today;
+                            const overdueDays = isOverdue ? Math.ceil((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                            const formatted = `${deadlineDate.getFullYear()}年${deadlineDate.getMonth() + 1}月${deadlineDate.getDate()}日`;
+                            return (
+                              <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                交付期截止日：{formatted}
+                                {isOverdue && <span className="ml-1">（超期{overdueDays}天）</span>}
+                              </span>
+                            );
+                          })()}
                           {customer.last_follow_up_at ? (
                             <span>最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}</span>
                           ) : (
@@ -496,6 +533,21 @@ export default function CustomersPage() {
                                   顾问: {(customer as any).delivery_consultant}
                                 </span>
                               )}
+                              {customer.delivery_deadline && (() => {
+                                const deadlineStr = typeof customer.delivery_deadline === 'string' ? customer.delivery_deadline.split('T')[0] : String(customer.delivery_deadline).split('T')[0];
+                                const deadlineDate = new Date(deadlineStr);
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const isOverdue = deadlineDate < today;
+                                const overdueDays = isOverdue ? Math.ceil((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                                const formatted = `${deadlineDate.getFullYear()}年${deadlineDate.getMonth() + 1}月${deadlineDate.getDate()}日`;
+                                return (
+                                  <span className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
+                                    交付期截止日：{formatted}
+                                    {isOverdue && <span className="ml-1">（超期{overdueDays}天）</span>}
+                                  </span>
+                                );
+                              })()}
                               {customer.last_follow_up_at ? (
                                 <span className="text-xs whitespace-nowrap">
                                   最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
