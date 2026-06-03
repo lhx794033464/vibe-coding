@@ -1,56 +1,76 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-
-type TimeRange = 'all' | 'custom';
+import { 
+  Users, 
+  CheckCircle, 
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Loader2,
+  Calendar,
+  Trophy
+} from 'lucide-react';
+import { TimeRange } from '@/types';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 
 interface DashboardStats {
   totalCustomers: number;
-  newCustomersThisMonth: number;
-  totalFollowUps: number;
-  totalDays: number;
+  onlineCustomers: number;
+  acceptedCustomers: number;
   onlineRate: number;
+  acceptanceRate: number;
   oneMonthOnlineRate: number;
   fourMonthsOnlineRate: number;
-  acceptanceRate: number;
-  monthlyNewCustomers: { month: string; count: number }[];
-  recentFollowUps: { id: string; customerName: string; content: string; date: string; consultantName?: string }[];
-  statusDistribution: { status: string; count: number }[];
-  moduleDistribution: { module: string; count: number }[];
+  // 上期数据
+  lastMonthTotalCustomers: number;
+  lastMonthOnlineRate: number;
+  lastMonthAcceptanceRate: number;
+  // 变动数据
+  totalCustomersChange: number;
+  onlineRateChange: number;
+  acceptanceRateChange: number;
+  statusDistribution: Record<string, number>;
+  acceptanceDistribution: Record<string, number>;
   consultantDistribution: { name: string; projectCount: number; totalDays: number }[];
   consultantRanking: { name: string; projectCount: number; onlineRate: number; oneMonthOnlineRate: number; fourMonthsOnlineRate: number; acceptanceRate: number }[];
 }
 
 const initialStats: DashboardStats = {
   totalCustomers: 0,
-  newCustomersThisMonth: 0,
-  totalFollowUps: 0,
-  totalDays: 0,
+  onlineCustomers: 0,
+  acceptedCustomers: 0,
   onlineRate: 0,
+  acceptanceRate: 0,
   oneMonthOnlineRate: 0,
   fourMonthsOnlineRate: 0,
-  acceptanceRate: 0,
-  monthlyNewCustomers: [],
-  recentFollowUps: [],
-  statusDistribution: [],
-  moduleDistribution: [],
+  lastMonthTotalCustomers: 0,
+  lastMonthOnlineRate: 0,
+  lastMonthAcceptanceRate: 0,
+  totalCustomersChange: 0,
+  onlineRateChange: 0,
+  acceptanceRateChange: 0,
+  statusDistribution: {
+    not_online: 0,
+    online_not_accepted: 0,
+    accepted: 0,
+    not_going_online: 0,
+    delayed_online: 0,
+    partially_online: 0,
+  },
+  acceptanceDistribution: {
+    '已验收': 0,
+    '未上线未验收': 0,
+    '已上线未验收': 0,
+  },
   consultantDistribution: [],
   consultantRanking: [],
 };
-
-const STATUS_OPTIONS = [
-  { value: '全部', label: '全部' },
-  { value: '未上线', label: '未上线' },
-  { value: '实施中', label: '实施中' },
-  { value: '已上线', label: '已上线' },
-  { value: '已验收', label: '已验收' },
-  { value: '已暂停', label: '已暂停' },
-];
 
 export default function DashboardPage() {
   const { getAuthHeader, isAdmin } = useAuth();
@@ -67,44 +87,40 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  // 全局筛选器：日期 + 角色类型
   const [timeRange, setTimeRange] = useState<TimeRange>(() => getStoredDates()?.timeRange ?? 'all');
   const [customStartDate, setCustomStartDate] = useState(() => getStoredDates()?.customStartDate ?? '');
   const [customEndDate, setCustomEndDate] = useState(() => getStoredDates()?.customEndDate ?? '');
-  const [roleType, setRoleType] = useState<string>(() => getStoredDates()?.roleType ?? '交付顾问');
-
-  // 顾问排行专属筛选
   const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
-  const [rankingStatusFilter, setRankingStatusFilter] = useState('全部');
-
+  const [distTimeRange, setDistTimeRange] = useState<TimeRange>(() => getStoredDates()?.distTimeRange ?? 'all');
+  const [distStartDate, setDistStartDate] = useState(() => getStoredDates()?.distStartDate ?? '');
+  const [distEndDate, setDistEndDate] = useState(() => getStoredDates()?.distEndDate ?? '');
+  const [distRoleType, setDistRoleType] = useState<string>('交付顾问');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
-  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
+  const [rankingTimeRange, setRankingTimeRange] = useState<TimeRange>(() => getStoredDates()?.rankingTimeRange ?? 'all');
+  const [rankingStartDate, setRankingStartDate] = useState(() => getStoredDates()?.rankingStartDate ?? '');
+  const [rankingEndDate, setRankingEndDate] = useState(() => getStoredDates()?.rankingEndDate ?? '');
+  const [rankingRoleType, setRankingRoleType] = useState<string>('交付顾问');
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
     try {
       localStorage.setItem('dashboard_date_memory', JSON.stringify({
-        timeRange, customStartDate, customEndDate, roleType,
+        timeRange, customStartDate, customEndDate,
+        distTimeRange, distStartDate, distEndDate,
+        rankingTimeRange, rankingStartDate, rankingEndDate,
       }));
     } catch { /* ignore */ }
-  }, [timeRange, customStartDate, customEndDate, roleType]);
+  }, [timeRange, customStartDate, customEndDate, distTimeRange, distStartDate, distEndDate, rankingTimeRange, rankingStartDate, rankingEndDate]);
 
-  // 构建全局查询参数
-  const buildGlobalParams = useCallback(() => {
-    let params = `timeRange=${timeRange}`;
-    if (timeRange === 'custom' && customStartDate && customEndDate) {
-      params += `&startDate=${customStartDate}&endDate=${customEndDate}`;
-    }
-    if (roleType) {
-      params += `&roleType=${encodeURIComponent(roleType)}`;
-    }
-    return params;
-  }, [timeRange, customStartDate, customEndDate, roleType]);
-
-  const fetchDistribution = useCallback(async () => {
+  const fetchDistribution = async () => {
     try {
-      const url = `/api/dashboard?${buildGlobalParams()}`;
+      let url = `/api/dashboard?timeRange=${distTimeRange}`;
+      if (distTimeRange === 'custom' && distStartDate && distEndDate) {
+        url += `&startDate=${distStartDate}&endDate=${distEndDate}`;
+      }
+      if (distRoleType) {
+        url += `&roleType=${encodeURIComponent(distRoleType)}`;
+      }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
       if (response.ok && data.consultantDistribution) {
@@ -113,13 +129,18 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('获取人天分布数据失败:', error);
     }
-  }, [buildGlobalParams, getAuthHeader]);
+  };
 
-  const fetchRanking = useCallback(async () => {
+  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
+
+  const fetchRanking = async () => {
     try {
-      let url = `/api/dashboard?${buildGlobalParams()}`;
-      if (rankingStatusFilter && rankingStatusFilter !== '全部') {
-        url += `&statusFilter=${encodeURIComponent(rankingStatusFilter)}`;
+      let url = `/api/dashboard?timeRange=${rankingTimeRange}`;
+      if (rankingTimeRange === 'custom' && rankingStartDate && rankingEndDate) {
+        url += `&startDate=${rankingStartDate}&endDate=${rankingEndDate}`;
+      }
+      if (rankingRoleType) {
+        url += `&roleType=${encodeURIComponent(rankingRoleType)}`;
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
@@ -129,69 +150,121 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('获取排行数据失败:', error);
     }
-  }, [buildGlobalParams, rankingStatusFilter, getAuthHeader]);
+  };
 
-  const fetchMainData = useCallback(async () => {
-    try {
+  useEffect(() => {
+    if (isAdmin) fetchDistribution();
+  }, [isAdmin, distTimeRange, distStartDate, distEndDate, distRoleType]);
+
+  useEffect(() => {
+    if (isAdmin) fetchRanking();
+  }, [isAdmin, rankingTimeRange, rankingStartDate, rankingEndDate, rankingRoleType]);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    if (!isInitialLoading) {
+      fetchStats();
+    }
+  }, [timeRange, customStartDate, customEndDate]);
+
+  const fetchStats = async () => {
+    // 首次加载显示全屏loading，后续只显示更新状态
+    if (isInitialLoading) {
+      setIsInitialLoading(true);
+    } else {
       setIsUpdating(true);
-      const url = `/api/dashboard?${buildGlobalParams()}`;
-      const response = await fetch(url, { headers: { ...getAuthHeader() } });
+    }
+    
+    try {
+      let url = `/api/dashboard?timeRange=${timeRange}`;
+      if (timeRange === 'custom' && customStartDate && customEndDate) {
+        url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      const response = await fetch(url, {
+        headers: { ...getAuthHeader() },
+      });
       const data = await response.json();
       if (response.ok) {
         setStats(data);
-        setDistData(data.consultantDistribution || []);
-        setRankingData(data.consultantRanking || []);
       }
     } catch (error) {
-      console.error('获取看板数据失败:', error);
+      console.error('获取统计数据失败:', error);
     } finally {
+      setIsInitialLoading(false);
       setIsUpdating(false);
     }
-  }, [buildGlobalParams, getAuthHeader]);
+  };
 
-  // 初始加载
-  useEffect(() => {
-    fetchMainData().finally(() => setIsInitialLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 上线状态饼图数据
+  const onlinePieData = [
+    { name: '已上线', value: stats.statusDistribution?.['已上线'] || 0, fill: '#86efac' },
+    { name: '未上线', value: stats.statusDistribution?.['未上线'] || 0, fill: '#fca5a5' },
+    { name: '延期上线', value: stats.statusDistribution?.['延期上线'] || 0, fill: '#93c5fd' },
+  ].filter(d => d.value > 0);
 
-  // 全局筛选变化时刷新所有数据
-  useEffect(() => {
-    if (!isInitialLoading) {
-      fetchMainData();
-    }
-  }, [timeRange, customStartDate, customEndDate, roleType, fetchMainData, isInitialLoading]);
+  // 验收状态饼图数据
+  const acceptancePieData = [
+    { name: '已验收', value: stats.acceptanceDistribution?.['已验收'] || 0, fill: '#86efac' },
+    { name: '未上线未验收', value: stats.acceptanceDistribution?.['未上线未验收'] || 0, fill: '#fca5a5' },
+    { name: '已上线未验收', value: stats.acceptanceDistribution?.['已上线未验收'] || 0, fill: '#fde68a' },
+  ].filter(d => d.value > 0);
 
-  // 顾问排行专属筛选变化
-  useEffect(() => {
-    if (!isInitialLoading) {
-      fetchRanking();
-    }
-  }, [rankingStatusFilter, fetchRanking, isInitialLoading]);
+  // 格式化变动显示
+  const formatChange = (change: number, isRate: boolean = false) => {
+    const prefix = change > 0 ? '+' : '';
+    const suffix = isRate ? 'pp' : '%';
+    const value = isRate ? change.toFixed(1) : change.toFixed(1);
+    return `${prefix}${value}${suffix}`;
+  };
 
-  // 月度新增客户图表
-  const maxMonthlyCount = Math.max(...(stats.monthlyNewCustomers?.map((m: { count: number }) => m.count) || [1]), 1);
+  // 获取变动样式
+  const getChangeStyle = (change: number) => {
+    if (change > 0) return 'text-green-600';
+    if (change < 0) return 'text-red-600';
+    return 'text-gray-500';
+  };
+
+  // 首次加载显示全屏loading
+  if (isInitialLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      {/* 页面标题 + 全局筛选器 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">数据看板</h1>
-        <div className="flex items-center gap-2">
-          {/* 角色类型选择 */}
-          <SearchableSelect
-            label="角色"
-            options={[
-              { value: '', label: '全部' },
-              { value: '交付顾问', label: '交付顾问' },
-              { value: '售前顾问', label: '售前顾问' },
-            ]}
-            value={roleType}
-            onChange={setRoleType}
-            className="w-28"
-          />
-          {/* 时间范围选择 */}
-          {timeRange === 'custom' ? (
+    <div className="min-h-screen p-4 sm:p-6 overflow-auto">
+      {/* 页面标题和时间选择 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">数据看板</h1>
+          <p className="text-gray-500 mt-1">客户跟进数据总览</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {isUpdating && (
+            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+          )}
+          {timeRange !== 'custom' ? (
+            <Select 
+              value={timeRange} 
+              onValueChange={(v) => setTimeRange(v as TimeRange)}
+              disabled={isUpdating}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom">
+                <SelectItem value="month">本月</SelectItem>
+                <SelectItem value="year">本年</SelectItem>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="custom">自定义</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
             <DateRangePicker
               startDate={customStartDate}
               endDate={customEndDate}
@@ -199,291 +272,414 @@ export default function DashboardPage() {
               onEndChange={setCustomEndDate}
               onClear={() => setTimeRange('all')}
             />
-          ) : (
-            <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
-              <SelectTrigger className="w-28 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom">
-                <SelectItem value="all">全部时间</SelectItem>
-                <SelectItem value="custom">自定义日期</SelectItem>
-              </SelectContent>
-            </Select>
           )}
         </div>
       </div>
 
-      {/* 数据更新提示 */}
-      {isUpdating && (
-        <div className="text-xs text-muted-foreground animate-pulse">数据更新中...</div>
-      )}
-
-      {/* 概览卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* 核心指标卡片 */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <Card>
-          <CardHeader className="pb-1 pt-3 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground">客户总数</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">客户总数</CardTitle>
+            <Users className="h-4 w-4 text-gray-400" />
           </CardHeader>
-          <CardContent className="pb-3 px-4">
-            <div className="text-2xl font-bold">{stats.totalCustomers}</div>
-            <p className="text-xs text-muted-foreground mt-1">本月新增 {stats.newCustomersThisMonth}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 pt-3 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground">跟进记录</CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 px-4">
-            <div className="text-2xl font-bold">{stats.totalFollowUps}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 pt-3 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground">消耗人天</CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 px-4">
-            <div className="text-2xl font-bold">{stats.totalDays}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 pt-3 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground">上线率</CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3 px-4">
-            <div className="text-2xl font-bold">{stats.onlineRate}%</div>
-            <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-              <span>1月 {stats.oneMonthOnlineRate}%</span>
-              <span>4月 {stats.fourMonthsOnlineRate}%</span>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.totalCustomers}</div>
+            <div className="flex items-center gap-1 mt-1">
+              {stats.totalCustomersChange > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : stats.totalCustomersChange < 0 ? (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              ) : null}
+              <span className={cn("text-xs", getChangeStyle(stats.totalCustomersChange))}>
+                较上期 {formatChange(stats.totalCustomersChange)}
+              </span>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">上线率</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-600">{stats.onlineRate}%</div>
+            <div className="flex items-center gap-1 mt-1">
+              {stats.onlineRateChange > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : stats.onlineRateChange < 0 ? (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              ) : null}
+              <span className={cn("text-xs", getChangeStyle(stats.onlineRateChange))}>
+                较上期 {formatChange(stats.onlineRateChange, true)}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {stats.onlineCustomers} / {stats.totalCustomers} 已上线
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">验收率</CardTitle>
+            <CheckCircle className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-blue-600">{stats.acceptanceRate}%</div>
+            <div className="flex items-center gap-1 mt-1">
+              {stats.acceptanceRateChange > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : stats.acceptanceRateChange < 0 ? (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              ) : null}
+              <span className={cn("text-xs", getChangeStyle(stats.acceptanceRateChange))}>
+                较上期 {formatChange(stats.acceptanceRateChange, true)}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {stats.acceptedCustomers} / {stats.totalCustomers} 已验收
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">1个月上线率</CardTitle>
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-emerald-600">{stats.oneMonthOnlineRate}%</div>
+            <p className="text-xs text-gray-500 mt-1">
+              开通&gt;30天客户中已上线
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">4个月上线率</CardTitle>
+            <TrendingUp className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-orange-600">{stats.fourMonthsOnlineRate}%</div>
+            <p className="text-xs text-gray-500 mt-1">
+              开通&gt;120天客户中已上线
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* 状态分布 + 月度新增 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 客户状态分布图表 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 上线状态饼图 */}
         <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-medium">客户状态分布</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-gray-400" />
+              上线状态分布
+            </CardTitle>
           </CardHeader>
-          <CardContent className="pb-4 px-4">
-            <div className="space-y-2">
-              {stats.statusDistribution?.map((item) => {
-                const total = stats.statusDistribution.reduce((s, i) => s + i.count, 0);
-                const percentage = total > 0 ? (item.count / total * 100).toFixed(1) : '0';
-                return (
-                  <div key={item.status} className="flex items-center gap-2">
-                    <span className="text-xs w-16 text-right text-muted-foreground">{item.status}</span>
-                    <div className="flex-1 bg-muted rounded-full h-2.5">
-                      <div
-                        className={`h-2.5 rounded-full transition-all duration-500 ${
-                          item.status === '已验收' ? 'bg-green-500' :
-                          item.status === '已上线' ? 'bg-blue-500' :
-                          item.status === '实施中' ? 'bg-amber-500' :
-                          item.status === '已暂停' ? 'bg-gray-400' :
-                          'bg-red-400'
-                        }`}
-                        style={{ width: `${percentage}%` }}
+          <CardContent>
+            {stats.statusDistribution && Object.keys(stats.statusDistribution).length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="w-[160px] h-[160px] flex-shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={onlinePieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {onlinePieData.map((entry, index) => (
+                          <Cell key={`online-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} 家`, name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
                       />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-3 flex-1">
+                  {onlinePieData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.fill }}></span>
+                        <span className="text-sm text-gray-700">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900">{item.value}</span>
+                        <span className="text-xs text-gray-500 w-10 text-right">
+                          {onlinePieData.reduce((s, d) => s + d.value, 0) > 0
+                            ? Math.round((item.value / onlinePieData.reduce((s, d) => s + d.value, 0)) * 100)
+                            : 0}%
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-xs w-14 text-muted-foreground">{item.count} ({percentage}%)</span>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
           </CardContent>
         </Card>
+
+        {/* 验收状态饼图 */}
         <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-medium">月度新增客户</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-gray-400" />
+              验收状态分布
+            </CardTitle>
           </CardHeader>
-          <CardContent className="pb-4 px-4">
-            <div className="space-y-1.5">
-              {stats.monthlyNewCustomers?.slice(-12).map((item) => (
-                <div key={item.month} className="flex items-center gap-2">
-                  <span className="text-xs w-20 text-right text-muted-foreground">{item.month}</span>
-                  <div className="flex-1 bg-muted rounded-full h-2.5">
-                    <div
-                      className="bg-primary h-2.5 rounded-full transition-all duration-500"
-                      style={{ width: `${(item.count / maxMonthlyCount) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-xs w-8 text-muted-foreground">{item.count}</span>
+          <CardContent>
+            {stats.acceptanceDistribution && Object.keys(stats.acceptanceDistribution).length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="w-[160px] h-[160px] flex-shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={acceptancePieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {acceptancePieData.map((entry, index) => (
+                          <Cell key={`acceptance-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} 家`, name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="space-y-3 flex-1">
+                  {acceptancePieData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.fill }}></span>
+                        <span className="text-sm text-gray-700">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900">{item.value}</span>
+                        <span className="text-xs text-gray-500 w-10 text-right">
+                          {acceptancePieData.reduce((s, d) => s + d.value, 0) > 0
+                            ? Math.round((item.value / acceptancePieData.reduce((s, d) => s + d.value, 0)) * 100)
+                            : 0}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* 项目人天分布 */}
-      {distData && distData.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-medium">项目人天分布</CardTitle>
-          </CardHeader>
-          <CardContent className="pb-4 px-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-2 font-medium text-muted-foreground">顾问</th>
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">项目数</th>
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">人天</th>
-                    <th className="py-2 px-2 font-medium text-muted-foreground" style={{ minWidth: '200px' }}>分布</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {distData.map((item) => {
-                    const maxDays = Math.max(...distData.map(d => d.totalDays), 1);
-                    return (
-                      <tr key={item.name} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="py-2 px-2">{item.name}</td>
-                        <td className="text-right py-2 px-2">{item.projectCount}</td>
-                        <td className="text-right py-2 px-2">{item.totalDays}</td>
-                        <td className="py-2 px-2">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-muted rounded-full h-2.5">
-                              <div
-                                className="bg-primary h-2.5 rounded-full transition-all duration-500"
-                                style={{ width: `${(item.totalDays / maxDays) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 顾问排行 */}
+      {/* 项目人天分布 & 顾问排行 - 仅管理员可见 */}
       {isAdmin && (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">项目人天分布</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              {distData && distData.length > 0 ? (
-                <div className="space-y-2">
-                  {distData.map((item) => {
-                    const maxDays = Math.max(...distData.map(d => d.totalDays), 1);
-                    return (
-                      <div key={item.name} className="flex items-center gap-2.5 py-1.5 px-2 rounded hover:bg-muted/50">
-                        <span className="text-sm w-20 truncate">{item.name}</span>
-                        <div className="flex-1 bg-muted rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${(item.totalDays / maxDays) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground w-16 text-right">{item.totalDays}天</span>
-                        <span className="text-xs text-muted-foreground w-16 text-right">{item.projectCount}个</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">暂无数据</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <div>
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">顾问排行</CardTitle>
-                <div className="flex items-center gap-1.5">
-                  {/* 客户状态筛选 - 仅顾问排行保留 */}
-                  <SearchableSelect
-                    label="状态"
-                    options={STATUS_OPTIONS}
-                    value={rankingStatusFilter}
-                    onChange={setRankingStatusFilter}
-                    className="w-24"
-                  />
-                  <Select
-                    value={rankingDimension}
-                    onValueChange={(v) => setRankingDimension(v as typeof rankingDimension)}
-                  >
-                    <SelectTrigger className="w-28 h-7 text-xs">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
+        {/* 项目人天分布表 */}
+        <Card>
+          <CardHeader className="space-y-0">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-gray-400" />
+                项目人天分布
+              </CardTitle>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select value={distRoleType} onValueChange={(v) => setDistRoleType(v === '全部' ? '' : v)}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom">
+                    <SelectItem value="全部">全部</SelectItem>
+                    <SelectItem value="交付顾问">交付顾问</SelectItem>
+                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                  </SelectContent>
+                </Select>
+                {distTimeRange !== 'custom' ? (
+                  <Select value={distTimeRange} onValueChange={(v) => setDistTimeRange(v as TimeRange)}>
+                    <SelectTrigger className="w-24 h-7 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent position="popper" side="bottom">
-                      <SelectItem value="onlineRate">上线率</SelectItem>
-                      <SelectItem value="oneMonthOnlineRate">一个月上线率</SelectItem>
-                      <SelectItem value="fourMonthsOnlineRate">四个月上线率</SelectItem>
-                      <SelectItem value="acceptanceRate">验收率</SelectItem>
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="month">本月</SelectItem>
+                      <SelectItem value="year">本年</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                ) : (
+                  <DateRangePicker
+                    startDate={distStartDate}
+                    endDate={distEndDate}
+                    onStartChange={setDistStartDate}
+                    onEndChange={setDistEndDate}
+                    onClear={() => setDistTimeRange('all')}
+                  />
+                )}
               </div>
-            </CardHeader>
-            <CardContent>
-              {rankingData && rankingData.length > 0 ? (
-                <div className="space-y-3">
-                  {[...rankingData]
-                    .sort((a, b) => b[rankingDimension] - a[rankingDimension])
-                    .map((consultant, index) => {
-                      const rate = consultant[rankingDimension];
-                      const dimensionLabel: Record<string, string> = {
-                        onlineRate: '上线率',
-                        oneMonthOnlineRate: '一个月上线率',
-                        fourMonthsOnlineRate: '四个月上线率',
-                        acceptanceRate: '验收率',
-                      };
-                      const total = rankingData.length;
-                      const t = total > 1 ? index / (total - 1) : 0;
-                      const r = Math.round(34 + t * (239 - 34));
-                      const g = Math.round(197 + t * (68 - 197));
-                      const b = Math.round(94 + t * (68 - 94));
-                      const barColor = `rgb(${r}, ${g}, ${b})`;
-                      return (
-                        <div key={consultant.name} className="flex items-center gap-2.5 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                            index === 0 ? 'bg-amber-100 text-amber-700' :
-                            index === 1 ? 'bg-gray-200 text-gray-600' :
-                            index === 2 ? 'bg-orange-100 text-orange-700' :
-                            'bg-gray-100 text-gray-500'
-                          }`}>
-                            {index + 1}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {distData && distData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={distData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
+                  <YAxis yAxisId="left" label={{ value: '项目数', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="right" orientation="right" label={{ value: '人天', angle: 90, position: 'insideRight', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+                    formatter={(value: number, name: string) => {
+                      if (name === '项目数量') return [`${value} 个`, name];
+                      return [`${value} 天`, name];
+                    }}
+                  />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="projectCount" name="项目数量" fill="#93c5fd" radius={[4, 4, 0, 0]} barSize={40} />
+                  <Line yAxisId="right" type="monotone" dataKey="totalDays" name="人天数" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 顾问排行表 */}
+        <Card>
+          <CardHeader className="space-y-0">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-gray-400" />
+                顾问排行
+              </CardTitle>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select value={rankingRoleType} onValueChange={(v) => setRankingRoleType(v === '全部' ? '' : v)}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom">
+                    <SelectItem value="全部">全部</SelectItem>
+                    <SelectItem value="交付顾问">交付顾问</SelectItem>
+                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                  </SelectContent>
+                </Select>
+                {rankingTimeRange !== 'custom' ? (
+                  <Select value={rankingTimeRange} onValueChange={(v) => setRankingTimeRange(v as TimeRange)}>
+                    <SelectTrigger className="w-24 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="month">本月</SelectItem>
+                      <SelectItem value="year">本年</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <DateRangePicker
+                    startDate={rankingStartDate}
+                    endDate={rankingEndDate}
+                    onStartChange={setRankingStartDate}
+                    onEndChange={setRankingEndDate}
+                    onClear={() => setRankingTimeRange('all')}
+                  />
+                )}
+                <Select
+                  value={rankingDimension}
+                  onValueChange={(v) => setRankingDimension(v as typeof rankingDimension)}
+                >
+                  <SelectTrigger className="w-36 h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom">
+                    <SelectItem value="onlineRate">上线率</SelectItem>
+                    <SelectItem value="oneMonthOnlineRate">一个月上线率</SelectItem>
+                    <SelectItem value="fourMonthsOnlineRate">四个月上线率</SelectItem>
+                    <SelectItem value="acceptanceRate">验收率</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {rankingData && rankingData.length > 0 ? (
+              <div className="space-y-3">
+                {[...rankingData]
+                  .sort((a, b) => b[rankingDimension] - a[rankingDimension])
+                  .map((consultant, index) => {
+                    const rate = consultant[rankingDimension];
+                    const dimensionLabel: Record<string, string> = {
+                      onlineRate: '上线率',
+                      oneMonthOnlineRate: '一个月上线率',
+                      fourMonthsOnlineRate: '四个月上线率',
+                      acceptanceRate: '验收率',
+                    };
+                    const total = rankingData.length;
+                    // 从绿到红的渐变：第1名最绿，最后1名最红
+                    const t = total > 1 ? index / (total - 1) : 0;
+                    const r = Math.round(34 + t * (239 - 34));
+                    const g = Math.round(197 + t * (68 - 197));
+                    const b = Math.round(94 + t * (68 - 94));
+                    const barColor = `rgb(${r}, ${g}, ${b})`;
+                    return (
+                      <div key={consultant.name} className="flex items-center gap-2.5 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                          index === 0 ? 'bg-amber-100 text-amber-700' :
+                          index === 1 ? 'bg-gray-200 text-gray-600' :
+                          index === 2 ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-sm font-medium text-gray-900 truncate">{consultant.name}</span>
+                            <span className="text-sm font-bold" style={{ color: barColor }}>{rate}%</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-sm font-medium text-gray-900 truncate">{consultant.name}</span>
-                              <span className="text-sm font-bold" style={{ color: barColor }}>{rate}%</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className="h-1.5 rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${Math.min(rate, 100)}%`,
+                                  backgroundColor: barColor,
+                                }}
+                              />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-                                <div
-                                  className="h-1.5 rounded-full transition-all duration-500"
-                                  style={{
-                                    width: `${Math.min(rate, 100)}%`,
-                                    backgroundColor: barColor,
-                                  }}
-                                />
-                              </div>
-                              <span className="text-xs text-gray-400 flex-shrink-0">{consultant.projectCount}个</span>
-                            </div>
+                            <span className="text-xs text-gray-400 flex-shrink-0">{consultant.projectCount}个</span>
                           </div>
                         </div>
-                      );
-                    })}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
       )}
     </div>
