@@ -179,8 +179,8 @@ export async function POST(request: NextRequest) {
                 new TableRow({
                   tableHeader: true,
                   children: [
-                    createLabelCell('合同编号', outerBorder, innerBorder, 'left'),
-                    createValueCell('', outerBorder, innerBorder, 3, 'right'),
+                    createLabelCell('合同编号\n（实施订单号）', outerBorder, innerBorder, 'left', true),
+                    createValueCell((customer as any).implementation_order_no || '', outerBorder, innerBorder, 3, 'right'),
                   ],
                 }),
                 
