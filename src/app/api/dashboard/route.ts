@@ -242,7 +242,7 @@ export async function GET(request: NextRequest) {
       totalCustomersChange: Math.round(totalCustomersChange * 10) / 10,
       onlineRateChange: Math.round(onlineRateChange * 10) / 10,
       acceptanceRateChange: Math.round(acceptanceRateChange * 10) / 10,
-      statusDistribution,
+      statusDistribution: Object.entries(statusDistribution).map(([status, count]) => ({ status, count })),
       acceptanceDistribution,
       consultantDistribution,
       consultantRanking,
