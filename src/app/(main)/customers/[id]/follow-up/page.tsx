@@ -13,6 +13,8 @@ import { Customer, FollowUpRecord } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -21,6 +23,7 @@ interface PageProps {
 export default function FollowUpPage({ params }: PageProps) {
   const router = useRouter();
   const { getAuthHeader } = useAuth();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +86,7 @@ export default function FollowUpPage({ params }: PageProps) {
 
   const handleSubmit = async () => {
     if (!customer || !form.content) {
-      alert('请填写跟进内容');
+      toast.warning('请填写跟进内容');
       return;
     }
 
@@ -125,7 +128,7 @@ export default function FollowUpPage({ params }: PageProps) {
   const handleMarkAccepted = async () => {
     if (!customer) return;
     
-    if (!confirm('确定将此客户标记为已验收吗？')) return;
+    if (!(await confirm({ description: '确定将此客户标记为已验收吗？' }))) return;
 
     try {
       const response = await fetch(`/api/customers/${customer.id}`, {
@@ -328,6 +331,7 @@ export default function FollowUpPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+      {ConfirmDialog}
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, addHours } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { useHolidays } from '@/contexts/HolidayContext';
 
 // 类型定义
@@ -272,11 +273,11 @@ export default function SchedulePage() {
         setMeetingResult(data.data);
         setTimeout(() => { setShowMeetingDialog(false); setMeetingResult(null); }, 2000);
       } else {
-        alert(data.error || '创建会议失败');
+        toast.error(data.error || '创建会议失败');
       }
     } catch (error) {
       console.error('创建会议失败:', error);
-      alert('创建会议失败');
+      toast.error('创建会议失败');
     } finally {
       setMeetingLoading(false);
     }

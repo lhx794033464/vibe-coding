@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Plus, AlertCircle, Loader2, FileSpreadsheet, Download, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { Customer } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -161,11 +162,11 @@ export default function CustomersPage() {
         // 默认全选
         setSelectedCustomers(new Set((data.data || []).map((d: { customerName: string }) => d.customerName)));
       } else {
-        alert(data.error || '获取失败');
+        toast.error(data.error || '获取失败');
       }
     } catch (error) {
       console.error('获取腾讯文档同步信息失败:', error);
-      alert('获取失败，请检查网络连接');
+      toast.error('获取失败，请检查网络连接');
     } finally {
       setFetchLoading(false);
     }
@@ -188,11 +189,11 @@ export default function CustomersPage() {
         // 刷新客户列表
         fetchCustomers();
       } else {
-        alert(data.error || '导入失败');
+        toast.error(data.error || '导入失败');
       }
     } catch (error) {
       console.error('导入客户失败:', error);
-      alert('导入失败');
+      toast.error('导入失败');
     } finally {
       setImporting(false);
     }

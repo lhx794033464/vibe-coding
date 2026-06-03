@@ -13,6 +13,8 @@ import { CommissionCalculation } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 
 interface CommissionReport {
   id: string;
@@ -33,6 +35,7 @@ interface CommissionReport {
 
 export default function CommissionsPage() {
   const { getAuthHeader, isAdmin, user } = useAuth();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [commissions, setCommissions] = useState<CommissionCalculation[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -173,7 +176,7 @@ export default function CommissionsPage() {
       (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0
     );
     if (reportableCommissions.length === 0) {
-      alert('本月暂无可申报的提成数据（需已计提且金额不为零）');
+      toast.warning('本月暂无可申报的提成数据（需已计提且金额不为零）');
       return;
     }
 
@@ -199,10 +202,10 @@ export default function CommissionsPage() {
           reportableCommissions = reportableCommissions.filter(c => !approvedCustomerIds.has(c.customerId));
           const duplicateCount = beforeCount - reportableCommissions.length;
           if (duplicateCount > 0) {
-            alert(`${duplicateCount}个客户已在已审批申报中，无需重复申报，将只申报新增部分`);
+            toast.info(`${duplicateCount}个客户已在已审批申报中，无需重复申报，将只申报新增部分`);
           }
           if (reportableCommissions.length === 0) {
-            alert('所有客户均已申报并审批通过，无需补充申报');
+            toast.info('所有客户均已申报并审批通过，无需补充申报');
             return;
           }
         }
@@ -210,10 +213,10 @@ export default function CommissionsPage() {
         // 检查失败时继续申报，后端会做重复过滤
       }
 
-      const confirmed = window.confirm(`确认补充申报${reportableCommissions.length}个客户的提成？`);
+      const confirmed = await confirm({ description: `确认补充申报${reportableCommissions.length}个客户的提成？` });
       if (!confirmed) return;
     } else if (reportStatus !== 'none' && reportStatus !== 'pending') {
-      const confirmed = window.confirm('本月提成已申报，是否重新申报？');
+      const confirmed = await confirm({ description: '本月提成已申报，是否重新申报？' });
       if (!confirmed) return;
     }
 
@@ -247,20 +250,20 @@ export default function CommissionsPage() {
         if (data.duplicateCount > 0) {
           message += `\n\n${data.duplicateCount}个客户已在已审批申报中，已自动跳过`;
         }
-        alert(message);
+        toast.success(message);
       } else {
-        alert(data.error || '申报失败');
+        toast.error(data.error || '申报失败');
       }
     } catch (error) {
       console.error('提成申报失败:', error);
-      alert('提成申报失败');
+      toast.error('提成申报失败');
     } finally {
       setReporting(false);
     }
   };
 
   const handleMarkCommissioned = async (commission: CommissionCalculation) => {
-    if (!confirm(`确认将「${commission.customerName}」标记为已计提？标记后将从提成管理中隐藏。`)) return;
+    if (!(await confirm({ description: `确认将「${commission.customerName}」标记为已计提？标记后将从提成管理中隐藏。` }))) return;
     try {
       const response = await fetch('/api/commissions/mark-commissioned', {
         method: 'POST',
@@ -272,13 +275,13 @@ export default function CommissionsPage() {
       });
       const data = await response.json();
       if (data.error) {
-        alert(data.error);
+        toast.error(data.error);
         return;
       }
       fetchCommissions();
     } catch (error) {
       console.error('标记已计提失败:', error);
-      alert('标记已计提失败');
+      toast.error('标记已计提失败');
     }
   };
 
@@ -307,11 +310,11 @@ export default function CommissionsPage() {
         setReviewComment('');
         fetchReports();
       } else {
-        alert(data.error || '审核失败');
+        toast.error(data.error || '审核失败');
       }
     } catch (error) {
       console.error('审核失败:', error);
-      alert('审核失败');
+      toast.error('审核失败');
     } finally {
       setReviewing(false);
     }
@@ -385,11 +388,11 @@ export default function CommissionsPage() {
         setScheduleDialogOpen(false);
         fetchCommissions();
       } else {
-        alert(data.error || '设置失败');
+        toast.error(data.error || '设置失败');
       }
     } catch (error) {
       console.error('设置下次计提时间失败:', error);
-      alert('设置下次计提时间失败');
+      toast.error('设置下次计提时间失败');
     } finally {
       setScheduling(false);
     }
@@ -450,7 +453,7 @@ export default function CommissionsPage() {
           setEditingRecordId(null);
           await fetchCommissions();
         } else {
-          alert(data.error || '修改提成失败');
+          toast.error(data.error || '修改提成失败');
         }
       } else {
         // 新增模式：调用 POST 接口
@@ -475,12 +478,12 @@ export default function CommissionsPage() {
           setDialogOpen(false);
           await fetchCommissions();
         } else {
-          alert(data.error || '创建提成失败');
+          toast.error(data.error || '创建提成失败');
         }
       }
     } catch (error) {
       console.error('创建提成失败:', error);
-      alert('创建提成失败');
+      toast.error('创建提成失败');
     } finally {
       setSubmitting(false);
     }
@@ -511,11 +514,11 @@ export default function CommissionsPage() {
         setRecordToDelete(null);
         fetchCommissions();
       } else {
-        alert(data.error || '删除失败');
+        toast.error(data.error || '删除失败');
       }
     } catch (error) {
       console.error('删除提成记录失败:', error);
-      alert('删除提成记录失败');
+      toast.error('删除提成记录失败');
     } finally {
       setDeleting(false);
     }
@@ -608,11 +611,11 @@ export default function CommissionsPage() {
       // 实施费>50%：验证总人天
       const daysNum = parseFloat(totalDaysInput) || 0;
       if (daysNum <= 0) {
-        alert('请输入计提人天');
+        toast.warning('请输入计提人天');
         return false;
       }
       if (daysNum > remainingDays.total) {
-        alert(`计提人天(${daysNum}天)不能大于剩余可提人天(${remainingDays.total.toFixed(1)}天)`);
+        toast.warning(`计提人天(${daysNum}天)不能大于剩余可提人天(${remainingDays.total.toFixed(1)}天)`);
         return false;
       }
     } else {
@@ -622,13 +625,13 @@ export default function CommissionsPage() {
       const totalInputDays = financeDaysNum + otherDaysNum;
       
       if (totalInputDays <= 0) {
-        alert('请输入计提人天');
+        toast.warning('请输入计提人天');
         return false;
       }
       
       // 验证总人天不超过剩余可提人天
       if (totalInputDays > remainingDays.total) {
-        alert(`计提人天之和(${totalInputDays.toFixed(1)}天)不能大于剩余可提人天(${remainingDays.total.toFixed(1)}天)`);
+        toast.warning(`计提人天之和(${totalInputDays.toFixed(1)}天)不能大于剩余可提人天(${remainingDays.total.toFixed(1)}天)`);
         return false;
       }
     }
@@ -1610,6 +1613,7 @@ export default function CommissionsPage() {
         </DialogContent>
       </Dialog>
 
+      {ConfirmDialog}
       </div>
     </div>
   );

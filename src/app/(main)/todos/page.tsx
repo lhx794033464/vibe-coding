@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 
 interface Customer {
   id: string;
@@ -49,6 +51,7 @@ interface Todo {
 
 export default function TodosPage() {
   const { getAuthHeader } = useAuth();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,7 +224,7 @@ export default function TodosPage() {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '创建失败';
       console.error('创建失败:', msg);
-      alert('创建失败: ' + msg);
+      toast.error('创建失败: ' + msg);
     } finally {
       setCreating(false);
     }
@@ -294,7 +297,7 @@ export default function TodosPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除此待办？')) return;
+    if (!(await confirm({ description: '确定删除此待办？', variant: 'destructive' }))) return;
     try {
       const res = await fetch(`/api/todos/${id}`, {
         method: 'DELETE',
@@ -901,6 +904,7 @@ export default function TodosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {ConfirmDialog}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { Send, Loader2, Search, User, Mic, MicOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import MessageContent from '@/components/chat/MessageContent';
 
 // 根据时间获取温馨提示语
@@ -135,7 +136,7 @@ export default function HomePage() {
       setIsRecording(true);
     } catch (error) {
       console.error('无法访问麦克风:', error);
-      alert('无法访问麦克风，请检查权限设置');
+      toast.error('无法访问麦克风，请检查权限设置');
     }
   }, []);
 

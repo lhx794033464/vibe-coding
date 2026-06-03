@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: {
@@ -34,6 +35,7 @@ export default function RootLayout({
         <AuthProvider>
           {isDev && <Inspector />}
           {children}
+          <Toaster position="top-center" richColors closeButton />
         </AuthProvider>
       </body>
     </html>

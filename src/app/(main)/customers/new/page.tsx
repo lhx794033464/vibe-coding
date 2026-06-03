@@ -12,6 +12,7 @@ import { ArrowLeft, Upload, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function NewCustomerPage() {
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function NewCustomerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      alert('请输入客户名称');
+      toast.warning('请输入客户名称');
       return;
     }
 
@@ -81,11 +82,11 @@ export default function NewCustomerPage() {
         router.push('/customers');
       } else {
         const data = await response.json();
-        alert(data.error || '创建失败');
+        toast.error(data.error || '创建失败');
       }
     } catch (error) {
       console.error('创建客户失败:', error);
-      alert('创建失败');
+      toast.error('创建失败');
     } finally {
       setLoading(false);
     }
@@ -143,13 +144,13 @@ export default function NewCustomerPage() {
         }
       }
 
-      alert(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`);
+      toast.success(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`);
       if (successCount > 0) {
         router.push('/customers');
       }
     } catch (error) {
       console.error('导入失败:', error);
-      alert('导入失败，请检查文件格式');
+      toast.error('导入失败，请检查文件格式');
     } finally {
       setImportLoading(false);
       if (fileInputRef.current) {

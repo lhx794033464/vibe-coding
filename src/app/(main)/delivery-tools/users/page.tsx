@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Plus, Edit2, Trash2, Loader2, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { DbUser } from '@/services/dbService';
 import { useRouter } from 'next/navigation';
 
@@ -43,6 +45,7 @@ export default function UsersManagementPage() {
   });
 
   const { isAuthenticated, isAdmin, getAuthHeader, refreshUser } = useAuth();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     // 检查是否是管理员
@@ -154,7 +157,7 @@ export default function UsersManagementPage() {
   };
 
   const handleDelete = async (user: DbUser) => {
-    if (!confirm(`确定要删除用户 "${user.username}" 吗？`)) {
+    if (!(await confirm({ description: `确定要删除用户 "${user.username}" 吗？`, variant: 'destructive' }))) {
       return;
     }
     
@@ -428,6 +431,7 @@ export default function UsersManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {ConfirmDialog}
       </div>
     </div>
   );

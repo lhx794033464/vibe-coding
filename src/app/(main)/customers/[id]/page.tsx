@@ -37,6 +37,8 @@ import { Customer, FollowUpRecord } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 
 // 实施日志类型
 interface ImplementationLog {
@@ -55,6 +57,7 @@ interface PageProps {
 
 export default function CustomerDetailPage({ params }: PageProps) {
   const { getAuthHeader } = useAuth();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
@@ -222,7 +225,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const handleAddFollowUp = async () => {
     if (!customer || !followUpForm.content) {
-      alert('请填写跟进内容');
+      toast.warning('请填写跟进内容');
       return;
     }
 
@@ -255,7 +258,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const handleAddImplementationLog = async () => {
     if (!customer || !logForm.summary || !logForm.consumed_days) {
-      alert('请填写实施纪要和消耗人天');
+      toast.warning('请填写实施纪要和消耗人天');
       return;
     }
 
@@ -291,7 +294,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   };
 
   const handleDeleteImplementationLog = async (logId: string) => {
-    if (!confirm('确定删除此实施日志吗？')) return;
+    if (!(await confirm({ description: '确定删除此实施日志吗？', variant: 'destructive' }))) return;
 
     try {
       const response = await fetch(`/api/implementation-logs/${logId}`, {
@@ -334,7 +337,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   // 更新实施日志
   const handleUpdateImplementationLog = async () => {
     if (!editingLogId || !customer || !editLogForm.summary || !editLogForm.consumed_days) {
-      alert('请填写实施纪要和消耗人天');
+      toast.warning('请填写实施纪要和消耗人天');
       return;
     }
 
@@ -400,7 +403,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       document.body.removeChild(a);
     } catch (error) {
       console.error('生成验收单失败:', error);
-      alert('生成验收单失败，请重试');
+      toast.error('生成验收单失败，请重试');
     } finally {
       setGeneratingDoc(false);
     }
@@ -432,10 +435,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
       // 更新客户信息中的验收单key
       setCustomer({ ...customer, acceptance_doc_key: data.file_key } as any);
-      alert('验收单上传成功');
+      toast.success('验收单上传成功');
     } catch (error: any) {
       console.error('上传验收单失败:', error);
-      alert(error.message || '上传验收单失败，请重试');
+      toast.error(error.message || '上传验收单失败，请重试');
     } finally {
       setUploadingDoc(false);
       // 重置 file input
@@ -466,7 +469,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       window.open(data.url, '_blank');
     } catch (error: any) {
       console.error('查看验收单失败:', error);
-      alert(error.message || '查看验收单失败，请重试');
+      toast.error(error.message || '查看验收单失败，请重试');
     } finally {
       setViewingDoc(false);
     }
@@ -475,7 +478,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const handleCancelAcceptance = async () => {
     if (!customer) return;
     
-    if (!confirm('确定撤回此客户的验收状态吗？撤回后该客户将变为未验收状态。')) return;
+    if (!(await confirm({ description: '确定撤回此客户的验收状态吗？撤回后该客户将变为未验收状态。', variant: 'destructive' }))) return;
 
     try {
       const response = await fetch(`/api/customers/${customer.id}`, {
@@ -501,7 +504,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const handleMarkAccepted = async () => {
     if (!customer) return;
     
-    if (!confirm('确定将此客户标记为已验收吗？')) return;
+    if (!(await confirm({ description: '确定将此客户标记为已验收吗？' }))) return;
 
     try {
       const response = await fetch(`/api/customers/${customer.id}`, {
@@ -1088,6 +1091,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         </div>
       </div>
       </div>
+      {ConfirmDialog}
     </div>
   );
 }
