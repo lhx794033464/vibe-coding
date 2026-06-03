@@ -19,8 +19,10 @@ CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
 CREATE INDEX IF NOT EXISTS users_is_active_idx ON users(is_active);
 
 -- 插入默认管理员用户（如果不存在）
+-- 注意：password_hash 应使用 bcrypt 哈希，此处占位值需由应用启动时的 ensureAdminUser 函数覆盖
+-- 如需手动设置，请使用 Node.js: require('bcryptjs').hashSync('你的密码', 12)
 INSERT INTO users (username, email, password_hash, role, is_active)
-SELECT 'admin', 'admin@company.com', 'YWRtaW4xMjM=', 'admin', true
+SELECT 'admin', 'admin@company.com', '$2a$12$placeholder.use.ensureAdminUser', 'admin', true
 WHERE NOT EXISTS (
   SELECT 1 FROM users WHERE username = 'admin'
 );

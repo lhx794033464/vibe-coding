@@ -8,7 +8,10 @@ export async function POST(request: NextRequest) {
   console.log('=== 语音操作API开始 ===');
   try {
     const userInfo = await getCurrentUserInfo(request);
-    const isAdmin = userInfo?.role === 'admin';
+    if (!userInfo) {
+      return NextResponse.json({ error: '未认证' }, { status: 401 });
+    }
+    const isAdmin = userInfo.role === 'admin';
 
     const body = await request.json();
     const { text } = body;

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ASRClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
-// 语音识别API - 本地模式，无需认证
+// 语音识别API - 需要认证
 export async function POST(request: NextRequest) {
   try {
+    const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return NextResponse.json({ error: '未认证' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { audioUrl, base64Data, uid } = body;
 

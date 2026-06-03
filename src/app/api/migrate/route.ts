@@ -27,6 +27,19 @@ export async function POST(request: NextRequest) {
       schedules = []
     } = body;
 
+    // 输入验证：限制单次迁移数量
+    const MAX_MIGRATE_COUNT = 1000;
+    if (customers.length > MAX_MIGRATE_COUNT || followUps.length > MAX_MIGRATE_COUNT ||
+        implementationLogs.length > MAX_MIGRATE_COUNT || commissions.length > MAX_MIGRATE_COUNT ||
+        schedules.length > MAX_MIGRATE_COUNT) {
+      return NextResponse.json(
+        { error: `单次迁移每种数据最多${MAX_MIGRATE_COUNT}条` },
+        { status: 400 }
+      );
+    }
+
+    const skipped = { followUps: 0, implementationLogs: 0, commissions: 0, schedules: 0 };
+
     const results = {
       customers: 0,
       followUps: 0,
@@ -56,7 +69,7 @@ export async function POST(request: NextRequest) {
         try {
           await dbCreateFollowUp({ ...data, user_id: userInfo?.id || null });
           results.followUps++;
-        } catch { /* skip duplicates */ }
+        } catch (e) { skipped.followUps++; console.warn('[migrate] skip followUp:', (e as Error).message); }
       }
     }
 
@@ -67,7 +80,7 @@ export async function POST(request: NextRequest) {
         try {
           await dbCreateImplementationLog({ ...data, user_id: userInfo?.id || null });
           results.implementationLogs++;
-        } catch { /* skip duplicates */ }
+        } catch (e) { skipped.implementationLogs++; console.warn('[migrate] skip implementationLog:', (e as Error).message); }
       }
     }
 
@@ -78,7 +91,7 @@ export async function POST(request: NextRequest) {
         try {
           await dbCreateCommissionRecord({ ...data, user_id: userInfo?.id || null });
           results.commissions++;
-        } catch { /* skip duplicates */ }
+        } catch (e) { skipped.commissions++; console.warn('[migrate] skip commission:', (e as Error).message); }
       }
     }
 
@@ -89,14 +102,15 @@ export async function POST(request: NextRequest) {
         try {
           await dbCreateSchedule({ ...data, user_id: userInfo?.id || null });
           results.schedules++;
-        } catch { /* skip duplicates */ }
+        } catch (e) { skipped.schedules++; console.warn('[migrate] skip schedule:', (e as Error).message); }
       }
     }
 
     return NextResponse.json({
       success: true,
       message: '数据迁移完成',
-      results
+      results,
+      skipped
     });
 
   } catch (error) {

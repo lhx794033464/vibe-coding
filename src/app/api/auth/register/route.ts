@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbCreateUser, dbGetUserByUsername } from '@/services/dbService';
-import { isAdmin } from '@/lib/serverAuth';
+import { dbCreateUser, dbGetUserByUsername, generateToken } from '@/services/dbService';
+import { isAdminRequest } from '@/lib/serverAuth';
 
 /**
  * 用户注册 API
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 只有管理员才能创建管理员账号
-    const userIsAdmin = await isAdmin(request);
+    const userIsAdmin = await isAdminRequest(request);
     const finalRole = userIsAdmin && role ? role : 'user';
 
     const newUser = await dbCreateUser({
@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
       is_active,
     });
 
-    // 生成 token 用于自动登录
-    const token = Buffer.from(`${newUser.id}:${newUser.username}:${newUser.role}:${Math.random().toString(36).slice(2)}`).toString('base64');
+    // 生成 JWT token 用于自动登录
+    const token = generateToken({ id: newUser.id, username: newUser.username, role: newUser.role });
 
     return NextResponse.json({
       success: true,

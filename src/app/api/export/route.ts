@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="customers_${Date.now()}.xlsx"`,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(`customers_${Date.now()}.xlsx`)}`,
       },
     });
   } catch (error) {

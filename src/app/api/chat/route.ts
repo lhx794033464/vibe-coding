@@ -59,7 +59,9 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
         customers.map(c => `- ${c.name} | 上线状态: ${statusLabel[c.status] || c.status || '未知'} | 验收状态: ${acceptLabel[c.acceptance_status] || c.acceptance_status || '未知'} | 交付顾问: ${c.delivery_consultant || '未分配'} | 开通时间: ${c.opened_at || '未知'}`).join('\n') +
         `\n\n【统计数据】上线率: ${onlineRate}% (${onlineCount}/${customers.length}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${customers.length}) | 1个月上线率: ${oneMonthOnlineRate}% (开通超30天客户中已上线比例, ${customersOverOneMonth.filter(c => c.status === 'online').length}/${customersOverOneMonth.length}) | 4个月上线率: ${fourMonthsOnlineRate}% (开通超120天客户中已上线比例, ${customersOverFourMonths.filter(c => c.status === 'online').length}/${customersOverFourMonths.length})`;
     }
-  } catch {}
+  } catch (e) {
+    console.error('[chat] 获取客户数据失败:', e);
+  }
 
   try {
     const schedules = await dbGetSchedules({ userId, isAdmin });
@@ -68,7 +70,9 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
       schedulesData = `\n\n【近期日程】(共${upcoming.length}个)\n` + 
         upcoming.map(s => `- ${s.schedule_date} | ${s.customer_name || '无客户'} | ${s.notes || ''}`).join('\n');
     }
-  } catch {}
+  } catch (e) {
+    console.error('[chat] 获取日程数据失败:', e);
+  }
 
   try {
     const allTodos = await dbGetTodos({ userId });
@@ -77,7 +81,9 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
     const overdue = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) < getTodayStr());
     const todayTodo = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) === getTodayStr());
     todosData = `\n\n【待办事项】今日待办共${pending.length}个(其中${overdue.length}个已逾期):\n${formatTodoList(pending)}\n\n最近已完成:\n${formatTodoList(completed)}`;
-  } catch {}
+  } catch (e) {
+    console.error('[chat] 获取待办数据失败:', e);
+  }
 
   return `你是"小蝶"，金蝶云星辰交付集成平台的智能助手。今天是${today}。
 
@@ -183,17 +189,16 @@ async function executeTodoAction(action: string, userId: string, isAdmin: boolea
 
 export async function POST(request: NextRequest) {
   try {
+    // 从 Token 获取用户信息，不信任请求体中的 userId
+    const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return new Response(JSON.stringify({ error: '未认证' }), { status: 401 });
+    }
+    const userId = userInfo.id;
+    const isAdmin = userInfo.role === 'admin';
+
     const body = await request.json();
     const messages = body.messages || [];
-    const userId = body.userId;
-
-    if (!userId) {
-      return new Response(JSON.stringify({ error: '缺少用户信息' }), { status: 401 });
-    }
-
-    // 解析用户角色
-    const userInfo = await getCurrentUserInfo(request);
-    const isAdmin = userInfo?.role === 'admin';
 
     // 构建系统提示词
     const systemPrompt = await buildSystemPrompt(userId, isAdmin);
@@ -220,7 +225,7 @@ export async function POST(request: NextRequest) {
     let fullContent = '';
 
     const readableStream = new ReadableStream({
-      async pull(controller) {
+      async start(controller) {
         try {
           for await (const chunk of stream) {
             const text = chunk.content || '';

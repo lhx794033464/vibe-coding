@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
     if (oldDocKey) {
       try {
         await storage.deleteFile({ fileKey: oldDocKey });
-      } catch {
-        // 忽略删除旧文件失败
+      } catch (deleteErr) {
+        console.error('[acceptance-doc] 删除旧验收单失败:', deleteErr);
       }
     }
 

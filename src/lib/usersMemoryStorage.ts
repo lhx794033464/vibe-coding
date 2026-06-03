@@ -39,7 +39,7 @@ const defaultAdmin: User = {
   is_active: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
-  password_hash: hashPassword('admin123'),
+  password_hash: hashPassword(process.env.ADMIN_INITIAL_PASSWORD || 'admin123'),
 };
 
 // 用户存储类

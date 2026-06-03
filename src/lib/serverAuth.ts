@@ -1,86 +1,68 @@
-// 服务端认证辅助模块
-// 用于在API路由中获取当前登录用户
-// Token格式: Base64(user_id:username:role:random_string)
+import { verifyToken } from '@/services/dbService';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-import { NextRequest } from 'next/server';
-
-// 从请求中获取当前用户ID
-export async function getCurrentUserId(request: NextRequest): Promise<string | null> {
-  const userInfo = await getCurrentUserInfo(request);
-  return userInfo?.id || null;
+export interface UserInfo {
+  id: string;
+  username: string;
+  role: string;
 }
 
-// 从请求中获取认证 Token（优先从 Authorization header，其次从 cookie）
-function getAuthToken(request: NextRequest): string | null {
-  // 优先从 Authorization header 获取
-  const authHeader = request.headers.get('authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7);
-  }
-
-  // 其次从 cookie 获取
-  const cookieToken = request.cookies.get('auth_token')?.value;
-  if (cookieToken) {
-    return cookieToken;
-  }
-
-  return null;
-}
-
-// 从请求中获取当前用户信息（包含username和role）
-export async function getCurrentUserInfo(request: NextRequest): Promise<{ id: string; username: string; role: string } | null> {
+/**
+ * 从请求中解析 JWT Token，获取当前用户信息
+ * 支持 Authorization: Bearer <token> 和 x-session: <token> 两种格式
+ */
+export async function getCurrentUserInfo(request: Request): Promise<UserInfo | null> {
   try {
-    const token = getAuthToken(request);
+    // 尝试从 Authorization header 获取
+    const authHeader = request.headers.get('Authorization');
+    let token: string | null = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+
+    // 尝试从 x-session header 获取
+    if (!token) {
+      token = request.headers.get('x-session');
+    }
+
     if (!token) {
       return null;
     }
 
-    // 尝试Base64解码
-    let decoded: string;
-    try {
-      decoded = Buffer.from(token, 'base64').toString('utf-8');
-    } catch {
-      decoded = token;
+    // 使用 JWT 验证
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return null;
     }
 
-    // Token格式: user_id:username:role:random_string
-    const parts = decoded.split(':');
-    if (parts.length >= 3) {
-      return {
-        id: parts[0],
-        username: parts[1],
-        role: parts[2],
-      };
+    // 二次验证：确认用户在数据库中仍然有效
+    const supabase = getSupabaseClient();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, username, role, is_active')
+      .eq('id', decoded.id)
+      .single();
+
+    if (error || !user || !user.is_active) {
+      return null;
     }
 
-    return null;
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    };
   } catch (error) {
-    console.error('获取当前用户信息失败:', error);
+    console.error('[serverAuth] Token验证失败:', error);
     return null;
   }
 }
 
-// 检查是否是管理员
-export async function isAdmin(request: NextRequest): Promise<boolean> {
+/**
+ * 检查请求是否来自管理员
+ */
+export async function isAdminRequest(request: Request): Promise<boolean> {
   const userInfo = await getCurrentUserInfo(request);
   return userInfo?.role === 'admin';
-}
-
-/**
- * 获取数据隔离过滤条件
- * 管理员: 返回 null（不过滤）
- * 普通用户: 返回 { userId, isAdmin: false }
- */
-export async function getDataAccessFilter(request: NextRequest): Promise<{
-  userId: string;
-  isAdmin: boolean;
-} | null> {
-  const userInfo = await getCurrentUserInfo(request);
-  if (!userInfo) return null;
-
-  const userIsAdmin = userInfo.role === 'admin';
-  return {
-    userId: userInfo.id,
-    isAdmin: userIsAdmin,
-  };
 }

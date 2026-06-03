@@ -34,14 +34,23 @@ const mapUserFromDb = (item: any): User => ({
 export const generateId = () => 
   Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-// 简单密码哈希（生产环境应该使用 bcrypt 等安全哈希）
-const hashPassword = (password: string): string => {
-  return btoa(password);
+import bcrypt from 'bcryptjs';
+
+const SALT_ROUNDS = 12;
+
+// 安全密码哈希
+const hashPassword = async (password: string): Promise<string> => {
+  return bcrypt.hash(password, SALT_ROUNDS);
 };
 
 // 验证密码
-const verifyPassword = (password: string, hash: string): boolean => {
-  return hashPassword(password) === hash;
+const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
+  // 兼容旧的 Base64 密码：如果 hash 不以 $2 开头，说明是旧密码
+  if (!hash.startsWith('$2')) {
+    const legacyMatch = btoa(password) === hash;
+    return legacyMatch;
+  }
+  return bcrypt.compare(password, hash);
 };
 
 // ================= 用户存储服务 - 服务端使用 Supabase
@@ -63,7 +72,7 @@ class SupabaseUsersService {
 
     if (!existingUser) {
       // 创建默认管理员
-      const adminPasswordHash = hashPassword('admin123');
+      const adminPasswordHash = await hashPassword(process.env.ADMIN_INITIAL_PASSWORD || 'admin123');
       await client.from('users').insert({
         username: 'admin',
         email: 'admin@company.com',
@@ -137,7 +146,7 @@ class SupabaseUsersService {
     };
 
     if (data.password) {
-      insertData.password_hash = hashPassword(data.password);
+      insertData.password_hash = await hashPassword(data.password);
     }
 
     const { data: newUser, error } = await client
@@ -166,7 +175,7 @@ class SupabaseUsersService {
     if (data.role_type !== undefined) updateData.role_type = data.role_type;
     if (data.employment_status !== undefined) updateData.employment_status = data.employment_status;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
-    if (data.password) updateData.password_hash = hashPassword(data.password);
+    if (data.password) updateData.password_hash = await hashPassword(data.password);
 
     const { data: updatedUser, error } = await client
       .from('users')
@@ -227,10 +236,8 @@ class SupabaseUsersService {
 
     // 验证密码
     let isValid = false;
-    if (user.username === 'admin' && password === 'admin123') {
-      isValid = true;
-    } else if (userWithPassword.password_hash) {
-      isValid = verifyPassword(password, userWithPassword.password_hash);
+    if (userWithPassword.password_hash) {
+      isValid = await verifyPassword(password, userWithPassword.password_hash);
     }
     
     return isValid ? user : null;

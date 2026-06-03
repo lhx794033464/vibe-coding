@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { recordFlowChartGenerated } from '@/services/globalStats';
 
 // 模型配置：主模型 + 降级模型
@@ -348,6 +349,12 @@ function buildCompactPrompt(direction: 'vertical' | 'horizontal'): string {
 }
 
 export async function POST(request: NextRequest) {
+  // 认证检查
+  const userInfo = await getCurrentUserInfo(request);
+  if (!userInfo) {
+    return NextResponse.json({ error: '未认证' }, { status: 401 });
+  }
+
   try {
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const { prompt, direction = 'vertical' } = await request.json();

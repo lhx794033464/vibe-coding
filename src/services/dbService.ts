@@ -4,6 +4,11 @@
  */
 
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'kingdee-xingchen-delivery-platform-secret-key-change-in-production';
+const JWT_EXPIRES_IN = '24h';
 
 // ==================== 认证服务 ====================
 
@@ -19,18 +24,42 @@ export interface DbUser {
   updated_at: string | null;
 }
 
-// 简单密码哈希（与原系统兼容）
-export const hashPassword = (password: string): string => {
-  return Buffer.from(password).toString('base64');
+// 密码哈希与验证
+const SALT_ROUNDS = 12;
+
+export const hashPassword = async (password: string): Promise<string> => {
+  return bcrypt.hash(password, SALT_ROUNDS);
 };
 
-const verifyPassword = (password: string, hash: string): boolean => {
-  return hashPassword(password) === hash;
+export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
+  // 兼容旧的 Base64 密码：如果 hash 不是 bcrypt 格式，尝试 Base64 解码对比
+  if (!hash.startsWith('$2')) {
+    const decoded = Buffer.from(hash, 'base64').toString('utf-8');
+    if (decoded === password) {
+      return true; // 旧密码匹配，登录后会被升级为 bcrypt
+    }
+    return false;
+  }
+  return bcrypt.compare(password, hash);
+};
+
+// JWT Token 生成与验证
+export const generateToken = (user: { id: string; username: string; role: string }): string => {
+  return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
+  });
+};
+
+export const verifyToken = (token: string): { id: string; username: string; role: string } | null => {
+  try {
+    return jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: string };
+  } catch {
+    return null;
+  }
 };
 
 // 生成唯一ID
-export const generateId = () =>
-  Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+export const generateId = () => crypto.randomUUID();
 
 // ==================== 管理员初始化 ====================
 
@@ -53,12 +82,27 @@ export async function ensureAdminUser(): Promise<void> {
           id: 'admin_default',
           username: 'admin',
           email: 'admin@company.com',
-          password_hash: hashPassword('admin123'),
+          password_hash: await hashPassword(process.env.ADMIN_INITIAL_PASSWORD || 'admin123'),
           role: 'admin',
           is_active: true,
         });
       if (error) {
         console.error('创建默认管理员失败:', error.message);
+      }
+    } else {
+      // 检查密码是否仍为旧版 Base64 编码，如果是则升级为 bcrypt
+      const isOldHash = !existing.password_hash?.startsWith('$2');
+      if (isOldHash) {
+        const client = getSupabaseClient();
+        const { error } = await client
+          .from('users')
+          .update({ password_hash: await hashPassword(process.env.ADMIN_INITIAL_PASSWORD || 'admin123') })
+          .eq('username', 'admin');
+        if (error) {
+          console.error('升级管理员密码哈希失败:', error.message);
+        } else {
+          console.log('管理员密码已从 Base64 升级为 bcrypt');
+        }
       }
     }
     adminEnsured = true;
@@ -116,7 +160,7 @@ export async function dbCreateUser(userData: {
     .insert({
       username: userData.username,
       email: userData.email || null,
-      password_hash: hashPassword(userData.password),
+      password_hash: await hashPassword(userData.password),
       role: userData.role || 'user',
       role_type: userData.role_type || '交付顾问',
       employment_status: userData.employment_status || '在职',
@@ -141,7 +185,7 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
   if (updates.username !== undefined) updateData.username = updates.username;
   if (updates.email !== undefined) updateData.email = updates.email;
-  if (updates.password !== undefined) updateData.password_hash = hashPassword(updates.password);
+  if (updates.password !== undefined) updateData.password_hash = await hashPassword(updates.password);
   if (updates.role !== undefined) updateData.role = updates.role;
   if (updates.role_type !== undefined) updateData.role_type = updates.role_type;
   if (updates.employment_status !== undefined) updateData.employment_status = updates.employment_status;
@@ -184,12 +228,25 @@ export async function dbAuthenticateUser(username: string, password: string): Pr
     return { success: false, error: '账号已被禁用' };
   }
 
-  if (!verifyPassword(password, userWithHash.password_hash)) {
+  if (!(await verifyPassword(password, userWithHash.password_hash))) {
     return { success: false, error: '用户名或密码错误' };
   }
 
+  // 如果密码是旧 Base64 格式，自动升级为 bcrypt
+  if (!userWithHash.password_hash.startsWith('$2')) {
+    try {
+      const newHash = await hashPassword(password);
+      await getSupabaseClient()
+        .from('users')
+        .update({ password_hash: newHash })
+        .eq('id', userWithHash.id);
+    } catch (e) {
+      console.error('[auth] 密码升级bcrypt失败:', e);
+    }
+  }
+
   const { password_hash, ...safeUser } = userWithHash;
-  const token = Buffer.from(`${safeUser.id}:${safeUser.username}:${safeUser.role}:${generateId()}`).toString('base64');
+  const token = generateToken({ id: safeUser.id, username: safeUser.username, role: safeUser.role });
 
   return {
     success: true,
@@ -248,7 +305,8 @@ export async function dbGetCustomers(filters?: {
 
   // 搜索
   if (filters?.search) {
-    const s = filters.search.toLowerCase();
+    const escaped = filters.search.replace(/[%_]/g, '\\$&');
+    const s = escaped.toLowerCase();
     query = query.or(`name.ilike.%${s}%,sales_order_no.ilike.%${s}%,industry.ilike.%${s}%`);
   }
 

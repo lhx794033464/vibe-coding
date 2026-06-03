@@ -23,19 +23,16 @@ const STORAGE_KEYS = {
   AUTH: 'app_auth',
 } as const;
 
-// 生成唯一ID
-export const generateId = () => 
-  Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-
-// 简单密码哈希（生产环境应该使用 bcrypt 等安全哈希）
-const hashPassword = (password: string): string => {
-  return btoa(password);
+// 生成唯一ID（使用加密安全随机数）
+export const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // 降级方案
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
-// 验证密码
-const verifyPassword = (password: string, hash: string): boolean => {
-  return hashPassword(password) === hash;
-};
+// 客户端不再进行密码哈希验证，全部由后端 API 处理
 
 // ================= 用户存储服务 - 通过 API 操作
 class UsersService {
@@ -140,66 +137,35 @@ class AuthService {
     }
   }
 
-  // 验证账号密码 - 简化版本确保能登录
+  // 验证账号密码 - 通过后端 API 验证
   async authenticate(username: string, password: string): Promise<AuthSession | null> {
-    // 先尝试通过 API 获取用户
-    let users: User[] = [];
+    // 始终通过后端 API 认证，不在客户端做密码验证
     try {
-      users = await usersService.getAll();
-    } catch (error) {
-      console.log('API 获取用户失败，使用本地 fallback');
-    }
-    
-    // 管理员硬编码验证，确保一定能登录
-    if (username === 'admin' && password === 'admin123') {
-      // 找现有的 admin 用户或创建临时的
-      let adminUser = users.find(u => u.username === 'admin');
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
       
-      if (!adminUser) {
-        // 创建临时的 admin 用户对象
-        adminUser = {
-          id: 'admin_' + generateId(),
-          username: 'admin',
-          email: 'admin@company.com',
-          role: 'admin',
-          role_type: '交付顾问',
-          employment_status: '在职',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      }
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      if (!data.user || !data.token) return null;
       
       const session: AuthSession = {
-        user_id: adminUser!.id,
-        username: adminUser!.username,
-        role: adminUser!.role,
-        // Token格式: Base64(user_id:username:role:random_string) — 使用Base64避免中文header问题
-        token: btoa(`${adminUser.id}:${adminUser.username}:${adminUser.role}:${generateId()}`),
+        user_id: data.user.id,
+        username: data.user.username,
+        role: data.user.role,
+        token: data.token,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       };
       
       this.setSession(session);
       return session;
-    }
-    
-    // 普通用户验证
-    const user = users.find(u => u.username === username && u.is_active);
-    if (!user) {
+    } catch (error) {
+      console.error('登录失败:', error);
       return null;
     }
-    
-    const session: AuthSession = {
-      user_id: user.id,
-      username: user.username,
-      role: user.role,
-      // Token格式: Base64(user_id:username:role:random_string)
-      token: btoa(`${user.id}:${user.username}:${user.role}:${generateId()}`),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    };
-    
-    this.setSession(session);
-    return session;
   }
 
   // 获取当前登录用户
