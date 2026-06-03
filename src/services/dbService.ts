@@ -272,8 +272,12 @@ export async function dbGetCustomers(filters?: {
 
   // 数据隔离：普通用户只能看到自己负责的客户
   if (filters?.userId && !filters?.isAdmin) {
-    // 同时按 user_id 和 delivery_consultant 过滤，因为 user_id 在数据同步时可能不准确
-    query = query.or(`user_id.eq.${filters.userId},delivery_consultant.eq.${filters.username || ''}`);
+    // 优先按 delivery_consultant 匹配（user_id 在数据同步时可能不准确，如 admin_default）
+    if (filters?.username) {
+      query = query.eq('delivery_consultant', filters.username);
+    } else {
+      query = query.eq('user_id', filters.userId);
+    }
   }
 
   // 状态筛选
