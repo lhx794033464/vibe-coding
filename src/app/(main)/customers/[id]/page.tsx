@@ -146,7 +146,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
           acceptance_status: data.data.acceptance_status || '',
           salesperson: data.data.salesperson || '',
           implementation_type: data.data.implementation_type || '',
-          delivery_deadline: data.data.delivery_deadline || '',
+          delivery_deadline: data.data.delivery_deadline
+            ? (typeof data.data.delivery_deadline === 'string' ? data.data.delivery_deadline.split('T')[0] : String(data.data.delivery_deadline).split('T')[0])
+            : '',
         });
       }
     } catch (error) {
@@ -566,31 +568,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   // 计算交付期截止日
   // 默认：开通日期 + 120天
   // 已验收且有剩余人天时：每0.5天折算60天延长（即1天=120天）
-  const computeDeliveryDeadline = (openedAt: string | null, acceptanceStatus: string, remaining: number, manualDeadline?: string | null) => {
-    // 如果手动设置过日期且与默认计算值不同，优先使用手动值
-    if (manualDeadline && openedAt) {
-      const defaultBase = new Date(openedAt);
-      if (!isNaN(defaultBase.getTime())) {
-        defaultBase.setDate(defaultBase.getDate() + 120);
-        const defaultStr = defaultBase.toISOString().split('T')[0];
-        // 如果手动值不等于默认值（不含延长的），说明是用户手动修改的
-        if (manualDeadline !== defaultStr) {
-          // 也检查是否等于延长后的值
-          if (acceptanceStatus === 'accepted' && remaining > 0) {
-            defaultBase.setDate(defaultBase.getDate() + Math.round(remaining * 120));
-            const extendedStr = defaultBase.toISOString().split('T')[0];
-            if (manualDeadline === extendedStr) {
-              // 等于延长后的值，属于计算值，不是手动修改
-            } else {
-              return manualDeadline;
-            }
-          } else {
-            return manualDeadline;
-          }
-        }
-      }
-    }
-
+  const computeDeliveryDeadline = (openedAt: string | null, acceptanceStatus: string, remaining: number) => {
     if (!openedAt) return null;
     const base = new Date(openedAt);
     if (isNaN(base.getTime())) return null;
@@ -602,12 +580,15 @@ export default function CustomerDetailPage({ params }: PageProps) {
     return base.toISOString().split('T')[0];
   };
 
-  const deliveryDeadline = computeDeliveryDeadline(
-    customer.opened_at,
-    customer.acceptance_status,
-    remainingDays,
-    customer.delivery_deadline
-  );
+  const computedDeadline = computeDeliveryDeadline(customer.opened_at, customer.acceptance_status, remainingDays);
+  // 如果数据库中有手动设置的值且与计算值不同，优先使用手动值
+  const deliveryDeadlineRaw = customer.delivery_deadline;
+  const deliveryDeadlineStored = deliveryDeadlineRaw
+    ? (typeof deliveryDeadlineRaw === 'string' ? deliveryDeadlineRaw.split('T')[0] : String(deliveryDeadlineRaw).split('T')[0])
+    : null;
+  const deliveryDeadline = deliveryDeadlineStored && deliveryDeadlineStored !== computedDeadline
+    ? deliveryDeadlineStored
+    : computedDeadline;
 
   return (
     <div className="h-full p-6 overflow-auto">
@@ -763,7 +744,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       <Input
                         value={editForm.industry}
                         onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
-                        placeholder="请输入行业"
+                        placeholder="请输入项目备注"
                       />
                     </div>
                     <div className="space-y-2">
@@ -789,6 +770,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         value={editForm.delivery_deadline}
                         onChange={(e) => setEditForm({ ...editForm, delivery_deadline: e.target.value })}
                       />
+                      {computedDeadline && (
+                        <p className="text-xs text-muted-foreground">
+                          系统计算值：{computedDeadline}（开通日+120天{customer.acceptance_status === 'accepted' && remainingDays > 0 ? '，含剩余人天延期' : ''}）
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -817,11 +803,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<TrendingUp className="w-4 h-4" />} label="实施费" value={customer.implementation_fee ? `${customer.implementation_fee.toLocaleString()} 元` : null} />
                     <InfoItem icon={<Clock className="w-4 h-4" />} label="实施人天" value={customer.implementation_days ? `${parseFloat(customer.implementation_days).toFixed(2)} 天` : null} />
                     <InfoItem icon={<Calendar className="w-4 h-4" />} label="开通时间" value={customer.opened_at ? format(new Date(customer.opened_at), 'yyyy-MM-dd') : null} />
-                    <InfoItem icon={<Building className="w-4 h-4" />} label="项目备注" value={customer.industry} />
+                    <InfoItem icon={<Calendar className="w-4 h-4" />} label="交付期截止日" value={deliveryDeadline} />
                     <InfoItem icon={<User className="w-4 h-4" />} label="交付顾问" value={(customer as any).delivery_consultant} />
                     <InfoItem icon={<User className="w-4 h-4" />} label="业务员" value={(customer as any).salesperson} />
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="实施类型" value={(customer as any).implementation_type} />
-                    <InfoItem icon={<Calendar className="w-4 h-4" />} label="交付期截止日" value={deliveryDeadline} />
+                    <InfoItem icon={<Building className="w-4 h-4" />} label="项目备注" value={customer.industry} />
                   </div>
                   {/* 产品版本和模块 */}
                   {(customer.version || customer.modules) && (
