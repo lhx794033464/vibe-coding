@@ -493,7 +493,18 @@ export default function CommissionsPage() {
       return { total: 0, paidFinanceDays: 0, paidOtherDays: 0 };
     }
     
-    // 使用后端返回的人天数据
+    // 修改模式下，用总额计算（因为会替换已有记录）
+    if (editingRecordId) {
+      return {
+        total: selectedCommission.implementationDays || 0,
+        paidFinanceDays: 0,
+        paidOtherDays: 0,
+        financeMax: selectedCommission.financeMaxDays || 0,
+        otherMax: selectedCommission.otherMaxDays || 0,
+      };
+    }
+    
+    // 新增计提模式下，使用后端返回的剩余人天数据
     return {
       total: selectedCommission.remainingDays || 0,
       paidFinanceDays: selectedCommission.paidFinanceDays || 0,
