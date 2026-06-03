@@ -102,20 +102,19 @@ export default function CustomersPage() {
     const matchImplType = implTypeFilter === 'all' ||
       (implTypeFilter === '一对一交付' ? c.implementation_type === '一对一交付' : c.implementation_type !== '一对一交付');
     
-    // 上线状态筛选
-    const onlineStatusMap: Record<string, string> = {
-      'not_online': '未上线',
-      'online': '已上线',
-      'delayed': '延期上线',
-    };
-    const matchOnline = onlineStatusFilter === 'all' || c.status === onlineStatusMap[onlineStatusFilter];
+    // 上线状态筛选（DB中status字段混合存储英文和中文值）
+    const matchOnline = onlineStatusFilter === 'all' || (() => {
+      const s = c.status;
+      switch (onlineStatusFilter) {
+        case 'not_online': return s === 'not_online' || s === '未上线';
+        case 'online': return s === 'online' || s === '已上线';
+        case 'delayed': return s === 'delayed' || s === '延期上线';
+        default: return false;
+      }
+    })();
     
-    // 验收状态筛选
-    const acceptanceStatusMap: Record<string, string> = {
-      'not_accepted': '未验收',
-      'accepted': '已验收',
-    };
-    const matchAcceptance = acceptanceStatusFilter === 'all' || c.acceptance_status === acceptanceStatusMap[acceptanceStatusFilter];
+    // 验收状态筛选（DB中acceptance_status字段存储英文值）
+    const matchAcceptance = acceptanceStatusFilter === 'all' || c.acceptance_status === acceptanceStatusFilter;
     
     // 开通时间范围筛选
     let matchOpenDate = true;
