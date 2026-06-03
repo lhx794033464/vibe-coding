@@ -99,7 +99,8 @@ export default function CustomersPage() {
     const matchConsultant = consultantFilter === 'all' || c.delivery_consultant === consultantFilter;
     
     // 实施类型筛选
-    const matchImplType = implTypeFilter === 'all' || c.implementation_type === implTypeFilter;
+    const matchImplType = implTypeFilter === 'all' ||
+      (implTypeFilter === '一对一交付' ? c.implementation_type === '一对一交付' : c.implementation_type !== '一对一交付');
     
     // 上线状态筛选
     const onlineStatusMap: Record<string, string> = {
@@ -285,7 +286,7 @@ export default function CustomersPage() {
               <SearchableSelect
                 options={[
                   { value: '一对一交付', label: '一对一交付' },
-                  { value: '自助交付', label: '自助交付' },
+                  { value: '其他', label: '其他' },
                 ]}
                 value={implTypeFilter}
                 onChange={(v) => setFilterImplType(v)}
