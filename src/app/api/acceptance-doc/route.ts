@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbGetCustomerById, dbGetImplementationLogs, dbGetAllUsers } from '@/services/dbService';
+import { dbGetCustomerById, dbGetImplementationLogs } from '@/services/dbService';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import {
   Document,
@@ -51,20 +51,8 @@ export async function POST(request: NextRequest) {
     const implementationLogs = (await dbGetImplementationLogs({ customerId: customer_id }))
       .sort((a: any, b: any) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime());
 
-    // 获取参会人员：交付顾问 + 所有参与过实施日志的顾问
-    const allUsers = await dbGetAllUsers();
-    const userIdToName = new Map(allUsers.map((u: any) => [u.id, u.username]));
-    const participantIds = new Set<string>();
-    // 客户的交付顾问
-    participantIds.add((customer as any).user_id);
-    // 实施日志中出现的顾问
-    implementationLogs.forEach((log: any) => {
-      if (log.user_id) participantIds.add(log.user_id);
-    });
-    const participants = Array.from(participantIds)
-      .map(id => userIdToName.get(id))
-      .filter(Boolean)
-      .join('、');
+    // 参会人员默认填充
+    const participants = '全部人员';
 
     // 格式化版本名称
     const versionName = (customer as any).version ? String((customer as any).version) : '-';
