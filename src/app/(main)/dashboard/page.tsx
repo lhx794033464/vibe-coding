@@ -90,36 +90,31 @@ export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>(() => getStoredDates()?.timeRange ?? 'all');
   const [customStartDate, setCustomStartDate] = useState(() => getStoredDates()?.customStartDate ?? '');
   const [customEndDate, setCustomEndDate] = useState(() => getStoredDates()?.customEndDate ?? '');
+  const [roleType, setRoleType] = useState<string>(() => getStoredDates()?.roleType ?? '交付顾问');
   const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
-  const [distTimeRange, setDistTimeRange] = useState<TimeRange>(() => getStoredDates()?.distTimeRange ?? 'all');
-  const [distStartDate, setDistStartDate] = useState(() => getStoredDates()?.distStartDate ?? '');
-  const [distEndDate, setDistEndDate] = useState(() => getStoredDates()?.distEndDate ?? '');
-  const [distRoleType, setDistRoleType] = useState<string>('交付顾问');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
-  const [rankingTimeRange, setRankingTimeRange] = useState<TimeRange>(() => getStoredDates()?.rankingTimeRange ?? 'all');
-  const [rankingStartDate, setRankingStartDate] = useState(() => getStoredDates()?.rankingStartDate ?? '');
-  const [rankingEndDate, setRankingEndDate] = useState(() => getStoredDates()?.rankingEndDate ?? '');
-  const [rankingRoleType, setRankingRoleType] = useState<string>('交付顾问');
+  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
     try {
       localStorage.setItem('dashboard_date_memory', JSON.stringify({
-        timeRange, customStartDate, customEndDate,
-        distTimeRange, distStartDate, distEndDate,
-        rankingTimeRange, rankingStartDate, rankingEndDate,
+        timeRange, customStartDate, customEndDate, roleType,
       }));
     } catch { /* ignore */ }
-  }, [timeRange, customStartDate, customEndDate, distTimeRange, distStartDate, distEndDate, rankingTimeRange, rankingStartDate, rankingEndDate]);
+  }, [timeRange, customStartDate, customEndDate, roleType]);
 
   const fetchDistribution = async () => {
     try {
-      let url = `/api/dashboard?timeRange=${distTimeRange}`;
-      if (distTimeRange === 'custom' && distStartDate && distEndDate) {
-        url += `&startDate=${distStartDate}&endDate=${distEndDate}`;
+      let url = `/api/dashboard?timeRange=${timeRange}`;
+      if (timeRange === 'custom' && customStartDate && customEndDate) {
+        url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
       }
-      if (distRoleType) {
-        url += `&roleType=${encodeURIComponent(distRoleType)}`;
+      if (roleType) {
+        url += `&roleType=${encodeURIComponent(roleType)}`;
+      }
+      if (roleType) {
+        url += `&roleType=${encodeURIComponent(roleType)}`;
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
@@ -131,16 +126,14 @@ export default function DashboardPage() {
     }
   };
 
-  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
-
   const fetchRanking = async () => {
     try {
-      let url = `/api/dashboard?timeRange=${rankingTimeRange}`;
-      if (rankingTimeRange === 'custom' && rankingStartDate && rankingEndDate) {
-        url += `&startDate=${rankingStartDate}&endDate=${rankingEndDate}`;
+      let url = `/api/dashboard?timeRange=${timeRange}`;
+      if (timeRange === 'custom' && customStartDate && customEndDate) {
+        url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
       }
-      if (rankingRoleType) {
-        url += `&roleType=${encodeURIComponent(rankingRoleType)}`;
+      if (roleType) {
+        url += `&roleType=${encodeURIComponent(roleType)}`;
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
@@ -154,11 +147,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (isAdmin) fetchDistribution();
-  }, [isAdmin, distTimeRange, distStartDate, distEndDate, distRoleType]);
+  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
 
   useEffect(() => {
     if (isAdmin) fetchRanking();
-  }, [isAdmin, rankingTimeRange, rankingStartDate, rankingEndDate, rankingRoleType]);
+  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
 
   useEffect(() => {
     fetchStats();
@@ -238,7 +231,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 overflow-auto">
-      {/* 页面标题和时间选择 */}
+      {/* 页面标题和全局筛选 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">数据看板</h1>
@@ -248,6 +241,20 @@ export default function DashboardPage() {
           {isUpdating && (
             <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
+          <Select
+            value={roleType}
+            onValueChange={setRoleType}
+            disabled={isUpdating}
+          >
+            <SelectTrigger className="w-28">
+              <SelectValue placeholder="顾问类型" />
+            </SelectTrigger>
+            <SelectContent position="popper" side="bottom">
+              <SelectItem value="交付顾问">交付顾问</SelectItem>
+              <SelectItem value="售前顾问">售前顾问</SelectItem>
+              <SelectItem value="全部">全部</SelectItem>
+            </SelectContent>
+          </Select>
           {timeRange !== 'custom' ? (
             <Select 
               value={timeRange} 
@@ -499,46 +506,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
         {/* 项目人天分布表 */}
         <Card>
-          <CardHeader className="space-y-0">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-gray-400" />
-                项目人天分布
-              </CardTitle>
-              <div className="flex items-center gap-2 ml-auto">
-                <Select value={distRoleType} onValueChange={(v) => setDistRoleType(v === '全部' ? '' : v)}>
-                  <SelectTrigger className="w-24 h-7 text-xs">
-                    <SelectValue placeholder="全部" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom">
-                    <SelectItem value="全部">全部</SelectItem>
-                    <SelectItem value="交付顾问">交付顾问</SelectItem>
-                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
-                  </SelectContent>
-                </Select>
-                {distTimeRange !== 'custom' ? (
-                  <Select value={distTimeRange} onValueChange={(v) => setDistTimeRange(v as TimeRange)}>
-                    <SelectTrigger className="w-24 h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent position="popper" side="bottom">
-                      <SelectItem value="all">全部</SelectItem>
-                      <SelectItem value="month">本月</SelectItem>
-                      <SelectItem value="year">本年</SelectItem>
-                      <SelectItem value="custom">自定义</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <DateRangePicker
-                    startDate={distStartDate}
-                    endDate={distEndDate}
-                    onStartChange={setDistStartDate}
-                    onEndChange={setDistEndDate}
-                    onClear={() => setDistTimeRange('all')}
-                  />
-                )}
-              </div>
-            </div>
+          <CardHeader className="space-y-0 pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-gray-400" />
+              项目人天分布
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {distData && distData.length > 0 ? (
@@ -575,37 +547,6 @@ export default function DashboardPage() {
                 顾问排行
               </CardTitle>
               <div className="flex items-center gap-2 ml-auto">
-                <Select value={rankingRoleType} onValueChange={(v) => setRankingRoleType(v === '全部' ? '' : v)}>
-                  <SelectTrigger className="w-24 h-7 text-xs">
-                    <SelectValue placeholder="全部" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom">
-                    <SelectItem value="全部">全部</SelectItem>
-                    <SelectItem value="交付顾问">交付顾问</SelectItem>
-                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
-                  </SelectContent>
-                </Select>
-                {rankingTimeRange !== 'custom' ? (
-                  <Select value={rankingTimeRange} onValueChange={(v) => setRankingTimeRange(v as TimeRange)}>
-                    <SelectTrigger className="w-24 h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent position="popper" side="bottom">
-                      <SelectItem value="all">全部</SelectItem>
-                      <SelectItem value="month">本月</SelectItem>
-                      <SelectItem value="year">本年</SelectItem>
-                      <SelectItem value="custom">自定义</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <DateRangePicker
-                    startDate={rankingStartDate}
-                    endDate={rankingEndDate}
-                    onStartChange={setRankingStartDate}
-                    onEndChange={setRankingEndDate}
-                    onClear={() => setRankingTimeRange('all')}
-                  />
-                )}
                 <Select
                   value={rankingDimension}
                   onValueChange={(v) => setRankingDimension(v as typeof rankingDimension)}
