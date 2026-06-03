@@ -807,12 +807,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   </div>
                   <Separator />
                   <div>
-                    <Label className="text-gray-500">实施费</Label>
-                    <p className="text-lg font-semibold mt-1">
-                      {customer.implementation_fee ? `¥${customer.implementation_fee.toLocaleString()}` : '-'}
-                    </p>
-                  </div>
-                  <div>
                     <Label className="text-gray-500">特殊要求</Label>
                     <p className="mt-1 whitespace-pre-wrap">{customer.special_requirements || '-'}</p>
                   </div>
