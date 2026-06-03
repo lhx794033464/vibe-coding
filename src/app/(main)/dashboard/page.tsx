@@ -251,7 +251,7 @@ export default function DashboardPage() {
             </SelectTrigger>
             <SelectContent position="popper" side="bottom">
               <SelectItem value="交付顾问">交付顾问</SelectItem>
-              <SelectItem value="售前顾问">售前顾问</SelectItem>
+              <SelectItem value="答疑顾问">答疑顾问</SelectItem>
               <SelectItem value="全部">全部</SelectItem>
             </SelectContent>
           </Select>
