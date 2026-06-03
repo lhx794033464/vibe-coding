@@ -84,6 +84,7 @@ export default function CommissionsPage() {
   // 管理员标签切换
   const [adminTab, setAdminTab] = useState<'pending' | 'reviewed'>('pending');
   const [collapsedConsultants, setCollapsedConsultants] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
   const toggleConsultant = (name: string) => {
     setCollapsedConsultants(prev => {
@@ -942,14 +943,32 @@ export default function CommissionsPage() {
 
           {/* 普通用户提成列表 */}
           <div className="space-y-4">
+            {commissions.length > 0 && (
+              <div className="relative">
+                <Input
+                  placeholder="搜索客户名称..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-xs"
+                />
+              </div>
+            )}
             {commissions.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center text-gray-500">
                   本月暂无验收完成的客户
                 </CardContent>
               </Card>
+            ) : commissions.filter(c => !searchQuery || c.customerName.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-gray-500">
+                  未找到匹配的客户
+                </CardContent>
+              </Card>
             ) : (
-              commissions.map((commission) => (
+              commissions
+                .filter(c => !searchQuery || c.customerName.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((commission) => (
                 <Card key={commission.customerId}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
