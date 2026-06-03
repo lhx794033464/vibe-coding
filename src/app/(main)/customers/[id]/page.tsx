@@ -486,6 +486,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         },
         body: JSON.stringify({
           acceptance_status: 'not_accepted',
+          acceptance_source: null,
         }),
       });
 
@@ -511,6 +512,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         },
         body: JSON.stringify({
           acceptance_status: 'accepted',
+          acceptance_source: 'app',
         }),
       });
 

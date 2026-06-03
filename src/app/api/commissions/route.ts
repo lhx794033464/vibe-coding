@@ -64,16 +64,17 @@ export async function GET(request: NextRequest) {
     // 获取所有客户（根据权限过滤）
     const allCustomers = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin });
 
-    // 当月验收完成的客户
+    // 当月验收完成的客户（仅应用内确认的验收）
     const acceptedCustomers = allCustomers.filter((c: any) => {
       if (c.acceptance_status !== 'accepted') return false;
+      if (c.acceptance_source !== 'app') return false;
       const updatedAt = new Date(c.updated_at);
       return updatedAt >= monthStart && updatedAt <= monthEnd;
     });
 
-    // 设置下次计提月份为当前月份的客户
+    // 设置下次计提月份为当前月份的客户（仅应用内确认的验收）
     const scheduledCustomers = allCustomers.filter((c: any) =>
-      c.acceptance_status === 'accepted' && c.next_commission_month === monthParam
+      c.acceptance_status === 'accepted' && c.acceptance_source === 'app' && c.next_commission_month === monthParam
     );
 
     // 合并去重
