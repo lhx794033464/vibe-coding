@@ -170,7 +170,7 @@ export function DateRangePicker({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 p-3 w-[280px]">
+        <div className="absolute top-full right-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 p-3 w-[280px]">
           {/* Phase hint */}
           <div className="text-xs text-muted-foreground mb-2 text-center">
             {phase === 'start' ? '请选择起始日期' : '请选择终止日期'}
