@@ -50,7 +50,7 @@ export default function CustomersPage() {
   }[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ imported: number; updated: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; updated: number; reassigned: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -175,7 +175,7 @@ export default function CustomersPage() {
       });
       const data = await response.json();
       if (data.success) {
-        setImportResult({ imported: data.imported, updated: data.updated });
+        setImportResult({ imported: data.imported, updated: data.updated, reassigned: data.reassigned || 0 });
         // 刷新客户列表
         fetchCustomers();
       } else {
@@ -579,7 +579,7 @@ export default function CustomersPage() {
                   <Check className="w-12 h-12 text-green-500 mb-3" />
                   <p className="text-lg font-medium">导入完成</p>
                   <p className="text-gray-500 mt-1">
-                    新增 {importResult.imported} 个客户，更新 {importResult.updated} 个客户
+                    新增 {importResult.imported} 个客户，更新 {importResult.updated} 个客户{importResult.reassigned > 0 ? `，重新分配 ${importResult.reassigned} 个客户` : ''}
                   </p>
                   <Button className="mt-4" onClick={() => setShowFetchDialog(false)}>
                     完成

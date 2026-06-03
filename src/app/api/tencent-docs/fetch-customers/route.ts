@@ -232,7 +232,14 @@ export async function POST(request: NextRequest) {
     const userId = userInfo.id;
     const isAdmin = userInfo.role === 'admin';
     const existingCustomers = await dbGetCustomers({ userId, isAdmin });
-    const existingMap = new Map(existingCustomers.map(c => [c.name, c]));
+    // 管理员同步时，同名客户可能存在于不同顾问账号下，需要按 name -> customer[] 组织
+    // 以便根据交付顾问精确匹配
+    const existingByName = new Map<string, typeof existingCustomers>();
+    for (const c of existingCustomers) {
+      const list = existingByName.get(c.name) || [];
+      list.push(c);
+      existingByName.set(c.name, list);
+    }
 
     // 管理员同步时，根据交付顾问查找对应的 user_id
     const supabase = getSupabaseClient();
@@ -246,8 +253,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 根据交付顾问名称获取对应的 user_id
+    const getDelivererUserId = (delivererName: string | undefined): string | null => {
+      if (!isAdmin || !delivererName) return null;
+      return userMap.get(delivererName) || null;
+    };
+
     let imported = 0;
     let updated = 0;
+    let reassigned = 0;
     const errors: string[] = [];
 
     for (const customer of customers) {
@@ -287,19 +301,42 @@ export async function POST(request: NextRequest) {
         if (!customerData.name) {
           continue;
         }
-        const existing = existingMap.get(customerName);
+
+        // 管理员同步时：计算该客户应归属的 user_id
+        const delivererName = customer.deliverer || customer.delivery_consultant;
+        const targetUserId = getDelivererUserId(delivererName);
+
+        // 在已有客户中查找匹配记录
+        // 优先匹配：同名 + 对应顾问的 user_id；其次匹配：同名任意记录
+        const candidates = existingByName.get(customerName);
+        let existing: typeof existingCustomers[0] | undefined;
+        if (candidates && candidates.length > 0) {
+          // 优先找属于目标顾问的记录
+          if (targetUserId) {
+            existing = candidates.find(c => c.user_id === targetUserId);
+          }
+          // 没找到则取第一条（兼容普通用户同步）
+          if (!existing) {
+            existing = candidates[0];
+          }
+        }
+
         if (existing) {
           // 已计提或部分计提的客户不同步，仅同步未计提的客户
           if (existing.commission_status === '已计提' || existing.commission_status === '部分计提') {
             continue;
           }
+          // 管理员同步时，如果交付顾问变更，需将客户重新分配到新顾问账号下
+          if (isAdmin && targetUserId && existing.user_id !== targetUserId) {
+            customerData.user_id = targetUserId;
+            reassigned++;
+          }
           await dbUpdateCustomer(existing.id, customerData);
           updated++;
         } else {
           // 管理员同步时，按交付顾问分配 user_id；普通用户使用自己的 id
-          const delivererName = customer.deliverer || customer.delivery_consultant;
-          if (isAdmin && delivererName && userMap.has(delivererName)) {
-            customerData.user_id = userMap.get(delivererName)!;
+          if (targetUserId) {
+            customerData.user_id = targetUserId;
           } else {
             customerData.user_id = userId;
           }
@@ -315,6 +352,7 @@ export async function POST(request: NextRequest) {
       success: true,
       imported,
       updated,
+      reassigned,
       errors,
     });
   } catch (error) {
