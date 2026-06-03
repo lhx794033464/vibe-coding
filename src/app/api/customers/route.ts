@@ -57,6 +57,15 @@ export async function POST(request: NextRequest) {
       delivery_consultant: userInfo?.username || body.delivery_consultant || null,
     };
 
+    // 自动计算交付期截止日：开通日期 + 120天（仅当未手动指定时）
+    if (!customerData.delivery_deadline && customerData.opened_at) {
+      const openedDate = new Date(customerData.opened_at);
+      if (!isNaN(openedDate.getTime())) {
+        openedDate.setDate(openedDate.getDate() + 120);
+        customerData.delivery_deadline = openedDate.toISOString().split('T')[0];
+      }
+    }
+
     const customer = await dbCreateCustomer(customerData);
     return NextResponse.json({ customer });
   } catch (error) {

@@ -49,7 +49,7 @@ export interface Customer {
   delivery_consultant: string | null;
   salesperson: string | null; // 业务员
   implementation_type: string | null; // 实施类型
-  expiry_date: string | null; // 到期日
+  delivery_deadline: string | null; // 交付期截止日
   is_online: string | null; // 是否上线
   apply_month: string | null; // 申请月
   acceptance_doc_key: string | null; // 验收单文件key

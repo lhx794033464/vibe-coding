@@ -101,7 +101,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     acceptance_status: '',
     salesperson: '',
     implementation_type: '',
-    expiry_date: '',
+    delivery_deadline: '',
   });
   const [generatingDoc, setGeneratingDoc] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
@@ -146,7 +146,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           acceptance_status: data.data.acceptance_status || '',
           salesperson: data.data.salesperson || '',
           implementation_type: data.data.implementation_type || '',
-          expiry_date: data.data.expiry_date || '',
+          delivery_deadline: data.data.delivery_deadline || '',
         });
       }
     } catch (error) {
@@ -210,6 +210,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           industry: editForm.industry || null,
           special_requirements: editForm.special_requirements || null,
           delivery_consultant: editForm.delivery_consultant || null,
+          delivery_deadline: editForm.delivery_deadline || null,
           status: editForm.status,
         }),
       });
@@ -562,6 +563,52 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
   const remainingDays = parseFloat(customer.implementation_days || '0') - totalConsumedDays;
 
+  // 计算交付期截止日
+  // 默认：开通日期 + 120天
+  // 已验收且有剩余人天时：每0.5天折算60天延长（即1天=120天）
+  const computeDeliveryDeadline = (openedAt: string | null, acceptanceStatus: string, remaining: number, manualDeadline?: string | null) => {
+    // 如果手动设置过日期且与默认计算值不同，优先使用手动值
+    if (manualDeadline && openedAt) {
+      const defaultBase = new Date(openedAt);
+      if (!isNaN(defaultBase.getTime())) {
+        defaultBase.setDate(defaultBase.getDate() + 120);
+        const defaultStr = defaultBase.toISOString().split('T')[0];
+        // 如果手动值不等于默认值（不含延长的），说明是用户手动修改的
+        if (manualDeadline !== defaultStr) {
+          // 也检查是否等于延长后的值
+          if (acceptanceStatus === 'accepted' && remaining > 0) {
+            defaultBase.setDate(defaultBase.getDate() + Math.round(remaining * 120));
+            const extendedStr = defaultBase.toISOString().split('T')[0];
+            if (manualDeadline === extendedStr) {
+              // 等于延长后的值，属于计算值，不是手动修改
+            } else {
+              return manualDeadline;
+            }
+          } else {
+            return manualDeadline;
+          }
+        }
+      }
+    }
+
+    if (!openedAt) return null;
+    const base = new Date(openedAt);
+    if (isNaN(base.getTime())) return null;
+    base.setDate(base.getDate() + 120);
+    // 已验收且有剩余人天：延长 remainingDays * 120 天
+    if (acceptanceStatus === 'accepted' && remaining > 0) {
+      base.setDate(base.getDate() + Math.round(remaining * 120));
+    }
+    return base.toISOString().split('T')[0];
+  };
+
+  const deliveryDeadline = computeDeliveryDeadline(
+    customer.opened_at,
+    customer.acceptance_status,
+    remainingDays,
+    customer.delivery_deadline
+  );
+
   return (
     <div className="h-full p-6 overflow-auto">
       <div className="space-y-6">
@@ -736,11 +783,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>到期日</Label>
+                      <Label>交付期截止日</Label>
                       <Input
-                        value={editForm.expiry_date}
-                        onChange={(e) => setEditForm({ ...editForm, expiry_date: e.target.value })}
-                        placeholder="如：2025-12-31"
+                        type="date"
+                        value={editForm.delivery_deadline}
+                        onChange={(e) => setEditForm({ ...editForm, delivery_deadline: e.target.value })}
                       />
                     </div>
                   </div>
@@ -774,7 +821,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <InfoItem icon={<User className="w-4 h-4" />} label="交付顾问" value={(customer as any).delivery_consultant} />
                     <InfoItem icon={<User className="w-4 h-4" />} label="业务员" value={(customer as any).salesperson} />
                     <InfoItem icon={<FileText className="w-4 h-4" />} label="实施类型" value={(customer as any).implementation_type} />
-                    <InfoItem icon={<Calendar className="w-4 h-4" />} label="到期日" value={(customer as any).expiry_date} />
+                    <InfoItem icon={<Calendar className="w-4 h-4" />} label="交付期截止日" value={deliveryDeadline} />
                   </div>
                   {/* 产品版本和模块 */}
                   {(customer.version || customer.modules) && (

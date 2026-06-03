@@ -18,7 +18,7 @@ const COL_DELIVERER = 3;       // D: 交付人
 const COL_CUSTOMER = 4;        // E: 客户
 const COL_IMPL_TYPE = 5;       // F: 实施类型
 const COL_SALESPERSON = 6;     // G: 业务员
-const COL_EXPIRY_DATE = 7;     // H: 到期日
+const COL_EXPIRY_DATE = 7;     // H: 到期日（已废弃，不再同步）
 const COL_SALES_ORDER = 8;     // I: 销售订单
 const COL_IMPL_ORDER = 9;      // J: 实施订单号
 const COL_IMPL_PRICE = 10;     // K: 实施成交价
@@ -90,7 +90,7 @@ function extractCustomerFromRow(cols: string[]) {
     customerName: cols[COL_CUSTOMER] || '',
     implementation_type: cols[COL_IMPL_TYPE] || '',  // 实施类型
     salesperson: cols[COL_SALESPERSON] || '',        // 业务员
-    expiry_date: cols[COL_EXPIRY_DATE] || '',        // 到期日
+    expiry_date: '',  // 已废弃，保留空值
     sales_order_no: cols[COL_SALES_ORDER] || '',     // 销售订单
     implementation_order_no: cols[COL_IMPL_ORDER] || '', // 实施订单号
     implementation_fee: cols[COL_IMPL_PRICE] || '',  // 实施成交价 → 实施费
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
         applyMonth: r.opened_at,                       // 申请月 → 开通时间（前端驼峰）
         implementationType: r.implementation_type,     // 实施类型
         salesperson: r.salesperson,                    // 业务员
-        expiryDate: r.expiry_date,                     // 到期日
+        expiryDate: '',                             // 到期日（已废弃）
         salesOrder: r.sales_order_no,                  // 销售订单
         implementationOrder: r.implementation_order_no,// 实施订单号
         implementationPrice: r.implementation_fee,     // 实施成交价 → 实施费（前端驼峰）
@@ -304,7 +304,6 @@ export async function POST(request: NextRequest) {
         setIfValue('implementation_days', daysVal ? parseFloat(String(daysVal)) : null);
         setIfValue('implementation_type', customer.implementation_type || customer.implementationType);
         setIfValue('salesperson', customer.salesperson);
-        setIfValue('expiry_date', customer.expiry_date || customer.expiryDate);
         setIfValue('industry', customer.projectNotes || customer.industry);
         setIfValue('acceptance_status', mapAcceptanceStatus(customer.acceptanceStatus || customer.acceptance_status));
 
@@ -350,6 +349,14 @@ export async function POST(request: NextRequest) {
           await dbUpdateCustomer(existing.id, customerData);
           updated++;
         } else {
+          // 新建客户：自动计算交付期截止日 = 开通日期 + 120天
+          if (customerData.opened_at) {
+            const openedDate = new Date(customerData.opened_at);
+            if (!isNaN(openedDate.getTime())) {
+              openedDate.setDate(openedDate.getDate() + 120);
+              customerData.delivery_deadline = openedDate.toISOString().split('T')[0];
+            }
+          }
           // 管理员同步时，按交付顾问分配 user_id；普通用户使用自己的 id
           if (targetUserId) {
             customerData.user_id = targetUserId;

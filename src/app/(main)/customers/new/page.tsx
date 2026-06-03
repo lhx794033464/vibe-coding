@@ -34,7 +34,7 @@ export default function NewCustomerPage() {
     industry: '',
     salesperson: '',
     implementation_type: '',
-    expiry_date: '',
+    delivery_deadline: '',
     delivery_consultant: user?.username || '',
     special_requirements: '',
   });
@@ -60,7 +60,7 @@ export default function NewCustomerPage() {
         industry: formData.industry || null,
         salesperson: formData.salesperson || null,
         implementation_type: formData.implementation_type || null,
-        expiry_date: formData.expiry_date || null,
+        delivery_deadline: formData.delivery_deadline || null,
         delivery_consultant: formData.delivery_consultant || null,
         special_requirements: formData.special_requirements || null,
       };
@@ -129,7 +129,7 @@ export default function NewCustomerPage() {
               industry: row['项目备注'] || row['industry'] || null,
               salesperson: row['业务员'] || row['salesperson'] || null,
               implementation_type: row['实施类型'] || row['implementation_type'] || null,
-              expiry_date: row['到期日'] || row['expiry_date'] || null,
+              delivery_deadline: row['交付期截止日'] || row['delivery_deadline'] || null,
               delivery_consultant: row['交付顾问'] || row['delivery_consultant'] || null,
             }),
           });
@@ -175,7 +175,7 @@ export default function NewCustomerPage() {
         '项目备注': '制造业',
         '业务员': '张三',
         '实施类型': '单模块',
-        '到期日': '2025-12-31',
+        '交付期截止日': '2025-12-31',
         '交付顾问': '李四',
       },
     ];
@@ -198,7 +198,7 @@ export default function NewCustomerPage() {
     { key: 'industry', label: '项目备注', placeholder: '请输入行业' },
     { key: 'salesperson', label: '业务员', placeholder: '请输入业务员' },
     { key: 'implementation_type', label: '实施类型', placeholder: '如：单模块、多模块等' },
-    { key: 'expiry_date', label: '到期日', placeholder: '如：2025-12-31' },
+    { key: 'delivery_deadline', label: '交付期截止日', type: 'date' },
     { key: 'delivery_consultant', label: '交付顾问', placeholder: '请输入交付顾问' },
   ];
 

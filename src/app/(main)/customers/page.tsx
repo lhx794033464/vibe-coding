@@ -44,7 +44,7 @@ export default function CustomersPage() {
   const [fetchData, setFetchData] = useState<{
     customerName: string; modules: string; deliverer?: string;
     status?: string; opened_at?: string; implementation_type?: string;
-    salesperson?: string; expiry_date?: string; sales_order_no?: string;
+    salesperson?: string; delivery_deadline?: string; sales_order_no?: string;
     implementation_order_no?: string; implementation_fee?: string;
     implementation_days?: string; version?: string;
     acceptance_status?: string; industry?: string;
@@ -643,7 +643,7 @@ export default function CustomersPage() {
                             {item.implementation_type && <span>实施类型：{item.implementation_type}</span>}
                             {item.salesperson && <span>业务员：{item.salesperson}</span>}
                             {item.opened_at && <span>开通时间：{item.opened_at}</span>}
-                            {item.expiry_date && <span>到期日：{item.expiry_date}</span>}
+                            {item.delivery_deadline && <span>交付期截止日：{item.delivery_deadline}</span>}
                             {item.implementation_fee && <span>实施费：{item.implementation_fee}</span>}
                             {item.implementation_days && <span>购买人天：{item.implementation_days}</span>}
                             {item.sales_order_no && <span>销售订单：{item.sales_order_no}</span>}
