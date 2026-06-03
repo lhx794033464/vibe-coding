@@ -477,7 +477,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const handleCancelAcceptance = async () => {
     if (!customer) return;
-    
+
     if (!(await confirm({ description: '确定撤回此客户的验收状态吗？撤回后该客户将变为未验收状态。', variant: 'destructive' }))) return;
 
     try {
@@ -495,6 +495,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
       if (response.ok) {
         fetchCustomer(customer.id);
+      } else {
+        const data = await response.json();
+        if (data.error) toast.error(data.error);
       }
     } catch (error) {
       console.error('撤回验收状态失败:', error);

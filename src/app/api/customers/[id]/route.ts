@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbGetCustomerById, dbUpdateCustomer, dbDeleteCustomer } from '@/services/dbService';
+import { dbGetCustomerById, dbUpdateCustomer, dbDeleteCustomer, dbGetCommissionRecords } from '@/services/dbService';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 // 获取单个客户详情
@@ -63,6 +63,14 @@ export async function PUT(
     // acceptance_status 为空字符串时不更新
     if (body.acceptance_status === '' || body.acceptance_status === null) {
       delete body.acceptance_status;
+    }
+
+    // 撤回验收时检查是否已有提成记录
+    if (body.acceptance_status === 'not_accepted' && existing.acceptance_status === 'accepted') {
+      const commissionRecords = await dbGetCommissionRecords({ customerId: id });
+      if (commissionRecords.length > 0) {
+        return NextResponse.json({ error: '该客户已有提成记录，无法撤回验收状态' }, { status: 400 });
+      }
     }
 
     const data = await dbUpdateCustomer(id, body);
