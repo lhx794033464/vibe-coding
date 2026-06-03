@@ -55,6 +55,19 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+// 计算交付期截止日
+// 默认：开通日期 + 120天；已验收且有剩余人天：延长 remainingDays * 120 天
+function computeDeliveryDeadline(openedAt: string | null, acceptanceStatus: string, remaining: number) {
+  if (!openedAt) return null;
+  const base = new Date(openedAt);
+  if (isNaN(base.getTime())) return null;
+  base.setDate(base.getDate() + 120);
+  if (acceptanceStatus === 'accepted' && remaining > 0) {
+    base.setDate(base.getDate() + Math.round(remaining * 120));
+  }
+  return base.toISOString().split('T')[0];
+}
+
 export default function CustomerDetailPage({ params }: PageProps) {
   const { getAuthHeader } = useAuth();
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -513,6 +526,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
     if (!(await confirm({ description: '确定将此客户标记为已验收吗？' }))) return;
 
     try {
+      // 确认验收时自动计算交付期截止日
+      const newDeadline = computeDeliveryDeadline(customer.opened_at, 'accepted', remainingDays);
+
       const response = await fetch(`/api/customers/${customer.id}`, {
         method: 'PUT',
         headers: {
@@ -522,6 +538,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         body: JSON.stringify({
           acceptance_status: 'accepted',
           acceptance_source: 'app',
+          delivery_deadline: newDeadline,
         }),
       });
 
@@ -564,21 +581,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
   // 计算已消耗人天和剩余人天（从实施日志计算）
   const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
   const remainingDays = parseFloat(customer.implementation_days || '0') - totalConsumedDays;
-
-  // 计算交付期截止日
-  // 默认：开通日期 + 120天
-  // 已验收且有剩余人天时：每0.5天折算60天延长（即1天=120天）
-  const computeDeliveryDeadline = (openedAt: string | null, acceptanceStatus: string, remaining: number) => {
-    if (!openedAt) return null;
-    const base = new Date(openedAt);
-    if (isNaN(base.getTime())) return null;
-    base.setDate(base.getDate() + 120);
-    // 已验收且有剩余人天：延长 remainingDays * 120 天
-    if (acceptanceStatus === 'accepted' && remaining > 0) {
-      base.setDate(base.getDate() + Math.round(remaining * 120));
-    }
-    return base.toISOString().split('T')[0];
-  };
 
   const computedDeadline = computeDeliveryDeadline(customer.opened_at, customer.acceptance_status, remainingDays);
   // 如果数据库中有手动设置的值且与计算值不同，优先使用手动值
