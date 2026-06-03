@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取用户可见的客户列表
-    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customers = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin });
     const customerList = customers.map((c: any) => c.name);
     const customerListStr = customerList.length > 0 ? customerList.join('、') : '暂无客户';
 

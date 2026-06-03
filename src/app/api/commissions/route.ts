@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const isAdmin = userInfo?.role === 'admin';
 
     // 获取所有客户（根据权限过滤）
-    const allCustomers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const allCustomers = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin });
 
     // 当月验收完成的客户
     const acceptedCustomers = allCustomers.filter((c: any) => {
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
 
     // 验证权限
     if (!isAdmin) {
-      const customer = await dbGetCustomers({ userId: userInfo?.id, isAdmin: false });
+      const customer = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin: false });
       const found = customer.find((c: any) => c.id === customer_id);
       if (!found) {
         return NextResponse.json({ error: '无权操作此客户' }, { status: 403 });
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取客户信息以计算提成总额
-    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customers = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin });
     const customer = customers.find((c: any) => c.id === customer_id);
     const implementationFee = customer?.implementation_fee || 0;
     const implementationDays = customer?.implementation_days || 1;

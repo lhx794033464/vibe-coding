@@ -262,6 +262,7 @@ export async function dbGetCustomers(filters?: {
   acceptanceStatus?: string;
   search?: string;
   userId?: string;
+  username?: string;
   isAdmin?: boolean;
   timeRange?: string;
   name?: string;
@@ -269,9 +270,10 @@ export async function dbGetCustomers(filters?: {
   const client = getSupabaseClient();
   let query = client.from('customers').select('*');
 
-  // 数据隔离：普通用户只能看到自己创建的客户
+  // 数据隔离：普通用户只能看到自己负责的客户
   if (filters?.userId && !filters?.isAdmin) {
-    query = query.eq('user_id', filters.userId);
+    // 同时按 user_id 和 delivery_consultant 过滤，因为 user_id 在数据同步时可能不准确
+    query = query.or(`user_id.eq.${filters.userId},delivery_consultant.eq.${filters.username || ''}`);
   }
 
   // 状态筛选

@@ -44,40 +44,53 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取客户（管理员获取全部，普通用户获取自己的）
-    const visibleCustomers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    // 普通用户同时按 user_id 和 delivery_consultant 匹配，确保数据隔离正确
+    let customers: any[];
+    if (isAdmin) {
+      customers = await dbGetCustomers({ isAdmin: true });
+    } else {
+      // 获取全部客户，然后按 user_id 或 delivery_consultant 过滤
+      const allCustomers = await dbGetCustomers({ isAdmin: true });
+      const userId = userInfo?.id;
+      const username = userInfo?.username;
+      // 按 delivery_consultant 匹配用户名过滤（user_id 在数据同步时可能不准确）
+      customers = allCustomers.filter((c: any) =>
+        c.delivery_consultant === username
+      );
+    }
 
     // 根据开通时间筛选客户
-    let customers = visibleCustomers.filter((c: any) => c.opened_at);
+    let filteredCustomers = customers.filter((c: any) => c.opened_at);
 
     if (startDate && endDate) {
-      customers = customers.filter((c: any) => {
+      filteredCustomers = filteredCustomers.filter((c: any) => {
         const openedAt = new Date(c.opened_at);
         return openedAt >= startDate! && openedAt < endDate!;
       });
     }
 
     // 只统计实施类型为"一对一交付"的项目
-    customers = customers.filter((c: any) => c.implementation_type === '一对一交付');
+    filteredCustomers = filteredCustomers.filter((c: any) => c.implementation_type === '一对一交付');
 
-    const totalCustomers = customers.length;
+    const totalCustomers = filteredCustomers.length;
 
     // 状态判断：status 为上线状态，acceptance_status 为验收状态
-    const onlineCustomers = customers.filter((c: any) => c.status === 'online').length;
-    const acceptedCustomers = customers.filter((c: any) => c.acceptance_status === 'accepted').length;
+    const onlineCustomers = filteredCustomers.filter((c: any) => c.status === 'online').length;
+    const acceptedCustomers = filteredCustomers.filter((c: any) => c.acceptance_status === 'accepted').length;
 
     const onlineRate = totalCustomers > 0 ? (onlineCustomers / totalCustomers * 100) : 0;
     const acceptanceRate = totalCustomers > 0 ? (acceptedCustomers / totalCustomers * 100) : 0;
 
     // 1个月上线率：开通时间 > 30天的客户中已上线的比例
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const customersOverOneMonth = customers.filter((c: any) => new Date(c.opened_at) <= oneMonthAgo);
+    const customersOverOneMonth = filteredCustomers.filter((c: any) => new Date(c.opened_at) <= oneMonthAgo);
     const oneMonthOnlineRate = customersOverOneMonth.length > 0
       ? (customersOverOneMonth.filter((c: any) => c.status === 'online').length / customersOverOneMonth.length * 100)
       : 0;
 
     // 4个月上线率：开通时间 > 120天的客户中已上线的比例
     const fourMonthsAgo = new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000);
-    const customersOverFourMonths = customers.filter((c: any) => new Date(c.opened_at) <= fourMonthsAgo);
+    const customersOverFourMonths = filteredCustomers.filter((c: any) => new Date(c.opened_at) <= fourMonthsAgo);
     const fourMonthsOnlineRate = customersOverFourMonths.length > 0
       ? (customersOverFourMonths.filter((c: any) => c.status === 'online').length / customersOverFourMonths.length * 100)
       : 0;
@@ -86,7 +99,7 @@ export async function GET(request: NextRequest) {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const lastMonthCustomers = visibleCustomers.filter((c: any) => {
+    const lastMonthCustomers = filteredCustomers.filter((c: any) => {
       if (!c.opened_at) return false;
       const openedAt = new Date(c.opened_at);
       return openedAt >= lastMonthStart && openedAt < lastMonthEnd;
@@ -113,7 +126,7 @@ export async function GET(request: NextRequest) {
     };
 
     const statusDistribution: Record<string, number> = {};
-    customers.forEach((c: any) => {
+    filteredCustomers.forEach((c: any) => {
       const label = statusLabelMap[c.status] || c.status || '未知';
       statusDistribution[label] = (statusDistribution[label] || 0) + 1;
     });
@@ -124,7 +137,7 @@ export async function GET(request: NextRequest) {
       '未上线未验收': 0,
       '已上线未验收': 0,
     };
-    customers.forEach((c: any) => {
+    filteredCustomers.forEach((c: any) => {
       const isOnline = c.status === 'online';
       const isAccepted = c.acceptance_status === 'accepted';
       if (isAccepted) {
@@ -163,7 +176,7 @@ export async function GET(request: NextRequest) {
       fourMonthsTotal: number;
       fourMonthsOnline: number;
     }> = {};
-    customers.forEach((c: any) => {
+    filteredCustomers.forEach((c: any) => {
       const consultant = c.delivery_consultant || '';
 
       // 过滤：仅显示用户管理中存在的顾问，跳过未分配和不存在的顾问

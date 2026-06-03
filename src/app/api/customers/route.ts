@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       acceptanceStatus,
       search,
       userId: userInfo?.id,
+      username: userInfo?.username,
       isAdmin,
     });
 

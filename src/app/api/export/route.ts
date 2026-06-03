@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const userInfo = await getCurrentUserInfo(request);
     const isAdmin = userInfo?.role === 'admin';
 
-    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customers = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin });
 
     const statusMap: Record<string, string> = {
       'not_online': '未上线',

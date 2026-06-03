@@ -23,7 +23,7 @@ function formatTodoList(todos: any[]): string {
 }
 
 // 构建系统提示词
-async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<string> {
+async function buildSystemPrompt(userId: string, username: string | undefined, isAdmin: boolean): Promise<string> {
   const today = getTodayStr();
   
   // 获取业务数据
@@ -32,7 +32,7 @@ async function buildSystemPrompt(userId: string, isAdmin: boolean): Promise<stri
   let todosData = '';
   
   try {
-    const customers = await dbGetCustomers({ userId, isAdmin });
+    const customers = await dbGetCustomers({ userId, username, isAdmin });
     if (customers.length > 0) {
       const statusLabel: Record<string, string> = { 'online': '已上线', 'not_online': '未上线', '延期上线': '延期上线' };
       const acceptLabel: Record<string, string> = { 'accepted': '已验收', 'not_accepted': '未验收' };
@@ -148,7 +148,7 @@ TODO_CREATE|内容|截止日期(YYYY-MM-DD)|优先级(high/medium/low)|关联客
 }
 
 // 解析并执行待办操作
-async function executeTodoAction(action: string, userId: string, isAdmin: boolean = false): Promise<string> {
+async function executeTodoAction(action: string, userId: string, username: string | undefined, isAdmin: boolean = false): Promise<string> {
   const parts = action.split('|');
   const type = parts[0];
 
@@ -164,7 +164,7 @@ async function executeTodoAction(action: string, userId: string, isAdmin: boolea
       // 查找关联客户
       let customerId: string | undefined;
       if (customerName) {
-        const customerList = await dbGetCustomers({ userId, isAdmin });
+        const customerList = await dbGetCustomers({ userId, username, isAdmin });
         const matched = customerList.find(c => c.name === customerName || c.name.includes(customerName));
         if (matched) customerId = matched.id;
       }
@@ -195,13 +195,14 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: '未认证' }), { status: 401 });
     }
     const userId = userInfo.id;
+    const username = userInfo.username;
     const isAdmin = userInfo.role === 'admin';
 
     const body = await request.json();
     const messages = body.messages || [];
 
     // 构建系统提示词
-    const systemPrompt = await buildSystemPrompt(userId, isAdmin);
+    const systemPrompt = await buildSystemPrompt(userId, userInfo?.username, isAdmin);
 
     // 构建 LLM 消息
     const llmMessages: any[] = [
@@ -241,7 +242,7 @@ export async function POST(request: NextRequest) {
           const actionMatch = fullContent.match(/```\s*(TODO_\w+\|[\s\S]+?)```/);
           if (actionMatch) {
             const actionStr = actionMatch[1].trim().replace(/\n/g, '');
-            const result = await executeTodoAction(actionStr, userId, isAdmin);
+            const result = await executeTodoAction(actionStr, userId, username, isAdmin);
             // 发送操作结果
             const resultData = JSON.stringify({ 
               content: `\n\n---\n${result}`,

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 关联客户名称
-    const customers = await dbGetCustomers({ userId: userInfo?.id, isAdmin });
+    const customers = await dbGetCustomers({ userId: userInfo?.id, username: userInfo?.username, isAdmin });
     const customerMap = new Map(customers.map((c: any) => [c.id, c.name]));
 
     // 管理员汇总视图：关联用户名称
