@@ -160,8 +160,10 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 过滤掉已计提的客户（标记已计提后从提成管理中隐藏）
-    const visibleResults = results.filter((r: any) => r.commissionStatus !== '已计提');
+    // 显示所有有提成余额或未完全计提的客户
+    const visibleResults = results.filter((r: any) =>
+      r.commissionStatus !== '已计提' || r.remainingCommission > 0
+    );
 
     const totalCommission = visibleResults.reduce((sum: number, r: any) => sum + r.totalCommission, 0);
     const totalPaid = visibleResults.reduce((sum: number, r: any) => sum + r.paidCommission, 0);
