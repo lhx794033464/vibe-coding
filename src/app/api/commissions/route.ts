@@ -224,28 +224,19 @@ export async function POST(request: NextRequest) {
       totalCommission = implementationDays * 100;
     }
 
-    // 查找或创建提成记录
-    const existingRecords = await dbGetCommissionRecords({ customerId: customer_id, userId: userInfo?.id, isAdmin });
-    const existing = existingRecords.find((c: any) =>
-      c.customer_id === customer_id && c.commission_month === commission_month
-    );
-
-    if (existing && existing.id) {
-      await dbUpdateCommissionRecord(existing.id, { status: status || 'confirmed', amount, remark, finance_days, other_days, total_commission: totalCommission });
-    } else {
-      await dbCreateCommissionRecord({
-        customer_id,
-        commission_month,
-        status: status || 'confirmed',
-        user_id: userInfo?.id || null,
-        amount,
-        total_commission: totalCommission,
-        paid_commission: 0,
-        remark,
-        finance_days,
-        other_days,
-      });
-    }
+    // 每次计提都创建新记录（支持同一客户多次计提，累加而非覆盖）
+    await dbCreateCommissionRecord({
+      customer_id,
+      commission_month,
+      status: status || 'confirmed',
+      user_id: userInfo?.id || null,
+      amount,
+      total_commission: totalCommission,
+      paid_commission: 0,
+      remark,
+      finance_days,
+      other_days,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
