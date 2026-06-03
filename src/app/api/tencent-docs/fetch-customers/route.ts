@@ -149,6 +149,14 @@ export async function GET(request: NextRequest) {
       activeEmploymentMap[u.username] = u.employment_status || '在职';
     });
 
+    // 获取应用内已验收的客户名称集合，同步时跳过这些客户
+    const { data: acceptedCustomers } = await supabase
+      .from('customers')
+      .select('name')
+      .eq('acceptance_status', 'accepted')
+      .eq('acceptance_source', 'app');
+    const appAcceptedNames = new Set<string>((acceptedCustomers || []).map((c: any) => c.name));
+
     const myRecords: ReturnType<typeof extractCustomerFromRow>[] = [];
 
     for (let i = 1; i < allRows.length; i++) {
@@ -164,6 +172,8 @@ export async function GET(request: NextRequest) {
 
       // 管理员获取所有在职交付顾问的行，普通用户仅获取自己的
       if (customerName && (isAdmin || deliverer === username)) {
+        // 应用内已验收的客户不参与同步，跳过
+        if (appAcceptedNames.has(customerName)) continue;
         myRecords.push(extractCustomerFromRow(cols));
       }
     }
@@ -262,6 +272,7 @@ export async function POST(request: NextRequest) {
     let imported = 0;
     let updated = 0;
     let reassigned = 0;
+    let skipped = 0;
     const errors: string[] = [];
 
     for (const customer of customers) {
@@ -322,6 +333,11 @@ export async function POST(request: NextRequest) {
         }
 
         if (existing) {
+          // 应用内已验收的客户不参与同步，跳过更新
+          if (existing.acceptance_source === 'app' && existing.acceptance_status === 'accepted') {
+            skipped++;
+            continue;
+          }
           // 已计提或部分计提的客户不同步，仅同步未计提的客户
           if (existing.commission_status === '已计提' || existing.commission_status === '部分计提') {
             continue;
@@ -353,6 +369,7 @@ export async function POST(request: NextRequest) {
       imported,
       updated,
       reassigned,
+      skipped,
       errors,
     });
   } catch (error) {
