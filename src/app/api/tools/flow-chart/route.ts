@@ -188,13 +188,15 @@ function escapeXmlAttributes(xml: string): string {
 
 /**
  * 根据节点实际坐标动态调整画布尺寸
- * 解决：长流程图节点超出默认 pageHeight(1100) 时，
- * orthogonalEdgeStyle 连线路由计算失败导致边不显示的问题
+ * 策略：page 尺寸刚好容纳所有节点 + 适度边距，dx/dy 与 page 一致
+ * 避免出现多页拼接、流程图偏居角落的问题
  */
 function adjustCanvasSize(xml: string): string {
   // 提取所有节点的坐标
   const cellPattern = /<mxCell\s([^>]*?)>([\s\S]*?)<\/mxCell>/g;
   let match: RegExpExecArray | null;
+  let minX = Infinity;
+  let minY = Infinity;
   let maxX = 0;
   let maxY = 0;
 
@@ -205,8 +207,8 @@ function adjustCanvasSize(xml: string): string {
     // 只处理 vertex 节点
     if (!/vertex="1"/.test(attrs)) continue;
 
-    const xMatch = inner.match(/x="(\d+)"/);
-    const yMatch = inner.match(/y="(\d+)"/);
+    const xMatch = inner.match(/x="(-?\d+)"/);
+    const yMatch = inner.match(/y="(-?\d+)"/);
     const wMatch = inner.match(/width="(\d+)"/);
     const hMatch = inner.match(/height="(\d+)"/);
 
@@ -215,48 +217,78 @@ function adjustCanvasSize(xml: string): string {
     const w = wMatch ? parseInt(wMatch[1]) : 100;
     const h = hMatch ? parseInt(hMatch[1]) : 60;
 
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
     if (x + w > maxX) maxX = x + w;
     if (y + h > maxY) maxY = y + h;
   }
 
-  // 加上边距
-  const padding = 200;
-  const neededWidth = maxX + padding;
-  const neededHeight = maxY + padding;
+  // 如果没有找到节点，使用默认值
+  if (minX === Infinity) {
+    minX = 0;
+    minY = 0;
+    maxX = 800;
+    maxY = 600;
+  }
 
-  // 默认页面尺寸
-  const defaultPageWidth = 850;
-  const defaultPageHeight = 1100;
+  // 负坐标偏移：将所有节点平移到正坐标区域
+  const offsetX = minX < 50 ? (50 - minX) : 0;
+  const offsetY = minY < 50 ? (50 - minY) : 0;
 
-  const newPageWidth = Math.max(defaultPageWidth, neededWidth);
-  const newPageHeight = Math.max(defaultPageHeight, neededHeight);
+  // 应用坐标偏移
+  let adjusted = xml;
+  if (offsetX > 0 || offsetY > 0) {
+    adjusted = adjusted.replace(
+      /(<mxCell\s[^>]*?vertex="1"[^>]*?>)([\s\S]*?)(<\/mxCell>)/g,
+      (_fullMatch: string, prefix: string, inner: string, suffix: string) => {
+        let newInner = inner;
+        if (offsetX > 0) {
+          newInner = newInner.replace(/x="(-?\d+)"/, (_: string, v: string) => `x="${parseInt(v) + offsetX}"`);
+        }
+        if (offsetY > 0) {
+          newInner = newInner.replace(/y="(-?\d+)"/, (_: string, v: string) => `y="${parseInt(v) + offsetY}"`);
+        }
+        return `${prefix}${newInner}${suffix}`;
+      }
+    );
+    // 更新 maxX/maxY
+    maxX += offsetX;
+    maxY += offsetY;
+  }
 
-  // dx/dy 是编辑器视口偏移，设为页面尺寸的合理倍数以支持滚动查看
-  const newDx = Math.max(1200, newPageWidth);
-  const newDy = Math.max(800, newPageHeight);
+  // 页面尺寸 = 内容区域 + 边距，紧凑适配
+  const padding = 80;
+  const contentWidth = maxX + padding;
+  const contentHeight = maxY + padding;
+
+  // 单页尺寸上限，避免生成巨幅多页画布
+  const maxPageWidth = 1600;
+  const maxPageHeight = 2200;
+
+  const newPageWidth = Math.min(Math.max(850, contentWidth), maxPageWidth);
+  const newPageHeight = Math.min(Math.max(1100, contentHeight), maxPageHeight);
+
+  // dx/dy 控制编辑器视口偏移，设小值让内容从左上角开始显示
+  // 不设为 page 尺寸，否则视口偏移一整页，内容只在角落可见
+  const newDx = Math.min(100, newPageWidth / 4);
+  const newDy = Math.min(80, newPageHeight / 4);
 
   // 替换 mxGraphModel 的属性
-  let adjusted = xml;
-
-  // 替换 pageHeight
   adjusted = adjusted.replace(
     /pageHeight="\d+"/,
     `pageHeight="${newPageHeight}"`
   );
 
-  // 替换 pageWidth
   adjusted = adjusted.replace(
     /pageWidth="\d+"/,
     `pageWidth="${newPageWidth}"`
   );
 
-  // 替换 dx
   adjusted = adjusted.replace(
     /dx="\d+"/,
     `dx="${newDx}"`
   );
 
-  // 替换 dy
   adjusted = adjusted.replace(
     /dy="\d+"/,
     `dy="${newDy}"`
@@ -303,7 +335,130 @@ function validateAndCleanXml(xml: string): { xml: string | null; error: string |
   // 根据节点坐标动态调整画布尺寸，修复长流程图连线不显示问题
   cleaned = adjustCanvasSize(cleaned);
 
+  // 修复孤立节点：为没有连线的节点自动连接到最近的前序节点
+  cleaned = fixOrphanNodes(cleaned);
+
   return { xml: cleaned, error: null };
+}
+
+/**
+ * 修复孤立节点：检测没有入边和出边的vertex节点，自动连线
+ */
+function fixOrphanNodes(xml: string): string {
+  // 提取所有vertex和edge
+  const cellRegex = /<mxCell\s+([^>]*)\/?>/g;
+  const vertices: { id: string; value: string; x: number; y: number; style: string }[] = [];
+  const edges: { id: string; source: string; target: string }[] = [];
+  const allIds = new Set<string>();
+
+  let match;
+  while ((match = cellRegex.exec(xml)) !== null) {
+    const attrs = match[1];
+    const idMatch = attrs.match(/id="([^"]*)"/);
+    if (!idMatch) continue;
+    const id = idMatch[1];
+    allIds.add(id);
+
+    const parentMatch = attrs.match(/parent="([^"]*)"/);
+    const parent = parentMatch ? parentMatch[1] : '';
+
+    // Skip root cells (id=0, id=1, or parent != "1")
+    if (id === '0' || id === '1' || parent !== '1') continue;
+
+    const sourceMatch = attrs.match(/source="([^"]*)"/);
+    const targetMatch = attrs.match(/target="([^"]*)"/);
+
+    if (sourceMatch || targetMatch) {
+      // This is an edge
+      edges.push({
+        id,
+        source: sourceMatch ? sourceMatch[1] : '',
+        target: targetMatch ? targetMatch[1] : '',
+      });
+    } else {
+      // This is a vertex - extract position
+      const valueMatch = attrs.match(/value="([^"]*)"/);
+      const styleMatch = attrs.match(/style="([^"]*)"/);
+      const geoMatch = xml.match(new RegExp(`<mxCell[^>]*id="${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?<mxGeometry[^>]*x="([^"]*)"[^>]*y="([^"]*)"`));
+
+      if (geoMatch) {
+        vertices.push({
+          id,
+          value: valueMatch ? valueMatch[1] : '',
+          x: parseFloat(geoMatch[1]) || 0,
+          y: parseFloat(geoMatch[2]) || 0,
+          style: styleMatch ? styleMatch[1] : '',
+        });
+      }
+    }
+  }
+
+  // Build connectivity maps
+  const hasIncoming = new Set<string>();
+  const hasOutgoing = new Set<string>();
+  for (const edge of edges) {
+    if (edge.source) hasIncoming.add(edge.target);
+    if (edge.target) hasOutgoing.add(edge.source);
+  }
+
+  // Find orphan vertices (no incoming AND no outgoing edges)
+  const isEllipse = (style: string) => style.includes('ellipse');
+  const orphans = vertices.filter(v => !hasIncoming.has(v.id) && !hasOutgoing.has(v.id) && !isEllipse(v.style));
+
+  if (orphans.length === 0) return xml;
+
+  // For each orphan, find the closest vertex that is before it (smaller y for vertical, smaller x for horizontal)
+  // and connect them
+  const newEdges: string[] = [];
+  let maxId = 0;
+  allIds.forEach(id => { const n = parseInt(id); if (!isNaN(n) && n > maxId) maxId = n; });
+
+  for (const orphan of orphans) {
+    // Find the closest non-orphan vertex that is visually before this one
+    const candidates = vertices.filter(v =>
+      v.id !== orphan.id &&
+      (hasOutgoing.has(v.id) || hasIncoming.has(v.id)) &&
+      v.y < orphan.y
+    );
+
+    if (candidates.length > 0) {
+      // Pick the one closest in Y (just above)
+      candidates.sort((a, b) => {
+        const distA = Math.abs(a.y - orphan.y) + Math.abs(a.x - orphan.x) * 0.5;
+        const distB = Math.abs(b.y - orphan.y) + Math.abs(b.x - orphan.x) * 0.5;
+        return distA - distB;
+      });
+
+      const closest = candidates[0];
+      maxId++;
+      newEdges.push(
+        `<mxCell id="${maxId}" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="${closest.id}" target="${orphan.id}" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>`
+      );
+    } else {
+      // No candidate above - try to connect to the nearest vertex regardless
+      const allCandidates = vertices.filter(v => v.id !== orphan.id);
+      if (allCandidates.length > 0) {
+        allCandidates.sort((a, b) => {
+          const distA = Math.hypot(a.x - orphan.x, a.y - orphan.y);
+          const distB = Math.hypot(b.x - orphan.x, b.y - orphan.y);
+          return distA - distB;
+        });
+        const nearest = allCandidates[0];
+        maxId++;
+        newEdges.push(
+          `<mxCell id="${maxId}" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="${nearest.id}" target="${orphan.id}" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>`
+        );
+      }
+    }
+  }
+
+  if (newEdges.length > 0) {
+    // Insert new edges before </root>
+    xml = xml.replace('</root>', newEdges.join('') + '</root>');
+    console.log(`[flow-chart] Fixed ${newEdges.length} orphan nodes by adding missing edges`);
+  }
+
+  return xml;
 }
 
 /**
@@ -326,8 +481,14 @@ function buildSystemPrompt(direction: 'vertical' | 'horizontal'): string {
 6.禁止edge中定义points数组，判断节点出边设不同exitX/exitY
 7.输出紧凑XML，无需缩进换行，id用简短数字
 
+连线完整性规则（最重要）：
+- 每个vertex节点（除了开始节点无入边、结束节点无出边）必须有至少一条入边和一条出边
+- 所有节点必须通过边连接成一条完整路径，禁止出现孤立节点
+- 判断节点(diamond)必须有2个出边，每个出边的value标注条件
+- 如果XML被截断，优先保证所有节点之间的连线完整，节点可以省略但边不能省略
+- edge必须有source和target属性指向有效的vertex节点id
+
 分支规则：
-- 判断节点(diamond)必须有2个及以上出边，每个出边的value标注条件
 - 判断节点出边分别从不同方向离开：纵向布局时左分支exitX=0 exitY=0.5，右分支exitX=1 exitY=0.5，下方exitX=0.5 exitY=1
 - 分支结束后应回到主流程（合并节点或汇合连线）
 - 多分支时每个条件都独立标注
@@ -357,7 +518,7 @@ function buildCompactPrompt(direction: 'vertical' | 'horizontal'): string {
     ? '横向，左到右'
     : '纵向，上到下';
 
-  return `生成draw.io流程图XML。${layoutRule}。只输出mxGraphModel XML，无缩进无换行无解释。节点样式：开始/结束=ellipse fillColor=#f5f5f5;单据=rounded fillColor=#dae8fc;判断=diamond fillColor=#fff2cc;处理=矩形 fillColor=#e1d5e7。连线用orthogonalEdgeStyle。用金蝶标准单据名。`;
+  return `生成draw.io流程图XML。${layoutRule}。只输出mxGraphModel XML，无缩进无换行无解释。重要：每个vertex节点必须有入边和出边（开始仅出边、结束仅入边），禁止孤立节点，edge必须同时有source和target。节点样式：开始/结束=ellipse fillColor=#f5f5f5;单据=rounded fillColor=#dae8fc;判断=diamond fillColor=#fff2cc;处理=矩形 fillColor=#e1d5e7。连线用orthogonalEdgeStyle。用金蝶标准单据名。`;
 }
 
 export async function POST(request: NextRequest) {
