@@ -253,6 +253,41 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// 修改提成记录
+export async function PUT(request: NextRequest) {
+  try {
+    const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return NextResponse.json({ error: '未授权' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { record_id, amount, remark, finance_days, other_days, commission_month } = body;
+
+    if (!record_id) {
+      return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
+    }
+
+    const updates: Record<string, any> = {};
+    if (amount !== undefined) updates.amount = amount;
+    if (remark !== undefined) updates.remark = remark;
+    if (finance_days !== undefined) updates.finance_days = finance_days;
+    if (other_days !== undefined) updates.other_days = other_days;
+    if (commission_month !== undefined) updates.commission_month = commission_month;
+
+    const result = await dbUpdateCommissionRecord(record_id, updates);
+    if (!result) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('修改提成记录失败:', error);
+    const msg = error instanceof Error ? error.message : '修改提成记录失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
 // 删除提成记录
 export async function DELETE(request: NextRequest) {
   try {

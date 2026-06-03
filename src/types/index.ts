@@ -93,6 +93,7 @@ export interface CommissionRecord {
   total_commission: string; // 应提总额
   paid_commission: string; // 已提金额
   remark: string | null;
+  commission_month?: string; // 提成月份
   user_id: string;
   created_at: string;
 }

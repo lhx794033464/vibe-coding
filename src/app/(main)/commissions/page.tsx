@@ -43,6 +43,7 @@ export default function CommissionsPage() {
   const [commissionAmount, setCommissionAmount] = useState('');
   const [commissionRemark, setCommissionRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null); // 修改模式下的记录ID
   
   // 人天输入状态
   const [totalDaysInput, setTotalDaysInput] = useState(''); // 实施费>50%时使用
@@ -276,17 +277,38 @@ export default function CommissionsPage() {
     }
   };
 
-  const openCommissionDialog = (commission: CommissionCalculation) => {
+  const openCommissionDialog = (commission: CommissionCalculation, recordId?: string) => {
     setSelectedCommission(commission);
     setCommissionAmount('');
     setCommissionRemark('');
     setTotalDaysInput('');
     setFinanceDays('');
     setOtherDays('');
-    // 默认设置为下一个月份
-    const nextMonth = new Date(currentMonth + '-01');
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    setNextCommissionMonth(format(nextMonth, 'yyyy-MM'));
+
+    // 修改模式：预填已有记录数据
+    if (recordId && commission.records) {
+      const record = commission.records.find((r: any) => r.id === recordId);
+      if (record) {
+        setEditingRecordId(recordId);
+        setCommissionAmount(String(record.amount || ''));
+        setCommissionRemark(record.remark || '');
+        // 从备注中解析人天
+        const remark = record.remark || '';
+        const totalMatch = remark.match(/计提([\d.]+)天/);
+        const financeMatch = remark.match(/财务([\d.]+)天/);
+        const otherMatch = remark.match(/其他([\d.]+)天/);
+        if (totalMatch) setTotalDaysInput(totalMatch[1]);
+        if (financeMatch) setFinanceDays(financeMatch[1]);
+        if (otherMatch) setOtherDays(otherMatch[1]);
+        if (record.commission_month) setNextCommissionMonth(record.commission_month);
+      }
+    } else {
+      setEditingRecordId(null);
+      // 默认设置为下一个月份
+      const nextMonth = new Date(currentMonth + '-01');
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      setNextCommissionMonth(format(nextMonth, 'yyyy-MM'));
+    }
     setDialogOpen(true);
   };
   
@@ -334,7 +356,8 @@ export default function CommissionsPage() {
   };
 
   const handleSubmitCommission = async () => {
-    if (!selectedCommission || !commissionAmount) return;
+    if (!selectedCommission) return;
+    if (!editingRecordId && !commissionAmount) return;
     
     // 验证人天输入
     if (!validateDaysInput()) return;
@@ -363,30 +386,57 @@ export default function CommissionsPage() {
         finalRemark = commissionRemark ? `${commissionRemark} (${daysInfo})` : daysInfo;
       }
       
-      const response = await fetch('/api/commissions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
-          customer_id: selectedCommission.customerId,
-          commission_month: nextCommissionMonth,
-          amount: parseFloat(commissionAmount),
-          remark: finalRemark,
-          finance_days: financeDaysParam,
-          other_days: otherDaysParam,
-        }),
-      });
+      if (editingRecordId) {
+        // 修改模式：调用 PUT 接口
+        const response = await fetch('/api/commissions', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify({
+            record_id: editingRecordId,
+            amount: parseFloat(commissionAmount),
+            remark: finalRemark,
+            finance_days: financeDaysParam,
+            other_days: otherDaysParam,
+            commission_month: nextCommissionMonth,
+          }),
+        });
 
-      const data = await response.json();
-      if (response.ok) {
-        setDialogOpen(false);
-        
-        // 刷新列表获取最新数据
-        await fetchCommissions();
+        const data = await response.json();
+        if (response.ok) {
+          setDialogOpen(false);
+          setEditingRecordId(null);
+          await fetchCommissions();
+        } else {
+          alert(data.error || '修改提成失败');
+        }
       } else {
-        alert(data.error || '创建提成失败');
+        // 新增模式：调用 POST 接口
+        const response = await fetch('/api/commissions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify({
+            customer_id: selectedCommission.customerId,
+            commission_month: nextCommissionMonth,
+            amount: parseFloat(commissionAmount),
+            remark: finalRemark,
+            finance_days: financeDaysParam,
+            other_days: otherDaysParam,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          setDialogOpen(false);
+          await fetchCommissions();
+        } else {
+          alert(data.error || '创建提成失败');
+        }
       }
     } catch (error) {
       console.error('创建提成失败:', error);
@@ -653,7 +703,8 @@ export default function CommissionsPage() {
               <Button
                 onClick={handleReportCommission}
                 disabled={reporting || commissions.filter(c => (c.totalCommission || 0) > 0 && (c.paidCommission || 0) > 0).length === 0 || reportStatus === 'pending'}
-                variant={reportStatus === 'pending' ? 'outline' : 'default'}
+                variant={reportStatus === 'pending' ? 'outline' : reportStatus === 'rejected' ? 'outline' : 'default'}
+                className={reportStatus === 'rejected' ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : ''}
               >
                 {reporting ? (
                   <>
@@ -664,6 +715,11 @@ export default function CommissionsPage() {
                   <>
                     <Send className="w-4 h-4 mr-2" />
                     已申报
+                  </>
+                ) : reportStatus === 'rejected' ? (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    修改并重新申报
                   </>
                 ) : (
                   <>
@@ -1053,7 +1109,7 @@ export default function CommissionsPage() {
                         </div>
                       </div>
 
-                      {/* 计提按钮 */}
+                      {/* 计提/修改按钮 */}
                       <div className="ml-4 flex flex-col items-end gap-2">
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="icon" title="标记已计提" className="text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleMarkCommissioned(commission)}>
@@ -1064,9 +1120,15 @@ export default function CommissionsPage() {
                               <Bell className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button onClick={() => openCommissionDialog(commission)} disabled={!hasRemainingCommission(commission)}>
-                            计提提成
-                          </Button>
+                          {reportStatus === 'rejected' && commission.records && commission.records.length > 0 ? (
+                            <Button onClick={() => openCommissionDialog(commission, commission.records![commission.records!.length - 1].id)} variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                              修改
+                            </Button>
+                          ) : (
+                            <Button onClick={() => openCommissionDialog(commission)} disabled={!hasRemainingCommission(commission)}>
+                              计提提成
+                            </Button>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500">
                           {(() => {
@@ -1111,9 +1173,9 @@ export default function CommissionsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>计提提成</DialogTitle>
+            <DialogTitle>{editingRecordId ? '修改提成' : '计提提成'}</DialogTitle>
             <DialogDescription>
-              为客户 <span className="font-semibold">{selectedCommission?.customerName}</span> 计提提成
+              为客户 <span className="font-semibold">{selectedCommission?.customerName}</span> {editingRecordId ? '修改' : '计提'}提成
             </DialogDescription>
           </DialogHeader>
 
@@ -1317,7 +1379,7 @@ export default function CommissionsPage() {
                   处理中...
                 </>
               ) : (
-                '确认计提'
+                editingRecordId ? '确认修改' : '确认计提'
               )}
             </Button>
           </DialogFooter>
