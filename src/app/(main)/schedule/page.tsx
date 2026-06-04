@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, Video, Check, ChevronsUpDown, ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Plus, X, Video, Check, ChevronsUpDown, ChevronDown, ChevronRight, Users, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -108,6 +108,14 @@ export default function SchedulePage() {
   const [summaryDetailDate, setSummaryDetailDate] = useState<string>('');
   const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
   
+  // 同步排班状态
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [syncDocUrl, setSyncDocUrl] = useState('');
+  const [syncSheetId, setSyncSheetId] = useState('');
+  const [syncMonth, setSyncMonth] = useState('6');
+  const [syncYear, setSyncYear] = useState('2026');
+  const [syncLoading, setSyncLoading] = useState(false);
+  
   // 法定节假日数据从全局 Context 获取
   const { getDateStatus, loaded: holidayLoaded } = useHolidays();
   
@@ -134,30 +142,31 @@ export default function SchedulePage() {
   }, []);
 
   // 获取日程数据
-  useEffect(() => {
-    const fetchSchedules = async () => {
-      try {
-        const startDate = calendarDates[0];
-        const endDate = calendarDates[calendarDates.length - 1];
-        
-        const response = await fetch(
-          `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`,
-          { headers: { ...getAuthHeader() } }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          setSchedules(data.schedules || []);
-          // 管理员汇总数据
-          if (data.dailySummary) setDailySummary(data.dailySummary);
-          if (data.activeConsultants) setActiveConsultants(data.activeConsultants);
-        }
-      } catch (error) {
-        console.error('获取日程失败:', error);
+  const fetchSchedules = useCallback(async () => {
+    try {
+      const startDate = calendarDates[0];
+      const endDate = calendarDates[calendarDates.length - 1];
+      
+      const response = await fetch(
+        `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`,
+        { headers: { ...getAuthHeader() } }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSchedules(data.schedules || []);
+        // 管理员汇总数据
+        if (data.dailySummary) setDailySummary(data.dailySummary);
+        if (data.activeConsultants) setActiveConsultants(data.activeConsultants);
       }
-    };
+    } catch (error) {
+      console.error('获取日程失败:', error);
+    }
+  }, [calendarDates, getAuthHeader]);
+
+  useEffect(() => {
     fetchSchedules();
-  }, [calendarDates]);
+  }, [fetchSchedules]);
 
   const getSchedulesForDate = (date: Date): Schedule[] => {
     const dateStr = formatDate(date);
@@ -235,6 +244,31 @@ export default function SchedulePage() {
   );
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
+  const handleSyncSchedule = async () => {
+    if (!syncDocUrl.trim()) {
+      toast.error('请输入腾讯文档链接或文件ID');
+      return;
+    }
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`/api/tencent-docs/sync-schedule?docUrl=${encodeURIComponent(syncDocUrl.trim())}&sheetId=${encodeURIComponent(syncSheetId.trim())}&month=${syncMonth}&year=${syncYear}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || '同步失败');
+        return;
+      }
+      toast.success(`同步完成：导入 ${data.imported} 条，跳过 ${data.skipped} 条已存在`);
+      setShowSyncDialog(false);
+      fetchSchedules();
+    } catch (err) {
+      toast.error('同步失败');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
   const isToday = (date: Date): boolean => formatDate(date) === formatDate(new Date());
 
   const isFirstOfMonth = (date: Date): { isFirst: boolean; month: number } => {
@@ -292,6 +326,15 @@ export default function SchedulePage() {
               <div className="w-4 h-4 rounded bg-red-100 border border-red-200"></div>
               <span className="text-gray-500">排期满载</span>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSyncDialog(true)}
+              className="ml-2"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              同步排班
+            </Button>
           </div>
         )}
       </div>
@@ -703,6 +746,82 @@ export default function SchedulePage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* 同步排班对话框 */}
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>同步腾讯文档排班表</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">文档ID</label>
+              <Input
+                placeholder="请输入腾讯文档的文档ID（如 DTUZjZ3Jmc0JKdXF3）"
+                value={syncFileId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSyncFileId(e.target.value)}
+              />
+              <p className="text-xs text-gray-500">
+                从腾讯文档链接中获取：https://docs.qq.com/sheet/<b>DTUZjZ3Jmc0JKdXF3</b>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">工作表ID</label>
+              <Input
+                placeholder="请输入排班表的工作表ID（如 rafiwj），留空使用第一个工作表"
+                value={syncSheetId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSyncSheetId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">日期列（列号）</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="日期所在列号，从0开始（默认0）"
+                value={syncDateCol}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSyncDateCol(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">顾问列（列号）</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="顾问姓名所在列号，从0开始（默认1）"
+                value={syncConsultantCol}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSyncConsultantCol(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">客户/项目列（列号）</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="客户/项目名称所在列号，从0开始（默认2）"
+                value={syncProjectCol}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSyncProjectCol(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">起始行（跳过表头）</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="数据起始行号，从0开始（默认1）"
+                value={syncStartRow}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSyncStartRow(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSyncDialog(false)}>取消</Button>
+            <Button onClick={handleSyncSchedule} disabled={syncing}>
+              {syncing ? '同步中...' : '开始同步'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
