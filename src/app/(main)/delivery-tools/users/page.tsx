@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit2, Trash2, Loader2, ShieldCheck, UserPlus } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, ShieldCheck, UserPlus, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
@@ -41,6 +41,7 @@ export default function UsersManagementPage() {
     employment_status: '在职',
     is_active: true,
   });
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   const { isAuthenticated, isAdmin, getAuthHeader, refreshUser } = useAuth();
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -215,6 +216,28 @@ export default function UsersManagementPage() {
     );
   };
 
+  const rolePriority = (role: string): number => {
+    switch (role) {
+      case 'admin': return 0;
+      case '交付顾问': return 1;
+      case '答疑顾问': return 2;
+      default: return 3;
+    }
+  };
+
+  const filteredAndSortedUsers = users
+    .filter((user) => {
+      if (!searchKeyword.trim()) return true;
+      const keyword = searchKeyword.trim().toLowerCase();
+      return (
+        user.username?.toLowerCase().includes(keyword) ||
+        user.email?.toLowerCase().includes(keyword) ||
+        user.role?.toLowerCase().includes(keyword) ||
+        (user.role === 'admin' && '管理员'.includes(keyword))
+      );
+    })
+    .sort((a, b) => rolePriority(a.role) - rolePriority(b.role));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -238,16 +261,27 @@ export default function UsersManagementPage() {
           </Button>
         </div>
 
+        {/* 搜索框 */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="搜索用户名、邮箱或角色..."
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            className="pl-9 max-w-sm"
+          />
+        </div>
+
       {/* 用户列表 */}
       <div className="grid gap-4">
-        {users.length === 0 ? (
+        {filteredAndSortedUsers.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center text-gray-500">
-              暂无用户数据，点击"添加用户"开始创建
+              {searchKeyword.trim() ? '未找到匹配的用户' : '暂无用户数据，点击"添加用户"开始创建'}
             </CardContent>
           </Card>
         ) : (
-          users.map((user) => (
+          filteredAndSortedUsers.map((user) => (
             <Card key={user.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -368,7 +402,7 @@ export default function UsersManagementPage() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" side="bottom">
                   <SelectItem value="admin">管理员</SelectItem>
                   <SelectItem value="交付顾问">交付顾问</SelectItem>
                   <SelectItem value="答疑顾问">答疑顾问</SelectItem>
@@ -385,7 +419,7 @@ export default function UsersManagementPage() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" side="bottom">
                   <SelectItem value="在职">在职</SelectItem>
                   <SelectItem value="离职">离职</SelectItem>
                 </SelectContent>
