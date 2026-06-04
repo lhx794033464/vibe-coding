@@ -10,8 +10,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'user';
-  role_type: '交付顾问' | '答疑顾问';
+  role: string;
   employment_status: '在职' | '离职';
   is_active: boolean;
   created_at: string;

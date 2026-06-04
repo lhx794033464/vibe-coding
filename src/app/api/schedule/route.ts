@@ -42,12 +42,12 @@ export async function GET(request: NextRequest) {
       const activeConsultants = await dbGetAllUsers();
       const activeUserIds = new Set(
         activeConsultants
-          .filter((u: any) => u.employment_status === '在职' && u.role_type === '交付顾问')
+          .filter((u: any) => u.employment_status === '在职' && u.role === '交付顾问')
           .map((u: any) => u.id)
       );
       const activeUserNames = new Map(
         activeConsultants
-          .filter((u: any) => u.employment_status === '在职' && u.role_type === '交付顾问')
+          .filter((u: any) => u.employment_status === '在职' && u.role === '交付顾问')
           .map((u: any) => [u.id, u.username])
       );
 

@@ -10,8 +10,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'user';
-  role_type: '交付顾问' | '答疑顾问';
+  role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   employment_status: '在职' | '离职';
   is_active: boolean;
   created_at: string;
@@ -22,8 +21,7 @@ const mapUserFromDb = (item: any): User => ({
   id: item.id,
   username: item.username,
   email: item.email,
-  role: item.role as 'admin' | 'user',
-  role_type: (item.role_type as '交付顾问' | '答疑顾问') || '交付顾问',
+  role: item.role as 'admin' | '交付顾问' | '答疑顾问' | '其他',
   employment_status: (item.employment_status as '在职' | '离职') || '在职',
   is_active: item.is_active,
   created_at: item.created_at,
@@ -139,8 +137,7 @@ class SupabaseUsersService {
     const insertData: any = {
       username: data.username,
       email: data.email,
-      role: data.role,
-      role_type: data.role_type || '交付顾问',
+      role: data.role || '交付顾问',
       employment_status: data.employment_status || '在职',
       is_active: data.is_active,
     };
@@ -172,7 +169,6 @@ class SupabaseUsersService {
     if (data.username !== undefined) updateData.username = data.username;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.role !== undefined) updateData.role = data.role;
-    if (data.role_type !== undefined) updateData.role_type = data.role_type;
     if (data.employment_status !== undefined) updateData.employment_status = data.employment_status;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
     if (data.password) updateData.password_hash = await hashPassword(data.password);

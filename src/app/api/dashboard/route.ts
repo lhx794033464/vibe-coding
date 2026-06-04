@@ -160,14 +160,14 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 获取用户的角色类型映射（username -> role_type）
+    // 获取用户的角色映射（username -> role）
     const client = getSupabaseClient();
     const { data: usersData } = await client
       .from('users')
-      .select('username, role_type');
-    const userRoleTypeMap: Record<string, string> = {};
+      .select('username, role');
+    const userRoleMap: Record<string, string> = {};
     (usersData || []).forEach((u: any) => {
-      userRoleTypeMap[u.username] = u.role_type || '交付顾问';
+      userRoleMap[u.username] = u.role || '其他';
     });
 
     // 获取用户管理中存在的在职用户名集合
@@ -195,8 +195,8 @@ export async function GET(request: NextRequest) {
 
       // 如果指定了角色类型筛选（非"全部"），则过滤
       if (roleType && roleType !== '全部') {
-        const consultantRoleType = userRoleTypeMap[consultant];
-        if (consultantRoleType !== roleType) return;
+        const consultantRole = userRoleMap[consultant];
+        if (consultantRole !== roleType) return;
       }
 
       if (!consultantStats[consultant]) {

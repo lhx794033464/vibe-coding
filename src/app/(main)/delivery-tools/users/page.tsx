@@ -20,8 +20,7 @@ import { useRouter } from 'next/navigation';
 interface UserFormData {
   username: string;
   email?: string;
-  role: 'admin' | 'user';
-  role_type: '交付顾问' | '答疑顾问';
+  role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   employment_status: '在职' | '离职';
   is_active: boolean;
   password?: string;
@@ -38,8 +37,7 @@ export default function UsersManagementPage() {
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     email: '',
-    role: 'user',
-    role_type: '交付顾问',
+    role: '交付顾问',
     employment_status: '在职',
     is_active: true,
   });
@@ -148,8 +146,7 @@ export default function UsersManagementPage() {
     setFormData({
       username: user.username,
       email: user.email || '',
-      role: user.role as 'admin' | 'user',
-      role_type: user.role_type || '交付顾问',
+      role: user.role as 'admin' | '交付顾问' | '答疑顾问' | '其他',
       employment_status: user.employment_status || '在职',
       is_active: user.is_active,
     });
@@ -181,8 +178,7 @@ export default function UsersManagementPage() {
     setFormData({
       username: '',
       email: '',
-      role: 'user',
-      role_type: '交付顾问',
+      role: '交付顾问',
       employment_status: '在职',
       is_active: true,
     });
@@ -197,10 +193,16 @@ export default function UsersManagementPage() {
         </Badge>
       );
     }
+    const roleConfig: Record<string, { color: string; icon: string }> = {
+      '交付顾问': { color: 'bg-green-100 text-green-800 hover:bg-green-200', icon: '💼' },
+      '答疑顾问': { color: 'bg-purple-100 text-purple-800 hover:bg-purple-200', icon: '🎓' },
+      '其他': { color: 'bg-gray-100 text-gray-800 hover:bg-gray-200', icon: '👤' },
+    };
+    const config = roleConfig[role] || roleConfig['其他'];
     return (
-      <Badge variant="secondary" className="flex items-center gap-1">
+      <Badge className={`${config.color} flex items-center gap-1`}>
         <UserPlus className="w-3 h-3" />
-        普通用户
+        {role}
       </Badge>
     );
   };
@@ -261,7 +263,7 @@ export default function UsersManagementPage() {
                           {user.username}
                         </span>
                         {getRoleBadge(user.role)}
-                        <Badge variant="outline" className="text-xs">{user.role_type || '交付顾问'}</Badge>
+                        <Badge variant="outline" className="text-xs">{user.role === 'admin' ? '管理员' : user.role}</Badge>
                         <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
                           {user.employment_status || '在职'}
                         </Badge>
@@ -361,29 +363,16 @@ export default function UsersManagementPage() {
               <Label htmlFor="role">角色</Label>
               <Select
                 value={formData.role}
-                onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
+                onValueChange={(value: 'admin' | '交付顾问' | '答疑顾问' | '其他') => setFormData({ ...formData, role: value })}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">管理员</SelectItem>
-                  <SelectItem value="user">普通用户</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role_type">顾问类型</Label>
-              <Select
-                value={formData.role_type}
-                onValueChange={(value: '交付顾问' | '答疑顾问') => setFormData({ ...formData, role_type: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
                   <SelectItem value="交付顾问">交付顾问</SelectItem>
                   <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                  <SelectItem value="其他">其他</SelectItem>
                 </SelectContent>
               </Select>
             </div>

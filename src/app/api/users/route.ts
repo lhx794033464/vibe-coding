@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { username, email = '', role = 'user', role_type = '交付顾问', employment_status = '在职', is_active = true, password } = body;
+    const { username, email = '', role = '交付顾问', employment_status = '在职', is_active = true, password } = body;
 
     if (!username) {
       return NextResponse.json({ error: '用户名为必填' }, { status: 400 });
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const newUser = await dbCreateUser({ username, email, password, role, role_type, employment_status, is_active });
+      const newUser = await dbCreateUser({ username, email, password, role, employment_status, is_active });
       return NextResponse.json({ data: newUser }, { status: 201 });
     } catch (err: any) {
       if (err.message?.includes('duplicate') || err.message?.includes('已存在')) {

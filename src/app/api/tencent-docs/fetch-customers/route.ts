@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     const { data: activeUsers } = await supabase
       .from('users')
-      .select('username, employment_status, role_type')
+      .select('username, employment_status, role')
       .eq('is_active', true);
     const activeUsernameSet = new Set<string>();
     const activeEmploymentMap: Record<string, string> = {};

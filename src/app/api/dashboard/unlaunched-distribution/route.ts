@@ -20,15 +20,15 @@ export async function GET(request: NextRequest) {
     const customers = await dbGetCustomers({ isAdmin: true });
     const now = new Date();
 
-    // 获取用户的角色类型映射
+    // 获取用户的角色映射
     const client = getSupabaseClient();
     const { data: usersData } = await client
       .from('users')
-      .select('username, role_type');
-    const userRoleTypeMap: Record<string, string> = {};
+      .select('username, role');
+    const userRoleMap: Record<string, string> = {};
     const activeUsernames = new Set<string>();
     (usersData || []).forEach((u: any) => {
-      userRoleTypeMap[u.username] = u.role_type || '交付顾问';
+      userRoleMap[u.username] = u.role || '其他';
       activeUsernames.add(u.username);
     });
 
@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
 
       // 按角色类型过滤
       if (roleType && roleType !== '全部') {
-        const consultantRoleType = userRoleTypeMap[consultant];
-        if (consultantRoleType !== roleType) return;
+        const consultantRole = userRoleMap[consultant];
+        if (consultantRole !== roleType) return;
       }
 
       if (!consultantStats[consultant]) {
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     // 获取所有顾问列表（用于筛选下拉框）
     const consultants = Array.from(activeUsernames).filter(u => {
       if (roleType && roleType !== '全部') {
-        return userRoleTypeMap[u] === roleType;
+        return userRoleMap[u] === roleType;
       }
       return true;
     }).sort();

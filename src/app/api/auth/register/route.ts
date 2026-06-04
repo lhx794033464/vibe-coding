@@ -10,7 +10,7 @@ import { isAdminRequest } from '@/lib/serverAuth';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, email, password, role = 'user', is_active = true } = body;
+    const { username, email, password, role = '交付顾问', is_active = true } = body;
 
     if (!username || !password) {
       return NextResponse.json({ error: '用户名和密码不能为空' }, { status: 400 });
@@ -28,13 +28,13 @@ export async function POST(request: NextRequest) {
 
     // 只有管理员才能创建管理员账号
     const userIsAdmin = await isAdminRequest(request);
-    const finalRole = userIsAdmin && role ? role : 'user';
+    const finalRole = userIsAdmin && role ? role : '交付顾问';
 
     const newUser = await dbCreateUser({
       username,
       email,
       password,
-      role: finalRole as 'admin' | 'user',
+      role: finalRole as 'admin' | '交付顾问' | '答疑顾问' | '其他',
       is_active,
     });
 

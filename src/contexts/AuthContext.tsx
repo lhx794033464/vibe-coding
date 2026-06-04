@@ -8,7 +8,6 @@ export interface User {
   email?: string;
   role: string;
   display_name?: string;
-  role_type?: '交付顾问' | '答疑顾问';
   employment_status?: '在职' | '离职';
 }
 
