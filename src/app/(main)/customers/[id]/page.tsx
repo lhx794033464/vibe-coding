@@ -517,6 +517,60 @@ export default function CustomerDetailPage({ params }: PageProps) {
     }
   };
 
+  const handleMarkDismissed = async () => {
+    if (!customer) return;
+    if (!(await confirm({ description: '确定将此客户标记为已解散吗？解散后交付期将不再计算超期天数。' }))) return;
+
+    try {
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ dismissed: true }),
+      });
+
+      if (response.ok) {
+        toast.success('已标记为已解散');
+        fetchCustomer(customer.id);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || '操作失败');
+      }
+    } catch (error) {
+      console.error('标记解散失败:', error);
+      toast.error('操作失败');
+    }
+  };
+
+  const handleCancelDismissed = async () => {
+    if (!customer) return;
+    if (!(await confirm({ description: '确定取消此客户的已解散状态吗？' }))) return;
+
+    try {
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ dismissed: false }),
+      });
+
+      if (response.ok) {
+        toast.success('已取消解散状态');
+        fetchCustomer(customer.id);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || '操作失败');
+      }
+    } catch (error) {
+      console.error('取消解散失败:', error);
+      toast.error('操作失败');
+    }
+  };
+
   const handleMarkAccepted = async () => {
     if (!customer) return;
     
@@ -621,6 +675,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
               <Badge variant="outline" className={acceptanceBadgeClass}>
                 {isAccepted ? '已验收' : '未验收'}
               </Badge>
+              {customer?.dismissed && (
+                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                  已解散
+                </Badge>
+              )}
               <Badge variant="outline" className={
                 customer?.commission_status === '已计提' 
                   ? 'bg-green-50 text-green-700 border-green-200' 
@@ -632,7 +691,20 @@ export default function CustomerDetailPage({ params }: PageProps) {
               </Badge>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {/* 解散按钮 */}
+            {customer?.dismissed ? (
+              <Button variant="outline" onClick={handleCancelDismissed} className="text-blue-600 border-blue-300 hover:bg-blue-50">
+                <XCircle className="w-4 h-4 mr-2" />
+                取消解散
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={handleMarkDismissed} className="text-purple-600 border-purple-300 hover:bg-purple-50">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                确认解散
+              </Button>
+            )}
+            {/* 验收按钮 */}
             {!isAccepted ? (
               <Button variant="outline" onClick={handleMarkAccepted}>
                 <CheckCircle className="w-4 h-4 mr-2" />

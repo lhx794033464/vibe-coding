@@ -52,6 +52,7 @@ export interface Customer {
   delivery_deadline: string | null; // 交付期截止日
   is_online: string | null; // 是否上线
   apply_month: string | null; // 申请月
+  dismissed: boolean | null; // 是否已解散
   acceptance_doc_key: string | null; // 验收单文件key
   commission_status: string; // 计提状态：已计提/未计提/部分计提
 }

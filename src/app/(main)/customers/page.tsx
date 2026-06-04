@@ -13,8 +13,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Customer } from '@/types';
-import { formatDistanceToNow } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+
 
 // 扩展Customer类型，包含计算字段
 interface CustomerWithDays extends Customer {
@@ -140,6 +139,8 @@ export default function CustomersPage() {
     
     // 超期未解散筛选
     const matchOverdue = overdueFilter === 'all' || (() => {
+      // 已解散的客户不算超期
+      if (c.dismissed) return overdueFilter === 'not_overdue';
       const deadline = c.delivery_deadline;
       if (!deadline) return false;
       const deadlineDate = new Date(typeof deadline === 'string' ? deadline.split('T')[0] : String(deadline).split('T')[0]);
@@ -459,17 +460,13 @@ export default function CustomersPage() {
                             const overdueDays = isOverdue ? Math.ceil((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
                             const formatted = `${deadlineDate.getFullYear()}年${deadlineDate.getMonth() + 1}月${deadlineDate.getDate()}日`;
                             return (
-                              <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                              <span className={isOverdue && !customer.dismissed ? 'text-red-600 font-medium' : ''}>
                                 交付期截止日：{formatted}
-                                {isOverdue && <span className="ml-1">（超期{overdueDays}天）</span>}
+                                {isOverdue && !customer.dismissed && <span className="ml-1">（超期{overdueDays}天）</span>}
+                                {customer.dismissed && <span className="ml-1 text-purple-600">（已解散）</span>}
                               </span>
                             );
                           })()}
-                          {customer.last_follow_up_at ? (
-                            <span>最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}</span>
-                          ) : (
-                            <span className="text-orange-500">暂无跟进</span>
-                          )}
                         </div>
                       </div>
                     ) : (
@@ -542,19 +539,13 @@ export default function CustomersPage() {
                                 const overdueDays = isOverdue ? Math.ceil((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
                                 const formatted = `${deadlineDate.getFullYear()}年${deadlineDate.getMonth() + 1}月${deadlineDate.getDate()}日`;
                                 return (
-                                  <span className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
+                                  <span className={`text-xs whitespace-nowrap ${isOverdue && !customer.dismissed ? 'text-red-600 font-medium' : ''}`}>
                                     交付期截止日：{formatted}
-                                    {isOverdue && <span className="ml-1">（超期{overdueDays}天）</span>}
+                                    {isOverdue && !customer.dismissed && <span className="ml-1">（超期{overdueDays}天）</span>}
+                                    {customer.dismissed && <span className="ml-1 text-purple-600">（已解散）</span>}
                                   </span>
                                 );
                               })()}
-                              {customer.last_follow_up_at ? (
-                                <span className="text-xs whitespace-nowrap">
-                                  最近跟进: {formatDistanceToNow(new Date(customer.last_follow_up_at), { addSuffix: true, locale: zhCN })}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-orange-500 whitespace-nowrap">暂无跟进</span>
-                              )}
                             </div>
                           </div>
                         </div>
