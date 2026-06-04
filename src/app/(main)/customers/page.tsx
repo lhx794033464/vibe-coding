@@ -298,7 +298,7 @@ export default function CustomersPage() {
               <SearchableSelect
                 options={[
                   { value: '一对一交付', label: '一对一交付' },
-                  { value: '其他', label: '其他(快速一对一/二次交付)' },
+                  { value: '其他', label: '其他' },
                 ]}
                 value={implTypeFilter}
                 onChange={(v) => setFilterImplType(v)}

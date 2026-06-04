@@ -583,7 +583,7 @@ export default function DashboardPage() {
                       }}
                       className="text-xs h-7"
                     >
-                      {unlaunchedImplType === '一对一交付' ? '一对一交付' : unlaunchedImplType === '其他' ? '其他(快速一对一/二次交付)' : '全部类型'}
+                      {unlaunchedImplType === '一对一交付' ? '一对一交付' : unlaunchedImplType === '其他' ? '其他' : '全部类型'}
                       <ChevronDown className="ml-1 h-3 w-3" />
                     </Button>
                     <div id="unlaunched-impl-dropdown" className="hidden absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[120px]">
@@ -596,7 +596,7 @@ export default function DashboardPage() {
                           }}
                           className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-accent ${(type === '全部类型' && !unlaunchedImplType) || type === unlaunchedImplType ? 'font-medium text-primary' : ''}`}
                         >
-                          {type === '其他' ? '其他(快速一对一/二次交付)' : type}
+                          {type === '其他' ? '其他' : type}
                         </button>
                       ))}
                     </div>
