@@ -34,8 +34,13 @@ export async function GET(request: NextRequest) {
 
     // 按实施类型过滤
     let filtered = customers.filter((c: any) => c.opened_at);
-    if (implType && implType !== '全部') {
-      filtered = filtered.filter((c: any) => c.implementation_type === implType);
+    if (implType && implType !== '全部类型') {
+      if (implType === '其他') {
+        // 其他包含除一对一交付以外的所有类型（快速一对一、二次交付等）
+        filtered = filtered.filter((c: any) => c.implementation_type !== '一对一交付');
+      } else {
+        filtered = filtered.filter((c: any) => c.implementation_type === implType);
+      }
     }
 
     // 只统计未上线且未解散的客户
