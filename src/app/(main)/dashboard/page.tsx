@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { 
@@ -12,7 +13,8 @@ import {
   BarChart3,
   Loader2,
   Calendar,
-  Trophy
+  Trophy,
+  ChevronDown
 } from 'lucide-react';
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
@@ -94,6 +96,9 @@ export default function DashboardPage() {
   const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
   const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
+  const [unlaunchedData, setUnlaunchedData] = useState<{name:string,oneMonthNotOnline:number,fourMonthsNotOnline:number}[]>([]);
+  const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
+  const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
@@ -145,6 +150,19 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchUnlaunched = async () => {
+    try {
+      let url = `/api/dashboard/unlaunched-distribution?roleType=${encodeURIComponent(unlaunchedRoleType)}&implType=${encodeURIComponent(unlaunchedImplType)}`;
+      const response = await fetch(url, { headers: { ...getAuthHeader() } });
+      const data = await response.json();
+      if (response.ok && data.data) {
+        setUnlaunchedData(data.data);
+      }
+    } catch (error) {
+      console.error('获取未上线项目分布失败:', error);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) fetchDistribution();
   }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
@@ -152,6 +170,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isAdmin) fetchRanking();
   }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
+
+  useEffect(() => {
+    if (isAdmin) fetchUnlaunched();
+  }, [isAdmin, unlaunchedRoleType, unlaunchedImplType]);
 
   useEffect(() => {
     fetchStats();
@@ -615,6 +637,136 @@ export default function DashboardPage() {
                       </div>
                     );
                   })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      )}
+
+      {/* 未上线项目分布 - 仅管理员可见 */}
+      {isAdmin && (
+      <div className="mt-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-medium">未上线项目分布</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const el = document.getElementById('unlaunched-impl-dropdown');
+                      if (el) el.classList.toggle('hidden');
+                      const el2 = document.getElementById('unlaunched-role-dropdown');
+                      if (el2) el2.classList.add('hidden');
+                    }}
+                    className="text-xs h-7"
+                  >
+                    {unlaunchedImplType === '一对一交付' ? '一对一交付' : unlaunchedImplType === '其他' ? '其他' : '全部类型'}
+                    <ChevronDown className="ml-1 h-3 w-3" />
+                  </Button>
+                  <div id="unlaunched-impl-dropdown" className="hidden absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[120px]">
+                    {['全部类型', '一对一交付', '其他'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          setUnlaunchedImplType(type === '全部类型' ? '' : type);
+                          document.getElementById('unlaunched-impl-dropdown')?.classList.add('hidden');
+                        }}
+                        className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-accent ${(type === '全部类型' && !unlaunchedImplType) || type === unlaunchedImplType ? 'font-medium text-primary' : ''}`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const el = document.getElementById('unlaunched-role-dropdown');
+                      if (el) el.classList.toggle('hidden');
+                      const el2 = document.getElementById('unlaunched-impl-dropdown');
+                      if (el2) el2.classList.add('hidden');
+                    }}
+                    className="text-xs h-7"
+                  >
+                    {unlaunchedRoleType || '全部顾问'}
+                    <ChevronDown className="ml-1 h-3 w-3" />
+                  </Button>
+                  <div id="unlaunched-role-dropdown" className="hidden absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[120px]">
+                    {['交付顾问', '答疑顾问'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          setUnlaunchedRoleType(type);
+                          document.getElementById('unlaunched-role-dropdown')?.classList.add('hidden');
+                        }}
+                        className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-accent ${type === unlaunchedRoleType ? 'font-medium text-primary' : ''}`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {unlaunchedData.length > 0 ? (
+              <div className="space-y-4">
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-orange-400" />
+                    <span>1个月未上线</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-red-500" />
+                    <span>4个月未上线</span>
+                  </div>
+                </div>
+                {/* Stacked Bar Chart */}
+                <div className="space-y-2.5">
+                  {unlaunchedData.map((consultant) => {
+                    const maxTotal = Math.max(...unlaunchedData.map(d => d.oneMonthNotOnline + d.fourMonthsNotOnline), 1);
+                    const oneMonthPct = (consultant.oneMonthNotOnline / maxTotal) * 100;
+                    const fourMonthsPct = (consultant.fourMonthsNotOnline / maxTotal) * 100;
+                    return (
+                      <div key={consultant.name} className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-16 text-right truncate flex-shrink-0" title={consultant.name}>
+                          {consultant.name}
+                        </span>
+                        <div className="flex-1 flex items-center gap-0">
+                          <div
+                            className="h-7 bg-orange-400 rounded-l-md flex items-center justify-end pr-1.5 min-w-[2px] transition-all"
+                            style={{ width: `${oneMonthPct}%` }}
+                          >
+                            {consultant.oneMonthNotOnline > 0 && (
+                              <span className="text-[10px] text-white font-medium">{consultant.oneMonthNotOnline}</span>
+                            )}
+                          </div>
+                          <div
+                            className="h-7 bg-red-500 rounded-r-md flex items-center justify-end pr-1.5 min-w-[2px] transition-all"
+                            style={{ width: `${fourMonthsPct}%` }}
+                          >
+                            {consultant.fourMonthsNotOnline > 0 && (
+                              <span className="text-[10px] text-white font-medium">{consultant.fourMonthsNotOnline}</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground w-10 text-right flex-shrink-0">
+                          {consultant.oneMonthNotOnline + consultant.fourMonthsNotOnline}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
