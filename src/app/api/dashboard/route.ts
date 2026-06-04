@@ -182,8 +182,8 @@ export async function GET(request: NextRequest) {
       // 过滤：仅显示用户管理中存在的顾问，跳过未分配和不存在的顾问
       if (!consultant || !activeUsernames.has(consultant)) return;
 
-      // 如果指定了角色类型筛选，则过滤
-      if (roleType) {
+      // 如果指定了角色类型筛选（非"全部"），则过滤
+      if (roleType && roleType !== '全部') {
         const consultantRoleType = userRoleTypeMap[consultant];
         if (consultantRoleType !== roleType) return;
       }
