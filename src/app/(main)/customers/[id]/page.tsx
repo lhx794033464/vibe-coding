@@ -57,14 +57,11 @@ interface PageProps {
 
 // 计算交付期截止日
 // 默认：开通日期 + 120天；已验收且有剩余人天：延长 remainingDays * 120 天
-function computeDeliveryDeadline(openedAt: string | null, acceptanceStatus: string, remaining: number) {
+function computeDeliveryDeadline(openedAt: string | null, extraDays: number = 0) {
   if (!openedAt) return null;
   const base = new Date(openedAt);
   if (isNaN(base.getTime())) return null;
-  base.setDate(base.getDate() + 120);
-  if (acceptanceStatus === 'accepted' && remaining > 0) {
-    base.setDate(base.getDate() + Math.round(remaining * 120));
-  }
+  base.setDate(base.getDate() + 120 + extraDays);
   return base.toISOString().split('T')[0];
 }
 
@@ -526,8 +523,25 @@ export default function CustomerDetailPage({ params }: PageProps) {
     if (!(await confirm({ description: '确定将此客户标记为已验收吗？' }))) return;
 
     try {
-      // 确认验收时自动计算交付期截止日
-      const newDeadline = computeDeliveryDeadline(customer.opened_at, 'accepted', remainingDays);
+      let newDeadline: string | undefined;
+
+      // 如果有剩余人天，提示是否延长交付期
+      if (remainingDays > 0) {
+        const extendDays = Math.round(remainingDays * 120);
+        const extendedDeadline = computeDeliveryDeadline(customer.opened_at, extendDays);
+        const baseDeadline = computeDeliveryDeadline(customer.opened_at, 0);
+        if (extendedDeadline && baseDeadline && extendedDeadline !== baseDeadline) {
+          const shouldExtend = await confirm({
+            title: '延长交付期',
+            description: `该客户剩余 ${remainingDays} 人天，可延长交付期 ${extendDays} 天至 ${extendedDeadline}。是否延长交付期截止日？`,
+            confirmText: '是，延长',
+            cancelText: '否，不延长',
+          });
+          if (shouldExtend) {
+            newDeadline = extendedDeadline;
+          }
+        }
+      }
 
       const response = await fetch(`/api/customers/${customer.id}`, {
         method: 'PUT',
@@ -538,7 +552,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         body: JSON.stringify({
           acceptance_status: 'accepted',
           acceptance_source: 'app',
-          delivery_deadline: newDeadline,
+          ...(newDeadline ? { delivery_deadline: newDeadline } : {}),
         }),
       });
 
@@ -582,15 +596,12 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const totalConsumedDays = implementationLogs.reduce((sum, log) => sum + parseFloat(log.consumed_days || '0'), 0);
   const remainingDays = parseFloat(customer.implementation_days || '0') - totalConsumedDays;
 
-  const computedDeadline = computeDeliveryDeadline(customer.opened_at, customer.acceptance_status, remainingDays);
-  // 如果数据库中有手动设置的值且与计算值不同，优先使用手动值
+  const baseDeadline = computeDeliveryDeadline(customer.opened_at, 0);
   const deliveryDeadlineRaw = customer.delivery_deadline;
   const deliveryDeadlineStored = deliveryDeadlineRaw
     ? (typeof deliveryDeadlineRaw === 'string' ? deliveryDeadlineRaw.split('T')[0] : String(deliveryDeadlineRaw).split('T')[0])
     : null;
-  const deliveryDeadline = deliveryDeadlineStored && deliveryDeadlineStored !== computedDeadline
-    ? deliveryDeadlineStored
-    : computedDeadline;
+  const deliveryDeadline = deliveryDeadlineStored || baseDeadline;
 
   return (
     <div className="h-full p-6 overflow-auto">
@@ -772,9 +783,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         value={editForm.delivery_deadline}
                         onChange={(e) => setEditForm({ ...editForm, delivery_deadline: e.target.value })}
                       />
-                      {computedDeadline && (
+                      {baseDeadline && (
                         <p className="text-xs text-muted-foreground">
-                          系统计算值：{computedDeadline}（开通日+120天{customer.acceptance_status === 'accepted' && remainingDays > 0 ? '，含剩余人天延期' : ''}）
+                          系统默认值：{baseDeadline}（开通日+120天）
                         </p>
                       )}
                     </div>
