@@ -1096,21 +1096,61 @@ export default function CommissionsPage() {
                                 <span className={`ml-1 font-medium ${discount > 50 ? 'text-primary' : 'text-orange-500'}`}>{discount.toFixed(2)}%</span>
                               </div>
                               <div>
-                                <span className="text-muted-foreground">计提人天</span>
-                                {isDaily && (financeDays > 0 || otherDays > 0) ? (
-                                  <span className="ml-1 font-medium">
-                                    {financeDays > 0 && <span>财务{financeDays.toFixed(1)}天</span>}
-                                    {financeDays > 0 && otherDays > 0 && <span className="text-muted-foreground"> + </span>}
-                                    {otherDays > 0 && <span>其他{otherDays.toFixed(1)}天</span>}
-                                  </span>
-                                ) : (
-                                  <span className="ml-1 font-medium">{days.toFixed(1)}天</span>
-                                )}
+                                <span className="text-muted-foreground">申报人天</span>
+                                {(() => {
+                                  const rFinance = detail.reportedFinanceDays || detail.paidFinanceDays || financeDays;
+                                  const rOther = detail.reportedOtherDays || detail.paidOtherDays || otherDays;
+                                  return isDaily && (rFinance > 0 || rOther > 0) ? (
+                                    <span className="ml-1 font-medium">
+                                      {rFinance > 0 && <span>财务{rFinance.toFixed(1)}天</span>}
+                                      {rFinance > 0 && rOther > 0 && <span className="text-muted-foreground"> + </span>}
+                                      {rOther > 0 && <span>其他{rOther.toFixed(1)}天</span>}
+                                    </span>
+                                  ) : (
+                                    <span className="ml-1 font-medium">{days.toFixed(1)}天</span>
+                                  );
+                                })()}
                               </div>
                               <div>
-                                <span className="text-muted-foreground">计提金额</span>
-                                <span className="ml-1 font-medium text-primary">¥{(detail.totalCommission || 0).toFixed(2)}</span>
+                                <span className="text-muted-foreground">申报金额</span>
+                                <span className="ml-1 font-medium">¥{(detail.reportedAmount || detail.paidCommission || 0).toFixed(2)}</span>
                               </div>
+                              {(detail.reportedFinanceDays !== undefined && detail.reportedFinanceDays !== detail.paidFinanceDays) ||
+                               (detail.reportedOtherDays !== undefined && detail.reportedOtherDays !== detail.paidOtherDays) ||
+                               (detail.reportedAmount !== undefined && Math.abs(detail.reportedAmount - detail.paidCommission) > 0.01) ? (
+                                <>
+                                  <div className="border-l pl-4">
+                                    <span className="text-muted-foreground">核定人天</span>
+                                    {isDaily && ((detail.paidFinanceDays || 0) > 0 || (detail.paidOtherDays || 0) > 0) ? (
+                                      <span className="ml-1 font-medium text-orange-600">
+                                        {(detail.paidFinanceDays || 0) > 0 && <span>财务{(detail.paidFinanceDays || 0).toFixed(1)}天</span>}
+                                        {(detail.paidFinanceDays || 0) > 0 && (detail.paidOtherDays || 0) > 0 && <span className="text-muted-foreground"> + </span>}
+                                        {(detail.paidOtherDays || 0) > 0 && <span>其他{(detail.paidOtherDays || 0).toFixed(1)}天</span>}
+                                      </span>
+                                    ) : (
+                                      <span className="ml-1 font-medium text-orange-600">{(detail.paidDays || days).toFixed(1)}天</span>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">核定金额</span>
+                                    <span className="ml-1 font-medium text-orange-600">¥{(detail.paidCommission || 0).toFixed(2)}</span>
+                                  </div>
+                                </>
+                              ) : null}
+                              {detail.records?.some((r: any) => r.remark?.includes('转提至')) && (
+                                <div>
+                                  <span className="text-muted-foreground">转出</span>
+                                  <span className="ml-1 text-blue-600">
+                                    {detail.records
+                                      .filter((r: any) => r.remark?.includes('转提至'))
+                                      .map((r: any) => {
+                                        const match = r.remark?.match(/转提至(\S+).*?(\d+\.?\d*)天/);
+                                        return match ? `${match[1]} ${match[2]}天 ¥${(r.reported_amount || r.amount || 0).toFixed(0)}` : r.remark;
+                                      })
+                                      .join('；')}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           );
@@ -1247,12 +1287,19 @@ export default function CommissionsPage() {
                               const totalPaidDays = paidFinanceDays + paidOtherDays;
                               const totalMaxDays = commission.totalMaxDays || commission.implementationDays;
                               const progressPercent = totalMaxDays > 0 ? (totalPaidDays / totalMaxDays) * 100 : 0;
+                              const hasTransfer = commission.reportedFinanceDays !== undefined && (
+                                Math.abs((commission.reportedFinanceDays || 0) - paidFinanceDays) > 0.01 ||
+                                Math.abs((commission.reportedOtherDays || 0) - paidOtherDays) > 0.01
+                              );
                               return (
                                 <>
                                   <div className="flex items-center justify-between text-sm mb-1">
                                     <span className="text-gray-500">提成进度（人天）</span>
                                     <span className="font-medium">
                                       {totalPaidDays.toFixed(1)}天 / {totalMaxDays.toFixed(1)}天
+                                      {hasTransfer && (
+                                        <span className="text-muted-foreground text-xs ml-1">（申报{(commission.reportedFinanceDays || 0) + (commission.reportedOtherDays || 0)}天）</span>
+                                      )}
                                     </span>
                                   </div>
                                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1271,6 +1318,9 @@ export default function CommissionsPage() {
                                 <span className="text-gray-500">提成进度</span>
                                 <span className="font-medium">
                                   ¥{(commission.paidCommission || 0).toFixed(2)} / ¥{(commission.totalCommission || 0).toFixed(2)}
+                                  {commission.reportedAmount !== undefined && Math.abs(commission.reportedAmount - commission.paidCommission) > 0.01 && (
+                                    <span className="text-muted-foreground text-xs ml-1">（申报¥{commission.reportedAmount.toFixed(2)}）</span>
+                                  )}
                                 </span>
                               </div>
                               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1316,20 +1366,32 @@ export default function CommissionsPage() {
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-sm text-gray-500 mb-2">已提记录:</p>
                         <div className="space-y-1">
-                          {commission.records.map((record: { id: string; amount: string; remark: string | null; created_at: string }) => (
+                          {commission.records.map((record: any) => {
+                                const rAmount = parseFloat(record.amount || '0');
+                                const rReportedAmount = parseFloat(record.reported_amount || record.amount || '0');
+                                const hasDiff = Math.abs(rReportedAmount - rAmount) > 0.01;
+                                return (
                             <div key={record.id} className="flex items-center justify-between text-sm group">
                               <span className="text-gray-600">
                                 {format(new Date(record.created_at), 'yyyy-MM-dd HH:mm')}
                                 {record.remark && ` - ${record.remark}`}
                               </span>
                               <div className="flex items-center gap-2">
-                                <span className="font-medium text-green-600">+¥{parseFloat(record.amount).toFixed(2)}</span>
+                                {hasDiff ? (
+                                  <span className="font-medium text-orange-600">
+                                    ¥{rAmount.toFixed(2)}
+                                    <span className="text-xs text-muted-foreground ml-1">（申报¥{rReportedAmount.toFixed(2)}）</span>
+                                  </span>
+                                ) : (
+                                  <span className="font-medium text-green-600">+¥{rAmount.toFixed(2)}</span>
+                                )}
                                 <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => openDeleteDialog(record.id, commission.customerId)}>
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}

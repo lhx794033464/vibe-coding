@@ -109,6 +109,10 @@ export async function GET(request: NextRequest) {
       const paidCommission = records.reduce((sum: number, r: any) => sum + parseFloat(r.amount || '0'), 0);
       const paidFinanceDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.finance_days || '0'), 0);
       const paidOtherDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.other_days || '0'), 0);
+      // 申报值（原始值，转提后不变）
+      const reportedFinanceDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.reported_finance_days || r.finance_days || '0'), 0);
+      const reportedOtherDays = records.reduce((sum: number, r: any) => sum + parseFloat(r.reported_other_days || r.other_days || '0'), 0);
+      const reportedAmount = records.reduce((sum: number, r: any) => sum + parseFloat(r.reported_amount || r.amount || '0'), 0);
 
       // 计算可提人天上限：有模块信息时按模块数×人天，无模块时按总人天
       let totalMaxDays: number;
@@ -149,6 +153,11 @@ export async function GET(request: NextRequest) {
           remark: r.remark,
           created_at: r.created_at,
           commission_month: r.commission_month,
+          finance_days: parseFloat(r.finance_days || '0'),
+          other_days: parseFloat(r.other_days || '0'),
+          reported_finance_days: parseFloat(r.reported_finance_days || r.finance_days || '0'),
+          reported_other_days: parseFloat(r.reported_other_days || r.other_days || '0'),
+          reported_amount: parseFloat(r.reported_amount || r.amount || '0'),
         })),
         acceptedAt: customer.updated_at || customer.accepted_at || '',
         financeMaxDays,
@@ -158,6 +167,9 @@ export async function GET(request: NextRequest) {
         paidOtherDays,
         paidDays,
         remainingDays,
+        reportedFinanceDays,
+        reportedOtherDays,
+        reportedAmount,
       };
     });
 
@@ -226,6 +238,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 每次计提都创建新记录（支持同一客户多次计提，累加而非覆盖）
+    const recordAmount = parseFloat(amount);
     await dbCreateCommissionRecord({
       customer_id,
       commission_month,
@@ -237,6 +250,9 @@ export async function POST(request: NextRequest) {
       remark,
       finance_days,
       other_days,
+      reported_finance_days: finance_days,
+      reported_other_days: other_days,
+      reported_amount: recordAmount,
     });
 
     return NextResponse.json({ success: true });

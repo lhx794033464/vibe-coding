@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const sourceUsername = sourceUser?.username || '未知';
     const customerName = customer?.name || '未知客户';
 
-    // 6. 更新原始记录（减少人天和金额）
+    // 6. 更新原始记录（减少人天和金额，但保留申报值不变）
     const newFinanceDays = originalFinanceDays - transferFinanceDays;
     const newOtherDays = originalOtherDays - transferOtherDays;
     const newTotalDays = newFinanceDays + newOtherDays;
@@ -117,6 +117,7 @@ export async function POST(request: NextRequest) {
       finance_days: newFinanceDays,
       other_days: newOtherDays,
       remark: `${originalRecord.remark || ''} [转出${totalTransferDays}天给${targetUser.username}]`.trim(),
+      // reported_* 保持不变（原始申报值）
     };
 
     // 如果人天全部转出，删除记录
@@ -154,6 +155,9 @@ export async function POST(request: NextRequest) {
         finance_days: transferFinanceDays,
         other_days: transferOtherDays,
         commission_month: originalRecord.commission_month || null,
+        reported_finance_days: transferFinanceDays,
+        reported_other_days: transferOtherDays,
+        reported_amount: Math.round(transferAmount * 100) / 100,
       })
       .select()
       .single();
@@ -226,7 +230,7 @@ async function updateReportDetails(sb: any, userId: string, month: string | null
     // 重新获取该顾问该月的所有提成记录
     const { data: records } = await sb
       .from('commission_records')
-      .select('id, customer_id, amount, finance_days, other_days, remark, commission_month, created_at')
+      .select('id, customer_id, amount, finance_days, other_days, remark, commission_month, created_at, reported_finance_days, reported_other_days, reported_amount')
       .eq('user_id', userId);
 
     if (!records) continue;
@@ -239,6 +243,10 @@ async function updateReportDetails(sb: any, userId: string, month: string | null
         detail.paidDays = customerRecords.reduce((s: number, r: any) => s + parseFloat(r.finance_days || '0') + parseFloat(r.other_days || '0'), 0);
         detail.paidFinanceDays = customerRecords.reduce((s: number, r: any) => s + parseFloat(r.finance_days || '0'), 0);
         detail.paidOtherDays = customerRecords.reduce((s: number, r: any) => s + parseFloat(r.other_days || '0'), 0);
+        // 申报值（原始值，转提后不变）
+        detail.reportedFinanceDays = customerRecords.reduce((s: number, r: any) => s + parseFloat(r.reported_finance_days || r.finance_days || '0'), 0);
+        detail.reportedOtherDays = customerRecords.reduce((s: number, r: any) => s + parseFloat(r.reported_other_days || r.other_days || '0'), 0);
+        detail.reportedAmount = customerRecords.reduce((s: number, r: any) => s + parseFloat(r.reported_amount || r.amount || '0'), 0);
         detail.remainingCommission = Math.max(0, (detail.totalCommission || 0) - detail.paidCommission);
         detail.remainingDays = Math.max(0, (detail.totalMaxDays || 0) - detail.paidDays);
         detail.isFullyPaid = detail.paidCommission >= (detail.totalCommission || 0);
@@ -248,6 +256,11 @@ async function updateReportDetails(sb: any, userId: string, month: string | null
           commission_month: r.commission_month,
           created_at: r.created_at,
           remark: r.remark,
+          finance_days: parseFloat(r.finance_days || '0'),
+          other_days: parseFloat(r.other_days || '0'),
+          reported_finance_days: parseFloat(r.reported_finance_days || '0'),
+          reported_other_days: parseFloat(r.reported_other_days || '0'),
+          reported_amount: parseFloat(r.reported_amount || '0'),
         }));
       }
     }
@@ -319,6 +332,11 @@ async function updateTargetReportDetails(
           commission_month: month,
           created_at: new Date().toISOString(),
           remark: transferInfo.transferRemark,
+          finance_days: transferInfo.transferFinanceDays,
+          other_days: transferInfo.transferOtherDays,
+          reported_finance_days: transferInfo.transferFinanceDays,
+          reported_other_days: transferInfo.transferOtherDays,
+          reported_amount: transferInfo.transferAmount,
         });
       }
     } else {
@@ -343,6 +361,11 @@ async function updateTargetReportDetails(
           commission_month: month,
           created_at: new Date().toISOString(),
           remark: transferInfo.transferRemark,
+          finance_days: transferInfo.transferFinanceDays,
+          other_days: transferInfo.transferOtherDays,
+          reported_finance_days: transferInfo.transferFinanceDays,
+          reported_other_days: transferInfo.transferOtherDays,
+          reported_amount: transferInfo.transferAmount,
         }] : [],
         acceptedAt: new Date().toISOString(),
         financeMaxDays: transferInfo.transferFinanceDays,

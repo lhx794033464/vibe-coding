@@ -89,13 +89,18 @@ export type TimeRange = 'month' | 'year' | 'all' | 'custom';
 export interface CommissionRecord {
   id: string;
   customer_id: string;
-  amount: string; // 本次提成金额
+  amount: string; // 本次提成金额（核定）
   total_commission: string; // 应提总额
   paid_commission: string; // 已提金额
   remark: string | null;
   commission_month?: string; // 提成月份
   user_id: string;
   created_at: string;
+  finance_days?: number; // 核定财务人天
+  other_days?: number; // 核定其他人天
+  reported_finance_days?: number; // 申报财务人天（原始值，转提后不变）
+  reported_other_days?: number; // 申报其他人天（原始值，转提后不变）
+  reported_amount?: number; // 申报金额（原始值，转提后不变）
 }
 
 // 提成计算配置
@@ -133,4 +138,8 @@ export interface CommissionCalculation {
   paidOtherDays: number; // 已提其他人天
   paidDays: number; // 已提总人天
   remainingDays: number; // 剩余人天
+  // 申报值（原始值，转提后不变）
+  reportedFinanceDays: number; // 申报财务人天
+  reportedOtherDays: number; // 申报其他人天
+  reportedAmount: number; // 申报金额
 }
