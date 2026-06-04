@@ -76,12 +76,13 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 转换为数组格式
+    // 转换为数组格式，按未上线项目总数从高到低排序
     const data = Object.entries(consultantStats).map(([name, s]) => ({
       name,
       oneMonthNotOnline: s.oneMonthNotOnline,
       fourMonthsNotOnline: s.fourMonthsNotOnline,
-    }));
+      totalNotOnline: s.oneMonthNotOnline + s.fourMonthsNotOnline,
+    })).sort((a, b) => b.totalNotOnline - a.totalNotOnline);
 
     // 获取所有顾问列表（用于筛选下拉框）
     const consultants = Array.from(activeUsernames).filter(u => {

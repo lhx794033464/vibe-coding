@@ -222,12 +222,13 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 交付顾问分布数据（用于柱状图+折线图）
+    // 交付顾问分布数据（用于柱状图+折线图），按加权比例（人均人天=总人天/项目数）从高到低排序
     const consultantDistribution = Object.entries(consultantStats).map(([name, s]) => ({
       name,
       projectCount: s.projectCount,
       totalDays: Math.round(s.totalDays * 10) / 10,
-    }));
+      weightedScore: s.projectCount > 0 ? Math.round((s.totalDays / s.projectCount) * 100) / 100 : 0,
+    })).sort((a, b) => b.weightedScore - a.weightedScore);
 
     // 交付顾问排行数据（用于排行表）
     const consultantRanking = Object.entries(consultantStats).map(([name, s]) => ({
