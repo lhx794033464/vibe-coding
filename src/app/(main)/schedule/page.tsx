@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, Video, ExternalLink, Loader2, Check, ChevronsUpDown, ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { Plus, X, Video, Check, ChevronsUpDown, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Popover,
   PopoverContent,
@@ -28,7 +27,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
-import { format, addHours } from 'date-fns';
+import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useHolidays } from '@/contexts/HolidayContext';
@@ -114,19 +113,6 @@ export default function SchedulePage() {
   const { getDateStatus, loaded: holidayLoaded } = useHolidays();
   
   // 会议相关状态
-  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
-  const [meetingSubject, setMeetingSubject] = useState('');
-  const [meetingDate, setMeetingDate] = useState('');
-  const [meetingTime, setMeetingTime] = useState('');
-  const [meetingDuration, setMeetingDuration] = useState(60);
-  const [meetingLoading, setMeetingLoading] = useState(false);
-  const [meetingResult, setMeetingResult] = useState<{
-    meetingUrl: string;
-    meetingCode: string;
-    subject: string;
-    startTime: number;
-    duration: number;
-  } | null>(null);
 
   const calendarDates = useMemo(() => generateCalendarData(centerDate), [centerDate]);
 
@@ -220,12 +206,9 @@ export default function SchedulePage() {
         setNotes('');
         
         if (openMeeting) {
-          setMeetingSubject(`${selectedCustomer.name} - 项目实施沟通`);
-          setMeetingDate(formatDate(selectedDate));
-          setMeetingTime(format(addHours(new Date(), 1), 'HH:mm'));
-          setMeetingDuration(60);
-          setMeetingResult(null);
-          setShowMeetingDialog(true);
+          // 直接拉起腾讯会议APP
+          window.location.href = 'wemeet://page/schedulemeeting';
+          toast.success('已打开腾讯会议，请在APP中预订会议');
         }
       }
     } catch (error) {
@@ -247,39 +230,6 @@ export default function SchedulePage() {
       }
     } catch (error) {
       console.error('删除日程失败:', error);
-    }
-  };
-
-  // 打开本地腾讯会议
-  const openLocalTencentMeeting = () => {
-    window.location.href = 'wemeet://page/schedulemeeting';
-    setTimeout(() => setShowMeetingDialog(false), 1000);
-  };
-
-  // 创建腾讯会议
-  const handleCreateMeeting = async () => {
-    if (!meetingSubject || !meetingDate || !meetingTime) return;
-    setMeetingLoading(true);
-    try {
-      const startDateTime = new Date(`${meetingDate}T${meetingTime}`);
-      const startTime = Math.floor(startDateTime.getTime() / 1000);
-      const response = await fetch('/api/tencent-meeting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ subject: meetingSubject, startTime, duration: meetingDuration }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setMeetingResult(data.data);
-        setTimeout(() => { setShowMeetingDialog(false); setMeetingResult(null); }, 2000);
-      } else {
-        toast.error(data.error || '创建会议失败');
-      }
-    } catch (error) {
-      console.error('创建会议失败:', error);
-      toast.error('创建会议失败');
-    } finally {
-      setMeetingLoading(false);
     }
   };
 
@@ -762,104 +712,6 @@ export default function SchedulePage() {
         </Dialog>
       )}
 
-      {/* 会议预订对话框 */}
-      <Dialog 
-        open={showMeetingDialog} 
-        onOpenChange={(open) => { if (!open) { setShowMeetingDialog(false); setMeetingResult(null); } }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>预订会议</DialogTitle>
-            <DialogDescription>为日程创建腾讯会议</DialogDescription>
-          </DialogHeader>
-
-          {!meetingResult ? (
-            <>
-              <div className="py-2">
-                <Button className="w-full" onClick={openLocalTencentMeeting} size="lg">
-                  <Video className="w-4 h-4 mr-2" />
-                  使用腾讯会议预订
-                </Button>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-gray-500">或使用 API 创建</span>
-                </div>
-              </div>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label>会议主题</Label>
-                  <Input value={meetingSubject} onChange={(e) => setMeetingSubject(e.target.value)} placeholder="请输入会议主题" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>会议日期</Label>
-                    <Input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>开始时间</Label>
-                    <Input type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>会议时长</Label>
-                  <Select value={meetingDuration.toString()} onValueChange={(v) => setMeetingDuration(parseInt(v))}>
-                    <SelectTrigger><SelectValue placeholder="选择会议时长" /></SelectTrigger>
-                    <SelectContent position="popper" side="bottom" align="start">
-                      <SelectItem value="30">30 分钟</SelectItem>
-                      <SelectItem value="60">1 小时</SelectItem>
-                      <SelectItem value="90">1.5 小时</SelectItem>
-                      <SelectItem value="120">2 小时</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowMeetingDialog(false)}>取消</Button>
-                <Button onClick={handleCreateMeeting} disabled={meetingLoading || !meetingSubject || !meetingDate || !meetingTime}>
-                  {meetingLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />创建中...</> : '创建会议'}
-                </Button>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <div className="space-y-4 py-4">
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                      <Video className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">会议创建成功</p>
-                      <p className="text-sm text-gray-500">会议码: {meetingResult.meetingCode}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">会议主题</span><span className="font-medium">{meetingResult.subject}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">会议时间</span><span className="font-medium">{format(new Date(meetingResult.startTime * 1000), 'yyyy-MM-dd HH:mm')}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">会议时长</span><span className="font-medium">{meetingResult.duration} 分钟</span></div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>会议链接</Label>
-                  <div className="flex gap-2">
-                    <Input readOnly value={meetingResult.meetingUrl} className="flex-1" />
-                    <Button variant="outline" onClick={() => navigator.clipboard.writeText(meetingResult.meetingUrl)}>复制</Button>
-                  </div>
-                </div>
-                <Button className="w-full" onClick={() => window.open(meetingResult.meetingUrl, '_blank')}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  打开腾讯会议
-                </Button>
-              </div>
-              <DialogFooter>
-                <Button onClick={() => setShowMeetingDialog(false)}>关闭</Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
