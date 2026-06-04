@@ -14,7 +14,8 @@ import {
   Loader2,
   Calendar,
   Trophy,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
@@ -99,6 +100,9 @@ export default function DashboardPage() {
   const [unlaunchedData, setUnlaunchedData] = useState<{name:string,oneMonthNotOnline:number,fourMonthsNotOnline:number}[]>([]);
   const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
   const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
+  const [overdueDismissedData, setOverdueDismissedData] = useState<{name:string,count:number}[]>([]);
+  const [overdueRoleType, setOverdueRoleType] = useState<string>('交付顾问');
+  const [overdueImplType, setOverdueImplType] = useState<string>('一对一交付');
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
@@ -163,6 +167,19 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchOverdueDismissed = async () => {
+    try {
+      let url = `/api/dashboard/overdue-dismissed?roleType=${encodeURIComponent(overdueRoleType)}&implType=${encodeURIComponent(overdueImplType)}`;
+      const response = await fetch(url, { headers: { ...getAuthHeader() } });
+      const data = await response.json();
+      if (response.ok && data.data) {
+        setOverdueDismissedData(data.data);
+      }
+    } catch (error) {
+      console.error('获取超期未解散统计失败:', error);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) fetchDistribution();
   }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
@@ -174,6 +191,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isAdmin) fetchUnlaunched();
   }, [isAdmin, unlaunchedRoleType, unlaunchedImplType]);
+
+  useEffect(() => {
+    if (isAdmin) fetchOverdueDismissed();
+  }, [isAdmin, overdueRoleType, overdueImplType]);
 
   useEffect(() => {
     fetchStats();
@@ -648,6 +669,60 @@ export default function DashboardPage() {
                     <Legend />
                     <Bar dataKey="oneMonthNotOnline" name="1个月未上线" stackId="a" fill="#fb923c" radius={[0, 0, 0, 0]} barSize={40} />
                     <Bar dataKey="fourMonthsNotOnline" name="4个月未上线" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40} />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 超期未解散图表 */}
+          <Card>
+            <CardHeader className="space-y-0 pb-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-400" />
+                  超期未解散
+                </CardTitle>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Select
+                    value={overdueImplType}
+                    onValueChange={(v) => setOverdueImplType(v as string)}
+                  >
+                    <SelectTrigger className="w-28 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="一对一交付">一对一交付</SelectItem>
+                      <SelectItem value="其他">其他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={overdueRoleType}
+                    onValueChange={(v) => setOverdueRoleType(v as string)}
+                  >
+                    <SelectTrigger className="w-28 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="交付顾问">交付顾问</SelectItem>
+                      <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {overdueDismissedData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(200, overdueDismissedData.length * 45)}>
+                  <RechartsBarChart data={overdueDismissedData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" name="超期未解散" fill="#ef4444" radius={[4, 4, 0, 0]} />
                   </RechartsBarChart>
                 </ResponsiveContainer>
               ) : (
