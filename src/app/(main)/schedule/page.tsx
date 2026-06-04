@@ -98,7 +98,6 @@ export default function SchedulePage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
-  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   
@@ -194,7 +193,7 @@ export default function SchedulePage() {
         body: JSON.stringify({
           customerId: selectedCustomerId,
           scheduleDate: formatDate(selectedDate),
-          notes: notes || null,
+          notes: null,
         }),
       });
 
@@ -203,12 +202,10 @@ export default function SchedulePage() {
         setSchedules(prev => [...prev, { ...newSchedule.schedule, customer_name: selectedCustomer.name }]);
         setShowAddDialog(false);
         setSelectedCustomerId('');
-        setNotes('');
         
         if (openMeeting) {
           // 直接拉起腾讯会议APP
           window.location.href = 'wemeet://page/schedulemeeting';
-          toast.success('已打开腾讯会议，请在APP中预订会议');
         }
       }
     } catch (error) {
@@ -392,7 +389,6 @@ export default function SchedulePage() {
                     setSelectedDate(date);
                     setSelectedCustomerId('');
                     setCustomerSearch('');
-                    setNotes('');
                     setShowAddDialog(true);
                   }}
                 >
@@ -520,7 +516,6 @@ export default function SchedulePage() {
                   setSelectedDate(date);
                   setSelectedCustomerId('');
                   setCustomerSearch('');
-                  setNotes('');
                   setShowAddDialog(true);
                 }}
               >
@@ -694,10 +689,7 @@ export default function SchedulePage() {
                   </PopoverContent>
                 </Popover>
               </div>
-              <div className="space-y-2">
-                <Label>备注（可选）</Label>
-                <Input placeholder="输入备注信息..." value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
+
             </div>
             <DialogFooter className="flex gap-4">
               <Button variant="outline" className="flex-1" onClick={() => handleAddSchedule(false)} disabled={!selectedCustomerId || loading}>
