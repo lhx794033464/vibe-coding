@@ -21,10 +21,21 @@ export async function GET(request: NextRequest) {
     let endDate: Date | null = null;
 
     switch (timeRange) {
-      case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      case 'assessment': {
+        // 考核年度：上年12月至本年11月
+        // 如果当前月份 >= 12，考核年度为今年12月至明年11月
+        // 如果当前月份 < 12，考核年度为去年12月至今年11月
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-indexed
+        if (currentMonth >= 11) { // 12月
+          startDate = new Date(currentYear, 11, 1); // 今年12月1日
+          endDate = new Date(currentYear + 1, 11, 1); // 明年12月1日
+        } else {
+          startDate = new Date(currentYear - 1, 11, 1); // 去年12月1日
+          endDate = new Date(currentYear, 11, 1); // 今年12月1日
+        }
         break;
+      }
       case 'year':
         startDate = new Date(now.getFullYear(), 0, 1); // 当年1月1日
         endDate = new Date(now.getFullYear() + 1, 0, 1); // 次年1月1日

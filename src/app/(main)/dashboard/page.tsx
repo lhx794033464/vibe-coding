@@ -287,7 +287,7 @@ export default function DashboardPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom">
-                <SelectItem value="month">本月</SelectItem>
+                <SelectItem value="assessment">考核年度</SelectItem>
                 <SelectItem value="year">本年</SelectItem>
                 <SelectItem value="all">全部</SelectItem>
                 <SelectItem value="custom">自定义</SelectItem>
