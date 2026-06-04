@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, ChevronDown, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList, FileText, Eye, Clock, CheckCheck } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Loader2, ChevronLeft, ChevronRight, ChevronDown, Trash2, Bell, Send, CheckCircle, XCircle, ClipboardList, FileText, Eye, Clock, CheckCheck, ArrowRightLeft } from 'lucide-react';
 import { CommissionCalculation } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -90,6 +90,18 @@ export default function CommissionsPage() {
   const [collapsedConsultants, setCollapsedConsultants] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
+  // 转提对话框状态
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferDetail, setTransferDetail] = useState<CommissionCalculation | null>(null);
+  const [transferSourceUserId, setTransferSourceUserId] = useState<string>('');
+  const [transferSourceUsername, setTransferSourceUsername] = useState<string>('');
+  const [transferTargetUserId, setTransferTargetUserId] = useState<string>('');
+  const [transferFinanceDays, setTransferFinanceDays] = useState<string>('0');
+  const [transferOtherDays, setTransferOtherDays] = useState<string>('0');
+  const [transferRemark, setTransferRemark] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [consultantList, setConsultantList] = useState<{ id: string; username: string }[]>([]);
+
   const toggleConsultant = (name: string) => {
     setCollapsedConsultants(prev => {
       const next = new Set(prev);
@@ -150,6 +162,98 @@ export default function CommissionsPage() {
       console.error('获取提成申报列表失败:', error);
     } finally {
       setReportsLoading(false);
+    }
+  };
+
+  // 获取顾问列表
+  const fetchConsultants = async () => {
+    try {
+      const response = await fetch('/api/users', {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await response.json();
+      if (response.ok && data.data) {
+        setConsultantList(data.data.filter((u: any) => u.role === 'user' && u.is_active).map((u: any) => ({ id: u.id, username: u.username })));
+      }
+    } catch (error) {
+      console.error('获取顾问列表失败:', error);
+    }
+  };
+
+  // 打开转提对话框
+  const handleOpenTransfer = (detail: CommissionCalculation, sourceUserId: string, sourceUsername: string) => {
+    setTransferDetail(detail);
+    setTransferSourceUserId(sourceUserId);
+    setTransferSourceUsername(sourceUsername);
+    setTransferTargetUserId('');
+    setTransferFinanceDays('0');
+    setTransferOtherDays('0');
+    setTransferRemark('');
+    setTransferDialogOpen(true);
+    // 加载顾问列表
+    if (consultantList.length === 0) {
+      fetchConsultants();
+    }
+  };
+
+  // 执行转提
+  const handleTransfer = async () => {
+    if (!transferDetail || !transferTargetUserId) {
+      toast.error('请选择目标顾问');
+      return;
+    }
+    const fDays = parseFloat(transferFinanceDays) || 0;
+    const oDays = parseFloat(transferOtherDays) || 0;
+    const totalDays = fDays + oDays;
+    if (totalDays <= 0) {
+      toast.error('转提人天数必须大于0');
+      return;
+    }
+
+    // 检查不超过可提人天
+    if (fDays > (transferDetail.financeMaxDays || 0)) {
+      toast.error(`财务人天不能超过${(transferDetail.financeMaxDays || 0).toFixed(1)}天`);
+      return;
+    }
+    if (oDays > (transferDetail.otherMaxDays || 0)) {
+      toast.error(`其他人天不能超过${(transferDetail.otherMaxDays || 0).toFixed(1)}天`);
+      return;
+    }
+
+    // 取得要转提的记录ID（取该客户最近的一条提成记录）
+    const record = transferDetail.records?.[0];
+    if (!record) {
+      toast.error('未找到提成记录');
+      return;
+    }
+
+    setTransferring(true);
+    try {
+      const response = await fetch('/api/commissions/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({
+          recordId: record.id,
+          transferFinanceDays: fDays,
+          transferOtherDays: oDays,
+          targetUserId: transferTargetUserId,
+          remark: transferRemark,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success(data.message);
+        setTransferDialogOpen(false);
+        // 刷新数据
+        fetchCommissions();
+        fetchReports();
+      } else {
+        toast.error(data.error || '转提失败');
+      }
+    } catch (error) {
+      toast.error('转提操作失败');
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -957,7 +1061,7 @@ export default function CommissionsPage() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className="w-10 flex justify-center shrink-0">
+                              <div className="w-20 flex justify-center gap-1 shrink-0">
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -966,6 +1070,15 @@ export default function CommissionsPage() {
                                   onClick={() => handlePreviewDoc(detail.customerId, detail.customerName)}
                                 >
                                   <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  title="转提"
+                                  onClick={() => handleOpenTransfer(detail, report.user_id, consultantName)}
+                                >
+                                  <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
                                 </Button>
                               </div>
                             </div>
@@ -1610,6 +1723,158 @@ export default function CommissionsPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 转提对话框 */}
+      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>转提提成</DialogTitle>
+            <DialogDescription>
+              将 {transferSourceUsername} 的提成转提给其他顾问
+            </DialogDescription>
+          </DialogHeader>
+          {transferDetail && (
+            <div className="space-y-4">
+              {/* 客户信息 */}
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                <div className="text-sm font-medium">{transferDetail.customerName}</div>
+                <div className="text-xs text-muted-foreground flex gap-4">
+                  <span>计提人天: {transferDetail.totalMaxDays.toFixed(1)}天</span>
+                  <span>已提: {transferDetail.paidDays.toFixed(1)}天</span>
+                  <span>剩余: {transferDetail.remainingDays.toFixed(1)}天</span>
+                </div>
+                <div className="text-xs text-muted-foreground flex gap-4">
+                  <span>计提金额: ¥{(transferDetail.totalCommission || 0).toFixed(2)}</span>
+                  <span>已提: ¥{(transferDetail.paidCommission || 0).toFixed(2)}</span>
+                </div>
+                {transferDetail.records && transferDetail.records.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    当前记录: {transferDetail.records[0].remark || '无备注'} · ¥{transferDetail.records[0].amount}
+                  </div>
+                )}
+              </div>
+
+              {/* 目标顾问选择 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">转提给</Label>
+                <select
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                  value={transferTargetUserId}
+                  onChange={(e) => setTransferTargetUserId(e.target.value)}
+                >
+                  <option value="">请选择目标顾问</option>
+                  {consultantList.filter(c => c.id !== transferSourceUserId).map(c => (
+                    <option key={c.id} value={c.id}>{c.username}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 转提人天数 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">转提人天数</Label>
+                {(transferDetail.financeMaxDays > 0 || transferDetail.otherMaxDays > 0) ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {transferDetail.financeMaxDays > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">财务人天（最多{transferDetail.financeMaxDays.toFixed(1)}天）</Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max={transferDetail.financeMaxDays}
+                          value={transferFinanceDays}
+                          onChange={(e) => setTransferFinanceDays(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+                    {transferDetail.otherMaxDays > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">其他人天（最多{transferDetail.otherMaxDays.toFixed(1)}天）</Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max={transferDetail.otherMaxDays}
+                          value={transferOtherDays}
+                          onChange={(e) => setTransferOtherDays(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">人天数（最多{transferDetail.paidDays.toFixed(1)}天）</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max={transferDetail.paidDays}
+                      value={transferFinanceDays}
+                      onChange={(e) => setTransferFinanceDays(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 转提备注 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">备注</Label>
+                <Textarea
+                  value={transferRemark}
+                  onChange={(e) => setTransferRemark(e.target.value)}
+                  placeholder="可选：填写转提原因"
+                  rows={2}
+                />
+              </div>
+
+              {/* 转提预览 */}
+              {(() => {
+                const fDays = parseFloat(transferFinanceDays) || 0;
+                const oDays = parseFloat(transferOtherDays) || 0;
+                const totalTransferDays = fDays + oDays;
+                if (totalTransferDays > 0 && transferDetail.records?.[0]) {
+                  const recordAmount = parseFloat(String(transferDetail.records[0].amount)) || 0;
+                  const recordFDays = transferDetail.financeMaxDays || 0;
+                  const recordODays = transferDetail.otherMaxDays || 0;
+                  const recordTotalDays = recordFDays + recordODays || transferDetail.paidDays || 1;
+                  const dailyRate = recordAmount / recordTotalDays;
+                  const estimatedAmount = dailyRate * totalTransferDays;
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 space-y-1">
+                      <div className="font-medium">转提预览</div>
+                      <div>转提人天：{totalTransferDays.toFixed(1)}天</div>
+                      <div>预估转提金额：¥{estimatedAmount.toFixed(2)}</div>
+                      <div>转提后 {transferSourceUsername} 剩余：{Math.max(0, recordTotalDays - totalTransferDays).toFixed(1)}天 / ¥{Math.max(0, recordAmount - estimatedAmount).toFixed(2)}</div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferDialogOpen(false)} disabled={transferring}>
+              取消
+            </Button>
+            <Button onClick={handleTransfer} disabled={transferring || !transferTargetUserId}>
+              {transferring ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  转提中...
+                </>
+              ) : (
+                <>
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                  确认转提
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
