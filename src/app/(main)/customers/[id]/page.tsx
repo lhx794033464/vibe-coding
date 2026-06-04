@@ -526,8 +526,32 @@ export default function CustomerDetailPage({ params }: PageProps) {
     if (!(await confirm({ description: '确定将此客户标记为已验收吗？' }))) return;
 
     try {
-      // 确认验收时自动计算交付期截止日
-      const newDeadline = computeDeliveryDeadline(customer.opened_at, 'accepted', remainingDays);
+      // 确认验收时，如果有剩余人天则提示是否延长交付期
+      let newDeadline: string | null = null;
+      if (remainingDays > 0) {
+        const extendedDeadline = computeDeliveryDeadline(customer.opened_at, 'accepted', remainingDays);
+        const defaultDeadline = computeDeliveryDeadline(customer.opened_at, 'not_accepted', 0);
+        if (extendedDeadline && extendedDeadline !== defaultDeadline) {
+          const extendDays = Math.round(remainingDays * 120);
+          const shouldExtend = await confirm({
+            title: '延长交付期',
+            description: `当前剩余人天 ${remainingDays} 天，可延长交付期 ${extendDays} 天（截止日变更为 ${extendedDeadline}）。是否延长交付期截止日？`,
+            confirmText: '延长',
+            cancelText: '不延长',
+          });
+          if (shouldExtend) {
+            newDeadline = extendedDeadline;
+          }
+        }
+      }
+
+      const updateData: Record<string, unknown> = {
+        acceptance_status: 'accepted',
+        acceptance_source: 'app',
+      };
+      if (newDeadline) {
+        updateData.delivery_deadline = newDeadline;
+      }
 
       const response = await fetch(`/api/customers/${customer.id}`, {
         method: 'PUT',
@@ -535,11 +559,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({
-          acceptance_status: 'accepted',
-          acceptance_source: 'app',
-          delivery_deadline: newDeadline,
-        }),
+        body: JSON.stringify(updateData),
       });
 
       if (response.ok) {
