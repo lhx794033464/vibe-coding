@@ -297,7 +297,6 @@ export default function UsersManagementPage() {
                           {user.username}
                         </span>
                         {getRoleBadge(user.role)}
-                        <Badge variant="outline" className="text-xs">{user.role === 'admin' ? '管理员' : user.role}</Badge>
                         <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
                           {user.employment_status || '在职'}
                         </Badge>
