@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Loader2, Search, User, Mic, MicOff, Trash2 } from 'lucide-react';
+import { Send, Loader2, Search, User, Mic, MicOff, Trash2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,11 +29,19 @@ function getGreeting(): string {
 }
 
 // 快捷问题列表
-const QUICK_QUESTIONS = [
+const QUICK_QUESTIONS_DELIVERY = [
   { text: '上线率' },
   { text: '验收率' },
   { text: '今日待办' },
 ];
+
+const QUICK_QUESTIONS_QA = [
+  { text: '星辰如何创建账套' },
+  { text: '凭证怎么审核' },
+  { text: '报表怎么导出' },
+];
+
+type ChatMode = 'delivery' | 'qa';
 
 // 消息类型
 interface Message {
@@ -52,6 +60,7 @@ export default function HomePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isClearing, setIsClearing] = useState(false); // 清除动画状态
   const [showWelcome, setShowWelcome] = useState(true); // 是否显示欢迎页动画
+  const [chatMode, setChatMode] = useState<ChatMode>('delivery'); // 对话模式
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const greeting = getGreeting();
@@ -77,6 +86,23 @@ export default function HomePage() {
       setIsClearing(false);
       setShowWelcome(true); // 重置欢迎页动画状态
     }, 400); // 与动画时长一致
+  };
+  
+  // 切换对话模式时清除当前对话
+  const handleModeChange = (mode: ChatMode) => {
+    if (mode === chatMode) return;
+    
+    // 中断正在进行的流式请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    setChatMode(mode);
+    clearMessages();
+    setMessages([]);
+    setShowWelcome(true);
+    setLoading(false);
   };
   
   // 语音相关状态
@@ -326,17 +352,18 @@ export default function HomePage() {
         }
       } catch {}
       
-      const response = await fetch('/api/chat', {
+      const apiUrl = chatMode === 'qa' ? '/api/chat/qa' : '/api/chat';
+      const requestBody = chatMode === 'qa' 
+        ? { messages: [{ role: 'user', content: userMessage }], userId }
+        : { messages: [...savedMessages, { role: 'user', content: userMessage }], enableSearch: true, userId };
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ 
-          messages: [...savedMessages, { role: 'user', content: userMessage }],
-          enableSearch: true,
-          userId,
-        }),
+        body: JSON.stringify(requestBody),
         signal: abortController.signal,
       });
 
@@ -470,10 +497,34 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-slate-800">小蝶</h1>
-              <p className="text-xs text-slate-500">{greeting}</p>
+              <p className="text-xs text-slate-500">{chatMode === 'qa' ? '星辰产品答疑咨询' : greeting}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* 模式切换 */}
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+              <button
+                onClick={() => handleModeChange('delivery')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  chatMode === 'delivery'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                交付助手
+              </button>
+              <button
+                onClick={() => handleModeChange('qa')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
+                  chatMode === 'qa'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <MessageCircle className="w-3 h-3" />
+                答疑咨询
+              </button>
+            </div>
             {/* 清除对话按钮 */}
             {messages.length > 0 && (
               <button
@@ -501,16 +552,27 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-slate-800">
-                    你好，我是小蝶
+                    {chatMode === 'qa' ? '星辰产品答疑' : '你好，我是小蝶'}
                   </h2>
+                  {chatMode === 'qa' && (
+                    <p className="text-sm text-slate-500 mt-1">为您解答星辰产品使用问题</p>
+                  )}
                 </div>
               </div>
 
               {/* 语音提示 */}
-              <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
-                <Mic className="w-4 h-4" />
-                <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
-              </div>
+              {chatMode === 'delivery' && (
+                <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
+                  <Mic className="w-4 h-4" />
+                  <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
+                </div>
+              )}
+              {chatMode === 'qa' && (
+                <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
+                  <MessageCircle className="w-4 h-4" />
+                  <span>咨询星辰产品使用问题，如账套管理、凭证处理、报表导出等</span>
+                </div>
+              )}
 
             </div>
           ) : (
@@ -579,7 +641,7 @@ export default function HomePage() {
           <form onSubmit={handleSubmit}>
             {/* 快捷提问胶囊 */}
             <div className="flex items-center justify-start gap-2 mb-2">
-              {QUICK_QUESTIONS.map((q, index) => (
+              {(chatMode === 'qa' ? QUICK_QUESTIONS_QA : QUICK_QUESTIONS_DELIVERY).map((q, index) => (
                 <button
                   key={index}
                   type="button"
@@ -604,12 +666,13 @@ export default function HomePage() {
                   }
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送..."}
+                placeholder={chatMode === 'qa' ? "输入星辰产品使用问题..." : (input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送...")}
                 rows={1}
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
               />
-              {/* 语音按钮 */}
+              {/* 语音按钮 - 仅交付助手模式显示 */}
+              {chatMode === 'delivery' && (
               <Button
                 type="button"
                 onClick={isRecording ? stopRecording : startRecording}
@@ -629,6 +692,7 @@ export default function HomePage() {
                   <Mic className="w-5 h-5" />
                 )}
               </Button>
+              )}
               {/* 发送按钮 */}
               <Button
                 type="submit"
