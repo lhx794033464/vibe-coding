@@ -23,48 +23,29 @@ function formatTodoList(todos: any[]): string {
 }
 
 // 构建系统提示词
-async function buildSystemPrompt(userId: string, username: string | undefined, isAdmin: boolean): Promise<string> {
+async function buildSystemPrompt(userId: string, username: string | undefined, isAdmin: boolean, request: NextRequest): Promise<string> {
   const today = getTodayStr();
   
-  // 获取业务数据
+  // 从数据看板API获取统计数据
   let customersData = '';
   let schedulesData = '';
   let todosData = '';
   
   try {
-    const customers = await dbGetCustomers({ userId, username, isAdmin });
-    if (customers.length > 0) {
-      const statusLabel: Record<string, string> = { 'online': '已上线', 'not_online': '未上线', '延期上线': '延期上线' };
-      const acceptLabel: Record<string, string> = { 'accepted': '已验收', 'not_accepted': '未验收' };
-      const onlineCount = customers.filter(c => c.status === 'online').length;
-      const acceptedCount = customers.filter(c => c.acceptance_status === 'accepted').length;
-      const onlineRate = customers.length > 0 ? Math.round(onlineCount / customers.length * 1000) / 10 : 0;
-      const acceptanceRate = customers.length > 0 ? Math.round(acceptedCount / customers.length * 1000) / 10 : 0;
-
-      // 1个月上线率
-      const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const customersOverOneMonth = customers.filter(c => c.opened_at && new Date(c.opened_at) <= oneMonthAgo);
-      const oneMonthOnlineRate = customersOverOneMonth.length > 0
-        ? Math.round(customersOverOneMonth.filter(c => c.status === 'online').length / customersOverOneMonth.length * 1000) / 10
-        : 0;
-
-      // 4个月上线率
-      const fourMonthsAgo = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000);
-      const customersOverFourMonths = customers.filter(c => c.opened_at && new Date(c.opened_at) <= fourMonthsAgo);
-      const fourMonthsOnlineRate = customersOverFourMonths.length > 0
-        ? Math.round(customersOverFourMonths.filter(c => c.status === 'online').length / customersOverFourMonths.length * 1000) / 10
-        : 0;
-
-      // 只展示摘要统计，不列出全部客户详情，避免超出上下文窗口
-      customersData = `\n\n【客户统计】共${customers.length}个客户\n` +
-        `上线状态分布: 已上线${onlineCount}个, 未上线${customers.length - onlineCount}个\n` +
-        `验收状态分布: 已验收${acceptedCount}个, 未验收${customers.length - acceptedCount}个\n` +
-        `上线率: ${onlineRate}% (${onlineCount}/${customers.length}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${customers.length})\n` +
-        `1个月上线率: ${oneMonthOnlineRate}% (开通超30天客户中已上线比例, ${customersOverOneMonth.filter(c => c.status === 'online').length}/${customersOverOneMonth.length})\n` +
-        `4个月上线率: ${fourMonthsOnlineRate}% (开通超120天客户中已上线比例, ${customersOverFourMonths.filter(c => c.status === 'online').length}/${customersOverFourMonths.length})`;
+    const dashboardRes = await fetch(`http://localhost:${process.env.DEPLOY_RUN_PORT || 5000}/api/dashboard?timeRange=all`, {
+      headers: { Authorization: request.headers.get('Authorization') || '' }
+    });
+    if (dashboardRes.ok) {
+      const dashboard = await dashboardRes.json();
+      const d = dashboard.data || dashboard;
+      customersData = `\n\n【客户统计】共${d.totalCustomers || 0}个客户（一对一交付）\n` +
+        `上线状态分布: 已上线${d.onlineCustomers || 0}个, 未上线${(d.totalCustomers || 0) - (d.onlineCustomers || 0)}个\n` +
+        `验收状态分布: 已验收${d.acceptedCustomers || 0}个, 未验收${(d.totalCustomers || 0) - (d.acceptedCustomers || 0)}个\n` +
+        `上线率: ${(d.onlineRate || 0).toFixed(1)}% | 验收率: ${(d.acceptanceRate || 0).toFixed(1)}%\n` +
+        `1个月上线率: ${(d.oneMonthOnlineRate || 0).toFixed(1)}% | 4个月上线率: ${(d.fourMonthsOnlineRate || 0).toFixed(1)}%`;
     }
   } catch (e) {
-    console.error('[chat] 获取客户数据失败:', e);
+    console.error('[chat] 获取看板数据失败:', e);
   }
 
   try {
@@ -206,7 +187,7 @@ export async function POST(request: NextRequest) {
     const messages = body.messages || [];
 
     // 构建系统提示词
-    const systemPrompt = await buildSystemPrompt(userId, userInfo?.username, isAdmin);
+    const systemPrompt = await buildSystemPrompt(userId, userInfo?.username, isAdmin, request);
 
     // 构建 LLM 消息
     const llmMessages: any[] = [
