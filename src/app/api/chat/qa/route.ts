@@ -28,21 +28,23 @@ export async function POST(request: NextRequest) {
     }];
 
     // 调用外部 Coze 智能体流式接口
+    const requestBody = {
+      user_id: `qa_${userInfo.id}_${Date.now()}`,
+      conversation_id: `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      stream: true,
+      additional_messages: additionalMessages,
+      auto_save_history: false,
+    };
+    console.log('[QA] Request body:', JSON.stringify(requestBody, null, 2));
     const response = await fetch(COZE_QA_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${COZE_QA_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        user_id: `qa_${userInfo.id}_${Date.now()}`,
-        conversation_id: `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        stream: true,
-        additional_messages: additionalMessages,
-        auto_save_history: false,
-      }),
+      body: JSON.stringify(requestBody),
     });
-
+    console.log('[QA] Coze response status:', response.status);
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[QA] Coze API error:', response.status, errorText);
@@ -63,6 +65,7 @@ export async function POST(request: NextRequest) {
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let fullAnswer = '';
 
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -110,11 +113,13 @@ export async function POST(request: NextRequest) {
                   if (msgType === 'answer') {
                     const content = data.content?.answer || '';
                     if (content) {
+                      fullAnswer += content;
                       const outData = JSON.stringify({ content });
                       safeEnqueue(encoder.encode(`data: ${outData}\n\n`));
                     }
                     // finish=true 表示回答结束
                     if (data.finish === true) {
+                      console.log('[QA] Full answer received:', fullAnswer.slice(0, 200));
                       safeEnqueue(encoder.encode('data: [DONE]\n\n'));
                       safeClose();
                       return;
@@ -122,6 +127,7 @@ export async function POST(request: NextRequest) {
                   }
                   // type=message_end: 消息完成
                   else if (msgType === 'message_end') {
+                    console.log('[QA] Full answer received (message_end):', fullAnswer.slice(0, 200));
                     safeEnqueue(encoder.encode('data: [DONE]\n\n'));
                     safeClose();
                     return;
