@@ -55,9 +55,13 @@ async function buildSystemPrompt(userId: string, username: string | undefined, i
         ? Math.round(customersOverFourMonths.filter(c => c.status === 'online').length / customersOverFourMonths.length * 1000) / 10
         : 0;
 
-      customersData = `\n\n【客户列表】(共${customers.length}个)\n` + 
-        customers.map(c => `- ${c.name} | 上线状态: ${statusLabel[c.status] || c.status || '未知'} | 验收状态: ${acceptLabel[c.acceptance_status] || c.acceptance_status || '未知'} | 交付顾问: ${c.delivery_consultant || '未分配'} | 开通时间: ${c.opened_at || '未知'}`).join('\n') +
-        `\n\n【统计数据】上线率: ${onlineRate}% (${onlineCount}/${customers.length}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${customers.length}) | 1个月上线率: ${oneMonthOnlineRate}% (开通超30天客户中已上线比例, ${customersOverOneMonth.filter(c => c.status === 'online').length}/${customersOverOneMonth.length}) | 4个月上线率: ${fourMonthsOnlineRate}% (开通超120天客户中已上线比例, ${customersOverFourMonths.filter(c => c.status === 'online').length}/${customersOverFourMonths.length})`;
+      // 只展示摘要统计，不列出全部客户详情，避免超出上下文窗口
+      customersData = `\n\n【客户统计】共${customers.length}个客户\n` +
+        `上线状态分布: 已上线${onlineCount}个, 未上线${customers.length - onlineCount}个\n` +
+        `验收状态分布: 已验收${acceptedCount}个, 未验收${customers.length - acceptedCount}个\n` +
+        `上线率: ${onlineRate}% (${onlineCount}/${customers.length}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${customers.length})\n` +
+        `1个月上线率: ${oneMonthOnlineRate}% (开通超30天客户中已上线比例, ${customersOverOneMonth.filter(c => c.status === 'online').length}/${customersOverOneMonth.length})\n` +
+        `4个月上线率: ${fourMonthsOnlineRate}% (开通超120天客户中已上线比例, ${customersOverFourMonths.filter(c => c.status === 'online').length}/${customersOverFourMonths.length})`;
     }
   } catch (e) {
     console.error('[chat] 获取客户数据失败:', e);
@@ -209,8 +213,8 @@ export async function POST(request: NextRequest) {
       { role: 'system', content: systemPrompt },
     ];
 
-    // 添加历史消息（最多保留最近20条）
-    const recentMessages = messages.slice(-20);
+    // 添加历史消息（最多保留最近8条，避免超出上下文窗口）
+    const recentMessages = messages.slice(-8);
     for (const msg of recentMessages) {
       if (msg.role === 'user' || msg.role === 'assistant') {
         llmMessages.push({ role: msg.role, content: msg.content });
