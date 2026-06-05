@@ -98,6 +98,7 @@ export default function SchedulePage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const [scheduleNotes, setScheduleNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   
@@ -181,9 +182,9 @@ export default function SchedulePage() {
 
   // 添加日程
   const handleAddSchedule = async (openMeeting: boolean = false) => {
-    if (!selectedCustomerId || !selectedDate) return;
+    if (!selectedDate) return;
+    if (!selectedCustomerId && !scheduleNotes.trim()) return;
     const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-    if (!selectedCustomer) return;
 
     setLoading(true);
     try {
@@ -191,17 +192,18 @@ export default function SchedulePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
-          customerId: selectedCustomerId,
+          customerId: selectedCustomerId || null,
           scheduleDate: formatDate(selectedDate),
-          notes: null,
+          notes: scheduleNotes.trim() || null,
         }),
       });
 
       if (response.ok) {
         const newSchedule = await response.json();
-        setSchedules(prev => [...prev, { ...newSchedule.schedule, customer_name: selectedCustomer.name }]);
+        setSchedules(prev => [...prev, { ...newSchedule.schedule, customer_name: selectedCustomer?.name || null }]);
         setShowAddDialog(false);
         setSelectedCustomerId('');
+        setScheduleNotes('');
         
         if (openMeeting) {
           // 直接拉起腾讯会议APP
@@ -422,7 +424,7 @@ export default function SchedulePage() {
                         className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded truncate flex items-center justify-between group/schedule"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <span className="truncate flex-1">{schedule.customer_name || '未知客户'}</span>
+                        <span className="truncate flex-1">{schedule.customer_name || schedule.notes || '未知客户'}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(schedule.id); }}
                           className="ml-1 opacity-0 group-hover/schedule:opacity-100 hover:text-red-500 transition-opacity"
@@ -543,7 +545,7 @@ export default function SchedulePage() {
                           className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex items-center gap-2 group/schedule"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <span>{schedule.customer_name || '未知客户'}</span>
+                          <span>{schedule.customer_name || schedule.notes || '未知客户'}</span>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(schedule.id); }}
                             className="opacity-0 group-hover/schedule:opacity-100 hover:text-red-500 transition-opacity"
@@ -624,8 +626,8 @@ export default function SchedulePage() {
                         ) : (
                           consultantSchedules.map(s => (
                             <div key={s.id} className="flex items-center justify-between text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded">
-                              <span>{s.customer_name || '未知客户'}</span>
-                              {s.notes && <span className="text-gray-400 ml-2 text-xs">{s.notes}</span>}
+                              <span>{s.customer_name || s.notes || '未知客户'}</span>
+                              {s.customer_name && s.notes && <span className="text-gray-400 ml-2 text-xs">{s.notes}</span>}
                             </div>
                           ))
                         )}
@@ -648,14 +650,14 @@ export default function SchedulePage() {
 
       {/* 添加日程对话框（普通用户） */}
       {!isAdmin && (
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) { setSelectedCustomerId(''); setScheduleNotes(''); } }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>添加日程 - {selectedDate?.toLocaleDateString('zh-CN')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>选择客户</Label>
+                <Label>选择客户（可选）</Label>
                 <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={customerPopoverOpen} className="w-full justify-between">
@@ -689,13 +691,21 @@ export default function SchedulePage() {
                   </PopoverContent>
                 </Popover>
               </div>
+              <div className="space-y-2">
+                <Label>备注 {!selectedCustomerId && <span className="text-destructive text-xs">（未选客户时必填）</span>}</Label>
+                <Input
+                  placeholder="输入备注信息..."
+                  value={scheduleNotes}
+                  onChange={(e) => setScheduleNotes(e.target.value)}
+                />
+              </div>
 
             </div>
             <DialogFooter className="flex gap-4">
-              <Button variant="outline" className="flex-1" onClick={() => handleAddSchedule(false)} disabled={!selectedCustomerId || loading}>
+              <Button variant="outline" className="flex-1" onClick={() => handleAddSchedule(false)} disabled={(!selectedCustomerId && !scheduleNotes.trim()) || loading}>
                 {loading ? '添加中...' : '添加'}
               </Button>
-              <Button className="flex-1" onClick={() => handleAddSchedule(true)} disabled={!selectedCustomerId || loading}>
+              <Button className="flex-1" onClick={() => handleAddSchedule(true)} disabled={(!selectedCustomerId && !scheduleNotes.trim()) || loading}>
                 <Video className="w-4 h-4 mr-1" />
                 {loading ? '添加中...' : '添加并预订会议'}
               </Button>
