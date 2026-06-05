@@ -33,9 +33,6 @@ const QUICK_QUESTIONS = [
   { text: '上线率' },
   { text: '验收率' },
   { text: '今日待办' },
-  { text: '星辰如何创建账套' },
-  { text: '凭证怎么审核' },
-  { text: '报表怎么导出' },
 ];
 
 // 消息类型
@@ -519,7 +516,7 @@ export default function HomePage() {
               {/* 功能提示 */}
               <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
                 <Mic className="w-4 h-4" />
-                <span>语音输入或文字提问 · 交付管理 · 星辰产品答疑</span>
+                <span>语音输入或文字提问</span>
               </div>
 
             </div>
