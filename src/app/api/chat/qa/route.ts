@@ -49,6 +49,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 将外部 Coze SSE 流转换为前端可解析的统一 SSE 格式
+    // 实际 SSE 格式:
+    //   event: message
+    //   data: {"type": "answer", "content": {"answer": "增量文本"}, "finish": false}
+    //   data: {"type": "message_end", "content": {"message_end": {...}}, "finish": true}
     const encoder = new TextEncoder();
     const externalReader = response.body?.getReader();
     
@@ -58,7 +62,6 @@ export async function POST(request: NextRequest) {
 
     const decoder = new TextDecoder();
     let buffer = '';
-    let currentEvent = '';
 
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -74,45 +77,45 @@ export async function POST(request: NextRequest) {
             for (const line of lines) {
               const trimmed = line.trim();
 
-              if (trimmed === '') {
-                currentEvent = '';
-                continue;
-              }
-
-              if (trimmed.startsWith('event:')) {
-                currentEvent = trimmed.slice('event:'.length).trim();
+              if (trimmed === '' || trimmed.startsWith('event:')) {
                 continue;
               }
 
               if (trimmed.startsWith('data:')) {
                 const raw = trimmed.slice('data:'.length).trim();
 
-                if (currentEvent === 'done' || raw === '[DONE]') {
+                if (raw === '[DONE]') {
                   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   continue;
                 }
 
                 try {
                   const data = JSON.parse(raw);
+                  const msgType = data.type;
 
-                  if (currentEvent === 'conversation.message.delta') {
-                    // 提取实际回答内容（支持深度思考模式）
-                    let content = '';
-                    if (data.content) {
-                      content = data.content;
-                    } else if (data.reasoning_content) {
-                      // 深度思考模式：思考过程暂不展示
-                      continue;
-                    }
-
+                  // type=answer: 流式增量回答内容
+                  if (msgType === 'answer') {
+                    const content = data.content?.answer || '';
                     if (content) {
                       const outData = JSON.stringify({ content });
                       controller.enqueue(encoder.encode(`data: ${outData}\n\n`));
                     }
-                  } else if (currentEvent === 'conversation.chat.failed' || currentEvent === 'error') {
-                    const errorMsg = data.msg || data.message || '答疑服务异常';
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
+                    // finish=true 表示回答结束
+                    if (data.finish === true) {
+                      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    }
                   }
+                  // type=message_end: 消息完成
+                  else if (msgType === 'message_end') {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  }
+                  // type=error: 错误
+                  else if (msgType === 'error') {
+                    const errorMsg = data.content?.error || data.msg || data.message || '答疑服务异常';
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  }
+                  // 其他类型（tool_request, tool_response, message_start 等）不转发给前端
                 } catch {
                   // 忽略无法解析的行
                 }
