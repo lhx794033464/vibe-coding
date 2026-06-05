@@ -754,6 +754,22 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {/* 编辑按钮 */}
+            <Button variant="outline" onClick={() => setEditing(!editing)}>
+              {editing ? '取消编辑' : '编辑'}
+            </Button>
+            {/* 验收按钮 */}
+            {!isAccepted ? (
+              <Button variant="outline" onClick={handleMarkAccepted}>
+                <CheckCircle className="w-4 h-4 mr-2" />
+                验收
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={handleCancelAcceptance} className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                <XCircle className="w-4 h-4 mr-2" />
+                取消验收
+              </Button>
+            )}
             {/* 解散按钮 */}
             {customer?.dismissed ? (
               isAdmin ? (
@@ -773,25 +789,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
             ) : (
               <Button variant="outline" onClick={handleMarkDismissed} className="text-purple-600 border-purple-300 hover:bg-purple-50">
                 <CheckCircle className="w-4 h-4 mr-2" />
-                确认解散
+                解散
               </Button>
             )}
-            {/* 验收按钮 */}
-            {!isAccepted ? (
-              <Button variant="outline" onClick={handleMarkAccepted}>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                确认验收
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={handleCancelAcceptance} className="text-orange-600 border-orange-300 hover:bg-orange-50">
-                <XCircle className="w-4 h-4 mr-2" />
-                取消验收
-              </Button>
-            )}
-          <Button variant="outline" onClick={() => setEditing(!editing)}>
-            {editing ? '取消编辑' : '编辑档案'}
-          </Button>
-        </div>
+          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
