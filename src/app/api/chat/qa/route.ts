@@ -19,13 +19,13 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: '消息不能为空' }), { status: 400 });
     }
 
-    // 只取最近几轮对话作为上下文，避免超出智能体上下文窗口限制
-    const recentMessages = messages.slice(-6);
-    const additionalMessages = recentMessages.map((msg: { role: string; content: string }) => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content,
+    // 只发送当前用户消息，不发送历史对话
+    // 原因：Coze 侧可能存在历史缓存导致答非所问，且避免上下文超出限制
+    const additionalMessages = [{
+      role: 'user',
+      content: userMessage,
       content_type: 'text',
-    }));
+    }];
 
     // 调用外部 Coze 智能体流式接口
     const response = await fetch(COZE_QA_API_URL, {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        user_id: userInfo.id || 'default_user',
+        user_id: `qa_${userInfo.id}_${Date.now()}`,
         stream: true,
         additional_messages: additionalMessages,
         auto_save_history: false,
