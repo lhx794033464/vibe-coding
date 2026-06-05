@@ -22,48 +22,6 @@ function formatTodoList(todos: any[]): string {
   }).join('\n');
 }
 
-// 从数据看板获取统计数据（复用看板逻辑，避免重复计算）
-async function getDashboardStats(userId: string, username: string | undefined, isAdmin: boolean): Promise<string> {
-  try {
-    const now = new Date();
-
-    // 获取客户（与数据看板一致：管理员获取全部，普通用户按 delivery_consultant 匹配）
-    let customers: any[];
-    if (isAdmin) {
-      customers = await dbGetCustomers({ isAdmin: true });
-    } else {
-      const allCustomers = await dbGetCustomers({ isAdmin: true });
-      customers = allCustomers.filter((c: any) => c.delivery_consultant === username);
-    }
-
-    // 只统计实施类型为"一对一交付"的项目（与数据看板一致）
-    const filteredCustomers = customers.filter((c: any) => c.opened_at && c.implementation_type === '一对一交付');
-    const totalCustomers = filteredCustomers.length;
-
-    if (totalCustomers === 0) return '暂无统计数据';
-
-    const onlineCount = filteredCustomers.filter((c: any) => c.status === 'online').length;
-    const acceptedCount = filteredCustomers.filter((c: any) => c.acceptance_status === 'accepted').length;
-    const onlineRate = Math.round(onlineCount / totalCustomers * 1000) / 10;
-    const acceptanceRate = Math.round(acceptedCount / totalCustomers * 1000) / 10;
-
-    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const customersOverOneMonth = filteredCustomers.filter((c: any) => new Date(c.opened_at) <= oneMonthAgo);
-    const oneMonthOnlineRate = customersOverOneMonth.length > 0
-      ? Math.round(customersOverOneMonth.filter((c: any) => c.status === 'online').length / customersOverOneMonth.length * 1000) / 10 : 0;
-
-    const fourMonthsAgo = new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000);
-    const customersOverFourMonths = filteredCustomers.filter((c: any) => new Date(c.opened_at) <= fourMonthsAgo);
-    const fourMonthsOnlineRate = customersOverFourMonths.length > 0
-      ? Math.round(customersOverFourMonths.filter((c: any) => c.status === 'online').length / customersOverFourMonths.length * 1000) / 10 : 0;
-
-    return `上线率: ${onlineRate}% (${onlineCount}/${totalCustomers}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${totalCustomers}) | 1月上线率: ${oneMonthOnlineRate}% | 4月上线率: ${fourMonthsOnlineRate}%`;
-  } catch (e) {
-    console.error('[chat] 获取看板统计失败:', e);
-    return '统计数据获取失败';
-  }
-}
-
 // 构建系统提示词
 async function buildSystemPrompt(userId: string, username: string | undefined, isAdmin: boolean): Promise<string> {
   const today = getTodayStr();
@@ -72,24 +30,38 @@ async function buildSystemPrompt(userId: string, username: string | undefined, i
   let customersData = '';
   let schedulesData = '';
   let todosData = '';
-  let statsData = '';
   
   try {
     const customers = await dbGetCustomers({ userId, username, isAdmin });
     if (customers.length > 0) {
       const statusLabel: Record<string, string> = { 'online': '已上线', 'not_online': '未上线', '延期上线': '延期上线' };
       const acceptLabel: Record<string, string> = { 'accepted': '已验收', 'not_accepted': '未验收' };
+      const onlineCount = customers.filter(c => c.status === 'online').length;
+      const acceptedCount = customers.filter(c => c.acceptance_status === 'accepted').length;
+      const onlineRate = customers.length > 0 ? Math.round(onlineCount / customers.length * 1000) / 10 : 0;
+      const acceptanceRate = customers.length > 0 ? Math.round(acceptedCount / customers.length * 1000) / 10 : 0;
 
-      const displayCustomers = customers.slice(0, 30);
-      customersData = `\n\n【客户列表】(共${customers.length}个${customers.length > 30 ? '，仅展示前30个' : ''})\n` + 
-        displayCustomers.map(c => `- ${c.name} | 上线: ${statusLabel[c.status] || c.status || '未知'} | 验收: ${acceptLabel[c.acceptance_status] || c.acceptance_status || '未知'} | 顾问: ${c.delivery_consultant || '未分配'} | 开通: ${c.opened_at ? String(c.opened_at).slice(0, 10) : '未知'}`).join('\n');
+      // 1个月上线率
+      const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const customersOverOneMonth = customers.filter(c => c.opened_at && new Date(c.opened_at) <= oneMonthAgo);
+      const oneMonthOnlineRate = customersOverOneMonth.length > 0
+        ? Math.round(customersOverOneMonth.filter(c => c.status === 'online').length / customersOverOneMonth.length * 1000) / 10
+        : 0;
+
+      // 4个月上线率
+      const fourMonthsAgo = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000);
+      const customersOverFourMonths = customers.filter(c => c.opened_at && new Date(c.opened_at) <= fourMonthsAgo);
+      const fourMonthsOnlineRate = customersOverFourMonths.length > 0
+        ? Math.round(customersOverFourMonths.filter(c => c.status === 'online').length / customersOverFourMonths.length * 1000) / 10
+        : 0;
+
+      customersData = `\n\n【客户列表】(共${customers.length}个)\n` + 
+        customers.map(c => `- ${c.name} | 上线状态: ${statusLabel[c.status] || c.status || '未知'} | 验收状态: ${acceptLabel[c.acceptance_status] || c.acceptance_status || '未知'} | 交付顾问: ${c.delivery_consultant || '未分配'} | 开通时间: ${c.opened_at || '未知'}`).join('\n') +
+        `\n\n【统计数据】上线率: ${onlineRate}% (${onlineCount}/${customers.length}) | 验收率: ${acceptanceRate}% (${acceptedCount}/${customers.length}) | 1个月上线率: ${oneMonthOnlineRate}% (开通超30天客户中已上线比例, ${customersOverOneMonth.filter(c => c.status === 'online').length}/${customersOverOneMonth.length}) | 4个月上线率: ${fourMonthsOnlineRate}% (开通超120天客户中已上线比例, ${customersOverFourMonths.filter(c => c.status === 'online').length}/${customersOverFourMonths.length})`;
     }
   } catch (e) {
     console.error('[chat] 获取客户数据失败:', e);
   }
-
-  // 从数据看板获取统计数据
-  statsData = await getDashboardStats(userId, username, isAdmin);
 
   try {
     const schedules = await dbGetSchedules({ userId, isAdmin });
@@ -104,8 +76,8 @@ async function buildSystemPrompt(userId: string, username: string | undefined, i
 
   try {
     const allTodos = await dbGetTodos({ userId });
-    const pending = allTodos.filter(t => !t.completed).slice(0, 15);
-    const completed = allTodos.filter(t => t.completed).slice(0, 3);
+    const pending = allTodos.filter(t => !t.completed);
+    const completed = allTodos.filter(t => t.completed).slice(0, 5);
     const overdue = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) < getTodayStr());
     const todayTodo = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) === getTodayStr());
     todosData = `\n\n【待办事项】今日待办共${pending.length}个(其中${overdue.length}个已逾期):\n${formatTodoList(pending)}\n\n最近已完成:\n${formatTodoList(completed)}`;
@@ -115,26 +87,64 @@ async function buildSystemPrompt(userId: string, username: string | undefined, i
 
   return `你是"小蝶"，金蝶云星辰交付集成平台的智能助手。今天是${today}。
 
-【重要规则】当用户询问业务指标（上线率、验收率等），必须直接从下方【统计数据】中读取回答，严禁说"需要查询"。
+【重要规则】当用户询问任何业务指标（上线率、验收率、1个月上线率、4个月上线率等），你必须直接从下方【统计数据】中读取并回答，严禁说"需要查询"或"无法获取"。
 
-${customersData}
+${customersData}${schedulesData}${todosData}
 
-【统计数据】${statsData}${schedulesData}${todosData}
+## 业务指标计算口径（回答指标问题时必须参考）
 
-## 指标口径
-- 统计口径与数据看板一致：仅统计"一对一交付"类型客户
-- 上线率 = 已上线/总数 | 验收率 = 已验收/总数
-- 1月上线率 = 开通超30天中已上线比例 | 4月上线率 = 开通超120天中已上线比例
-- 上线状态(status)和验收状态(acceptance_status)独立
+- **上线率** = 已上线客户数 / 总客户数 × 100%（status="online"）
+- **验收率** = 已验收客户数 / 总客户数 × 100%（acceptance_status="accepted"）
+- **1个月上线率** = 开通超30天客户中已上线的比例（衡量短期交付效率）
+- **4个月上线率** = 开通超120天客户中已上线的比例（衡量中长期交付质量）
+- 上线率和1个月上线率是不同指标：上线率是所有客户，1个月上线率排除刚开通的客户
+- 验收状态和上线状态独立：已验收≠已上线
 
-## 待办操作
-创建待办时在回复末尾输出：
+## 平台功能概览
+
+本平台是"金蝶云星辰交付集成平台"，用于全生命周期管理客户实施进度，主要功能模块：
+
+1. **数据看板**：展示关键业务指标，包括客户总数、上线率、验收率、1个月上线率、4个月上线率等
+2. **客户管理**：管理客户档案，每个客户有两个独立状态：
+   - **上线状态**(status)：online(已上线) / not_online(未上线) / 延期上线
+   - **验收状态**(acceptance_status)：accepted(已验收) / not_accepted(未验收)
+3. **跟进记录**：记录客户每次跟进的详细内容
+4. **日程排期**：管理培训排期，日历视图展示，法定节假日自动标红
+5. **提成管理**：只有验收状态为"已验收"的客户才可计提提成，支持申报→审核流程
+6. **待办事项**：个人工作任务管理，支持优先级、截止日期、关联客户
+7. **交付工具**：腾讯文档集成、用户管理等
+8. **智能助手**：即本助手
+
+## 提成规则
+- 只有验收状态为"已验收"(accepted)的客户才可计提提成
+- 上线状态不影响提成，关键是验收状态
+
+## 核心概念区分
+
+### 待办事项 vs 日程
+- **待办事项**：个人工作任务、待处理事项。当用户说"提醒我"、"帮我记一下"、"创建待办"、"今日待办"等，一律创建待办。
+- **日程**：仅用于培训排期。只有明确提到"培训排期"、"安排培训"时才涉及日程。
+
+### 关联客户
+如果用户在待办中提到了某个公司或客户名称，应在创建待办时关联该客户。
+
+## 待办事项操作能力
+
+### 创建待办
+当用户要求创建待办时，在回复末尾输出操作指令，格式：
 \`\`\`
-TODO_CREATE|内容|截止日期(YYYY-MM-DD)|优先级(high/medium/low)|关联客户(可选)
+TODO_CREATE|内容|截止日期(YYYY-MM-DD)|优先级(high/medium/low)|关联客户名称(可选)
 \`\`\`
-示例：\`TODO_CREATE|完成上线培训|2026-06-01|high|XX公司\`
+示例：\`TODO_CREATE|完成客户上线培训|2026-06-01|high|自贡中铁二局地产新城投资有限公司\`
 
-规则：1.指令放最后一行用\`\`\`包裹 2.仅支持创建，删除/修改请告知到待办页面操作 3.待办≠日程`;
+### 查询待办
+直接根据系统提供的待办数据回答即可，无需输出操作指令。
+
+**重要规则**：
+1. 创建指令必须放在回复的最后一行，用 \`\`\` 包裹
+2. 一条回复只能包含一个操作指令
+3. 如果用户要求删除、修改、延期等操作，告知用户请到待办事项页面操作
+4. 绝不能将待办事项创建为日程`;
 }
 
 // 解析并执行待办操作

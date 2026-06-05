@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
               if (trimmed.startsWith('data:')) {
                 const raw = trimmed.slice('data:'.length).trim();
 
-                if (raw === '[DONE]') {
+                if (currentEvent === 'done' || raw === '[DONE]') {
                   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   continue;
                 }
@@ -93,24 +93,23 @@ export async function POST(request: NextRequest) {
                 try {
                   const data = JSON.parse(raw);
 
-                  // Coze stream_run 格式：event: message, data.type 区分消息类型
-                  if (data.type === 'answer' && data.content?.answer) {
-                    // 增量回答内容
-                    const content = data.content.answer;
+                  if (currentEvent === 'conversation.message.delta') {
+                    // 提取实际回答内容（支持深度思考模式）
+                    let content = '';
+                    if (data.content) {
+                      content = data.content;
+                    } else if (data.reasoning_content) {
+                      // 深度思考模式：思考过程暂不展示
+                      continue;
+                    }
+
                     if (content) {
                       const outData = JSON.stringify({ content });
                       controller.enqueue(encoder.encode(`data: ${outData}\n\n`));
                     }
-                  } else if (data.type === 'message_end' || data.finish === true) {
-                    // 流结束标记（非最终结束，可能有后续消息）
-                  } else if (data.type === 'error' || data.content?.error) {
-                    const errorMsg = data.content?.error?.message || data.msg || '答疑服务异常';
+                  } else if (currentEvent === 'conversation.chat.failed' || currentEvent === 'error') {
+                    const errorMsg = data.msg || data.message || '答疑服务异常';
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
-                  }
-                  // 兼容 conversation.message.delta 格式
-                  else if (currentEvent === 'conversation.message.delta' && data.content) {
-                    const outData = JSON.stringify({ content: data.content });
-                    controller.enqueue(encoder.encode(`data: ${outData}\n\n`));
                   }
                 } catch {
                   // 忽略无法解析的行
