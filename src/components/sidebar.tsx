@@ -18,6 +18,7 @@ import {
   LogOut,
   User,
   CheckSquare,
+  ClipboardList,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ const baseNavItems = [
 ];
 
 const adminNavItems = [
+  { href: '/workbench', label: '工作台', icon: ClipboardList, adminOnly: true },
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 

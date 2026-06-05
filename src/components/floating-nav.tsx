@@ -14,6 +14,7 @@ import {
   LogOut,
   User,
   CheckSquare,
+  ClipboardList,
   Menu,
   X,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ const allNavItems = [
 ];
 
 const adminNavItems = [
+  { href: '/workbench', label: '工作台', icon: ClipboardList, adminOnly: true },
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 

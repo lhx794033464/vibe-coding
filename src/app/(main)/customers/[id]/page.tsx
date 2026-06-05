@@ -25,7 +25,8 @@ import {
   FileDown,
   Pencil,
   Upload,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -33,6 +34,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Customer, FollowUpRecord } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -66,7 +74,7 @@ function computeDeliveryDeadline(openedAt: string | null, extraDays: number = 0)
 }
 
 export default function CustomerDetailPage({ params }: PageProps) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, isAdmin } = useAuth();
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -117,6 +125,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showDismissDialog, setShowDismissDialog] = useState(false);
+  const [dismissFile, setDismissFile] = useState<File | null>(null);
+  const [dismissFilePreview, setDismissFilePreview] = useState<string | null>(null);
+  const [submittingDismiss, setSubmittingDismiss] = useState(false);
+  const [hasPendingDismissApp, setHasPendingDismissApp] = useState(false);
 
   useEffect(() => {
     const loadCustomer = async () => {
@@ -160,11 +173,30 @@ export default function CustomerDetailPage({ params }: PageProps) {
             ? (typeof data.data.delivery_deadline === 'string' ? data.data.delivery_deadline.split('T')[0] : String(data.data.delivery_deadline).split('T')[0])
             : '',
         });
+        // 检查是否有待审批的解散申请
+        if (!data.data.dismissed) {
+          checkPendingDismissApp(id);
+        }
       }
     } catch (error) {
       console.error('获取客户详情失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPendingDismissApp = async (customerId: string) => {
+    try {
+      const response = await fetch(`/api/dismissal-applications?status=pending`, {
+        headers: getAuthHeader(),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        const hasPending = (result.data || []).some((app: any) => app.customer_id === customerId);
+        setHasPendingDismissApp(hasPending);
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -519,28 +551,58 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const handleMarkDismissed = async () => {
     if (!customer) return;
-    if (!(await confirm({ description: '确定将此客户标记为已解散吗？解散后交付期将不再计算超期天数。' }))) return;
+    if (hasPendingDismissApp) {
+      toast.warning('该客户已有待审批的解散申请，请等待管理员审批');
+      return;
+    }
+    setShowDismissDialog(true);
+  };
 
+  const handleDismissFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDismissFile(file);
+    // 生成预览
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setDismissFilePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmitDismissApp = async () => {
+    if (!customer || !dismissFile) {
+      toast.error('请上传KBC截图');
+      return;
+    }
+
+    setSubmittingDismiss(true);
     try {
-      const response = await fetch(`/api/customers/${customer.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ dismissed: true }),
+      const formData = new FormData();
+      formData.append('file', dismissFile);
+      formData.append('customer_id', customer.id);
+
+      const response = await fetch('/api/dismissal-applications', {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
       });
 
+      const result = await response.json();
       if (response.ok) {
-        toast.success('已标记为已解散');
-        fetchCustomer(customer.id);
+        toast.success('解散申请已提交，请等待管理员审批');
+        setShowDismissDialog(false);
+        setDismissFile(null);
+        setDismissFilePreview(null);
+        setHasPendingDismissApp(true);
       } else {
-        const data = await response.json();
-        toast.error(data.error || '操作失败');
+        toast.error(result.error || '提交失败');
       }
     } catch (error) {
-      console.error('标记解散失败:', error);
-      toast.error('操作失败');
+      console.error('提交解散申请失败:', error);
+      toast.error('提交失败');
+    } finally {
+      setSubmittingDismiss(false);
     }
   };
 
@@ -694,10 +756,20 @@ export default function CustomerDetailPage({ params }: PageProps) {
           <div className="flex gap-2 flex-wrap">
             {/* 解散按钮 */}
             {customer?.dismissed ? (
-              <Button variant="outline" onClick={handleCancelDismissed} className="text-blue-600 border-blue-300 hover:bg-blue-50">
-                <XCircle className="w-4 h-4 mr-2" />
-                取消解散
-              </Button>
+              isAdmin ? (
+                <Button variant="outline" onClick={handleCancelDismissed} className="text-blue-600 border-blue-300 hover:bg-blue-50">
+                  <XCircle className="w-4 h-4 mr-2" />
+                  取消解散
+                </Button>
+              ) : (
+                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1.5">
+                  已解散
+                </Badge>
+              )
+            ) : hasPendingDismissApp ? (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 px-3 py-1.5">
+                解散审批中
+              </Badge>
             ) : (
               <Button variant="outline" onClick={handleMarkDismissed} className="text-purple-600 border-purple-300 hover:bg-purple-50">
                 <CheckCircle className="w-4 h-4 mr-2" />
@@ -1213,6 +1285,90 @@ export default function CustomerDetailPage({ params }: PageProps) {
       </div>
       </div>
       {ConfirmDialog}
+
+      {/* 解散申请对话框 */}
+      <Dialog open={showDismissDialog} onOpenChange={setShowDismissDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>申请解散客户</DialogTitle>
+            <DialogDescription>
+              请上传KBC截图作为解散凭证，提交后需管理员审批通过才会标记为已解散
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>KBC截图</Label>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file) {
+                        setDismissFile(file);
+                        const reader = new FileReader();
+                        reader.onloadend = () => setDismissFilePreview(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }
+                    };
+                    input.click();
+                  }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  选择图片
+                </Button>
+                {dismissFile && (
+                  <span className="text-sm text-gray-500 truncate max-w-[200px]">
+                    {dismissFile.name}
+                  </span>
+                )}
+              </div>
+              {dismissFilePreview && (
+                <div className="mt-2 border rounded-lg overflow-hidden">
+                  <img
+                    src={dismissFilePreview}
+                    alt="KBC截图预览"
+                    className="max-h-60 w-auto mx-auto"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setShowDismissDialog(false);
+                setDismissFile(null);
+                setDismissFilePreview(null);
+              }}
+              disabled={submittingDismiss}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmitDismissApp}
+              disabled={!dismissFile || submittingDismiss}
+            >
+              {submittingDismiss ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  提交中...
+                </>
+              ) : (
+                '提交申请'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
