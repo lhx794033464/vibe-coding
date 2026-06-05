@@ -31,6 +31,7 @@ interface SidebarProps {
 
 const baseNavItems = [
   { href: '/home', label: '智能助手', icon: Home },
+  { href: '/workbench', label: '审批中心', icon: ClipboardList, adminOnly: true },
   { href: '/todos', label: '待办事项', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
@@ -40,7 +41,6 @@ const baseNavItems = [
 ];
 
 const adminNavItems = [
-  { href: '/workbench', label: '工作台', icon: ClipboardList, adminOnly: true },
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 
@@ -56,7 +56,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 组合导航项
-  const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+  const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems.filter(item => !item.adminOnly);
 
   // 点击外部关闭菜单
   useEffect(() => {

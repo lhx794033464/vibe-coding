@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const allNavItems = [
   { href: '/home', label: '智能助手', icon: Home },
+  { href: '/workbench', label: '审批中心', icon: ClipboardList, adminOnly: true },
   { href: '/todos', label: '待办事项', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
@@ -31,7 +32,6 @@ const allNavItems = [
 ];
 
 const adminNavItems = [
-  { href: '/workbench', label: '工作台', icon: ClipboardList, adminOnly: true },
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 
@@ -54,7 +54,7 @@ export function FloatingNav() {
   const fabRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const navItems = isAdmin ? [...allNavItems, ...adminNavItems] : allNavItems;
+  const navItems = isAdmin ? [...allNavItems, ...adminNavItems] : allNavItems.filter(item => !item.adminOnly);
 
   // 初始位置：右侧中间偏下
   useEffect(() => {
