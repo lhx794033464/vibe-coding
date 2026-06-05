@@ -419,12 +419,7 @@ export default function CustomersPage() {
                           {customer.acceptance_status === 'accepted' && (
                             <Badge className="text-xs bg-purple-100 text-purple-700">已验收</Badge>
                           )}
-                          {isStale && customer.acceptance_status !== 'accepted' && (
-                            <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                              <AlertCircle className="w-3 h-3 mr-0.5" />
-                              需跟进
-                            </Badge>
-                          )}
+
                         </div>
                         {/* 版本 + 模块 */}
                         {(customer.version || customer.modules) && (
@@ -492,12 +487,7 @@ export default function CustomersPage() {
                               {customer.acceptance_status === 'accepted' && (
                                 <Badge className="bg-purple-100 text-purple-700">已验收</Badge>
                               )}
-                              {isStale && customer.acceptance_status !== 'accepted' && (
-                                <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                  <AlertCircle className="w-3 h-3 mr-1" />
-                                  需跟进
-                                </Badge>
-                              )}
+
                             </div>
                             {/* 第二行：版本 + 模块 */}
                             {(customer.version || customer.modules) && (
