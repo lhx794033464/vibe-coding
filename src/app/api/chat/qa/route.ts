@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         user_id: `qa_${userInfo.id}_${Date.now()}`,
+        conversation_id: `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         stream: true,
         additional_messages: additionalMessages,
         auto_save_history: false,
@@ -65,6 +66,18 @@ export async function POST(request: NextRequest) {
 
     const readableStream = new ReadableStream({
       async start(controller) {
+        let closed = false;
+        const safeEnqueue = (data: Uint8Array) => {
+          if (!closed) {
+            try { controller.enqueue(data); } catch { /* already closed */ }
+          }
+        };
+        const safeClose = () => {
+          if (!closed) {
+            closed = true;
+            try { controller.close(); } catch { /* already closed */ }
+          }
+        };
         try {
           while (true) {
             const { done, value } = await externalReader.read();
@@ -85,7 +98,7 @@ export async function POST(request: NextRequest) {
                 const raw = trimmed.slice('data:'.length).trim();
 
                 if (raw === '[DONE]') {
-                  controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  safeEnqueue(encoder.encode('data: [DONE]\n\n'));
                   continue;
                 }
 
@@ -98,22 +111,28 @@ export async function POST(request: NextRequest) {
                     const content = data.content?.answer || '';
                     if (content) {
                       const outData = JSON.stringify({ content });
-                      controller.enqueue(encoder.encode(`data: ${outData}\n\n`));
+                      safeEnqueue(encoder.encode(`data: ${outData}\n\n`));
                     }
                     // finish=true 表示回答结束
                     if (data.finish === true) {
-                      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                      safeEnqueue(encoder.encode('data: [DONE]\n\n'));
+                      safeClose();
+                      return;
                     }
                   }
                   // type=message_end: 消息完成
                   else if (msgType === 'message_end') {
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    safeEnqueue(encoder.encode('data: [DONE]\n\n'));
+                    safeClose();
+                    return;
                   }
                   // type=error: 错误
                   else if (msgType === 'error') {
                     const errorMsg = data.content?.error || data.msg || data.message || '答疑服务异常';
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
+                    safeEnqueue(encoder.encode('data: [DONE]\n\n'));
+                    safeClose();
+                    return;
                   }
                   // 其他类型（tool_request, tool_response, message_start 等）不转发给前端
                 } catch {
@@ -123,13 +142,12 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
+          safeClose();
         } catch (error: any) {
           console.error('[QA] Stream error:', error);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: '流式响应中断' })}\n\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
+          safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: '流式响应中断' })}\n\n`));
+          safeEnqueue(encoder.encode('data: [DONE]\n\n'));
+          safeClose();
         }
       },
     });
