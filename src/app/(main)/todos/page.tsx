@@ -456,7 +456,7 @@ export default function TodosPage() {
     <div className="px-6 pt-6 pb-6">
       {/* Header */}
       <div className="flex items-center justify-between pb-4">
-        <h1 className="text-xl font-bold text-foreground">待办事项</h1>
+        <h1 className="text-2xl font-bold text-gray-900">待办事项</h1>
       </div>
 
       {/* Search */}

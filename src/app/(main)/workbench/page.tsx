@@ -123,7 +123,7 @@ function ProcessCenterContent() {
       });
       const data = await res.json();
       if (res.ok) {
-        setCustomers((data.data || []).map((c: any) => ({ id: c.id, name: c.name })));
+        setCustomers((data.customers || []).map((c: any) => ({ id: c.id, name: c.name })));
       }
     } catch (error) {
       console.error('获取客户列表失败:', error);
@@ -298,7 +298,7 @@ function ProcessCenterContent() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">流程中心</h1>
+        <h1 className="text-2xl font-bold text-gray-900">流程中心</h1>
         <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-1">
@@ -371,17 +371,71 @@ function ProcessCenterContent() {
               {selectedType === 'group_dismissal' && (
                 <div className="space-y-2">
                   <Label>上传KBC截图</Label>
-                  <div className="flex items-center gap-2">
+                  <div
+                    className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onPaste={(e) => {
+                      const items = e.clipboardData?.items;
+                      if (items) {
+                        for (let i = 0; i < items.length; i++) {
+                          if (items[i].type.startsWith('image/')) {
+                            const file = items[i].getAsFile();
+                            if (file) {
+                              setScreenshotFile(file);
+                              toast.success('已粘贴截图');
+                            }
+                            break;
+                          }
+                        }
+                      }
+                    }}
+                    tabIndex={0}
+                    onClick={() => {
+                      const input = document.getElementById('kbc-screenshot-input');
+                      input?.click();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        const input = document.getElementById('kbc-screenshot-input');
+                        input?.click();
+                      }
+                    }}
+                  >
+                    {screenshotFile ? (
+                      <div className="space-y-2">
+                        <div className="relative inline-block">
+                          <img
+                            src={URL.createObjectURL(screenshotFile)}
+                            alt="预览"
+                            className="max-h-32 rounded"
+                          />
+                          <button
+                            type="button"
+                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setScreenshotFile(null);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{screenshotFile.name}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                        <p className="text-sm text-muted-foreground">点击选择文件或粘贴截图</p>
+                        <p className="text-xs text-muted-foreground/60">支持 Ctrl+V 粘贴</p>
+                      </div>
+                    )}
                     <Input
+                      id="kbc-screenshot-input"
                       type="file"
                       accept="image/*"
                       onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
-                      className="text-sm"
+                      className="hidden"
                     />
                   </div>
-                  {screenshotFile && (
-                    <p className="text-xs text-muted-foreground">已选择: {screenshotFile.name}</p>
-                  )}
                 </div>
               )}
 
@@ -389,11 +443,25 @@ function ProcessCenterContent() {
               {selectedType === 'schedule_coordination' && (
                 <div className="space-y-2">
                   <Label>期望日期</Label>
-                  <Input
-                    type="date"
-                    value={expectedDate}
-                    onChange={(e) => setExpectedDate(e.target.value)}
-                  />
+                  <div
+                    className="relative cursor-pointer"
+                    onClick={() => {
+                      const input = document.getElementById('expected-date-input') as HTMLInputElement | null;
+                      if (input?.showPicker) {
+                        input.showPicker();
+                      }
+                      input?.focus();
+                    }}
+                  >
+                    <Input
+                      id="expected-date-input"
+                      type="date"
+                      value={expectedDate}
+                      onChange={(e) => setExpectedDate(e.target.value)}
+                      className="cursor-pointer"
+                      readOnly
+                    />
+                  </div>
                 </div>
               )}
 
@@ -430,9 +498,9 @@ function ProcessCenterContent() {
 
       {/* Tab 区域 */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="pending">待办</TabsTrigger>
-          <TabsTrigger value="done">已办</TabsTrigger>
+        <TabsList className="inline-flex w-1/5">
+          <TabsTrigger value="pending" className="flex-1">待办</TabsTrigger>
+          <TabsTrigger value="done" className="flex-1">已办</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="mt-4 space-y-3">
