@@ -46,6 +46,7 @@ export function FloatingNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   // 待处理流程数量
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
+  const effectivePendingCount = pathname === '/workbench' ? 0 : pendingProcessCount;
 
   useEffect(() => {
     const fetchPendingCount = async () => {
@@ -305,9 +306,9 @@ export function FloatingNav() {
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <span>{item.label}</span>
-                  {item.href === '/workbench' && pendingProcessCount > 0 && (
+                  {item.href === '/workbench' && effectivePendingCount > 0 && (
                     <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                      {pendingProcessCount > 99 ? '99+' : pendingProcessCount}
+                      {effectivePendingCount > 99 ? '99+' : effectivePendingCount}
                     </span>
                   )}
                 </button>

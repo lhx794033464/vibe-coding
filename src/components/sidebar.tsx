@@ -62,6 +62,8 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems.filter(item => !item.adminOnly);
 
   // 轮询待办流程数量
+  const effectivePendingCount = pathname === '/workbench' ? 0 : pendingProcessCount;
+
   useEffect(() => {
     const fetchPendingCount = async () => {
       try {
@@ -170,9 +172,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                           <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
                         )}
                         {/* 流程中心待办红点 */}
-                        {item.href === '/workbench' && pendingProcessCount > 0 && (
+                        {item.href === '/workbench' && effectivePendingCount > 0 && (
                           <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full leading-none">
-                            {pendingProcessCount > 99 ? '99+' : pendingProcessCount}
+                            {effectivePendingCount > 99 ? '99+' : effectivePendingCount}
                           </span>
                         )}
                       </span>
