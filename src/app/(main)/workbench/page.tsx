@@ -69,7 +69,7 @@ const STATUS_CONFIG = {
 function ProcessCenterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, getAuthHeader } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   const [activeTab, setActiveTab] = useState('pending');
@@ -103,10 +103,9 @@ function ProcessCenterContent() {
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
       const status = activeTab === 'pending' ? 'pending' : 'approved,rejected';
       const res = await fetch(`/api/process-applications?status=${status}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...getAuthHeader() },
       });
       const data = await res.json();
       if (res.ok) {
@@ -117,13 +116,12 @@ function ProcessCenterContent() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, getAuthHeader]);
 
   const fetchCustomers = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/customers', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...getAuthHeader() },
       });
       const data = await res.json();
       if (res.ok) {
@@ -132,7 +130,7 @@ function ProcessCenterContent() {
     } catch (error) {
       console.error('获取客户列表失败:', error);
     }
-  }, []);
+  }, [getAuthHeader]);
 
   const filteredCustomers = customers.filter((c) =>
     !customerSearch || c.name.toLowerCase().includes(customerSearch.toLowerCase())
@@ -201,7 +199,6 @@ function ProcessCenterContent() {
 
     try {
       setSubmitting(true);
-      const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('type', selectedType);
       formData.append('customer_ids', JSON.stringify(selectedCustomerIds));
@@ -217,7 +214,7 @@ function ProcessCenterContent() {
 
       const res = await fetch('/api/process-applications', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...getAuthHeader() },
         body: formData,
       });
 
@@ -240,7 +237,6 @@ function ProcessCenterContent() {
   const handleReview = async (appId: string, action: 'approved' | 'rejected') => {
     try {
       setReviewing(true);
-      const token = localStorage.getItem('token');
       const body: Record<string, unknown> = { status: action };
       if (action === 'rejected' && rejectReason) {
         body.reject_reason = rejectReason;
@@ -249,7 +245,7 @@ function ProcessCenterContent() {
       const res = await fetch(`/api/process-applications/${appId}`, {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...getAuthHeader(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -277,11 +273,10 @@ function ProcessCenterContent() {
       setLoadingScreenshot(true);
       setShowScreenshotDialog(true);
       setCurrentScreenshotIdx(0);
-      const token = localStorage.getItem('token');
       const urls: string[] = [];
       for (const key of keys) {
         const res = await fetch(`/api/process-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { ...getAuthHeader() },
         });
         const data = await res.json();
         if (res.ok && data.url) {
