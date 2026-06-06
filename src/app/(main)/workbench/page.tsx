@@ -7,13 +7,11 @@ import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -26,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2, Search, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Customer {
   id: string;
@@ -72,13 +71,12 @@ function ProcessCenterContent() {
   const { user, getAuthHeader } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'done'>('pending');
   const [applications, setApplications] = useState<ProcessApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
 
-  // 新增弹窗状态
-  const [showAddDialog, setShowAddDialog] = useState(false);
+  // 新增表单状态（右侧面板）
   const [selectedType, setSelectedType] = useState<string>('');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
@@ -88,9 +86,9 @@ function ProcessCenterContent() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
-  // 全局粘贴监听：群聊解散表单打开时支持粘贴截图
+  // 全局粘贴监听：群聊解散表单时支持粘贴截图
   useEffect(() => {
-    if (!showAddDialog || selectedType !== 'group_dismissal') return;
+    if (selectedType !== 'group_dismissal') return;
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -109,7 +107,7 @@ function ProcessCenterContent() {
     };
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [showAddDialog, selectedType]);
+  }, [selectedType]);
 
   // 审批弹窗
   const [reviewingApp, setReviewingApp] = useState<ProcessApplication | null>(null);
@@ -148,7 +146,7 @@ function ProcessCenterContent() {
       });
       const data = await res.json();
       if (res.ok) {
-        setCustomers((data.customers || []).map((c: any) => ({ id: c.id, name: c.name })));
+        setCustomers((data.customers || []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
       }
     } catch (error) {
       console.error('获取客户列表失败:', error);
@@ -164,10 +162,8 @@ function ProcessCenterContent() {
   }, [fetchApplications]);
 
   useEffect(() => {
-    if (showAddDialog) {
-      fetchCustomers();
-    }
-  }, [showAddDialog, fetchCustomers]);
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   // 点击外部关闭客户下拉
   useEffect(() => {
@@ -178,7 +174,7 @@ function ProcessCenterContent() {
     }
   }, [showCustomerDropdown]);
 
-  // 从URL参数自动打开申请表单（管理员不能发起申请）
+  // 从URL参数自动填充申请表单（管理员不能发起申请）
   useEffect(() => {
     if (isAdmin) return;
     const customerId = searchParams.get('customerId');
@@ -188,7 +184,6 @@ function ProcessCenterContent() {
       if (type) {
         setSelectedType(type);
       }
-      setShowAddDialog(true);
     }
   }, [searchParams, isAdmin]);
 
@@ -200,7 +195,6 @@ function ProcessCenterContent() {
 
     // 提成申报跳转到提成管理
     if (selectedType === 'commission_claim') {
-      setShowAddDialog(false);
       router.push('/commissions');
       return;
     }
@@ -244,7 +238,6 @@ function ProcessCenterContent() {
       const data = await res.json();
       if (res.ok) {
         toast.success('申请已提交');
-        setShowAddDialog(false);
         resetForm();
         fetchApplications();
       } else {
@@ -362,394 +355,353 @@ function ProcessCenterContent() {
     return [];
   };
 
-  return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">流程中心</h1>
-        {!isAdmin && (
-          <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-1">
-                <Plus className="h-4 w-4" />
-                新增
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>新增申请</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {/* 申请类型选择 */}
-              <div className="space-y-2">
-                <Label>申请类型</Label>
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="请选择申请类型" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom">
-                    <SelectItem value="group_dismissal">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        群聊解散
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="schedule_coordination">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4" />
-                        排期协调
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="commission_claim">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4" />
-                        提成申报
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+  // 渲染流程卡片
+  const renderAppCard = (app: ProcessApplication) => {
+    const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
+    const screenshotKeys = getAppScreenshotKeys(app);
+    const customerNames = getAppCustomerNames(app);
+    return (
+      <Card key={app.id} className="hover:shadow-md transition-shadow">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3 flex-1">
+              <div className={`p-2 rounded-lg ${getTypeColor(app.type)}`}>
+                <TypeIcon className="h-4 w-4" />
               </div>
-
-              {/* 提成申报提示 */}
-              {selectedType === 'commission_claim' && (
-                <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-                  点击提交后将跳转到提成管理页面进行申报
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-foreground">{getTypeLabel(app.type)}</span>
+                  <Badge variant="outline" className={getStatusColor(app.status)}>
+                    {getStatusLabel(app.status)}
+                  </Badge>
                 </div>
-              )}
-
-              {/* 群聊解散/排期协调：选择客户（多选） */}
-              {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
-                <div className="space-y-2">
-                  <Label>选择客户</Label>
-                  <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder={selectedCustomerIds.length > 0 ? `已选 ${selectedCustomerIds.length} 个客户，继续搜索...` : '搜索客户...'}
-                        value={customerSearch}
-                        onChange={(e) => {
-                          setCustomerSearch(e.target.value);
-                          setShowCustomerDropdown(true);
-                        }}
-                        onFocus={() => setShowCustomerDropdown(true)}
-                        className="pl-8"
-                      />
-                    </div>
-                    {showCustomerDropdown && filteredCustomers.length > 0 && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                        {filteredCustomers.map((c) => {
-                          const isSelected = selectedCustomerIds.includes(c.id);
-                          return (
-                            <div
-                              key={c.id}
-                              className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent flex items-center justify-between ${isSelected ? 'bg-accent/50' : ''}`}
-                              onClick={() => {
-                                setSelectedCustomerIds(prev =>
-                                  isSelected
-                                    ? prev.filter(id => id !== c.id)
-                                    : [...prev, c.id]
-                                );
-                              }}
-                            >
-                              <span>{c.name}</span>
-                              {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {showCustomerDropdown && customerSearch && filteredCustomers.length === 0 && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg">
-                        <div className="px-3 py-3 text-sm text-muted-foreground text-center">未找到匹配客户</div>
-                      </div>
-                    )}
-                    {/* 已选客户标签 */}
-                    {selectedCustomerIds.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {selectedCustomerIds.map(id => {
-                          const c = customers.find(c => c.id === id);
-                          return c ? (
-                            <Badge key={id} variant="secondary" className="gap-1 pr-1">
-                              {c.name}
-                              <button
-                                type="button"
-                                className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
-                                onClick={() => setSelectedCustomerIds(prev => prev.filter(i => i !== id))}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    )}
-                  </div>
+                <div className="text-sm text-muted-foreground space-y-0.5">
+                  {customerNames.length > 0 && (
+                    <p>客户：{customerNames.join('、')}</p>
+                  )}
+                  {app.expected_date && (
+                    <p>期望日期：{app.expected_date}</p>
+                  )}
+                  {app.notes && (
+                    <p>备注：{app.notes}</p>
+                  )}
+                  {app.reject_reason && (
+                    <p className="text-destructive">驳回原因：{app.reject_reason}</p>
+                  )}
+                  <p>申请人：{app.applicant_name || '未知'}</p>
+                  <p>申请时间：{formatDate(app.created_at)}</p>
+                  {app.reviewed_at && (
+                    <p>审批时间：{formatDate(app.reviewed_at)}</p>
+                  )}
                 </div>
-              )}
-
-              {/* 群聊解散：上传KBC截图（多张） */}
-              {selectedType === 'group_dismissal' && (
-                <div className="space-y-2">
-                  <Label>上传KBC截图</Label>
-                  <div
-                    className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => {
-                      const input = document.getElementById('kbc-screenshot-input');
-                      input?.click();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        const input = document.getElementById('kbc-screenshot-input');
-                        input?.click();
-                      }
-                    }}
-                  >
-                    {screenshotFiles.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2 justify-center">
-                          {screenshotFiles.map((file, idx) => (
-                            <div key={idx} className="relative inline-block">
-                              <img
-                                src={URL.createObjectURL(file)}
-                                alt={`截图${idx + 1}`}
-                                className="h-20 rounded"
-                              />
-                              <button
-                                type="button"
-                                className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setScreenshotFiles(prev => prev.filter((_, i) => i !== idx));
-                                }}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground">已选 {screenshotFiles.length} 张，点击继续添加</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
-                        <p className="text-sm text-muted-foreground">点击选择文件或粘贴截图</p>
-                        <p className="text-xs text-muted-foreground/60">支持多张，Ctrl+V 粘贴</p>
-                      </div>
-                    )}
-                    <Input
-                      id="kbc-screenshot-input"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => {
-                        const files = e.target.files;
-                        if (files && files.length > 0) {
-                          setScreenshotFiles(prev => [...prev, ...Array.from(files)]);
-                        }
-                        e.target.value = '';
-                      }}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* 排期协调：期望日期 */}
-              {selectedType === 'schedule_coordination' && (
-                <div className="space-y-2">
-                  <Label>期望日期</Label>
-                  <input
-                    type="date"
-                    value={expectedDate}
-                    onChange={(e) => setExpectedDate(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
-                    placeholder="请选择日期"
-                  />
-                </div>
-              )}
-
-              {/* 排期协调/群聊解散：备注 */}
-              {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
-                <div className="space-y-2">
-                  <Label>备注</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="请输入备注信息（可选）"
-                    rows={3}
-                  />
-                </div>
-              )}
-
-              {/* 提交按钮 */}
-              <Button
-                className="w-full"
-                onClick={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    提交中...
-                  </>
-                ) : selectedType === 'commission_claim' ? '前往提成管理' : '提交申请'}
-              </Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
-        )}
+            <div className="flex items-center gap-2 ml-2">
+              {/* 查看KBC截图 */}
+              {screenshotKeys.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewScreenshots(screenshotKeys)}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
+                </Button>
+              )}
+              {/* 管理员审批按钮 */}
+              {isAdmin && app.status === 'pending' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setReviewingApp(app);
+                    setShowReviewDialog(true);
+                  }}
+                >
+                  审批
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="p-4 md:p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4">
+        <h1 className="text-2xl font-bold text-gray-900">流程中心</h1>
       </div>
 
-      {/* Tab 区域 */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="inline-flex w-1/5">
-          <TabsTrigger value="pending" className="flex-1">待办</TabsTrigger>
-          <TabsTrigger value="done" className="flex-1">已办</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pending" className="mt-4 space-y-3">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : applications.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">暂无待办流程</div>
-          ) : (
-            applications.map((app) => {
-              const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
-              const screenshotKeys = getAppScreenshotKeys(app);
-              const customerNames = getAppCustomerNames(app);
-              return (
-                <Card key={app.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className={`p-2 rounded-lg ${getTypeColor(app.type)}`}>
-                          <TypeIcon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-foreground">{getTypeLabel(app.type)}</span>
-                            <Badge variant="outline" className={getStatusColor(app.status)}>
-                              {getStatusLabel(app.status)}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground space-y-0.5">
-                            {customerNames.length > 0 && (
-                              <p>客户：{customerNames.join('、')}</p>
-                            )}
-                            {app.expected_date && (
-                              <p>期望日期：{app.expected_date}</p>
-                            )}
-                            {app.notes && (
-                              <p>备注：{app.notes}</p>
-                            )}
-                            <p>申请人：{app.applicant_name || '未知'}</p>
-                            <p>申请时间：{formatDate(app.created_at)}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        {/* 查看KBC截图 */}
-                        {screenshotKeys.length > 0 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewScreenshots(screenshotKeys)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
-                          </Button>
-                        )}
-                        {/* 管理员审批按钮 */}
-                        {isAdmin && app.status === 'pending' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setReviewingApp(app);
-                              setShowReviewDialog(true);
-                            }}
-                          >
-                            审批
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+      {/* Filter buttons */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          className={cn(
+            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            activeTab === 'pending'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'text-muted-foreground bg-background border-border hover:bg-muted'
           )}
-        </TabsContent>
-
-        <TabsContent value="done" className="mt-4 space-y-3">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : applications.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">暂无已办流程</div>
-          ) : (
-            applications.map((app) => {
-              const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
-              const screenshotKeys = getAppScreenshotKeys(app);
-              const customerNames = getAppCustomerNames(app);
-              return (
-                <Card key={app.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className={`p-2 rounded-lg ${getTypeColor(app.type)}`}>
-                          <TypeIcon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-foreground">{getTypeLabel(app.type)}</span>
-                            <Badge variant="outline" className={getStatusColor(app.status)}>
-                              {getStatusLabel(app.status)}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground space-y-0.5">
-                            {customerNames.length > 0 && (
-                              <p>客户：{customerNames.join('、')}</p>
-                            )}
-                            {app.expected_date && (
-                              <p>期望日期：{app.expected_date}</p>
-                            )}
-                            {app.notes && (
-                              <p>备注：{app.notes}</p>
-                            )}
-                            {app.reject_reason && (
-                              <p className="text-destructive">驳回原因：{app.reject_reason}</p>
-                            )}
-                            <p>申请人：{app.applicant_name || '未知'}</p>
-                            <p>申请时间：{formatDate(app.created_at)}</p>
-                            {app.reviewed_at && (
-                              <p>审批时间：{formatDate(app.reviewed_at)}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        {screenshotKeys.length > 0 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewScreenshots(screenshotKeys)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+          onClick={() => setActiveTab('pending')}
+        >
+          待办
+        </button>
+        <button
+          className={cn(
+            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            activeTab === 'done'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'text-muted-foreground bg-background border-border hover:bg-muted'
           )}
-        </TabsContent>
-      </Tabs>
+          onClick={() => setActiveTab('done')}
+        >
+          已办
+        </button>
+      </div>
+
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Process List */}
+        <div className="lg:col-span-2">
+          <div className="rounded-lg border bg-card shadow-sm p-4 space-y-3">
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : applications.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                {activeTab === 'pending' ? '暂无待办流程' : '暂无已办流程'}
+              </div>
+            ) : (
+              applications.map((app) => renderAppCard(app))
+            )}
+          </div>
+        </div>
+
+        {/* Right: New Application Form (non-admin only) */}
+        {!isAdmin && (
+          <div className="lg:col-span-1">
+            <div className="rounded-lg border bg-card shadow-sm p-4 sticky top-6">
+              <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                新增申请
+              </h3>
+              <div className="space-y-4">
+                {/* 申请类型选择 */}
+                <div className="space-y-2">
+                  <Label>申请类型</Label>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="请选择申请类型" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="group_dismissal">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          群聊解散
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="schedule_coordination">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4" />
+                          排期协调
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="commission_claim">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          提成申报
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 提成申报提示 */}
+                {selectedType === 'commission_claim' && (
+                  <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                    点击提交后将跳转到提成管理页面进行申报
+                  </div>
+                )}
+
+                {/* 群聊解散/排期协调：选择客户（多选） */}
+                {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
+                  <div className="space-y-2">
+                    <Label>选择客户</Label>
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder={selectedCustomerIds.length > 0 ? `已选 ${selectedCustomerIds.length} 个客户，继续搜索...` : '搜索客户...'}
+                          value={customerSearch}
+                          onChange={(e) => {
+                            setCustomerSearch(e.target.value);
+                            setShowCustomerDropdown(true);
+                          }}
+                          onFocus={() => setShowCustomerDropdown(true)}
+                          className="pl-8"
+                        />
+                      </div>
+                      {showCustomerDropdown && filteredCustomers.length > 0 && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          {filteredCustomers.map((c) => {
+                            const isSelected = selectedCustomerIds.includes(c.id);
+                            return (
+                              <div
+                                key={c.id}
+                                className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent flex items-center justify-between ${isSelected ? 'bg-accent/50' : ''}`}
+                                onClick={() => {
+                                  setSelectedCustomerIds(prev =>
+                                    isSelected
+                                      ? prev.filter(id => id !== c.id)
+                                      : [...prev, c.id]
+                                  );
+                                }}
+                              >
+                                <span>{c.name}</span>
+                                {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {showCustomerDropdown && customerSearch && filteredCustomers.length === 0 && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg">
+                          <div className="px-3 py-3 text-sm text-muted-foreground text-center">未找到匹配客户</div>
+                        </div>
+                      )}
+                      {/* 已选客户标签 */}
+                      {selectedCustomerIds.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {selectedCustomerIds.map(id => {
+                            const c = customers.find(c => c.id === id);
+                            return c ? (
+                              <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                                {c.name}
+                                <button
+                                  type="button"
+                                  className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                                  onClick={() => setSelectedCustomerIds(prev => prev.filter(i => i !== id))}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 群聊解散：上传KBC截图（多张） */}
+                {selectedType === 'group_dismissal' && (
+                  <div className="space-y-2">
+                    <Label>上传KBC截图</Label>
+                    <div
+                      className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => {
+                        const input = document.getElementById('kbc-screenshot-input');
+                        input?.click();
+                      }}
+                    >
+                      {screenshotFiles.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-2 justify-center">
+                            {screenshotFiles.map((file, idx) => (
+                              <div key={idx} className="relative inline-block">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt={`截图${idx + 1}`}
+                                  className="h-20 rounded"
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setScreenshotFiles(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">已选 {screenshotFiles.length} 张，点击继续添加</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                          <p className="text-sm text-muted-foreground">点击选择文件或粘贴截图</p>
+                          <p className="text-xs text-muted-foreground/60">支持多张，Ctrl+V 粘贴</p>
+                        </div>
+                      )}
+                      <Input
+                        id="kbc-screenshot-input"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                          const files = e.target.files;
+                          if (files && files.length > 0) {
+                            setScreenshotFiles(prev => [...prev, ...Array.from(files)]);
+                          }
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 排期协调：期望日期 */}
+                {selectedType === 'schedule_coordination' && (
+                  <div className="space-y-2">
+                    <Label>期望日期</Label>
+                    <input
+                      type="date"
+                      value={expectedDate}
+                      onChange={(e) => setExpectedDate(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder="请选择日期"
+                    />
+                  </div>
+                )}
+
+                {/* 排期协调/群聊解散：备注 */}
+                {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
+                  <div className="space-y-2">
+                    <Label>备注</Label>
+                    <Textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="请输入备注信息（可选）"
+                      rows={3}
+                    />
+                  </div>
+                )}
+
+                {/* 提交按钮 */}
+                <Button
+                  className="w-full"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      提交中...
+                    </>
+                  ) : selectedType === 'commission_claim' ? '前往提成管理' : '提交申请'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 审批弹窗 */}
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>

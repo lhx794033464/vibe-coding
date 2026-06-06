@@ -67,10 +67,10 @@ export default function TodosPage() {
   const [editContent, setEditContent] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editPriority, setEditPriority] = useState('medium');
-  const [showCompleted, setShowCompleted] = useState(true);
   const [collapsedDateGroups, setCollapsedDateGroups] = useState<Set<string>>(new Set());
   const [editCustomerId, setEditCustomerId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState<'pending' | 'completed'>('pending');
 
   // Create form state (right panel)
   const [newContent, setNewContent] = useState('');
@@ -470,20 +470,40 @@ export default function TodosPage() {
         />
       </div>
 
+      {/* Filter buttons */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          className={cn(
+            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            filter === 'pending'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'text-muted-foreground bg-background border-border hover:bg-muted'
+          )}
+          onClick={() => setFilter('pending')}
+        >
+          待办 ({pendingTodos.length})
+        </button>
+        <button
+          className={cn(
+            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            filter === 'completed'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'text-muted-foreground bg-background border-border hover:bg-muted'
+          )}
+          onClick={() => setFilter('completed')}
+        >
+          已办 ({completedTodos.length})
+        </button>
+      </div>
+
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Todo List */}
         <div className="lg:col-span-2">
           <div className="rounded-lg border bg-card shadow-sm">
             {/* Pending section */}
+            {filter === 'pending' && (
             <div className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <h3 className="font-semibold text-foreground">
-                  待办 ({pendingTodos.length})
-                </h3>
-              </div>
-
               {pendingTodos.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   暂无待办事项
@@ -587,32 +607,13 @@ export default function TodosPage() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Divider + 已办标题始终显示 */}
-            <div className="border-t mx-4" />
+            {/* Completed section */}
+            {filter === 'completed' && (
             <div className="p-4">
-              <div
-                className="flex items-center justify-between mb-3 cursor-pointer select-none"
-                onClick={() => setShowCompleted(!showCompleted)}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    已办 ({completedTodos.length})
-                  </h3>
-                </div>
-                <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
-                  {showCompleted ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-
-              {/* Timeline */}
-              {completedGroupedByDate.length > 0 && (
-              <div className={`relative overflow-hidden transition-all duration-300 ${showCompleted ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+              {completedGroupedByDate.length > 0 ? (
+              <div>
                     {completedGroupedByDate.map((group, gi) => {
                       const isCollapsed = collapsedDateGroups.has(group.dateKey);
                       return (
@@ -700,11 +701,11 @@ export default function TodosPage() {
                       </div>
                     )})}
                   </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">暂无已办事项</p>
               )}
-              {completedGroupedByDate.length === 0 && (
-                <p className="text-xs text-muted-foreground/60 py-2">暂无已办事项</p>
-              )}
-                </div>
+            </div>
+            )}
 
             {pendingTodos.length === 0 && completedGroupedByDate.length === 0 && (
               <div className="p-8 text-center text-muted-foreground">
