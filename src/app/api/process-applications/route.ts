@@ -21,65 +21,82 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const type = formData.get('type') as string;
-    const customerId = formData.get('customer_id') as string | null;
+    const customerIdsJson = formData.get('customer_ids') as string | null;
     const expectedDate = formData.get('expected_date') as string | null;
     const notes = formData.get('notes') as string | null;
-    const file = formData.get('file') as File | null;
+
+    // 支持多文件
+    const files: File[] = [];
+    let idx = 0;
+    while (true) {
+      const file = formData.get(`file_${idx}`) as File | null;
+      if (!file) break;
+      files.push(file);
+      idx++;
+    }
 
     if (!type) {
       return NextResponse.json({ error: '缺少申请类型' }, { status: 400 });
     }
 
+    let customerIds: string[] = [];
+    try {
+      customerIds = customerIdsJson ? JSON.parse(customerIdsJson) : [];
+    } catch {
+      customerIds = customerIdsJson ? [customerIdsJson] : [];
+    }
+
     const supabase = getSupabaseClient();
-    let kbcScreenshotKey: string | null = null;
+    let kbcScreenshotKeys: string[] = [];
 
     // 群聊解散需要上传KBC截图
     if (type === 'group_dismissal') {
-      if (!file || !customerId) {
-        return NextResponse.json({ error: '缺少KBC截图或客户ID' }, { status: 400 });
+      if (files.length === 0 || customerIds.length === 0) {
+        return NextResponse.json({ error: '缺少KBC截图或客户' }, { status: 400 });
       }
 
-      // 验证文件类型
+      // 验证文件并上传
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      if (!allowedTypes.includes(file.type)) {
-        return NextResponse.json({ error: '仅支持上传图片(JPG/PNG/GIF/WebP)' }, { status: 400 });
+      for (const file of files) {
+        if (!allowedTypes.includes(file.type)) {
+          return NextResponse.json({ error: '仅支持上传图片(JPG/PNG/GIF/WebP)' }, { status: 400 });
+        }
+        if (file.size > 20 * 1024 * 1024) {
+          return NextResponse.json({ error: '文件大小不能超过20MB' }, { status: 400 });
+        }
+
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const ext = file.name.split('.').pop() || 'png';
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 10);
+        const fileName = `kbc-screenshots/${timestamp}_${randomStr}.${ext}`;
+
+        const fileKey = await storage.uploadFile({
+          fileContent: buffer,
+          fileName,
+          contentType: file.type,
+        });
+        kbcScreenshotKeys.push(fileKey);
       }
 
-      // 验证文件大小
-      if (file.size > 20 * 1024 * 1024) {
-        return NextResponse.json({ error: '文件大小不能超过20MB' }, { status: 400 });
+      // 检查是否已有待审批的申请（任一客户已有待审批则拒绝）
+      for (const cid of customerIds) {
+        const { data: existingApp } = await supabase
+          .from('process_applications')
+          .select('id')
+          .contains('customer_id', [cid])
+          .eq('type', 'group_dismissal')
+          .eq('status', 'pending')
+          .maybeSingle();
+
+        if (existingApp) {
+          return NextResponse.json({ error: `客户已有待审批的解散申请` }, { status: 400 });
+        }
       }
-
-      // 检查是否已有待审批的申请
-      const { data: existingApp } = await supabase
-        .from('process_applications')
-        .select('id')
-        .eq('customer_id', customerId)
-        .eq('type', 'group_dismissal')
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      if (existingApp) {
-        return NextResponse.json({ error: '该客户已有待审批的解散申请' }, { status: 400 });
-      }
-
-      // 上传文件到对象存储
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.name.split('.').pop() || 'png';
-      const timestamp = Date.now();
-      const randomStr = Math.random().toString(36).substring(2, 10);
-      kbcScreenshotKey = `kbc-screenshots/${customerId}/${timestamp}_${randomStr}.${ext}`;
-
-      const fileKey = await storage.uploadFile({
-        fileContent: buffer,
-        fileName: `kbc-screenshots/${customerId}/${timestamp}_${randomStr}.${ext}`,
-        contentType: file.type,
-      });
-      kbcScreenshotKey = fileKey;
     }
 
-    // 排期协调需要客户和期望日期
-    if (type === 'schedule_coordination' && !customerId) {
+    // 排期协调需要客户
+    if (type === 'schedule_coordination' && customerIds.length === 0) {
       return NextResponse.json({ error: '排期协调需要选择客户' }, { status: 400 });
     }
 
@@ -89,8 +106,8 @@ export async function POST(request: NextRequest) {
       .insert({
         type,
         applicant_id: userInfo.id,
-        customer_id: customerId || null,
-        kbc_screenshot_key: kbcScreenshotKey,
+        customer_id: JSON.stringify(customerIds),
+        kbc_screenshot_key: kbcScreenshotKeys.length > 0 ? JSON.stringify(kbcScreenshotKeys) : null,
         expected_date: expectedDate || null,
         notes: notes || null,
         status: 'pending',
@@ -125,11 +142,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     let query = supabase
       .from('process_applications')
-      .select(`
-        *,
-        customers:customer_id (id, name),
-        applicant:applicant_id (id, username)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (status) {
@@ -151,21 +164,81 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '查询失败' }, { status: 500 });
     }
 
+    // 收集所有客户ID
+    const allCustomerIds: string[] = [];
+    for (const item of (data || [])) {
+      try {
+        const ids: string[] = JSON.parse(item.customer_id || '[]');
+        allCustomerIds.push(...ids);
+      } catch {
+        if (item.customer_id) allCustomerIds.push(item.customer_id);
+      }
+    }
+
+    // 批量查询客户名称
+    const uniqueCustomerIds = [...new Set(allCustomerIds)];
+    let customerMap: Record<string, string> = {};
+    if (uniqueCustomerIds.length > 0) {
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('id, name')
+        .in('id', uniqueCustomerIds);
+      if (customerData) {
+        for (const c of customerData) {
+          customerMap[c.id] = c.name;
+        }
+      }
+    }
+
+    // 批量查询申请人名称
+    const applicantIds = [...new Set((data || []).map((item: Record<string, unknown>) => item.applicant_id as string).filter(Boolean))];
+    let applicantMap: Record<string, string> = {};
+    if (applicantIds.length > 0) {
+      const { data: applicantData } = await supabase
+        .from('users')
+        .select('id, username')
+        .in('id', applicantIds);
+      if (applicantData) {
+        for (const a of applicantData) {
+          applicantMap[a.id] = a.username;
+        }
+      }
+    }
+
     // 格式化返回数据
-    const formatted = (data || []).map((item: Record<string, unknown>) => ({
-      id: item.id,
-      type: item.type,
-      status: item.status,
-      customerName: (item.customers as Record<string, string>)?.name || null,
-      applicantName: (item.applicant as Record<string, string>)?.username || '未知',
-      kbcScreenshotKey: item.kbc_screenshot_key,
-      expectedDate: item.expected_date,
-      notes: item.notes,
-      rejectReason: item.reject_reason,
-      reviewerId: item.reviewer_id,
-      reviewedAt: item.reviewed_at,
-      createdAt: item.created_at,
-    }));
+    const formatted = (data || []).map((item: Record<string, unknown>) => {
+      let customerIds: string[] = [];
+      try {
+        customerIds = JSON.parse((item.customer_id as string) || '[]');
+      } catch {
+        if (item.customer_id) customerIds = [item.customer_id as string];
+      }
+
+      let screenshotKeys: string[] = [];
+      try {
+        screenshotKeys = JSON.parse((item.kbc_screenshot_key as string) || '[]');
+      } catch {
+        if (item.kbc_screenshot_key) screenshotKeys = [item.kbc_screenshot_key as string];
+      }
+
+      const customerNames = customerIds.map(id => customerMap[id]).filter(Boolean);
+
+      return {
+        id: item.id,
+        type: item.type,
+        status: item.status,
+        customerIds,
+        customerNames,
+        applicantName: applicantMap[item.applicant_id as string] || '未知',
+        kbcScreenshotKeys: screenshotKeys,
+        expectedDate: item.expected_date,
+        notes: item.notes,
+        rejectReason: item.reject_reason,
+        reviewerId: item.reviewer_id,
+        reviewedAt: item.reviewed_at,
+        createdAt: item.created_at,
+      };
+    });
 
     return NextResponse.json({ data: formatted });
   } catch (error) {

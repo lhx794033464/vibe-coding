@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2, Search } from 'lucide-react';
+import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2, Search, X } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -36,9 +36,10 @@ interface ProcessApplication {
   id: string;
   type: 'group_dismissal' | 'schedule_coordination' | 'commission_claim';
   applicant_id: string;
-  customer_id: string | null;
+  customerIds: string[];
+  customerNames: string[];
   status: 'pending' | 'approved' | 'rejected';
-  kbc_screenshot_key: string | null;
+  kbcScreenshotKeys: string[];
   expected_date: string | null;
   notes: string | null;
   reject_reason: string | null;
@@ -47,7 +48,10 @@ interface ProcessApplication {
   created_at: string;
   updated_at: string | null;
   applicant_name?: string;
+  // 兼容旧数据
   customer_name?: string;
+  customer_id?: string;
+  kbc_screenshot_key?: string;
 }
 
 const TYPE_CONFIG = {
@@ -68,9 +72,6 @@ function ProcessCenterContent() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const preselectedCustomerId = searchParams.get('customerId');
-  const preselectedType = searchParams.get('type');
-
   const [activeTab, setActiveTab] = useState('pending');
   const [applications, setApplications] = useState<ProcessApplication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,8 +80,8 @@ function ProcessCenterContent() {
   // 新增弹窗状态
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -94,7 +95,8 @@ function ProcessCenterContent() {
   const [reviewing, setReviewing] = useState(false);
 
   // 查看截图
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
+  const [currentScreenshotIdx, setCurrentScreenshotIdx] = useState(0);
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
   const [loadingScreenshot, setLoadingScreenshot] = useState(false);
 
@@ -161,7 +163,7 @@ function ProcessCenterContent() {
     const customerId = searchParams.get('customerId');
     const type = searchParams.get('type');
     if (customerId) {
-      setSelectedCustomerId(customerId);
+      setSelectedCustomerIds([customerId]);
       if (type) {
         setSelectedType(type);
       }
@@ -182,12 +184,12 @@ function ProcessCenterContent() {
       return;
     }
 
-    if (!selectedCustomerId) {
+    if (selectedCustomerIds.length === 0) {
       toast.warning('请选择客户');
       return;
     }
 
-    if (selectedType === 'group_dismissal' && !screenshotFile) {
+    if (selectedType === 'group_dismissal' && screenshotFiles.length === 0) {
       toast.warning('请上传KBC截图');
       return;
     }
@@ -202,10 +204,10 @@ function ProcessCenterContent() {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('type', selectedType);
-      formData.append('customer_id', selectedCustomerId);
-      if (screenshotFile) {
-        formData.append('file', screenshotFile);
-      }
+      formData.append('customer_ids', JSON.stringify(selectedCustomerIds));
+      screenshotFiles.forEach((file, idx) => {
+        formData.append(`file_${idx}`, file);
+      });
       if (expectedDate) {
         formData.append('expected_date', expectedDate);
       }
@@ -239,7 +241,7 @@ function ProcessCenterContent() {
     try {
       setReviewing(true);
       const token = localStorage.getItem('token');
-      const body: any = { status: action };
+      const body: Record<string, unknown> = { status: action };
       if (action === 'rejected' && rejectReason) {
         body.reject_reason = rejectReason;
       }
@@ -270,22 +272,25 @@ function ProcessCenterContent() {
     }
   };
 
-  const handleViewScreenshot = async (key: string) => {
+  const handleViewScreenshots = async (keys: string[]) => {
     try {
       setLoadingScreenshot(true);
       setShowScreenshotDialog(true);
+      setCurrentScreenshotIdx(0);
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/process-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setScreenshotUrl(data.url);
-      } else {
-        toast.error('获取截图失败');
-        setShowScreenshotDialog(false);
+      const urls: string[] = [];
+      for (const key of keys) {
+        const res = await fetch(`/api/process-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          urls.push(data.url);
+        }
       }
+      setScreenshotUrls(urls);
     } catch (error) {
+      console.error('获取截图失败:', error);
       toast.error('获取截图失败');
       setShowScreenshotDialog(false);
     } finally {
@@ -295,8 +300,8 @@ function ProcessCenterContent() {
 
   const resetForm = () => {
     setSelectedType('');
-    setSelectedCustomerId('');
-    setScreenshotFile(null);
+    setSelectedCustomerIds([]);
+    setScreenshotFiles([]);
     setExpectedDate('');
     setNotes('');
     setCustomerSearch('');
@@ -308,10 +313,36 @@ function ProcessCenterContent() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  const getTypeLabel = (type: string) => (TYPE_CONFIG as any)[type]?.label || type;
-  const getTypeColor = (type: string) => (TYPE_CONFIG as any)[type]?.color || '';
-  const getStatusLabel = (status: string) => (STATUS_CONFIG as any)[status]?.label || status;
-  const getStatusColor = (status: string) => (STATUS_CONFIG as any)[status]?.color || '';
+  const getTypeLabel = (type: string) => (TYPE_CONFIG as Record<string, { label: string }>)[type]?.label || type;
+  const getTypeColor = (type: string) => (TYPE_CONFIG as Record<string, { color: string }>)[type]?.color || '';
+  const getStatusLabel = (status: string) => (STATUS_CONFIG as Record<string, { label: string }>)[status]?.label || status;
+  const getStatusColor = (status: string) => (STATUS_CONFIG as Record<string, { color: string }>)[status]?.color || '';
+
+  // 获取申请的截图keys（兼容新旧数据格式）
+  const getAppScreenshotKeys = (app: ProcessApplication): string[] => {
+    if (app.kbcScreenshotKeys && app.kbcScreenshotKeys.length > 0) {
+      return app.kbcScreenshotKeys;
+    }
+    if (app.kbc_screenshot_key) {
+      try {
+        return JSON.parse(app.kbc_screenshot_key);
+      } catch {
+        return [app.kbc_screenshot_key];
+      }
+    }
+    return [];
+  };
+
+  // 获取申请的客户名称（兼容新旧数据格式）
+  const getAppCustomerNames = (app: ProcessApplication): string[] => {
+    if (app.customerNames && app.customerNames.length > 0) {
+      return app.customerNames;
+    }
+    if (app.customer_name) {
+      return [app.customer_name];
+    }
+    return [];
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -367,7 +398,7 @@ function ProcessCenterContent() {
                 </div>
               )}
 
-              {/* 群聊解散/排期协调：选择客户 */}
+              {/* 群聊解散/排期协调：选择客户（多选） */}
               {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
                 <div className="space-y-2">
                   <Label>选择客户</Label>
@@ -375,38 +406,37 @@ function ProcessCenterContent() {
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder={selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name || '搜索客户...' : '搜索客户...'}
+                        placeholder={selectedCustomerIds.length > 0 ? `已选 ${selectedCustomerIds.length} 个客户，继续搜索...` : '搜索客户...'}
                         value={customerSearch}
                         onChange={(e) => {
                           setCustomerSearch(e.target.value);
-                          setSelectedCustomerId('');
                           setShowCustomerDropdown(true);
                         }}
-                        onFocus={() => {
-                          setShowCustomerDropdown(true);
-                          if (selectedCustomerId) {
-                            setSelectedCustomerId('');
-                            setCustomerSearch('');
-                          }
-                        }}
+                        onFocus={() => setShowCustomerDropdown(true)}
                         className="pl-8"
                       />
                     </div>
                     {showCustomerDropdown && filteredCustomers.length > 0 && (
                       <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                        {filteredCustomers.map((c) => (
-                          <div
-                            key={c.id}
-                            className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent ${selectedCustomerId === c.id ? 'bg-accent font-medium' : ''}`}
-                            onClick={() => {
-                              setSelectedCustomerId(c.id);
-                              setCustomerSearch('');
-                              setShowCustomerDropdown(false);
-                            }}
-                          >
-                            {c.name}
-                          </div>
-                        ))}
+                        {filteredCustomers.map((c) => {
+                          const isSelected = selectedCustomerIds.includes(c.id);
+                          return (
+                            <div
+                              key={c.id}
+                              className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent flex items-center justify-between ${isSelected ? 'bg-accent/50' : ''}`}
+                              onClick={() => {
+                                setSelectedCustomerIds(prev =>
+                                  isSelected
+                                    ? prev.filter(id => id !== c.id)
+                                    : [...prev, c.id]
+                                );
+                              }}
+                            >
+                              <span>{c.name}</span>
+                              {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {showCustomerDropdown && customerSearch && filteredCustomers.length === 0 && (
@@ -414,24 +444,31 @@ function ProcessCenterContent() {
                         <div className="px-3 py-3 text-sm text-muted-foreground text-center">未找到匹配客户</div>
                       </div>
                     )}
-                    {selectedCustomerId && !customerSearch && (
-                      <div className="mt-1 flex items-center gap-1 text-sm">
-                        <span className="text-muted-foreground">已选：</span>
-                        <span className="font-medium">{customers.find(c => c.id === selectedCustomerId)?.name}</span>
-                        <button
-                          type="button"
-                          className="ml-1 text-muted-foreground hover:text-foreground"
-                          onClick={() => { setSelectedCustomerId(''); }}
-                        >
-                          ×
-                        </button>
+                    {/* 已选客户标签 */}
+                    {selectedCustomerIds.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {selectedCustomerIds.map(id => {
+                          const c = customers.find(c => c.id === id);
+                          return c ? (
+                            <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                              {c.name}
+                              <button
+                                type="button"
+                                className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                                onClick={() => setSelectedCustomerIds(prev => prev.filter(i => i !== id))}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ) : null;
+                        })}
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* 群聊解散：上传KBC截图 */}
+              {/* 群聊解散：上传KBC截图（多张） */}
               {selectedType === 'group_dismissal' && (
                 <div className="space-y-2">
                   <Label>上传KBC截图</Label>
@@ -440,15 +477,16 @@ function ProcessCenterContent() {
                     onPaste={(e) => {
                       const items = e.clipboardData?.items;
                       if (items) {
+                        const newFiles: File[] = [];
                         for (let i = 0; i < items.length; i++) {
                           if (items[i].type.startsWith('image/')) {
                             const file = items[i].getAsFile();
-                            if (file) {
-                              setScreenshotFile(file);
-                              toast.success('已粘贴截图');
-                            }
-                            break;
+                            if (file) newFiles.push(file);
                           }
+                        }
+                        if (newFiles.length > 0) {
+                          setScreenshotFiles(prev => [...prev, ...newFiles]);
+                          toast.success(`已粘贴 ${newFiles.length} 张截图`);
                         }
                       }
                     }}
@@ -464,39 +502,50 @@ function ProcessCenterContent() {
                       }
                     }}
                   >
-                    {screenshotFile ? (
+                    {screenshotFiles.length > 0 ? (
                       <div className="space-y-2">
-                        <div className="relative inline-block">
-                          <img
-                            src={URL.createObjectURL(screenshotFile)}
-                            alt="预览"
-                            className="max-h-32 rounded"
-                          />
-                          <button
-                            type="button"
-                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setScreenshotFile(null);
-                            }}
-                          >
-                            ×
-                          </button>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {screenshotFiles.map((file, idx) => (
+                            <div key={idx} className="relative inline-block">
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={`截图${idx + 1}`}
+                                className="h-20 rounded"
+                              />
+                              <button
+                                type="button"
+                                className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setScreenshotFiles(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-xs text-muted-foreground">{screenshotFile.name}</p>
+                        <p className="text-xs text-muted-foreground">已选 {screenshotFiles.length} 张，点击继续添加</p>
                       </div>
                     ) : (
                       <div className="space-y-1">
                         <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
                         <p className="text-sm text-muted-foreground">点击选择文件或粘贴截图</p>
-                        <p className="text-xs text-muted-foreground/60">支持 Ctrl+V 粘贴</p>
+                        <p className="text-xs text-muted-foreground/60">支持多张，Ctrl+V 粘贴</p>
                       </div>
                     )}
                     <Input
                       id="kbc-screenshot-input"
                       type="file"
                       accept="image/*"
-                      onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
+                      multiple
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files && files.length > 0) {
+                          setScreenshotFiles(prev => [...prev, ...Array.from(files)]);
+                        }
+                        e.target.value = '';
+                      }}
                       className="hidden"
                     />
                   </div>
@@ -585,6 +634,8 @@ function ProcessCenterContent() {
           ) : (
             applications.map((app) => {
               const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
+              const screenshotKeys = getAppScreenshotKeys(app);
+              const customerNames = getAppCustomerNames(app);
               return (
                 <Card key={app.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
@@ -601,8 +652,8 @@ function ProcessCenterContent() {
                             </Badge>
                           </div>
                           <div className="text-sm text-muted-foreground space-y-0.5">
-                            {app.customer_name && (
-                              <p>客户：{app.customer_name}</p>
+                            {customerNames.length > 0 && (
+                              <p>客户：{customerNames.join('、')}</p>
                             )}
                             {app.expected_date && (
                               <p>期望日期：{app.expected_date}</p>
@@ -617,14 +668,14 @@ function ProcessCenterContent() {
                       </div>
                       <div className="flex items-center gap-2 ml-2">
                         {/* 查看KBC截图 */}
-                        {app.kbc_screenshot_key && (
+                        {screenshotKeys.length > 0 && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleViewScreenshot(app.kbc_screenshot_key!)}
+                            onClick={() => handleViewScreenshots(screenshotKeys)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
-                            截图
+                            截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
                           </Button>
                         )}
                         {/* 管理员审批按钮 */}
@@ -659,6 +710,8 @@ function ProcessCenterContent() {
           ) : (
             applications.map((app) => {
               const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
+              const screenshotKeys = getAppScreenshotKeys(app);
+              const customerNames = getAppCustomerNames(app);
               return (
                 <Card key={app.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
@@ -675,8 +728,8 @@ function ProcessCenterContent() {
                             </Badge>
                           </div>
                           <div className="text-sm text-muted-foreground space-y-0.5">
-                            {app.customer_name && (
-                              <p>客户：{app.customer_name}</p>
+                            {customerNames.length > 0 && (
+                              <p>客户：{customerNames.join('、')}</p>
                             )}
                             {app.expected_date && (
                               <p>期望日期：{app.expected_date}</p>
@@ -696,14 +749,14 @@ function ProcessCenterContent() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-2">
-                        {app.kbc_screenshot_key && (
+                        {screenshotKeys.length > 0 && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleViewScreenshot(app.kbc_screenshot_key!)}
+                            onClick={() => handleViewScreenshots(screenshotKeys)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
-                            截图
+                            截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
                           </Button>
                         )}
                       </div>
@@ -726,7 +779,7 @@ function ProcessCenterContent() {
             <div className="space-y-4">
               <div className="text-sm space-y-1">
                 <p><span className="text-muted-foreground">申请类型：</span>{getTypeLabel(reviewingApp.type)}</p>
-                <p><span className="text-muted-foreground">客户：</span>{reviewingApp.customer_name || '无'}</p>
+                <p><span className="text-muted-foreground">客户：</span>{getAppCustomerNames(reviewingApp).join('、') || '无'}</p>
                 <p><span className="text-muted-foreground">申请人：</span>{reviewingApp.applicant_name || '未知'}</p>
                 {reviewingApp.notes && (
                   <p><span className="text-muted-foreground">备注：</span>{reviewingApp.notes}</p>
@@ -735,6 +788,19 @@ function ProcessCenterContent() {
                   <p><span className="text-muted-foreground">期望日期：</span>{reviewingApp.expected_date}</p>
                 )}
               </div>
+              {/* 审批时查看截图 */}
+              {getAppScreenshotKeys(reviewingApp).length > 0 && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleViewScreenshots(getAppScreenshotKeys(reviewingApp))}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    查看KBC截图
+                  </Button>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>驳回原因（驳回时填写）</Label>
                 <Textarea
@@ -768,21 +834,44 @@ function ProcessCenterContent() {
         </DialogContent>
       </Dialog>
 
-      {/* 查看截图弹窗 */}
+      {/* 查看截图弹窗（支持多张轮播） */}
       <Dialog open={showScreenshotDialog} onOpenChange={setShowScreenshotDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>KBC截图</DialogTitle>
+            <DialogTitle>KBC截图 {screenshotUrls.length > 1 ? `(${currentScreenshotIdx + 1}/${screenshotUrls.length})` : ''}</DialogTitle>
           </DialogHeader>
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-3">
             {loadingScreenshot ? (
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            ) : screenshotUrl ? (
-              <img
-                src={screenshotUrl}
-                alt="KBC截图"
-                className="max-w-full max-h-[60vh] rounded-lg"
-              />
+            ) : screenshotUrls.length > 0 ? (
+              <>
+                <img
+                  src={screenshotUrls[currentScreenshotIdx]}
+                  alt={`KBC截图${currentScreenshotIdx + 1}`}
+                  className="max-w-full max-h-[60vh] rounded-lg"
+                />
+                {screenshotUrls.length > 1 && (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentScreenshotIdx === 0}
+                      onClick={() => setCurrentScreenshotIdx(prev => prev - 1)}
+                    >
+                      上一张
+                    </Button>
+                    <span className="text-sm text-muted-foreground">{currentScreenshotIdx + 1} / {screenshotUrls.length}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentScreenshotIdx === screenshotUrls.length - 1}
+                      onClick={() => setCurrentScreenshotIdx(prev => prev + 1)}
+                    >
+                      下一张
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-muted-foreground">加载失败</p>
             )}

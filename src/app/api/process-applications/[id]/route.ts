@@ -67,15 +67,24 @@ export async function PUT(
       return NextResponse.json({ error: '审批失败' }, { status: 500 });
     }
 
-    // 如果是群聊解散且审批通过，更新客户状态为已解散
+    // 如果是群聊解散且审批通过，更新所有客户状态为已解散
     if (status === 'approved' && application.type === 'group_dismissal' && application.customer_id) {
-      const { error: customerError } = await supabase
-        .from('customers')
-        .update({ dismissed: true })
-        .eq('id', application.customer_id);
+      let customerIds: string[] = [];
+      try {
+        customerIds = JSON.parse(application.customer_id);
+      } catch {
+        customerIds = [application.customer_id];
+      }
 
-      if (customerError) {
-        console.error('[Process] Update customer dismissed error:', customerError);
+      for (const cid of customerIds) {
+        const { error: customerError } = await supabase
+          .from('customers')
+          .update({ dismissed: true })
+          .eq('id', cid);
+
+        if (customerError) {
+          console.error('[Process] Update customer dismissed error:', customerError);
+        }
       }
     }
 
