@@ -167,11 +167,14 @@ function ProcessCenterContent() {
 
   // 点击外部关闭客户下拉
   useEffect(() => {
-    const handleClickOutside = () => setShowCustomerDropdown(false);
-    if (showCustomerDropdown) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
+    if (!showCustomerDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-customer-combobox]')) return;
+      setShowCustomerDropdown(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showCustomerDropdown]);
 
   // 从URL参数自动填充申请表单（管理员不能发起申请）
@@ -530,7 +533,7 @@ function ProcessCenterContent() {
                 {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
                   <div className="space-y-2">
                     <Label>选择客户</Label>
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative" data-customer-combobox>
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
