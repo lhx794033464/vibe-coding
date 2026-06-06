@@ -1,428 +1,662 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
-import { CheckCircle, XCircle, Clock, Eye, Loader2, Inbox, Image as ImageIcon } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
-import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2 } from 'lucide-react';
 
-interface DismissalApplication {
+interface Customer {
   id: string;
-  customer_id: string;
+  name: string;
+}
+
+interface ProcessApplication {
+  id: string;
+  type: 'group_dismissal' | 'schedule_coordination' | 'commission_claim';
   applicant_id: string;
-  kbc_screenshot_key: string;
+  customer_id: string | null;
   status: 'pending' | 'approved' | 'rejected';
+  kbc_screenshot_key: string | null;
+  expected_date: string | null;
+  notes: string | null;
   reject_reason: string | null;
   reviewer_id: string | null;
   reviewed_at: string | null;
   created_at: string;
-  customer: {
-    id: string;
-    name: string;
-    delivery_consultant: string | null;
-    delivery_deadline: string | null;
-    dismissed: boolean;
-  } | null;
-  applicant: {
-    id: string;
-    username: string;
-    role: string;
-  } | null;
-  reviewer: {
-    id: string;
-    username: string;
-  } | null;
+  updated_at: string | null;
+  applicant_name?: string;
+  customer_name?: string;
 }
 
-export default function WorkbenchPage() {
+const TYPE_CONFIG = {
+  group_dismissal: { label: '群聊解散', icon: Users, color: 'bg-orange-100 text-orange-700' },
+  schedule_coordination: { label: '排期协调', icon: CalendarDays, color: 'bg-blue-100 text-blue-700' },
+  commission_claim: { label: '提成申报', icon: DollarSign, color: 'bg-green-100 text-green-700' },
+};
+
+const STATUS_CONFIG = {
+  pending: { label: '待审批', icon: Clock, color: 'bg-yellow-100 text-yellow-700' },
+  approved: { label: '已通过', icon: CheckCircle2, color: 'bg-green-100 text-green-700' },
+  rejected: { label: '已驳回', icon: XCircle, color: 'bg-red-100 text-red-700' },
+};
+
+function ProcessCenterContent() {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, getAuthHeader } = useAuth();
-  const { confirm, ConfirmDialog } = useConfirmDialog();
-  const [applications, setApplications] = useState<DismissalApplication[]>([]);
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  const preselectedCustomerId = searchParams.get('customerId');
+  const preselectedType = searchParams.get('type');
+
+  const [activeTab, setActiveTab] = useState('pending');
+  const [applications, setApplications] = useState<ProcessApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('pending');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [showRejectDialog, setShowRejectDialog] = useState(false);
-  const [rejectingAppId, setRejectingAppId] = useState<string | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  // 新增弹窗状态
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [expectedDate, setExpectedDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // 审批弹窗
+  const [reviewingApp, setReviewingApp] = useState<ProcessApplication | null>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const [processing, setProcessing] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-    if (!isAdmin) {
-      router.push('/unauthorized');
-      return;
-    }
-    loadApplications();
-  }, [router, isAuthenticated, isAdmin, statusFilter]);
+  // 查看截图
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
+  const [loadingScreenshot, setLoadingScreenshot] = useState(false);
 
-  const loadApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
-      const params = statusFilter ? `?status=${statusFilter}` : '';
-      const response = await fetch(`/api/dismissal-applications${params}`, {
-        headers: getAuthHeader(),
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const status = activeTab === 'pending' ? 'pending' : 'approved,rejected';
+      const res = await fetch(`/api/process-applications?status=${status}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const result = await response.json();
-      if (response.ok) {
-        setApplications(result.data || []);
+      const data = await res.json();
+      if (res.ok) {
+        setApplications(data.data || []);
       }
     } catch (error) {
-      console.error('加载申请列表失败:', error);
+      console.error('获取流程列表失败:', error);
     } finally {
       setLoading(false);
+    }
+  }, [activeTab]);
+
+  const fetchCustomers = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/customers', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCustomers((data.data || []).map((c: any) => ({ id: c.id, name: c.name })));
+      }
+    } catch (error) {
+      console.error('获取客户列表失败:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
+  useEffect(() => {
+    if (showAddDialog) {
+      fetchCustomers();
+    }
+  }, [showAddDialog, fetchCustomers]);
+
+  // 从URL参数自动打开申请表单
+  useEffect(() => {
+    const customerId = searchParams.get('customerId');
+    const type = searchParams.get('type');
+    if (customerId) {
+      setSelectedCustomerId(customerId);
+      if (type) {
+        setSelectedType(type);
+      }
+      setShowAddDialog(true);
+    }
+  }, [searchParams]);
+
+  const handleSubmit = async () => {
+    if (!selectedType) {
+      toast.warning('请选择申请类型');
+      return;
+    }
+
+    // 提成申报跳转到提成管理
+    if (selectedType === 'commission_claim') {
+      setShowAddDialog(false);
+      router.push('/commissions');
+      return;
+    }
+
+    if (!selectedCustomerId) {
+      toast.warning('请选择客户');
+      return;
+    }
+
+    if (selectedType === 'group_dismissal' && !screenshotFile) {
+      toast.warning('请上传KBC截图');
+      return;
+    }
+
+    if (selectedType === 'schedule_coordination' && !expectedDate) {
+      toast.warning('请选择期望日期');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('type', selectedType);
+      formData.append('customer_id', selectedCustomerId);
+      if (screenshotFile) {
+        formData.append('file', screenshotFile);
+      }
+      if (expectedDate) {
+        formData.append('expected_date', expectedDate);
+      }
+      if (notes) {
+        formData.append('notes', notes);
+      }
+
+      const res = await fetch('/api/process-applications', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('申请已提交');
+        setShowAddDialog(false);
+        resetForm();
+        fetchApplications();
+      } else {
+        toast.error(data.error || '提交失败');
+      }
+    } catch (error) {
+      toast.error('提交失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReview = async (appId: string, action: 'approved' | 'rejected') => {
+    try {
+      setReviewing(true);
+      const token = localStorage.getItem('token');
+      const body: any = { status: action };
+      if (action === 'rejected' && rejectReason) {
+        body.reject_reason = rejectReason;
+      }
+
+      const res = await fetch(`/api/process-applications/${appId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(action === 'approved' ? '已通过' : '已驳回');
+        setShowReviewDialog(false);
+        setReviewingApp(null);
+        setRejectReason('');
+        fetchApplications();
+      } else {
+        toast.error(data.error || '操作失败');
+      }
+    } catch (error) {
+      toast.error('操作失败');
+    } finally {
+      setReviewing(false);
     }
   };
 
   const handleViewScreenshot = async (key: string) => {
-    setPreviewLoading(true);
     try {
-      const response = await fetch(`/api/dismissal-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
-        headers: getAuthHeader(),
+      setLoadingScreenshot(true);
+      setShowScreenshotDialog(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/process-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const result = await response.json();
-      if (response.ok && result.url) {
-        setPreviewUrl(result.url);
+      const data = await res.json();
+      if (res.ok) {
+        setScreenshotUrl(data.url);
       } else {
         toast.error('获取截图失败');
+        setShowScreenshotDialog(false);
       }
     } catch (error) {
-      console.error('获取截图URL失败:', error);
       toast.error('获取截图失败');
+      setShowScreenshotDialog(false);
     } finally {
-      setPreviewLoading(false);
+      setLoadingScreenshot(false);
     }
   };
 
-  const handleApprove = async (appId: string) => {
-    if (!(await confirm({ description: '确定批准该解散申请吗？批准后客户将被标记为已解散。' }))) return;
-
-    setProcessing(appId);
-    try {
-      const response = await fetch(`/api/dismissal-applications/${appId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ status: 'approved' }),
-      });
-
-      if (response.ok) {
-        toast.success('已批准解散申请');
-        loadApplications();
-      } else {
-        const result = await response.json();
-        toast.error(result.error || '审批失败');
-      }
-    } catch (error) {
-      console.error('审批失败:', error);
-      toast.error('审批失败');
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!rejectingAppId) return;
-
-    setProcessing(rejectingAppId);
-    try {
-      const response = await fetch(`/api/dismissal-applications/${rejectingAppId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ status: 'rejected', reject_reason: rejectReason || undefined }),
-      });
-
-      if (response.ok) {
-        toast.success('已驳回解散申请');
-        setShowRejectDialog(false);
-        setRejectingAppId(null);
-        setRejectReason('');
-        loadApplications();
-      } else {
-        const result = await response.json();
-        toast.error(result.error || '审批失败');
-      }
-    } catch (error) {
-      console.error('审批失败:', error);
-      toast.error('审批失败');
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">待审批</Badge>;
-      case 'approved':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">已批准</Badge>;
-      case 'rejected':
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-200">已驳回</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
+  const resetForm = () => {
+    setSelectedType('');
+    setSelectedCustomerId('');
+    setScreenshotFile(null);
+    setExpectedDate('');
+    setNotes('');
   };
 
   const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateStr;
-    }
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // 统计
-  const pendingCount = applications.filter(a => a.status === 'pending').length;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
-  }
+  const getTypeLabel = (type: string) => (TYPE_CONFIG as any)[type]?.label || type;
+  const getTypeColor = (type: string) => (TYPE_CONFIG as any)[type]?.color || '';
+  const getStatusLabel = (status: string) => (STATUS_CONFIG as any)[status]?.label || status;
+  const getStatusColor = (status: string) => (STATUS_CONFIG as any)[status]?.color || '';
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 overflow-auto">
-      <div className="space-y-6">
-        {/* 页面标题 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">审批中心</h1>
-            <p className="text-gray-500 mt-1">处理人员提交的申请</p>
-          </div>
-        </div>
-
-        {/* 状态筛选 */}
-        <div className="flex items-center gap-2">
-          {[
-            { value: 'pending', label: '待审批', icon: Clock },
-            { value: 'approved', label: '已批准', icon: CheckCircle },
-            { value: 'rejected', label: '已驳回', icon: XCircle },
-            { value: '', label: '全部', icon: Inbox },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <Button
-                key={item.value}
-                variant={statusFilter === item.value ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setStatusFilter(item.value);
-                  setLoading(true);
-                }}
-                className="relative"
-              >
-                <Icon className="w-4 h-4 mr-1.5" />
-                {item.label}
-                {item.value === 'pending' && pendingCount > 0 && (
-                  <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 min-w-[18px] text-center">
-                    {pendingCount}
-                  </span>
-                )}
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* 申请列表 */}
-        {applications.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center text-gray-500">
-              <Inbox className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-lg font-medium">暂无{statusFilter === 'pending' ? '待审批' : ''}申请</p>
-              <p className="text-sm mt-1">当有人提交解散申请时，会在这里显示</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {applications.map((app) => (
-              <Card key={app.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex flex-col gap-4">
-                    {/* 顶部：客户信息 + 状态 */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-gray-900 text-lg">
-                            {app.customer?.name || '未知客户'}
-                          </h3>
-                          {getStatusBadge(app.status)}
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
-                          <span>申请人：{app.applicant?.username || '未知'}</span>
-                          <span>交付顾问：{app.customer?.delivery_consultant || '-'}</span>
-                          {app.customer?.delivery_deadline && (
-                            <span>交付截止日：{app.customer.delivery_deadline.split('T')[0]}</span>
-                          )}
-                        </div>
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-foreground">流程中心</h1>
+        <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="gap-1">
+              <Plus className="h-4 w-4" />
+              新增
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新增申请</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* 申请类型选择 */}
+              <div className="space-y-2">
+                <Label>申请类型</Label>
+                <Select value={selectedType} onValueChange={setSelectedType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="请选择申请类型" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom">
+                    <SelectItem value="group_dismissal">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        群聊解散
                       </div>
-                      <div className="text-xs text-gray-400 whitespace-nowrap">
-                        提交于 {formatDate(app.created_at)}
+                    </SelectItem>
+                    <SelectItem value="schedule_coordination">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        排期协调
                       </div>
-                    </div>
-
-                    {/* KBC截图预览 */}
-                    <div className="flex items-center gap-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewScreenshot(app.kbc_screenshot_key)}
-                        disabled={previewLoading}
-                      >
-                        {previewLoading ? (
-                          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                        ) : (
-                          <ImageIcon className="w-4 h-4 mr-1.5" />
-                        )}
-                        查看KBC截图
-                      </Button>
-                    </div>
-
-                    {/* 审批信息（已处理的申请） */}
-                    {app.status !== 'pending' && (
-                      <div className="text-sm text-gray-500 border-t pt-3">
-                        <span>
-                          {app.status === 'approved' ? '已批准' : '已驳回'}
-                          {app.reviewer?.username && ` by ${app.reviewer.username}`}
-                          {app.reviewed_at && ` · ${formatDate(app.reviewed_at)}`}
-                        </span>
-                        {app.reject_reason && (
-                          <p className="mt-1 text-red-600">驳回原因：{app.reject_reason}</p>
-                        )}
+                    </SelectItem>
+                    <SelectItem value="commission_claim">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        提成申报
                       </div>
-                    )}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                    {/* 操作按钮（待审批） */}
-                    {app.status === 'pending' && (
-                      <div className="flex items-center gap-2 pt-2 border-t">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(app.id)}
-                          disabled={processing === app.id}
-                        >
-                          {processing === app.id ? (
-                            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                          ) : (
-                            <CheckCircle className="w-4 h-4 mr-1.5" />
-                          )}
-                          批准
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 border-red-300 hover:bg-red-50"
-                          onClick={() => {
-                            setRejectingAppId(app.id);
-                            setRejectReason('');
-                            setShowRejectDialog(true);
-                          }}
-                          disabled={processing === app.id}
-                        >
-                          <XCircle className="w-4 h-4 mr-1.5" />
-                          驳回
-                        </Button>
-                      </div>
-                    )}
+              {/* 提成申报提示 */}
+              {selectedType === 'commission_claim' && (
+                <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                  点击提交后将跳转到提成管理页面进行申报
+                </div>
+              )}
+
+              {/* 群聊解散/排期协调：选择客户 */}
+              {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
+                <div className="space-y-2">
+                  <Label>选择客户</Label>
+                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="请选择客户" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom" className="max-h-60">
+                      {customers.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 群聊解散：上传KBC截图 */}
+              {selectedType === 'group_dismissal' && (
+                <div className="space-y-2">
+                  <Label>上传KBC截图</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
+                      className="text-sm"
+                    />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  {screenshotFile && (
+                    <p className="text-xs text-muted-foreground">已选择: {screenshotFile.name}</p>
+                  )}
+                </div>
+              )}
+
+              {/* 排期协调：期望日期 */}
+              {selectedType === 'schedule_coordination' && (
+                <div className="space-y-2">
+                  <Label>期望日期</Label>
+                  <Input
+                    type="date"
+                    value={expectedDate}
+                    onChange={(e) => setExpectedDate(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* 排期协调/群聊解散：备注 */}
+              {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
+                <div className="space-y-2">
+                  <Label>备注</Label>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="请输入备注信息（可选）"
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              {/* 提交按钮 */}
+              <Button
+                className="w-full"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    提交中...
+                  </>
+                ) : selectedType === 'commission_claim' ? '前往提成管理' : '提交申请'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* 截图预览对话框 */}
-      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
-        <DialogContent className="sm:max-w-2xl">
+      {/* Tab 区域 */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="pending">待办</TabsTrigger>
+          <TabsTrigger value="done">已办</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending" className="mt-4 space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : applications.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">暂无待办流程</div>
+          ) : (
+            applications.map((app) => {
+              const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
+              return (
+                <Card key={app.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className={`p-2 rounded-lg ${getTypeColor(app.type)}`}>
+                          <TypeIcon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-foreground">{getTypeLabel(app.type)}</span>
+                            <Badge variant="outline" className={getStatusColor(app.status)}>
+                              {getStatusLabel(app.status)}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground space-y-0.5">
+                            {app.customer_name && (
+                              <p>客户：{app.customer_name}</p>
+                            )}
+                            {app.expected_date && (
+                              <p>期望日期：{app.expected_date}</p>
+                            )}
+                            {app.notes && (
+                              <p>备注：{app.notes}</p>
+                            )}
+                            <p>申请人：{app.applicant_name || '未知'}</p>
+                            <p>申请时间：{formatDate(app.created_at)}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        {/* 查看KBC截图 */}
+                        {app.kbc_screenshot_key && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewScreenshot(app.kbc_screenshot_key!)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            截图
+                          </Button>
+                        )}
+                        {/* 管理员审批按钮 */}
+                        {isAdmin && app.status === 'pending' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setReviewingApp(app);
+                              setShowReviewDialog(true);
+                            }}
+                          >
+                            审批
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </TabsContent>
+
+        <TabsContent value="done" className="mt-4 space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : applications.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">暂无已办流程</div>
+          ) : (
+            applications.map((app) => {
+              const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
+              return (
+                <Card key={app.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className={`p-2 rounded-lg ${getTypeColor(app.type)}`}>
+                          <TypeIcon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-foreground">{getTypeLabel(app.type)}</span>
+                            <Badge variant="outline" className={getStatusColor(app.status)}>
+                              {getStatusLabel(app.status)}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground space-y-0.5">
+                            {app.customer_name && (
+                              <p>客户：{app.customer_name}</p>
+                            )}
+                            {app.expected_date && (
+                              <p>期望日期：{app.expected_date}</p>
+                            )}
+                            {app.notes && (
+                              <p>备注：{app.notes}</p>
+                            )}
+                            {app.reject_reason && (
+                              <p className="text-destructive">驳回原因：{app.reject_reason}</p>
+                            )}
+                            <p>申请人：{app.applicant_name || '未知'}</p>
+                            <p>申请时间：{formatDate(app.created_at)}</p>
+                            {app.reviewed_at && (
+                              <p>审批时间：{formatDate(app.reviewed_at)}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        {app.kbc_screenshot_key && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewScreenshot(app.kbc_screenshot_key!)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            截图
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* 审批弹窗 */}
+      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>KBC截图</DialogTitle>
-            <DialogDescription>解散申请凭证</DialogDescription>
+            <DialogTitle>审批申请</DialogTitle>
           </DialogHeader>
-          {previewUrl && (
-            <div className="border rounded-lg overflow-hidden">
-              <img src={previewUrl} alt="KBC截图" className="w-full h-auto" />
+          {reviewingApp && (
+            <div className="space-y-4">
+              <div className="text-sm space-y-1">
+                <p><span className="text-muted-foreground">申请类型：</span>{getTypeLabel(reviewingApp.type)}</p>
+                <p><span className="text-muted-foreground">客户：</span>{reviewingApp.customer_name || '无'}</p>
+                <p><span className="text-muted-foreground">申请人：</span>{reviewingApp.applicant_name || '未知'}</p>
+                {reviewingApp.notes && (
+                  <p><span className="text-muted-foreground">备注：</span>{reviewingApp.notes}</p>
+                )}
+                {reviewingApp.expected_date && (
+                  <p><span className="text-muted-foreground">期望日期：</span>{reviewingApp.expected_date}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>驳回原因（驳回时填写）</Label>
+                <Textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="请输入驳回原因（可选）"
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  onClick={() => handleReview(reviewingApp.id, 'approved')}
+                  disabled={reviewing}
+                >
+                  {reviewing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
+                  通过
+                </Button>
+                <Button
+                  className="flex-1"
+                  variant="destructive"
+                  onClick={() => handleReview(reviewingApp.id, 'rejected')}
+                  disabled={reviewing}
+                >
+                  {reviewing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <XCircle className="mr-1 h-4 w-4" />}
+                  驳回
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* 驳回对话框 */}
-      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent className="sm:max-w-md">
+      {/* 查看截图弹窗 */}
+      <Dialog open={showScreenshotDialog} onOpenChange={setShowScreenshotDialog}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>驳回解散申请</DialogTitle>
-            <DialogDescription>请填写驳回原因（可选）</DialogDescription>
+            <DialogTitle>KBC截图</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>驳回原因</Label>
-              <Textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="请输入驳回原因..."
-                rows={3}
+          <div className="flex justify-center">
+            {loadingScreenshot ? (
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            ) : screenshotUrl ? (
+              <img
+                src={screenshotUrl}
+                alt="KBC截图"
+                className="max-w-full max-h-[60vh] rounded-lg"
               />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowRejectDialog(false);
-                setRejectingAppId(null);
-                setRejectReason('');
-              }}
-              disabled={processing === rejectingAppId}
-            >
-              取消
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={processing === rejectingAppId}
-            >
-              {processing === rejectingAppId ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  处理中...
-                </>
-              ) : (
-                '确认驳回'
-              )}
-            </Button>
+            ) : (
+              <p className="text-muted-foreground">加载失败</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
-
-      {ConfirmDialog}
     </div>
+  );
+}
+
+export default function ProcessCenterPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><p className="text-muted-foreground">加载中...</p></div>}>
+      <ProcessCenterContent />
+    </Suspense>
   );
 }

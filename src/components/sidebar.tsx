@@ -29,9 +29,11 @@ interface SidebarProps {
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-const baseNavItems = [
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
+
+const baseNavItems: NavItem[] = [
   { href: '/home', label: '智能助手', icon: Home },
-  { href: '/workbench', label: '审批中心', icon: ClipboardList, adminOnly: true },
+  { href: '/workbench', label: '流程中心', icon: ClipboardList },
   { href: '/todos', label: '待办事项', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
@@ -40,7 +42,7 @@ const baseNavItems = [
   { href: '/tools', label: '交付工具', icon: Wrench },
 ];
 
-const adminNavItems = [
+const adminNavItems: NavItem[] = [
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 
@@ -53,10 +55,31 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const { isAdmin, user, logout } = useAuth();
   const [showToggleButton, setShowToggleButton] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [pendingProcessCount, setPendingProcessCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 组合导航项
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems.filter(item => !item.adminOnly);
+
+  // 轮询待办流程数量
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch('/api/process-applications/pending-count', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPendingProcessCount(data.count || 0);
+        }
+      } catch {}
+    };
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -147,6 +170,12 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                         {/* 气泡通知 - "交付工具"文字右侧 */}
                         {item.href === '/tools' && hasNotification && (
                           <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
+                        )}
+                        {/* 流程中心待办红点 */}
+                        {item.href === '/workbench' && pendingProcessCount > 0 && (
+                          <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full leading-none">
+                            {pendingProcessCount > 99 ? '99+' : pendingProcessCount}
+                          </span>
                         )}
                       </span>
                     )}

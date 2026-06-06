@@ -20,9 +20,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-const allNavItems = [
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
+
+const allNavItems: NavItem[] = [
   { href: '/home', label: '智能助手', icon: Home },
-  { href: '/workbench', label: '审批中心', icon: ClipboardList, adminOnly: true },
+  { href: '/workbench', label: '流程中心', icon: ClipboardList },
   { href: '/todos', label: '待办事项', icon: CheckSquare },
   { href: '/schedule', label: '日程排期', icon: Calendar },
   { href: '/dashboard', label: '数据看板', icon: LayoutDashboard },
@@ -31,7 +33,7 @@ const allNavItems = [
   { href: '/tools', label: '交付工具', icon: Wrench },
 ];
 
-const adminNavItems = [
+const adminNavItems: NavItem[] = [
   { href: '/delivery-tools/users', label: '用户管理', icon: ShieldCheck, adminOnly: true },
 ];
 
@@ -42,6 +44,28 @@ export function FloatingNav() {
 
   // 菜单展开状态
   const [menuOpen, setMenuOpen] = useState(false);
+  // 待处理流程数量
+  const [pendingProcessCount, setPendingProcessCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch('/api/process-applications/pending-count', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPendingProcessCount(data.count || 0);
+        }
+      } catch {}
+    };
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // 悬浮按钮位置
   const [fabPos, setFabPos] = useState({ x: 16, y: 0 });
   // 是否处于拖拽状态
@@ -283,6 +307,11 @@ export function FloatingNav() {
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <span>{item.label}</span>
+                  {item.href === '/workbench' && pendingProcessCount > 0 && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                      {pendingProcessCount > 99 ? '99+' : pendingProcessCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
