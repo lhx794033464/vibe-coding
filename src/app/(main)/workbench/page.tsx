@@ -88,6 +88,29 @@ function ProcessCenterContent() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
+  // 全局粘贴监听：群聊解散表单打开时支持粘贴截图
+  useEffect(() => {
+    if (!showAddDialog || selectedType !== 'group_dismissal') return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const newFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) newFiles.push(file);
+        }
+      }
+      if (newFiles.length > 0) {
+        e.preventDefault();
+        setScreenshotFiles(prev => [...prev, ...newFiles]);
+        toast.success(`已粘贴 ${newFiles.length} 张截图`);
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [showAddDialog, selectedType]);
+
   // 审批弹窗
   const [reviewingApp, setReviewingApp] = useState<ProcessApplication | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
@@ -469,23 +492,6 @@ function ProcessCenterContent() {
                   <Label>上传KBC截图</Label>
                   <div
                     className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                    onPaste={(e) => {
-                      const items = e.clipboardData?.items;
-                      if (items) {
-                        const newFiles: File[] = [];
-                        for (let i = 0; i < items.length; i++) {
-                          if (items[i].type.startsWith('image/')) {
-                            const file = items[i].getAsFile();
-                            if (file) newFiles.push(file);
-                          }
-                        }
-                        if (newFiles.length > 0) {
-                          setScreenshotFiles(prev => [...prev, ...newFiles]);
-                          toast.success(`已粘贴 ${newFiles.length} 张截图`);
-                        }
-                      }
-                    }}
-                    tabIndex={0}
                     onClick={() => {
                       const input = document.getElementById('kbc-screenshot-input');
                       input?.click();
