@@ -664,13 +664,25 @@ function ProcessCenterContent() {
                 {selectedType === 'schedule_coordination' && (
                   <div className="space-y-2">
                     <Label>期望日期</Label>
-                    <input
-                      type="date"
-                      value={expectedDate}
-                      onChange={(e) => setExpectedDate(e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
-                      placeholder="请选择日期"
-                    />
+                    <div
+                      className="relative flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors cursor-pointer hover:bg-accent items-center"
+                      onClick={() => {
+                        const input = document.getElementById('expected-date-input') as HTMLInputElement;
+                        if (input) input.showPicker?.();
+                      }}
+                    >
+                      <span className={expectedDate ? 'text-foreground' : 'text-muted-foreground'}>
+                        {expectedDate || '请选择日期'}
+                      </span>
+                      <input
+                        id="expected-date-input"
+                        type="date"
+                        value={expectedDate}
+                        onChange={(e) => setExpectedDate(e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        tabIndex={-1}
+                      />
+                    </div>
                   </div>
                 )}
 
