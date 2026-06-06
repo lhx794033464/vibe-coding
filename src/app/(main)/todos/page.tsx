@@ -472,29 +472,27 @@ export default function TodosPage() {
 
       {/* Filter buttons */}
       <div className="flex items-center gap-2 mb-4">
-      <div className="inline-flex gap-2">
+      <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
         <button
           className={cn(
-            'inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors',
+            'flex-1 px-6 py-1.5 text-sm font-medium rounded-md transition-colors',
             filter === 'pending'
-              ? 'bg-blue-50 text-gray-900 border-blue-200'
-              : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-400 hover:text-gray-600'
           )}
           onClick={() => setFilter('pending')}
         >
-          <ClipboardList className="w-4 h-4" />
           待办 ({pendingTodos.length})
         </button>
         <button
           className={cn(
-            'inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors',
+            'flex-1 px-6 py-1.5 text-sm font-medium rounded-md transition-colors',
             filter === 'completed'
-              ? 'bg-blue-50 text-gray-900 border-blue-200'
-              : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-400 hover:text-gray-600'
           )}
           onClick={() => setFilter('completed')}
         >
-          <CheckCircle2 className="w-4 h-4" />
           已办 ({completedTodos.length})
         </button>
       </div>
