@@ -472,12 +472,13 @@ export default function TodosPage() {
 
       {/* Filter buttons */}
       <div className="flex items-center gap-2 mb-4">
+      <div className="inline-flex rounded-lg bg-muted overflow-hidden">
         <button
           className={cn(
-            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            'px-4 py-1.5 text-sm font-medium transition-colors',
             filter === 'pending'
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground bg-background border-border hover:bg-muted'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'bg-transparent text-gray-500 hover:text-gray-700'
           )}
           onClick={() => setFilter('pending')}
         >
@@ -485,15 +486,16 @@ export default function TodosPage() {
         </button>
         <button
           className={cn(
-            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            'px-4 py-1.5 text-sm font-medium transition-colors',
             filter === 'completed'
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground bg-background border-border hover:bg-muted'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'bg-transparent text-gray-500 hover:text-gray-700'
           )}
           onClick={() => setFilter('completed')}
         >
           已办 ({completedTodos.length})
         </button>
+      </div>
       </div>
 
       {/* Two-column layout */}

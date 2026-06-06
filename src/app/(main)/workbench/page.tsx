@@ -435,14 +435,14 @@ function ProcessCenterContent() {
         <h1 className="text-2xl font-bold text-gray-900">流程中心</h1>
       </div>
 
-      {/* Filter buttons */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Filter tabs */}
+      <div className="inline-flex rounded-lg bg-muted overflow-hidden mb-4">
         <button
           className={cn(
-            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            'px-4 py-1.5 text-sm font-medium transition-colors',
             activeTab === 'pending'
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground bg-background border-border hover:bg-muted'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'bg-transparent text-gray-500 hover:text-gray-700'
           )}
           onClick={() => setActiveTab('pending')}
         >
@@ -450,10 +450,10 @@ function ProcessCenterContent() {
         </button>
         <button
           className={cn(
-            'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors',
+            'px-4 py-1.5 text-sm font-medium transition-colors',
             activeTab === 'done'
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground bg-background border-border hover:bg-muted'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'bg-transparent text-gray-500 hover:text-gray-700'
           )}
           onClick={() => setActiveTab('done')}
         >
@@ -592,11 +592,11 @@ function ProcessCenterContent() {
                           })}
                         </div>
                       )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* 群聊解散：上传KBC截图（多张） */}
+                  {/* 群聊解散：上传KBC截图（多张） */}
                 {selectedType === 'group_dismissal' && (
                   <div className="space-y-2">
                     <Label>上传KBC截图</Label>
