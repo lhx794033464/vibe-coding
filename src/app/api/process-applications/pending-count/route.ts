@@ -14,22 +14,24 @@ export async function GET(request: NextRequest) {
 
     let count = 0;
 
-    if (userInfo.role === 'admin') {
-      // 管理员：统计待审批的申请数
-      const { data } = await supabase
-        .from('process_applications')
-        .select('id', { count: 'exact', head: false })
-        .eq('status', 'pending');
-      count = data?.length || 0;
-    } else {
-      // 普通用户：统计已审批但未查看的申请数（已通过/已驳回）
-      const { data } = await supabase
-        .from('process_applications')
-        .select('id')
-        .eq('applicant_id', userInfo.id)
-        .in('status', ['approved', 'rejected']);
-      count = data?.length || 0;
+    // 所有用户：统计本人的待审批申请数（管理员看到的是自己待审批还是所有人待审批？）
+    // 管理员：统计所有待审批的申请数（需要管理员审批）
+    // 普通用户：统计自己提交的待审批申请数
+    const query = supabase
+      .from('process_applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (userInfo.role !== 'admin') {
+      query.eq('applicant_id', userInfo.id);
     }
+
+    const { count: pendingCount, error } = await query;
+
+    if (error) {
+      console.error('[Process] Pending count error:', error);
+    }
+    count = pendingCount || 0;
 
     return NextResponse.json({ count });
   } catch (error) {

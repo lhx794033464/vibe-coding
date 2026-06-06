@@ -83,6 +83,7 @@ function ProcessCenterContent() {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
   const [expectedDate, setExpectedDate] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -666,14 +667,17 @@ function ProcessCenterContent() {
                 {selectedType === 'schedule_coordination' && (
                   <div className="space-y-2">
                     <Label>期望日期</Label>
-                    <Popover>
+                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                       <PopoverTrigger asChild>
                         <button
                           type="button"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent items-center text-left"
                         >
                           <span className={expectedDate ? 'text-foreground' : 'text-muted-foreground'}>
-                            {expectedDate || '请选择日期'}
+                            {expectedDate ? (() => {
+                              const d = new Date(expectedDate);
+                              return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+                            })() : '请选择日期'}
                           </span>
                         </button>
                       </PopoverTrigger>
@@ -690,6 +694,7 @@ function ProcessCenterContent() {
                             } else {
                               setExpectedDate('');
                             }
+                            setCalendarOpen(false);
                           }}
                           disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                         />

@@ -46,7 +46,13 @@ export function FloatingNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   // 待处理流程数量
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
-  const effectivePendingCount = pathname === '/workbench' ? 0 : pendingProcessCount;
+  // 获取上次查看时的待办数量
+  const getLastSeenCount = () => {
+    try {
+      return parseInt(localStorage.getItem('lastSeenPendingCount') || '0', 10);
+    } catch { return 0; }
+  };
+  const effectivePendingCount = pathname === '/workbench' ? 0 : Math.max(0, pendingProcessCount - getLastSeenCount());
 
   useEffect(() => {
     const fetchPendingCount = async () => {
@@ -64,6 +70,15 @@ export function FloatingNav() {
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
   }, [getAuthHeader]);
+
+  // 进入流程中心时记录当前待办数量
+  useEffect(() => {
+    if (pathname === '/workbench') {
+      try {
+        localStorage.setItem('lastSeenPendingCount', String(pendingProcessCount));
+      } catch {}
+    }
+  }, [pathname, pendingProcessCount]);
 
   // 悬浮按钮位置
   const [fabPos, setFabPos] = useState({ x: 16, y: 0 });
