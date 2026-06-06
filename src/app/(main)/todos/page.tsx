@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Check, Clock, Search, Calendar, Link2, Trash2, Loader2, Edit3, ChevronDown, ChevronRight, Plus, Undo2 } from 'lucide-react';
+import { Check, Clock, CheckCircle2, ClipboardList, Search, Calendar, Link2, Trash2, Loader2, Edit3, ChevronDown, ChevronRight, Plus, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -472,27 +472,29 @@ export default function TodosPage() {
 
       {/* Filter buttons */}
       <div className="flex items-center gap-2 mb-4">
-      <div className="inline-flex rounded-lg bg-muted overflow-hidden">
+      <div className="inline-flex gap-2">
         <button
           className={cn(
-            'px-4 py-1.5 text-sm font-medium transition-colors',
+            'inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors',
             filter === 'pending'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'bg-transparent text-gray-500 hover:text-gray-700'
+              ? 'bg-blue-50 text-gray-900 border-blue-200'
+              : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'
           )}
           onClick={() => setFilter('pending')}
         >
+          <ClipboardList className="w-4 h-4" />
           待办 ({pendingTodos.length})
         </button>
         <button
           className={cn(
-            'px-4 py-1.5 text-sm font-medium transition-colors',
+            'inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors',
             filter === 'completed'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'bg-transparent text-gray-500 hover:text-gray-700'
+              ? 'bg-blue-50 text-gray-900 border-blue-200'
+              : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'
           )}
           onClick={() => setFilter('completed')}
         >
+          <CheckCircle2 className="w-4 h-4" />
           已办 ({completedTodos.length})
         </button>
       </div>

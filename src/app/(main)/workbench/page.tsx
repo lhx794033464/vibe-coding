@@ -439,27 +439,29 @@ function ProcessCenterContent() {
       </div>
 
       {/* Filter tabs */}
-      <div className="inline-flex rounded-lg bg-muted overflow-hidden mb-4">
+      <div className="inline-flex gap-2 mb-4">
         <button
           className={cn(
-            'px-4 py-1.5 text-sm font-medium transition-colors',
+            'inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors',
             activeTab === 'pending'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'bg-transparent text-gray-500 hover:text-gray-700'
+              ? 'bg-blue-50 text-gray-900 border-blue-200'
+              : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'
           )}
           onClick={() => setActiveTab('pending')}
         >
+          <Clock className="w-4 h-4" />
           待办
         </button>
         <button
           className={cn(
-            'px-4 py-1.5 text-sm font-medium transition-colors',
+            'inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors',
             activeTab === 'done'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'bg-transparent text-gray-500 hover:text-gray-700'
+              ? 'bg-blue-50 text-gray-900 border-blue-200'
+              : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'
           )}
           onClick={() => setActiveTab('done')}
         >
+          <CheckCircle2 className="w-4 h-4" />
           已办
         </button>
       </div>
