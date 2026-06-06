@@ -146,7 +146,12 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (status) {
-      query = query.eq('status', status);
+      const statusList = status.split(',');
+      if (statusList.length > 1) {
+        query = query.in('status', statusList);
+      } else {
+        query = query.eq('status', status);
+      }
     }
     if (type) {
       query = query.eq('type', type);
@@ -227,16 +232,17 @@ export async function GET(request: NextRequest) {
         id: item.id,
         type: item.type,
         status: item.status,
+        applicant_id: item.applicant_id,
         customerIds,
         customerNames,
-        applicantName: applicantMap[item.applicant_id as string] || '未知',
+        applicant_name: applicantMap[item.applicant_id as string] || '未知',
         kbcScreenshotKeys: screenshotKeys,
-        expectedDate: item.expected_date,
+        expected_date: item.expected_date,
         notes: item.notes,
-        rejectReason: item.reject_reason,
-        reviewerId: item.reviewer_id,
-        reviewedAt: item.reviewed_at,
-        createdAt: item.created_at,
+        reject_reason: item.reject_reason,
+        reviewer_id: item.reviewer_id,
+        reviewed_at: item.reviewed_at,
+        created_at: item.created_at,
       };
     });
 
