@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2 } from 'lucide-react';
+import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2, Search } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -84,6 +84,7 @@ function ProcessCenterContent() {
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
 
   // 审批弹窗
   const [reviewingApp, setReviewingApp] = useState<ProcessApplication | null>(null);
@@ -130,6 +131,10 @@ function ProcessCenterContent() {
     }
   }, []);
 
+  const filteredCustomers = customers.filter((c) =>
+    !customerSearch || c.name.toLowerCase().includes(customerSearch.toLowerCase())
+  );
+
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
@@ -140,8 +145,9 @@ function ProcessCenterContent() {
     }
   }, [showAddDialog, fetchCustomers]);
 
-  // 从URL参数自动打开申请表单
+  // 从URL参数自动打开申请表单（管理员不能发起申请）
   useEffect(() => {
+    if (isAdmin) return;
     const customerId = searchParams.get('customerId');
     const type = searchParams.get('type');
     if (customerId) {
@@ -151,7 +157,7 @@ function ProcessCenterContent() {
       }
       setShowAddDialog(true);
     }
-  }, [searchParams]);
+  }, [searchParams, isAdmin]);
 
   const handleSubmit = async () => {
     if (!selectedType) {
@@ -283,6 +289,7 @@ function ProcessCenterContent() {
     setScreenshotFile(null);
     setExpectedDate('');
     setNotes('');
+    setCustomerSearch('');
   };
 
   const formatDate = (dateStr: string) => {
@@ -299,13 +306,14 @@ function ProcessCenterContent() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">流程中心</h1>
-        <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-1">
-              <Plus className="h-4 w-4" />
-              新增
-            </Button>
-          </DialogTrigger>
+        {!isAdmin && (
+          <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1">
+                <Plus className="h-4 w-4" />
+                新增
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>新增申请</DialogTitle>
@@ -352,16 +360,34 @@ function ProcessCenterContent() {
               {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
                 <div className="space-y-2">
                   <Label>选择客户</Label>
-                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                  <Select value={selectedCustomerId} onValueChange={(val) => { setSelectedCustomerId(val); setCustomerSearch(''); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="请选择客户" />
                     </SelectTrigger>
                     <SelectContent position="popper" side="bottom" className="max-h-60">
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
+                      <div className="sticky top-0 bg-popover p-2 border-b" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="搜索客户..."
+                            value={customerSearch}
+                            onChange={(e) => setCustomerSearch(e.target.value)}
+                            className="h-8 pl-7 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                      {filteredCustomers.length === 0 ? (
+                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                          {customerSearch ? '未找到匹配客户' : '暂无客户'}
+                        </div>
+                      ) : (
+                        filteredCustomers.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -447,19 +473,26 @@ function ProcessCenterContent() {
                     className="relative cursor-pointer"
                     onClick={() => {
                       const input = document.getElementById('expected-date-input') as HTMLInputElement | null;
-                      if (input?.showPicker) {
-                        input.showPicker();
+                      if (input) {
+                        input.showPicker?.();
+                        input.focus();
                       }
-                      input?.focus();
                     }}
                   >
-                    <Input
+                    <div className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors cursor-pointer items-center">
+                      {expectedDate ? (
+                        <span>{expectedDate}</span>
+                      ) : (
+                        <span className="text-muted-foreground">请选择日期</span>
+                      )}
+                    </div>
+                    <input
                       id="expected-date-input"
                       type="date"
                       value={expectedDate}
                       onChange={(e) => setExpectedDate(e.target.value)}
-                      className="cursor-pointer"
-                      readOnly
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      tabIndex={-1}
                     />
                   </div>
                 </div>
@@ -494,6 +527,7 @@ function ProcessCenterContent() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Tab 区域 */}
