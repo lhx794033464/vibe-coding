@@ -12,14 +12,17 @@ export async function GET(request: NextRequest) {
 
     // 数据隔离：获取当前用户信息
     const userInfo = await getCurrentUserInfo(request);
-    const isAdmin = userInfo?.role === 'admin';
+    if (!userInfo) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+    const isAdmin = userInfo.role === 'admin';
 
     const customers = await dbGetCustomers({
       status,
       acceptanceStatus,
       search,
-      userId: userInfo?.id,
-      username: userInfo?.username,
+      userId: userInfo.id,
+      username: userInfo.username,
       isAdmin,
     });
 
