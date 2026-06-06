@@ -35,7 +35,7 @@ export default function RootLayout({
         <AuthProvider>
           {isDev && <Inspector />}
           {children}
-          <Toaster position="top-center" richColors duration={2000} />
+          <Toaster position="top-center" richColors duration={2000} theme="light" />
         </AuthProvider>
       </body>
     </html>
