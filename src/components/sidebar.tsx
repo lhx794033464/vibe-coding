@@ -52,7 +52,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const pathname = usePathname();
   const router = useRouter();
   const { hasNotification } = useFlowChart();
-  const { isAdmin, user, logout } = useAuth();
+  const { isAdmin, user, logout, getAuthHeader } = useAuth();
   const [showToggleButton, setShowToggleButton] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
@@ -65,11 +65,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   useEffect(() => {
     const fetchPendingCount = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const res = await fetch('/api/process-applications/pending-count', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = getAuthHeader();
+        if (!headers.Authorization) return;
+        const res = await fetch('/api/process-applications/pending-count', { headers });
         if (res.ok) {
           const data = await res.json();
           setPendingProcessCount(data.count || 0);
@@ -79,7 +77,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     fetchPendingCount();
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [getAuthHeader]);
 
   // 点击外部关闭菜单
   useEffect(() => {

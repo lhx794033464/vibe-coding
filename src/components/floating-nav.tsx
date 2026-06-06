@@ -40,7 +40,7 @@ const adminNavItems: NavItem[] = [
 export function FloatingNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAdmin, user, logout } = useAuth();
+  const { isAdmin, user, logout, getAuthHeader } = useAuth();
 
   // 菜单展开状态
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,11 +50,9 @@ export function FloatingNav() {
   useEffect(() => {
     const fetchPendingCount = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const res = await fetch('/api/process-applications/pending-count', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = getAuthHeader();
+        if (!headers.Authorization) return;
+        const res = await fetch('/api/process-applications/pending-count', { headers });
         if (res.ok) {
           const data = await res.json();
           setPendingProcessCount(data.count || 0);
@@ -64,7 +62,7 @@ export function FloatingNav() {
     fetchPendingCount();
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [getAuthHeader]);
 
   // 悬浮按钮位置
   const [fabPos, setFabPos] = useState({ x: 16, y: 0 });
