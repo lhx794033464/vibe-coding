@@ -24,6 +24,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2, Search, X } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 interface Customer {
@@ -664,25 +666,35 @@ function ProcessCenterContent() {
                 {selectedType === 'schedule_coordination' && (
                   <div className="space-y-2">
                     <Label>期望日期</Label>
-                    <div
-                      className="relative flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors cursor-pointer hover:bg-accent items-center"
-                      onClick={() => {
-                        const input = document.getElementById('expected-date-input') as HTMLInputElement;
-                        if (input) input.showPicker?.();
-                      }}
-                    >
-                      <span className={expectedDate ? 'text-foreground' : 'text-muted-foreground'}>
-                        {expectedDate || '请选择日期'}
-                      </span>
-                      <input
-                        id="expected-date-input"
-                        type="date"
-                        value={expectedDate}
-                        onChange={(e) => setExpectedDate(e.target.value)}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                        tabIndex={-1}
-                      />
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent items-center text-left"
+                        >
+                          <span className={expectedDate ? 'text-foreground' : 'text-muted-foreground'}>
+                            {expectedDate || '请选择日期'}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={expectedDate ? new Date(expectedDate) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              const yyyy = date.getFullYear();
+                              const mm = String(date.getMonth() + 1).padStart(2, '0');
+                              const dd = String(date.getDate()).padStart(2, '0');
+                              setExpectedDate(`${yyyy}-${mm}-${dd}`);
+                            } else {
+                              setExpectedDate('');
+                            }
+                          }}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
 
