@@ -85,6 +85,7 @@ function ProcessCenterContent() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // 审批弹窗
   const [reviewingApp, setReviewingApp] = useState<ProcessApplication | null>(null);
@@ -144,6 +145,15 @@ function ProcessCenterContent() {
       fetchCustomers();
     }
   }, [showAddDialog, fetchCustomers]);
+
+  // 点击外部关闭客户下拉
+  useEffect(() => {
+    const handleClickOutside = () => setShowCustomerDropdown(false);
+    if (showCustomerDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showCustomerDropdown]);
 
   // 从URL参数自动打开申请表单（管理员不能发起申请）
   useEffect(() => {
@@ -290,6 +300,7 @@ function ProcessCenterContent() {
     setExpectedDate('');
     setNotes('');
     setCustomerSearch('');
+    setShowCustomerDropdown(false);
   };
 
   const formatDate = (dateStr: string) => {
@@ -360,36 +371,63 @@ function ProcessCenterContent() {
               {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
                 <div className="space-y-2">
                   <Label>选择客户</Label>
-                  <Select value={selectedCustomerId} onValueChange={(val) => { setSelectedCustomerId(val); setCustomerSearch(''); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="请选择客户" />
-                    </SelectTrigger>
-                    <SelectContent position="popper" side="bottom" className="max-h-60">
-                      <div className="sticky top-0 bg-popover p-2 border-b" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative">
-                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input
-                            placeholder="搜索客户..."
-                            value={customerSearch}
-                            onChange={(e) => setCustomerSearch(e.target.value)}
-                            className="h-8 pl-7 text-sm"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      </div>
-                      {filteredCustomers.length === 0 ? (
-                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          {customerSearch ? '未找到匹配客户' : '暂无客户'}
-                        </div>
-                      ) : (
-                        filteredCustomers.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder={selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name || '搜索客户...' : '搜索客户...'}
+                        value={customerSearch}
+                        onChange={(e) => {
+                          setCustomerSearch(e.target.value);
+                          setSelectedCustomerId('');
+                          setShowCustomerDropdown(true);
+                        }}
+                        onFocus={() => {
+                          setShowCustomerDropdown(true);
+                          if (selectedCustomerId) {
+                            setSelectedCustomerId('');
+                            setCustomerSearch('');
+                          }
+                        }}
+                        className="pl-8"
+                      />
+                    </div>
+                    {showCustomerDropdown && filteredCustomers.length > 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        {filteredCustomers.map((c) => (
+                          <div
+                            key={c.id}
+                            className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent ${selectedCustomerId === c.id ? 'bg-accent font-medium' : ''}`}
+                            onClick={() => {
+                              setSelectedCustomerId(c.id);
+                              setCustomerSearch('');
+                              setShowCustomerDropdown(false);
+                            }}
+                          >
                             {c.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {showCustomerDropdown && customerSearch && filteredCustomers.length === 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg">
+                        <div className="px-3 py-3 text-sm text-muted-foreground text-center">未找到匹配客户</div>
+                      </div>
+                    )}
+                    {selectedCustomerId && !customerSearch && (
+                      <div className="mt-1 flex items-center gap-1 text-sm">
+                        <span className="text-muted-foreground">已选：</span>
+                        <span className="font-medium">{customers.find(c => c.id === selectedCustomerId)?.name}</span>
+                        <button
+                          type="button"
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => { setSelectedCustomerId(''); }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
