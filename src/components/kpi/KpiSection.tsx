@@ -73,12 +73,15 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
   const fetchKpiData = useCallback(async () => {
     try {
-      const res = await fetch(`/api/kpi/templates?year=${year}`, {
+      const res = await fetch(`/api/kpi/progress?year=${year}`, {
         headers: { ...getAuthHeader() },
       });
-      const result = await res.json();
       if (res.ok) {
-        setKpiData(result);
+        const data = await res.json();
+        setKpiData({
+          templates: Array.isArray(data.templates) ? data.templates : [],
+          progress: Array.isArray(data.progress) ? data.progress : [],
+        });
       }
     } catch (error) {
       console.error('获取KPI数据失败:', error);
