@@ -397,6 +397,17 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
             {/* KPI列表 */}
             <div className="space-y-2">
+              {/* 表头 */}
+              <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 rounded-lg">
+                <div className="w-[70px] flex-shrink-0">考核对象</div>
+                <div className="w-[90px] flex-shrink-0">考核内容</div>
+                <div className="w-[50px] flex-shrink-0">权重</div>
+                <div className="flex-1 min-w-[80px]">考核指标</div>
+                <div className="w-28 flex-shrink-0">当前完成值</div>
+                <div className="w-28 flex-shrink-0">累计完成率</div>
+                {isAdmin && <div className="flex items-center gap-0.5 flex-shrink-0 w-[60px]">操作</div>}
+              </div>
+
               {kpiData.templates.map((tmpl) => {
                 const myProgress = kpiData.progress.find(p => p.template_id === tmpl.id);
                 const actual = getActualValue(tmpl, myProgress);
@@ -416,20 +427,30 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                       </span>
                     </div>
 
-                    {/* 考核内容 */}
+                    {/* 考核内容（指标名称） */}
                     <div className="w-[90px] flex-shrink-0">
                       <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', INDICATOR_COLORS[tmpl.indicator] || 'bg-gray-100')}>
                         {INDICATOR_LABELS[tmpl.indicator] || tmpl.indicator}
                       </span>
                     </div>
 
-                    {/* 权重 */}
+                    {/* 考核权重 */}
                     <div className="w-[50px] flex-shrink-0 text-xs text-gray-500 font-medium">
                       {tmpl.weight}%
                     </div>
 
-                    {/* 绝对值 */}
+                    {/* 考核指标 */}
                     <div className="flex-1 min-w-[80px]">
+                      <span className="text-xs text-gray-600">
+                        {tmpl.indicator === 'online_rate' ? '上线占比' :
+                         tmpl.indicator === 'completion_rate' ? '验收占比' :
+                         tmpl.indicator === 'knowledge_count' ? '知识沉淀篇数' :
+                         tmpl.indicator === 'customer_satisfaction' ? '满意度评分' : ''}
+                      </span>
+                    </div>
+
+                    {/* 当前完成值 */}
+                    <div className="w-28 flex-shrink-0">
                       {isAutoCalculated ? (
                         <span className="text-sm font-semibold text-gray-800">{actual !== null ? `${actual}%` : '-'}</span>
                       ) : isEditable ? (
@@ -466,12 +487,9 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                       )}
                     </div>
 
-                    {/* 相对值（完成率进度条） */}
+                    {/* 累计完成率 */}
                     <div className="w-28 flex-shrink-0">
                       <div className="flex items-center gap-1.5">
-                        <div className="flex-1 text-right">
-                          <span className="text-[10px] text-gray-400 font-medium">完成</span>
-                        </div>
                         <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                           {completion ? (
                             <div
