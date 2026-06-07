@@ -58,20 +58,14 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // 获取上次查看时的待办数量
-  const getLastSeenCount = () => {
-    try {
-      return parseInt(localStorage.getItem('lastSeenPendingCount') || '0', 10);
-    } catch { return 0; }
-  };
-
   // 组合导航项
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems.filter(item => !item.adminOnly);
 
-  // 有效待办数量 = 当前数量 - 上次查看时的数量（仅展示新增的）
-  const effectivePendingCount = pathname === '/workbench' ? 0 : Math.max(0, pendingProcessCount - getLastSeenCount());
+  // 仅管理员显示气泡，待办数量>0时持续显示
+  const effectivePendingCount = isAdmin ? pendingProcessCount : 0;
 
   useEffect(() => {
+    if (!isAdmin) return;
     const fetchPendingCount = async () => {
       try {
         const headers = getAuthHeader();
@@ -86,16 +80,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     fetchPendingCount();
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
-  }, [getAuthHeader]);
-
-  // 进入流程中心时记录当前待办数量
-  useEffect(() => {
-    if (pathname === '/workbench') {
-      try {
-        localStorage.setItem('lastSeenPendingCount', String(pendingProcessCount));
-      } catch {}
-    }
-  }, [pathname, pendingProcessCount]);
+  }, [getAuthHeader, isAdmin]);
 
   // 点击外部关闭菜单
   useEffect(() => {

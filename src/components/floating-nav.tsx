@@ -44,17 +44,12 @@ export function FloatingNav() {
 
   // 菜单展开状态
   const [menuOpen, setMenuOpen] = useState(false);
-  // 待处理流程数量
+  // 待处理流程数量（仅管理员显示气泡）
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
-  // 获取上次查看时的待办数量
-  const getLastSeenCount = () => {
-    try {
-      return parseInt(localStorage.getItem('lastSeenPendingCount') || '0', 10);
-    } catch { return 0; }
-  };
-  const effectivePendingCount = pathname === '/workbench' ? 0 : Math.max(0, pendingProcessCount - getLastSeenCount());
+  const effectivePendingCount = user?.role === 'admin' ? pendingProcessCount : 0;
 
   useEffect(() => {
+    if (user?.role !== 'admin') return;
     const fetchPendingCount = async () => {
       try {
         const headers = getAuthHeader();
@@ -69,16 +64,7 @@ export function FloatingNav() {
     fetchPendingCount();
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
-  }, [getAuthHeader]);
-
-  // 进入流程中心时记录当前待办数量
-  useEffect(() => {
-    if (pathname === '/workbench') {
-      try {
-        localStorage.setItem('lastSeenPendingCount', String(pendingProcessCount));
-      } catch {}
-    }
-  }, [pathname, pendingProcessCount]);
+  }, [getAuthHeader, user?.role]);
 
   // 悬浮按钮位置
   const [fabPos, setFabPos] = useState({ x: 16, y: 0 });
