@@ -5,8 +5,6 @@ import { getCurrentUserInfo } from '@/lib/serverAuth';
 // 工具：search_kingdee_community（搜索社区）、get_kingdee_content_detail（获取详情）
 // 铁律：强制搜索、严格限定星辰产品范围、禁止自编、禁止短链接
 
-// 星辰产品线 ID（预留，搜索工具已内置过滤）
-
 // ========== 工具定义 ==========
 
 interface ToolDefinition {
@@ -18,7 +16,7 @@ interface ToolDefinition {
 const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'search_kingdee_community',
-    description: '搜索金蝶云社区，返回与查询关键词相关的星辰产品线内容。搜索已内置 productLineId=35 过滤，只返回星辰产品线内容。标题为空的结果会自动补充详情摘要，并过滤非星辰内容。',
+    description: '搜索金蝶云社区，返回与查询关键词相关的星辰产品线内容。搜索已内置 productLineId=35 过滤，只返回星辰产品线内容。标题为空的结果会自动补充详情摘要，并过滤非星辰内容。已自动验证链接存活性，404链接已被剔除。',
     parameters: {
       query: {
         type: 'string',
@@ -40,6 +38,42 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
+// ========== 链接存活性验证 ==========
+
+async function verifyUrlAccessible(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
+    });
+    // 如果最终重定向到 404 页面，状态码可能是 200 但页面是 404
+    if (res.status === 404) return false;
+    // 检查是否重定向到 /error/404
+    const finalUrl = res.url || url;
+    if (finalUrl.includes('/error/404')) return false;
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function verifyUrlsAccessible(urls: string[]): Promise<Set<string>> {
+  const validUrls = new Set<string>();
+  const results = await Promise.allSettled(
+    urls.map(async (url) => {
+      const accessible = await verifyUrlAccessible(url);
+      return { url, accessible };
+    })
+  );
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.accessible) {
+      validUrls.add(result.value.url);
+    }
+  }
+  return validUrls;
+}
+
 // ========== 工具实现 ==========
 
 async function searchKingdeeCommunity(query: string): Promise<string> {
@@ -51,14 +85,14 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
     // 使用 advancedSearch 限定 vip.kingdee.com
     const results = await searchClient.advancedSearch(`金蝶云星辰 ${query}`, {
       sites: 'vip.kingdee.com',
-      count: 8,
+      count: 10,
       needSummary: false,
     });
 
     const items: Array<{ title: string; url: string; snippet: string; type: string }> = [];
 
     if (results.web_items && results.web_items.length > 0) {
-      for (const item of results.web_items.slice(0, 8)) {
+      for (const item of results.web_items.slice(0, 10)) {
         const url: string = item.url || '';
         const title: string = item.title || '';
         const snippet: string = item.snippet || '';
@@ -72,6 +106,9 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
         // 过滤短链接
         if (url.includes('/link/s/')) continue;
 
+        // 只保留金蝶社区链接
+        if (!url.includes('vip.kingdee.com')) continue;
+
         // 为标题为空的结果补充摘要
         const displayTitle = title || `[${type}] ${snippet.slice(0, 60)}...`;
 
@@ -83,7 +120,17 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
       return '搜索未找到相关结果。请尝试更换关键词。';
     }
 
-    return items.map((item, i) =>
+    // 并行验证所有链接的存活性，过滤掉 404 的帖子
+    const urls = items.map((item) => item.url);
+    const validUrls = await verifyUrlsAccessible(urls);
+
+    const validItems = items.filter((item) => validUrls.has(item.url));
+
+    if (validItems.length === 0) {
+      return '搜索结果中的链接均不可访问（可能是已删除或404页面）。请尝试更换关键词。';
+    }
+
+    return validItems.map((item, i) =>
       `[${i + 1}] 标题: ${item.title}\n    类型: ${item.type}\n    链接: ${item.url}\n    摘要: ${item.snippet}`
     ).join('\n\n');
   } catch (error: any) {
@@ -94,6 +141,12 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
 
 async function getKingdeeContentDetail(url: string): Promise<string> {
   try {
+    // 先验证链接是否可访问
+    const accessible = await verifyUrlAccessible(url);
+    if (!accessible) {
+      return '该链接已失效（404），无法获取内容。请基于其他搜索结果回答。';
+    }
+
     const { FetchClient } = await import('coze-coding-dev-sdk');
     const fetchClient = new FetchClient();
     const fetchResult = await fetchClient.fetch(url);
@@ -271,7 +324,6 @@ ${toolDesc}
             let assistantResponse = '';
             let toolCallParsed: { name: string; args: Record<string, string> } | null = null;
             let collectingToolCall = false;
-            let bufferBeforeToolCall = '';
 
             const stream = llmClient.stream(conversationHistory, { model: 'deepseek-v3-2-251201' });
 
