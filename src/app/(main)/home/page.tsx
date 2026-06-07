@@ -886,7 +886,7 @@ export default function HomePage() {
                   ? (qaTokenValid === false ? "请先配置 Token..." : qaTokenValid === null ? "正在检查连接..." 
                     : !qaSelectedProductId ? "请先选择产品..." 
                     : "输入星辰产品使用问题...") 
-                  : (input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送...")}
+                  : (input.trim() ? "问小蝶任何问题..." : "空格开启语音输入，Enter发送...")}
                 rows={1}
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
