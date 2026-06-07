@@ -121,6 +121,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
         setMinutesError(data.error || '提取纪要失败');
         return;
       }
+      if (data.success === false) {
+        setMinutesError(data.error || '提取纪要失败');
+        return;
+      }
       if (data.minutes) {
         const existing = editLogForm.summary.trim();
         setEditLogForm({
@@ -157,6 +161,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
       });
       const data = await res.json();
       if (!res.ok) {
+        setMinutesError(data.error || '提取纪要失败');
+        return;
+      }
+      if (data.success === false) {
         setMinutesError(data.error || '提取纪要失败');
         return;
       }
@@ -1112,7 +1120,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                           setLogForm({ ...logForm, meeting_link: e.target.value });
                           setMinutesError('');
                         }}
-                        placeholder="粘贴腾讯会议回放链接"
+                        placeholder="粘贴会议回放链接或输入9位会议号"
                         className="flex-1"
                       />
                       <Button
@@ -1232,7 +1240,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                           setEditLogForm({ ...editLogForm, meeting_link: e.target.value });
                           setMinutesError('');
                         }}
-                        placeholder="粘贴腾讯会议回放链接"
+                        placeholder="粘贴会议回放链接或输入9位会议号"
                         className="flex-1"
                       />
                       <Button

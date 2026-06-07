@@ -145,20 +145,11 @@ async function queryRecordings(
   const start = startTime || now - 31 * 24 * 3600; // 默认近31天
   const end = endTime || now;
 
-  const params = new URLSearchParams({
-    operator_id: OPERATOR_ID,
-    operator_id_type: '1',
-    start_time: start.toString(),
-    end_time: end.toString(),
-    page_size: '20',
-    page: '1',
-  });
-
+  // 直接拼接查询参数（避免 URLSearchParams 编码导致签名不一致）
+  let uri = `/v1/records?operator_id=${OPERATOR_ID}&operator_id_type=1&start_time=${start}&end_time=${end}&page_size=20&page=1`;
   if (meetingCode) {
-    params.set('meeting_code', meetingCode);
+    uri += `&meeting_code=${meetingCode}`;
   }
-
-  const uri = `/v1/records?${params.toString()}`;
   const result = await apiGet(uri) as {
     total_count: number;
     record_meetings: RecordMeeting[];
@@ -172,12 +163,8 @@ async function queryRecordings(
  * 文档: https://cloud.tencent.com/document/product/1095/51180
  */
 async function queryRecordingDetail(recordFileId: string): Promise<RecordingDetail> {
-  const params = new URLSearchParams({
-    operator_id: OPERATOR_ID,
-    operator_id_type: '1',
-  });
-
-  const uri = `/v1/addresses/${recordFileId}?${params.toString()}`;
+  // 直接拼接查询参数（避免 URLSearchParams 编码导致签名不一致）
+  const uri = `/v1/addresses/${recordFileId}?operator_id=${OPERATOR_ID}&operator_id_type=1`;
   return apiGet(uri) as Promise<RecordingDetail>;
 }
 
@@ -195,11 +182,62 @@ async function downloadMinutesContent(downloadUrl: string): Promise<string> {
 }
 
 /**
+ * 尝试通过跟随重定向解析 CRM 分享链接
+ * CRM 链接格式: https://meeting.tencent.com/crm/XXXXX
+ * 会重定向到包含会议信息的页面
+ */
+async function resolveCrmShareLink(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000),
+    });
+    const finalUrl = response.url || response.headers.get('location') || '';
+    // 从重定向后的 URL 中尝试提取会议号
+    if (finalUrl && finalUrl !== url) {
+      const code = parseMeetingCode(finalUrl);
+      if (code) return code;
+    }
+  } catch {
+    // HEAD 请求可能不支持，尝试 GET
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    const finalUrl = response.url || '';
+    if (finalUrl && finalUrl !== url) {
+      const code = parseMeetingCode(finalUrl);
+      if (code) return code;
+    }
+    // 尝试从页面内容中提取会议号
+    const html = await response.text();
+    // 常见模式: meetingCode / meeting_code / meetingId 等
+    const codeMatch = html.match(/["']meeting_code["']\s*[:=]\s*["']?(\d{9,11})["']?/);
+    if (codeMatch) return codeMatch[1];
+    const idMatch = html.match(/["']meetingId["']\s*[:=]\s*["']?(\d{9,11})["']?/);
+    if (idMatch) return idMatch[1];
+  } catch {
+    // 忽略
+  }
+
+  return null;
+}
+
+/**
  * 从腾讯会议 URL 中提取会议号
  * 支持格式:
  * - 纯数字会议号: 423111111
  * - 邀请链接: https://meeting.tencent.com/dm/l/XXXXXXX
  * - 回放链接: https://meeting.tencent.com/v2/cloud-record/share?id=SHARE_ID
+ * - CRM分享链接: https://meeting.tencent.com/crm/XXXXX
  */
 export function parseMeetingCode(url: string): string | null {
   // 纯数字（9位会议号）
@@ -239,6 +277,18 @@ export function parseMeetingCode(url: string): string | null {
 }
 
 /**
+ * 判断是否为 CRM 分享链接
+ */
+function isCrmShareLink(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname.startsWith('/crm/');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 提取会议纪要 - 主入口函数
  * 流程: URL/会议号 → 查询录制列表 → 获取录制详情 → 下载纪要内容
  */
@@ -262,12 +312,42 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
   }
 
   // 1. 解析会议号
-  const meetingCode = parseMeetingCode(meetingUrlOrCode);
+  let meetingCode = parseMeetingCode(meetingUrlOrCode);
+
+  // 2. 如果无法解析，尝试通过 CRM 分享链接解析
+  if (!meetingCode && isCrmShareLink(meetingUrlOrCode)) {
+    meetingCode = await resolveCrmShareLink(meetingUrlOrCode);
+  }
+
+  // 3. 如果仍然无法解析，查询最近录制列表尝试匹配
   if (!meetingCode) {
+    try {
+      const recentRecordings = await queryRecordings();
+      if (recentRecordings.length > 0) {
+        // 取最近一条录制，返回提示让用户确认
+        const latest = recentRecordings[0];
+        return {
+          success: false,
+          minutes: '',
+          error: `无法从链接中解析会议号，请直接输入9位会议号。最近录制：${latest.subject || '未知会议'}（会议号: ${latest.meeting_code}）`,
+          meetingInfo: {
+            subject: latest.subject || '未知会议',
+            meetingCode: latest.meeting_code,
+            meetingId: latest.meeting_id,
+            startTime: latest.record_files?.[0]?.record_start_time
+              ? new Date(latest.record_files[0].record_start_time).toLocaleString('zh-CN')
+              : '未知',
+          },
+        };
+      }
+    } catch {
+      // 忽略
+    }
+
     return {
       success: false,
       minutes: '',
-      error: '无法从输入中解析出腾讯会议号。请输入9-11位数字的会议号或有效的腾讯会议链接',
+      error: '无法从输入中解析出腾讯会议号。请输入9-11位数字的会议号，或使用标准会议链接（如邀请链接）',
     };
   }
 
@@ -419,10 +499,21 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('[TencentMeeting] 提取纪要失败:', errorMessage);
+
+    // 提供更友好的错误提示
+    let friendlyError = `提取纪要失败: ${errorMessage}`;
+    if (errorMessage.includes('200003') || errorMessage.includes('签名验证错误')) {
+      friendlyError = '腾讯会议 API 签名验证失败，请检查 API 凭证配置是否正确。建议使用9位会议号直接查询';
+    } else if (errorMessage.includes('190303') || errorMessage.includes('鉴权失败')) {
+      friendlyError = '腾讯会议 API 鉴权失败，请检查 AppId/SecretId/SecretKey 配置';
+    } else if (errorMessage.includes('51180') || errorMessage.includes('STS-Token')) {
+      friendlyError = '查询录制详情需要 STS-Token，请在腾讯会议企管后台配置事件订阅后重试';
+    }
+
     return {
       success: false,
       minutes: '',
-      error: `提取纪要失败: ${errorMessage}`,
+      error: friendlyError,
     };
   }
 }
