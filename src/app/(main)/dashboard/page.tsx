@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -244,6 +244,15 @@ export default function DashboardPage() {
     if (change < 0) return 'text-red-600';
     return 'text-gray-500';
   };
+
+  const sortedRanking = useMemo(() =>
+    [...rankingData].sort((a, b) => {
+      const aVal = a[rankingDimension] ?? 0;
+      const bVal = b[rankingDimension] ?? 0;
+      return bVal - aVal;
+    }),
+    [rankingData, rankingDimension]
+  );
 
   // 首次加载显示全屏loading
   if (isInitialLoading) {
@@ -691,10 +700,8 @@ export default function DashboardPage() {
             <CardContent>
               {rankingData && rankingData.length > 0 ? (
                 <div className="space-y-3">
-                  {[...rankingData]
-                    .sort((a, b) => b[rankingDimension] - a[rankingDimension])
-                    .map((consultant, index) => {
-                      const rate = consultant[rankingDimension];
+                  {sortedRanking.map((consultant, index) => {
+                      const rate = consultant[rankingDimension] ?? 0;
                       const dimensionLabel: Record<string, string> = {
                         kpiRate: 'KPI完成率',
                         onlineRate: '上线率',
