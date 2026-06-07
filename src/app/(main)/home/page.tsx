@@ -661,9 +661,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-slate-50 to-white">
+    <div className="h-full flex flex-col bg-gradient-to-b from-slate-50 to-slate-50/80">
       {/* 头部区域 */}
-      <div className="flex-shrink-0 pt-6 pb-4 px-6 border-b border-slate-100">
+      <div className="flex-shrink-0 pt-6 pb-4 px-6">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full overflow-hidden shadow-lg shadow-blue-500/20 bg-white">
@@ -830,9 +830,9 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 输入区域 */}
-      <div className="flex-shrink-0 border-t border-slate-100 bg-white/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto p-4">
+      {/* 悬浮输入区域 */}
+      <div className="flex-shrink-0 bg-transparent">
+        <div className="max-w-3xl mx-auto px-4 pb-4">
           <form onSubmit={handleSubmit}>
             {/* 快捷提问胶囊 - 仅交付助手模式显示 */}
             {chatMode === 'delivery' && (
