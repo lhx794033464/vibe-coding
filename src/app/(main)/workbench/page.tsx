@@ -89,6 +89,7 @@ function ProcessCenterContent() {
   const [submitting, setSubmitting] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 全局粘贴监听：群聊解散表单时支持粘贴截图
   useEffect(() => {
@@ -351,6 +352,19 @@ function ProcessCenterContent() {
     return [];
   };
 
+  const filteredApplications = applications.filter((app) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const customerNames = getAppCustomerNames(app);
+    return (
+      getTypeLabel(app.type).toLowerCase().includes(q) ||
+      getStatusLabel(app.status).toLowerCase().includes(q) ||
+      customerNames.some(n => n.toLowerCase().includes(q)) ||
+      (app.notes && app.notes.toLowerCase().includes(q)) ||
+      (app.applicant_name && app.applicant_name.toLowerCase().includes(q))
+    );
+  });
+
   // 获取申请的客户名称（兼容新旧数据格式）
   const getAppCustomerNames = (app: ProcessApplication): string[] => {
     if (app.customerNames && app.customerNames.length > 0) {
@@ -468,6 +482,17 @@ function ProcessCenterContent() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="搜索流程..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Process List */}
@@ -477,12 +502,12 @@ function ProcessCenterContent() {
               <div className="flex justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : applications.length === 0 ? (
+            ) : filteredApplications.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                {activeTab === 'pending' ? '暂无待办流程' : '暂无已办流程'}
+                {searchQuery ? '未找到匹配的流程' : (activeTab === 'pending' ? '暂无待办流程' : '暂无已办流程')}
               </div>
             ) : (
-              applications.map((app) => renderAppCard(app))
+              filteredApplications.map((app) => renderAppCard(app))
             )}
           </div>
         </div>
