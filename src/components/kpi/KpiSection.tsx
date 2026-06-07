@@ -405,34 +405,33 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                 const isEditable = tmpl.indicator === 'knowledge_count' || (tmpl.indicator === 'customer_satisfaction' && isAdmin);
 
                 return (
-                  <div key={tmpl.id} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50/50 transition-colors">
+                  <div key={tmpl.id} className="flex items-center gap-2 p-3 rounded-lg border hover:bg-gray-50/50 transition-colors">
                     {/* 考核对象 */}
-                    <span className={cn(
-                      'text-xs font-medium px-2 py-0.5 rounded-full',
-                      tmpl.target_role === '交付顾问' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
-                    )}>
-                      {tmpl.target_role || '交付顾问'}
-                    </span>
+                    <div className="w-[70px] flex-shrink-0">
+                      <span className={cn(
+                        'text-xs font-medium px-2 py-0.5 rounded-full',
+                        tmpl.target_role === '交付顾问' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
+                      )}>
+                        {tmpl.target_role || '交付顾问'}
+                      </span>
+                    </div>
 
-                    {/* 考核内容（指标名称） */}
-                    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', INDICATOR_COLORS[tmpl.indicator] || 'bg-gray-100')}>
-                      {INDICATOR_LABELS[tmpl.indicator] || tmpl.indicator}
-                    </span>
+                    {/* 考核内容 */}
+                    <div className="w-[90px] flex-shrink-0">
+                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', INDICATOR_COLORS[tmpl.indicator] || 'bg-gray-100')}>
+                        {INDICATOR_LABELS[tmpl.indicator] || tmpl.indicator}
+                      </span>
+                    </div>
 
                     {/* 权重 */}
-                    <span className="text-xs text-gray-500">{tmpl.weight}%</span>
+                    <div className="w-[50px] flex-shrink-0 text-xs text-gray-500 font-medium">
+                      {tmpl.weight}%
+                    </div>
 
-                    {/* 实际值/完成率 */}
-                    <div className="text-right flex-shrink-0 min-w-[100px]">
+                    {/* 绝对值 */}
+                    <div className="flex-1 min-w-[80px]">
                       {isAutoCalculated ? (
-                        <>
-                          <p className="text-sm font-semibold text-gray-800">
-                            {actual !== null ? `${actual}%` : '-'}
-                          </p>
-                          {completion && (
-                            <p className="text-xs text-gray-400">完成率 {completion.label}</p>
-                          )}
-                        </>
+                        <span className="text-sm font-semibold text-gray-800">{actual !== null ? `${actual}%` : '-'}</span>
                       ) : isEditable ? (
                         editingProgress?.templateId === tmpl.id ? (
                           <div className="flex items-center gap-1">
@@ -451,7 +450,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                             </Button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1 justify-end">
+                          <div className="flex items-center gap-1">
                             <span className="text-sm font-semibold text-gray-800">
                               {actual !== null ? `${actual}${tmpl.indicator === 'knowledge_count' ? '篇' : '%'}` : '-'}
                             </span>
@@ -467,11 +466,14 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                       )}
                     </div>
 
-                    {/* 完成率进度条 */}
-                    <div className="w-24 flex-shrink-0">
-                      {completion ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                    {/* 相对值（完成率进度条） */}
+                    <div className="w-28 flex-shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 text-right">
+                          <span className="text-[10px] text-gray-400 font-medium">完成</span>
+                        </div>
+                        <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                          {completion ? (
                             <div
                               className="h-1.5 rounded-full transition-all duration-500"
                               style={{
@@ -479,22 +481,22 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                                 backgroundColor: completion.rate >= 80 ? '#22c55e' : completion.rate >= 60 ? '#eab308' : '#ef4444',
                               }}
                             />
-                          </div>
-                          <span className={cn(
-                            'text-xs font-medium w-8 text-right',
-                            completion.rate >= 80 ? 'text-green-600' : completion.rate >= 60 ? 'text-yellow-600' : 'text-red-600'
-                          )}>
-                            {completion.label}
-                          </span>
+                          ) : (
+                            <div className="h-1.5 w-0 rounded-full" />
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">暂无数据</span>
-                      )}
+                        <span className={cn(
+                          'text-xs font-medium w-9 text-right',
+                          completion ? (completion.rate >= 80 ? 'text-green-600' : completion.rate >= 60 ? 'text-yellow-600' : 'text-red-600') : 'text-gray-400'
+                        )}>
+                          {completion?.label || '-'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* 管理员操作 */}
                     {isAdmin && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditTemplate(tmpl)}>
                           <Pencil className="h-3.5 w-3.5 text-gray-400" />
                         </Button>
