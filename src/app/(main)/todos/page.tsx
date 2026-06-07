@@ -507,9 +507,10 @@ export default function TodosPage() {
             {filter === 'pending' && (
             <div className="p-4">
               {pendingTodos.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">
-                  暂无待办事项
-                </p>
+                <div className="py-6 text-center">
+                  <p className="text-sm text-muted-foreground">暂无待办事项</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">在右侧添加新的待办</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {pendingTodos.map(todo => {
@@ -709,12 +710,7 @@ export default function TodosPage() {
             </div>
             )}
 
-            {pendingTodos.length === 0 && completedGroupedByDate.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground">
-                <p>暂无待办事项</p>
-                <p className="text-xs mt-1">在右侧添加新的待办</p>
-              </div>
-            )}
+
           </div>
         </div>
 
