@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       // 获取所有顾问用户
       const { data: consultants } = await supabase
         .from('users')
-        .select('id, username')
+        .select('id, username, role')
         .in('role', ['交付顾问', '答疑顾问']);
 
       const consultantIds = (consultants || []).map(c => c.id).filter(Boolean);
@@ -72,26 +72,42 @@ export async function GET(request: NextRequest) {
       for (const tmpl of templates) {
         const tid = (tmpl as any).id;
         const indicator = (tmpl as any).indicator;
+        const targetRole = (tmpl as any).target_role || '交付顾问';
+
+        // 按模板的目标角色筛选顾问
+        const roleConsultants = (consultants || []).filter((c: any) => c.role === targetRole);
+        const roleConsultantCount = roleConsultants.length;
 
         if (indicator === 'online_rate') {
-          // 所有顾问的上线率平均值
-          const rates = Object.values(consultantRates).map((r: any) => r.onlineRate);
+          // 按目标角色筛选后的顾问上线率平均值
+          const rates = roleConsultants.map((c: any) => consultantRates[c.id]?.onlineRate ?? 0);
           const avg = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
           adminStats[tid] = { averageValue: Math.round(avg * 10) / 10 };
         } else if (indicator === 'completion_rate') {
-          // 所有顾问的验收率平均值
-          const rates = Object.values(consultantRates).map((r: any) => r.acceptanceRate);
+          // 按目标角色筛选后的顾问验收率平均值
+          const rates = roleConsultants.map((c: any) => consultantRates[c.id]?.acceptanceRate ?? 0);
           const avg = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
           adminStats[tid] = { averageValue: Math.round(avg * 10) / 10 };
-        } else if (indicator === 'knowledge_count' || indicator === 'customer_satisfaction') {
-          // 所有顾问的手动填写值平均值
+        } else if (indicator === 'knowledge_count') {
+          // 所有同角色顾问的知识沉淀平均值（未填视为0）
           const relevantProgress = (progress || []).filter(p => p.template_id === tid);
-          if (relevantProgress.length > 0) {
-            const sum = relevantProgress.reduce((s, p: any) => s + parseFloat(p.manual_value || '0'), 0);
-            const avg = sum / relevantProgress.length;
+          const sum = relevantProgress.reduce((s, p: any) => s + parseFloat(p.manual_value || '0'), 0);
+          if (roleConsultantCount > 0) {
+            adminStats[tid] = { averageValue: Math.round((sum / roleConsultantCount) * 10) / 10 };
+          } else {
+            adminStats[tid] = { averageValue: 0 };
+          }
+        } else if (indicator === 'customer_satisfaction') {
+          // 所有同角色顾问的客户满意度平均值（未填视为100）
+          const relevantProgress = (progress || []).filter(p => p.template_id === tid);
+          const filledSum = relevantProgress.reduce((s, p: any) => s + parseFloat(p.manual_value || '0'), 0);
+          const filledCount = relevantProgress.length;
+          const unfilledCount = Math.max(0, roleConsultantCount - filledCount);
+          if (roleConsultantCount > 0) {
+            const avg = (filledSum + unfilledCount * 100) / roleConsultantCount;
             adminStats[tid] = { averageValue: Math.round(avg * 10) / 10 };
           } else {
-            adminStats[tid] = { averageValue: indicator === 'customer_satisfaction' ? 100 : 0 };
+            adminStats[tid] = { averageValue: 100 };
           }
         }
       }
