@@ -231,14 +231,75 @@ export async function GET(request: NextRequest) {
     })).sort((a, b) => b.weightedScore - a.weightedScore);
 
     // 交付顾问排行数据（用于排行表）
-    const consultantRanking = Object.entries(consultantStats).map(([name, s]) => ({
-      name,
-      projectCount: s.projectCount,
-      onlineRate: s.projectCount > 0 ? Math.round(s.onlineCount / s.projectCount * 1000) / 10 : 0,
-      oneMonthOnlineRate: s.oneMonthTotal > 0 ? Math.round(s.oneMonthOnline / s.oneMonthTotal * 1000) / 10 : 0,
-      fourMonthsOnlineRate: s.fourMonthsTotal > 0 ? Math.round(s.fourMonthsOnline / s.fourMonthsTotal * 1000) / 10 : 0,
-      acceptanceRate: s.projectCount > 0 ? Math.round(s.acceptedCount / s.projectCount * 1000) / 10 : 0,
-    }));
+    // 同时计算每位顾问的KPI完成率
+    const assessmentYear = now.getFullYear();
+    const { data: kpiTemplates } = await client
+      .from('kpi_templates')
+      .select('*')
+      .eq('year', assessmentYear)
+      .order('sort_order', { ascending: true });
+
+    const totalKpiWeight = (kpiTemplates || []).reduce((sum: number, t: any) => sum + parseFloat(t.weight || '0'), 0);
+
+    // 获取用户名与user_id的映射
+    const { data: allUsers } = await client
+      .from('users')
+      .select('username, id');
+    const userMap: Record<string, string> = {};
+    (allUsers || []).forEach((u: any) => {
+      userMap[u.username] = u.id;
+    });
+
+    // 批量查询所有顾问的KPI进度
+    const consultantIds = Object.keys(consultantStats).map(n => userMap[n]).filter(Boolean);
+    const { data: allKpiProgress } = await client
+      .from('kpi_progress')
+      .select('*')
+      .eq('year', assessmentYear)
+      .in('user_id', consultantIds.length > 0 ? consultantIds : ['_none_']);
+
+    const kpiProgressByUser: Record<string, Record<string, any>> = {};
+    (allKpiProgress || []).forEach((p: any) => {
+      if (!kpiProgressByUser[p.user_id]) kpiProgressByUser[p.user_id] = {};
+      kpiProgressByUser[p.user_id][p.template_id] = p;
+    });
+
+    const consultantRanking = Object.entries(consultantStats).map(([name, s]) => {
+      // 计算KPI完成率
+      let kpiRate = 0;
+      if (kpiTemplates && kpiTemplates.length > 0 && totalKpiWeight > 0) {
+        const userId = userMap[name];
+        const userProgress = userId ? kpiProgressByUser[userId] || {} : {};
+        let totalWeighted = 0;
+        kpiTemplates.forEach((t: any) => {
+          const weight = parseFloat(t.weight || '0');
+          const progress = userProgress[t.id];
+          const targetValue = parseFloat(t.target_value || '0') || 100;
+          let actualValue = 0;
+          if (t.indicator === 'online_rate') {
+            actualValue = s.projectCount > 0 ? (s.onlineCount / s.projectCount * 100) : 0;
+          } else if (t.indicator === 'completion_rate') {
+            actualValue = s.projectCount > 0 ? (s.acceptedCount / s.projectCount * 100) : 0;
+          } else if (t.indicator === 'customer_satisfaction') {
+            actualValue = parseFloat(progress?.manual_value || '0') || 100;
+          } else {
+            actualValue = parseFloat(progress?.manual_value || '0') || 0;
+          }
+          const rate = targetValue > 0 ? Math.min(Math.round((actualValue / targetValue) * 100), 100) : 0;
+          totalWeighted += rate * (weight / totalKpiWeight);
+        });
+        kpiRate = Math.round(totalWeighted * 10) / 10;
+      }
+      return {
+        name,
+        projectCount: s.projectCount,
+        onlineRate: s.projectCount > 0 ? Math.round(s.onlineCount / s.projectCount * 1000) / 10 : 0,
+        oneMonthOnlineRate: s.oneMonthTotal > 0 ? Math.round(s.oneMonthOnline / s.oneMonthTotal * 1000) / 10 : 0,
+        fourMonthsOnlineRate: s.fourMonthsTotal > 0 ? Math.round(s.fourMonthsOnline / s.fourMonthsTotal * 1000) / 10 : 0,
+        acceptanceRate: s.projectCount > 0 ? Math.round(s.acceptedCount / s.projectCount * 1000) / 10 : 0,
+        kpiRate,
+      };
+    });
 
     return NextResponse.json({
       totalCustomers,

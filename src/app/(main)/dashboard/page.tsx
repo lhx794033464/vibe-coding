@@ -43,7 +43,7 @@ interface DashboardStats {
   statusDistribution: Record<string, number>;
   acceptanceDistribution: Record<string, number>;
   consultantDistribution: { name: string; projectCount: number; totalDays: number }[];
-  consultantRanking: { name: string; projectCount: number; onlineRate: number; oneMonthOnlineRate: number; fourMonthsOnlineRate: number; acceptanceRate: number }[];
+  consultantRanking: { name: string; projectCount: number; onlineRate: number; oneMonthOnlineRate: number; fourMonthsOnlineRate: number; acceptanceRate: number; kpiRate: number }[];
 }
 
 const initialStats: DashboardStats = {
@@ -96,9 +96,9 @@ export default function DashboardPage() {
   const [customStartDate, setCustomStartDate] = useState(() => getStoredDates()?.customStartDate ?? '');
   const [customEndDate, setCustomEndDate] = useState(() => getStoredDates()?.customEndDate ?? '');
   const [roleType, setRoleType] = useState<string>(() => getStoredDates()?.roleType ?? '交付顾问');
-  const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate'>('onlineRate');
+  const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate' | 'kpiRate'>('onlineRate');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
-  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number}[]>([]);
+  const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number,kpiRate:number}[]>([]);
   const [unlaunchedData, setUnlaunchedData] = useState<{name:string,oneMonthNotOnline:number,fourMonthsNotOnline:number}[]>([]);
   const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
   const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
@@ -678,6 +678,7 @@ export default function DashboardPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent position="popper" side="bottom">
+                      <SelectItem value="kpiRate">KPI完成率</SelectItem>
                       <SelectItem value="onlineRate">上线率</SelectItem>
                       <SelectItem value="oneMonthOnlineRate">一个月上线率</SelectItem>
                       <SelectItem value="fourMonthsOnlineRate">四个月上线率</SelectItem>
@@ -695,6 +696,7 @@ export default function DashboardPage() {
                     .map((consultant, index) => {
                       const rate = consultant[rankingDimension];
                       const dimensionLabel: Record<string, string> = {
+                        kpiRate: 'KPI完成率',
                         onlineRate: '上线率',
                         oneMonthOnlineRate: '一个月上线率',
                         fourMonthsOnlineRate: '四个月上线率',

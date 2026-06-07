@@ -455,16 +455,16 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                           <div className="flex items-center gap-1">
                             <Input
                               type="number"
-                              className="w-20 h-7 text-xs"
+                              className="w-32 h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               value={editingProgress.value}
                               onChange={(e) => setEditingProgress({ templateId: tmpl.id, value: e.target.value })}
                               autoFocus
                             />
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSaveProgress(tmpl.id)} disabled={savingProgress}>
-                              {savingProgress ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-green-600" />}
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSaveProgress(tmpl.id)} disabled={savingProgress}>
+                              {savingProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-green-600" />}
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingProgress(null)}>
-                              <X className="h-3 w-3 text-gray-400" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingProgress(null)}>
+                              <X className="h-4 w-4 text-gray-400" />
                             </Button>
                           </div>
                         ) : (
