@@ -1,38 +1,183 @@
 import { NextRequest } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 
-// 金蝶云社区搜索 + FetchClient 提取 + LLM 筛选答疑
-// 铁律：严格限定星辰产品范围，严禁回答其他产品线问题
+// 金蝶AI星辰专属答疑助手 — Agent 架构
+// 工具：search_kingdee_community（搜索社区）、get_kingdee_content_detail（获取详情）
+// 铁律：强制搜索、严格限定星辰产品范围、禁止自编、禁止短链接
 
-const KDT_TOKEN = 'kdt_8f3980077028f2f4d45c862a6acbcc76';
+// 星辰产品线 ID（预留，搜索工具已内置过滤）
 
-// 星辰产品关键词白名单 — 用于识别问题是否属于星辰产品范围
-const XINGCHEN_KEYWORDS = [
-  '星辰', '云星辰', '金蝶云星辰', '金蝶AI星辰',
-  '应收', '应付', '收款', '付款', '采购', '销售', '库存',
-  '凭证', '科目', '总账', '明细账', '资产负债', '利润',
-  '核算', '结账', '反结账', '过账', '期末', '期初',
-  '客户', '供应商', '商品', '仓库', '出库', '入库',
-  '发票', '税务', '增值税', '开票', '报销', '费用',
-  '银行', '资金', '现金', '存款', '转账',
-  '单据', '审批', '流程', '权限', '角色', '用户',
-  '报表', '对账', '调汇', '核销', '坏账',
-  '预收', '预付', '其他应收', '其他应付',
-  '票据', '背书', '贴现', '承兑',
-  '成本', '毛利', '进价', '售价',
-  '序列号', '批号', '保质期', '多单位',
-  '组装', '拆卸', '委外', '生产',
-  '赠品', '促销', '折扣',
-  // 旗舰版也属于星辰
-  '旗舰版', '专业版', '标准版',
+// ========== 工具定义 ==========
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description: string; required?: boolean }>;
+}
+
+const TOOL_DEFINITIONS: ToolDefinition[] = [
+  {
+    name: 'search_kingdee_community',
+    description: '搜索金蝶云社区，返回与查询关键词相关的星辰产品线内容。搜索已内置 productLineId=35 过滤，只返回星辰产品线内容。标题为空的结果会自动补充详情摘要，并过滤非星辰内容。',
+    parameters: {
+      query: {
+        type: 'string',
+        description: '搜索关键词，2-3个核心词，如"应收票据 处理"',
+        required: true,
+      },
+    },
+  },
+  {
+    name: 'get_kingdee_content_detail',
+    description: '获取金蝶云社区文章/问答的详细内容。当搜索结果的摘要不足以完整回答问题时调用。优先获取 Knowledge 类型，其次是 Question 和 Article。',
+    parameters: {
+      url: {
+        type: 'string',
+        description: '文章的完整URL，如 https://vip.kingdee.com/knowledge/xxx',
+        required: true,
+      },
+    },
+  },
 ];
 
-// 非星辰产品关键词 — 用于排除
-const NON_XINGCHEN_KEYWORDS = [
-  '星空', 'K/3', 'K3 Cloud', 'K3', 'BOS', '苍穹',
-  'EAS', 's-HR', '管易', '精斗云', '金蝶云之家',
-  'BI', '数据中台', 'APaaS', '低代码',
-];
+// ========== 工具实现 ==========
+
+async function searchKingdeeCommunity(query: string): Promise<string> {
+  try {
+    const { SearchClient, Config, HeaderUtils } = await import('coze-coding-dev-sdk');
+    const config = new Config();
+    const searchClient = new SearchClient(config);
+
+    // 使用 advancedSearch 限定 vip.kingdee.com
+    const results = await searchClient.advancedSearch(`金蝶云星辰 ${query}`, {
+      sites: 'vip.kingdee.com',
+      count: 8,
+      needSummary: false,
+    });
+
+    const items: Array<{ title: string; url: string; snippet: string; type: string }> = [];
+
+    if (results.web_items && results.web_items.length > 0) {
+      for (const item of results.web_items.slice(0, 8)) {
+        const url: string = item.url || '';
+        const title: string = item.title || '';
+        const snippet: string = item.snippet || '';
+
+        // 判断内容类型
+        let type = 'unknown';
+        if (url.includes('/knowledge/')) type = 'Knowledge';
+        else if (url.includes('/questions/')) type = 'Question';
+        else if (url.includes('/article/')) type = 'Article';
+
+        // 过滤短链接
+        if (url.includes('/link/s/')) continue;
+
+        // 为标题为空的结果补充摘要
+        const displayTitle = title || `[${type}] ${snippet.slice(0, 60)}...`;
+
+        items.push({ title: displayTitle, url, snippet, type });
+      }
+    }
+
+    if (items.length === 0) {
+      return '搜索未找到相关结果。请尝试更换关键词。';
+    }
+
+    return items.map((item, i) =>
+      `[${i + 1}] 标题: ${item.title}\n    类型: ${item.type}\n    链接: ${item.url}\n    摘要: ${item.snippet}`
+    ).join('\n\n');
+  } catch (error: any) {
+    console.error('[QA] search_kingdee_community error:', error.message);
+    return '搜索工具暂时不可用，请稍后重试。';
+  }
+}
+
+async function getKingdeeContentDetail(url: string): Promise<string> {
+  try {
+    const { FetchClient } = await import('coze-coding-dev-sdk');
+    const fetchClient = new FetchClient();
+    const fetchResult = await fetchClient.fetch(url);
+
+    let content = '';
+    if (fetchResult.content) {
+      for (const item of fetchResult.content) {
+        if (item.text) {
+          content += item.text + '\n';
+        }
+      }
+    }
+
+    if (!content) {
+      return '无法获取该页面的详细内容。';
+    }
+
+    // 限制内容长度
+    return content.slice(0, 5000);
+  } catch (error: any) {
+    console.error('[QA] get_kingdee_content_detail error:', error.message);
+    return '获取详情失败，请稍后重试。';
+  }
+}
+
+// ========== Agent 系统 Prompt ==========
+
+const SYSTEM_PROMPT = `你是金蝶AI星辰（金蝶云星辰）专属答疑助手，专注于为金蝶AI星辰用户提供准确、专业的产品使用问题解答。
+
+## 铁律（最高优先级，绝对不可违反）
+1. 【强制搜索】你必须先调用 search_kingdee_community 工具搜索，然后基于搜索结果回答。禁止在不调用搜索工具的情况下直接回答任何问题。无论问题多么简单或常见，都必须先搜索再回答。
+2. 【产品范围】你只回答金蝶AI星辰（金蝶云星辰）产品相关的问题，搜索工具已内置 productLineId=35 过滤，只返回星辰产品线内容。
+3. 【禁止越线】严禁回答金蝶云星空、金蝶云苍穹、金蝶K/3 Cloud、金蝶KIS、金蝶精斗云等任何其他产品线的问题。若用户问其他产品线问题，拒绝回答并提示仅支持金蝶AI星辰。
+4. 【禁止自编】你的回答必须完全基于搜索工具返回的金蝶云社区内容。严禁使用模型自身训练数据中的任何金蝶产品知识。如果搜索工具没有返回相关结果，必须如实告知，不得自行编造答案。
+5. 【自检机制】回答完成后逐句自检，确保不包含星空、K/3、苍穹、精斗云、KIS 等非星辰产品线名称。如果发现违规内容，立即删除重新回答。
+6. 【禁止短链接】严禁输出任何 vip.kingdee.com/link/s/ 格式的短链接，因为它们可能重定向到云星空内容。只输出搜索结果中提供的原文链接（如 /knowledge/xxx、/questions/xxx、/article/xxx 格式）。
+7. 【链接验证】如果搜索结果中提供的链接指向云星空内容（如 /knowledge/805240982710692096），则禁止输出该链接，并告知用户未找到相关星辰内容。
+
+## 工作流程（必须严格按顺序执行）
+1. 理解用户问题，提取2-3个核心关键词。
+2. 【必须执行】调用 search_kingdee_community 搜索，使用提取的关键词作为查询。搜索工具已自动为标题为空的结果补充详情，并过滤非星辰内容。
+3. 如果搜索结果的摘要和内容不足以完整解答，调用 get_kingdee_content_detail 获取详情。优先获取 Knowledge 类型，其次是 Question 和 Article。
+4. 仅基于搜索结果整合回答，包含问题原因、操作步骤、来源链接。
+5. 搜索无结果时如实告知，建议换关键词、到社区发帖或联系客服，不得自行编造答案。
+
+## 回答格式
+- 所有层级标题独占一行，正文另起一行
+- 操作步骤使用编号列表
+- 关键操作用**加粗**标注
+- 只输出搜索结果中提供的原文链接，禁止自行拼接或输出短链接`;
+
+// ========== 工具调用解析 ==========
+
+function parseToolCall(text: string): { name: string; args: Record<string, string> } | null {
+  // 尝试匹配 JSON 格式的工具调用: {"tool": "name", "args": {...}}
+  const jsonMatch = text.match(/\{"tool"\s*:\s*"([^"]+)"\s*,\s*"args"\s*:\s*(\{[^}]*\})\s*\}/);
+  if (jsonMatch) {
+    try {
+      return {
+        name: jsonMatch[1],
+        args: JSON.parse(jsonMatch[2]),
+      };
+    } catch {}
+  }
+
+  // 尝试匹配简化格式: [CALL:tool_name(key1=val1, key2=val2)]
+  const simpleMatch = text.match(/\[CALL:(\w+)\(([^)]*)\)\]/);
+  if (simpleMatch) {
+    const name = simpleMatch[1];
+    const argsStr = simpleMatch[2];
+    const args: Record<string, string> = {};
+    for (const pair of argsStr.split(',')) {
+      const [key, ...valueParts] = pair.split('=');
+      if (key && valueParts.length > 0) {
+        args[key.trim()] = valueParts.join('=').trim();
+      }
+    }
+    return { name, args };
+  }
+
+  return null;
+}
+
+// ========== Agent 主循环 ==========
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,158 +224,149 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          // Step 1: 检查问题是否属于星辰产品范围
-          sendStatus('🔍 正在分析问题...');
+          const { LLMClient } = await import('coze-coding-dev-sdk');
+          const llmClient = new LLMClient();
 
-          const isXingchenRelated = checkXingchenScope(userMessage);
+          // 工具描述注入到 system prompt
+          const toolDesc = TOOL_DEFINITIONS.map(t => {
+            const params = Object.entries(t.parameters)
+              .map(([k, v]) => `  - ${k} (${v.type}${v.required ? ', 必填' : ''}): ${v.description}`)
+              .join('\n');
+            return `- ${t.name}: ${t.description}\n  参数:\n${params}`;
+          }).join('\n\n');
 
-          if (!isXingchenRelated) {
-            sendContent('\n\n⚠️ 很抱歉，我只能回答**金蝶云·星辰**产品相关的问题。您的问题似乎不属于星辰产品范围，请重新描述您在星辰产品中遇到的具体问题。');
-            sendDone();
-            return;
-          }
+          const fullSystemPrompt = `${SYSTEM_PROMPT}
 
-          // Step 2: 使用 SearchClient 搜索金蝶社区
-          sendStatus('🔍 正在搜索金蝶云社区...');
+## 可用工具
 
-          let searchResults: Array<{ title: string; url: string; snippet: string }> = [];
+${toolDesc}
 
-          try {
-            const { SearchClient, Config, HeaderUtils } = await import('coze-coding-dev-sdk');
-            const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-            const config = new Config();
-            const searchClient = new SearchClient(config, customHeaders);
-            const searchQuery = `金蝶云星辰 ${userMessage}`;
-            const results = await searchClient.advancedSearch(searchQuery, {
-              sites: 'vip.kingdee.com',
-              count: 8,
-              needSummary: false,
-            });
+## 工具调用格式
 
-            if (results.web_items && results.web_items.length > 0) {
-              searchResults = results.web_items.slice(0, 8).map((item: any) => ({
-                title: item.title || '',
-                url: item.url || '',
-                snippet: item.snippet || '',
-              }));
-            }
-          } catch (searchError: any) {
-            console.error('[QA] Search error:', searchError.message);
-          }
+当你需要调用工具时，在回复中使用以下格式（必须独占一行）：
 
-          // 同时用通用搜索补充
-          try {
-            const { SearchClient, Config, HeaderUtils } = await import('coze-coding-dev-sdk');
-            const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-            const config = new Config();
-            const searchClient = new SearchClient(config, customHeaders);
-            const results = await searchClient.webSearch(`金蝶云星辰 ${userMessage}`, 5, false);
+[CALL:tool_name(key1=value1, key2=value2)]
 
-            if (results.web_items && results.web_items.length > 0) {
-              for (const item of results.web_items.slice(0, 5)) {
-                const url: string = item.url || '';
-                // 只补充 vip.kingdee.com 的结果
-                if (url.includes('vip.kingdee.com') && !searchResults.some(r => r.url === url)) {
-                  searchResults.push({
-                    title: item.title || '',
-                    url: url,
-                    snippet: item.snippet || '',
-                  });
-                }
-              }
-            }
-          } catch (searchError: any) {
-            console.error('[QA] Supplementary search error:', searchError.message);
-          }
+例如：
+[CALL:search_kingdee_community(query=应收票据 处理)]
+[CALL:get_kingdee_content_detail(url=https://vip.kingdee.com/knowledge/123456)]
 
-          if (searchResults.length === 0) {
-            sendContent('\n\n未在金蝶云社区找到相关内容，请尝试更具体的描述或直接访问 [金蝶云社区](https://vip.kingdee.com) 搜索。');
-            sendDone();
-            return;
-          }
+调用工具后，等待工具返回结果，然后继续回答或再次调用工具。
+你可以多次调用工具，但每次只能调用一个工具。
+当搜索结果足以回答问题时，直接输出最终回答，不要再调用工具。`;
 
-          // Step 3: 用 FetchClient 提取排名靠前的文章内容
-          sendStatus('📖 正在获取详细内容...');
+          // Agent ReAct 循环
+          const conversationHistory: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+            { role: 'system', content: fullSystemPrompt },
+            { role: 'user', content: userMessage },
+          ];
 
-          const fetchPromises = searchResults.slice(0, 3).map(async (result) => {
-            try {
-              const { FetchClient } = await import('coze-coding-dev-sdk');
-              const fetchClient = new FetchClient();
-              const fetchResult = await fetchClient.fetch(result.url);
+          const MAX_ITERATIONS = 6; // 防止死循环
+          let iteration = 0;
+          let finalAnswerStarted = false;
 
-              let content = '';
-              if (fetchResult.content) {
-                for (const item of fetchResult.content) {
-                  if (item.text) {
-                    content += item.text + '\n';
-                  }
-                }
-              }
-              return {
-                ...result,
-                fullContent: content.slice(0, 3000), // 限制内容长度
-              };
-            } catch {
-              return result;
-            }
-          });
+          while (iteration < MAX_ITERATIONS && !closed) {
+            iteration++;
 
-          const enrichedResults = await Promise.all(fetchPromises);
+            let assistantResponse = '';
+            let toolCallParsed: { name: string; args: Record<string, string> } | null = null;
+            let collectingToolCall = false;
+            let bufferBeforeToolCall = '';
 
-          // Step 4: 使用 LLM 生成最终回答
-          sendStatus('🤔 正在生成回答...');
-
-          try {
-            const { LLMClient } = await import('coze-coding-dev-sdk');
-            const llmClient = new LLMClient();
-
-            const systemPrompt = `你是金蝶云·星辰产品的专业答疑助手。你的职责是根据搜索到的金蝶云社区内容，为用户解答关于金蝶云·星辰产品的问题。
-
-## 铁律（必须严格遵守）
-1. **只回答金蝶云·星辰产品相关问题**，如果搜索结果中涉及其他产品线（如星空、K/3、苍穹等），必须忽略
-2. 回答必须基于搜索结果，不要编造不存在的内容
-3. 如果搜索结果不足以回答问题，如实告知并建议用户访问金蝶云社区
-4. 引用内容时附上来源链接
-
-## 回答格式
-- 使用清晰的分段和列表
-- 操作步骤要详细具体
-- 引用来源时使用格式：[来源](URL)
-- 在回答末尾列出参考链接`;
-
-            const searchContext = enrichedResults.map((r: any, i: number) => {
-              return `### 搜索结果 ${i + 1}: ${r.title}\n链接: ${r.url}\n摘要: ${r.snippet}\n${r.fullContent ? `详细内容:\n${r.fullContent}` : ''}`;
-            }).join('\n\n---\n\n');
-
-            const llmMessages = [
-              { role: 'system' as const, content: systemPrompt },
-              { role: 'user' as const, content: `## 用户问题\n${userMessage}\n\n## 搜索结果\n${searchContext}\n\n请根据以上搜索结果回答用户的问题。` },
-            ];
-
-            const stream = llmClient.stream(llmMessages, { model: 'deepseek-v3-2-251201' });
+            const stream = llmClient.stream(conversationHistory, { model: 'deepseek-v3-2-251201' });
 
             for await (const chunk of stream) {
               if (closed) return;
 
               const text = typeof chunk.content === 'string' ? chunk.content : '';
-              if (text) {
-                sendContent(text);
+              if (!text) continue;
+
+              assistantResponse += text;
+
+              // 检查是否包含工具调用
+              if (text.includes('[CALL:')) {
+                collectingToolCall = true;
               }
+
+              // 如果正在收集工具调用，不直接输出到前端
+              if (collectingToolCall) {
+                // 检查工具调用是否完整（包含闭合括号）
+                const callMatch = assistantResponse.match(/\[CALL:(\w+)\(([^)]*)\)\]/);
+                if (callMatch) {
+                  toolCallParsed = {
+                    name: callMatch[1],
+                    args: {},
+                  };
+                  // 解析参数
+                  const argsStr = callMatch[2];
+                  for (const pair of argsStr.split(',')) {
+                    const [key, ...valueParts] = pair.split('=');
+                    if (key && valueParts.length > 0) {
+                      toolCallParsed.args[key.trim()] = valueParts.join('=').trim();
+                    }
+                  }
+                  break; // 工具调用已完整，停止当前流
+                }
+                // 工具调用还未完整，继续收集
+                continue;
+              }
+
+              // 非工具调用的文本，直接输出到前端
+              if (!finalAnswerStarted) {
+                finalAnswerStarted = true;
+              }
+              sendContent(text);
             }
 
-            sendDone();
-          } catch (llmError: any) {
-            console.error('[QA] LLM error:', llmError.message);
-            // 如果 LLM 失败，直接返回搜索结果
-            const fallbackContent = enrichedResults.map((r: any, i: number) => {
-              return `${i + 1}. **${r.title}**\n   ${r.snippet}\n   链接: ${r.url}`;
-            }).join('\n\n');
+            // 如果检测到工具调用
+            if (toolCallParsed) {
+              const toolName = toolCallParsed.name;
+              const toolArgs = toolCallParsed.args;
 
-            sendContent(`\n\n以下是从金蝶云社区搜索到的相关内容：\n\n${fallbackContent}`);
-            sendDone();
+              // 添加助手回复到历史（包含工具调用）
+              conversationHistory.push({ role: 'assistant', content: assistantResponse });
+
+              let toolResult = '';
+
+              if (toolName === 'search_kingdee_community') {
+                sendStatus('🔍 正在搜索金蝶云社区...');
+                const query = toolArgs.query || toolArgs.keyword || userMessage;
+                toolResult = await searchKingdeeCommunity(query);
+              } else if (toolName === 'get_kingdee_content_detail') {
+                sendStatus('📖 正在获取详细内容...');
+                const url = toolArgs.url || '';
+                if (!url) {
+                  toolResult = '错误：未提供 URL 参数';
+                } else {
+                  toolResult = await getKingdeeContentDetail(url);
+                }
+              } else {
+                toolResult = `错误：未知工具 ${toolName}`;
+              }
+
+              // 将工具结果作为用户消息反馈给 LLM
+              conversationHistory.push({
+                role: 'user',
+                content: `[工具 ${toolName} 返回结果]\n${toolResult}\n\n请根据以上结果继续回答用户的问题。如果需要更多信息，可以再次调用工具。如果信息已足够，请直接输出最终回答。`,
+              });
+
+              // 继续循环，让 LLM 基于工具结果继续回答
+              continue;
+            }
+
+            // 没有工具调用，LLM 已经给出最终回答
+            // 流式内容已在前面的循环中输出
+            break;
           }
+
+          // 如果从未输出任何内容，给一个兜底
+          if (!finalAnswerStarted && !closed) {
+            sendContent('抱歉，暂时无法获取相关信息，请稍后重试或直接访问 [金蝶云社区](https://vip.kingdee.com) 搜索。');
+          }
+
+          sendDone();
         } catch (error: any) {
-          console.error('[QA] Error:', error);
+          console.error('[QA] Agent error:', error);
           if (!closed) {
             sendError('答疑服务暂时不可用，请稍后重试');
           }
@@ -249,28 +385,4 @@ export async function POST(request: NextRequest) {
     console.error('[QA] API error:', error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
-}
-
-/**
- * 检查问题是否属于星辰产品范围
- */
-function checkXingchenScope(question: string): boolean {
-  // 如果明确提到非星辰产品，直接拒绝
-  const lowerQuestion = question.toLowerCase();
-  for (const keyword of NON_XINGCHEN_KEYWORDS) {
-    if (lowerQuestion.includes(keyword.toLowerCase())) {
-      return false;
-    }
-  }
-
-  // 检查是否包含星辰相关关键词
-  for (const keyword of XINGCHEN_KEYWORDS) {
-    if (question.includes(keyword)) {
-      return true;
-    }
-  }
-
-  // 默认允许 — 大多数ERP问题都可能属于星辰
-  // 通过搜索结果和LLM进一步过滤
-  return true;
 }
