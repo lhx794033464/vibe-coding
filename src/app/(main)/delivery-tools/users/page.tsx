@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { Loader2, Plus, Search, LayoutList, LayoutGrid, Edit2, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Search, Edit2, Trash2 } from 'lucide-react';
 
 interface User {
   id: string;
@@ -88,7 +88,6 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [error, setError] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -256,15 +255,6 @@ export default function UsersPage() {
           <p className="text-sm text-muted-foreground mt-1">管理系统用户账号、权限和状态</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
-            className="gap-2"
-          >
-            {viewMode === 'table' ? <LayoutGrid className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
-            {viewMode === 'table' ? '卡片视图' : '表格视图'}
-          </Button>
           <Button onClick={() => { resetForm(); setOpenDialog(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             添加用户
@@ -301,7 +291,7 @@ export default function UsersPage() {
             {searchKeyword.trim() ? '未找到匹配的用户' : '暂无用户数据，点击"添加用户"开始创建'}
           </CardContent>
         </Card>
-      ) : viewMode === 'table' ? (
+      ) : (
         <div className="rounded-lg border bg-white overflow-hidden">
           <Table>
             <TableHeader>
@@ -349,54 +339,6 @@ export default function UsersPage() {
               ))}
             </TableBody>
           </Table>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {filteredAndSortedUsers.map((user) => (
-            <Card key={user.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleEdit(user)}>
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-start gap-3 flex-1">
-                    {/* 用户头像标识 */}
-                    <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${user.role === 'admin' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                    
-                    {/* 用户信息 */}
-                    <div className="flex-1 min-w-0">
-                      {/* 第一行：用户名 + 角色 + 状态 */}
-                      <div className="flex items-start gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-900 text-base">{user.username}</span>
-                        {getRoleBadge(user.role)}
-                        <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
-                          {user.employment_status || '在职'}
-                        </Badge>
-                        {getStatusBadge(user.is_active)}
-                      </div>
-                      {/* 第二行：邮箱 */}
-                      <div className="text-sm text-gray-500 mt-1">
-                        {user.email || '未设置邮箱'}
-                      </div>
-                      {/* 第三行：创建时间 */}
-                      <div className="text-xs text-gray-400 mt-1">
-                        创建于 {new Date(user.created_at).toLocaleDateString('zh-CN')}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* 操作按钮 */}
-                  <div className="flex items-center gap-2 sm:flex-shrink-0">
-                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(user); }}>
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    {user.username !== 'admin' && (
-                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(user); }}>
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
         </div>
       )}
 
