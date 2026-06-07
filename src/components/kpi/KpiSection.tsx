@@ -33,6 +33,7 @@ interface KpiProgress {
 interface KpiData {
   templates: KpiTemplate[];
   progress: KpiProgress[];
+  adminStats?: Record<string, { averageValue: number }>;
 }
 
 interface FormRow {
@@ -231,8 +232,12 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
     }
   };
 
-  // 获取实际值
+  // 获取实际值（管理员视图使用人均平均值）
   const getActualValue = (tmpl: KpiTemplate, progress: KpiProgress | undefined): number | null => {
+    // 管理员：使用人均平均值
+    if (isAdmin && kpiData.adminStats && kpiData.adminStats[tmpl.id]) {
+      return kpiData.adminStats[tmpl.id].averageValue;
+    }
     switch (tmpl.indicator) {
       case 'online_rate':
         return dashboardStats?.onlineRate ?? null;
@@ -271,7 +276,8 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
       const weight = parseFloat(tmpl.weight);
       if (isNaN(weight) || weight <= 0) continue;
 
-      const myProgress = kpiData.progress.find(p => p.template_id === tmpl.id);
+      // 管理员使用人均平均值，普通用户使用个人进度
+      const myProgress = isAdmin ? undefined : kpiData.progress.find(p => p.template_id === tmpl.id);
       const completion = getCompletionRate(tmpl, myProgress);
       if (completion !== null) {
         weightedSum += weight * completion.rate;
@@ -448,7 +454,14 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
                     {/* 当前完成值 */}
                     <div className="w-28 flex-shrink-0">
-                      {isAutoCalculated ? (
+                      {isAdmin ? (
+                        // 管理员视图：只显示人均平均值，不可编辑
+                        <span className="text-sm font-semibold text-gray-800">
+                          {actual !== null
+                            ? `${tmpl.indicator === 'knowledge_count' ? actual.toFixed(1) : actual.toFixed(1)}${tmpl.indicator === 'knowledge_count' ? '篇' : '%'}`
+                            : '-'}
+                        </span>
+                      ) : isAutoCalculated ? (
                         <span className="text-sm font-semibold text-gray-800">{actual !== null ? `${actual}%` : '-'}</span>
                       ) : isEditable ? (
                         editingProgress?.templateId === tmpl.id ? (
