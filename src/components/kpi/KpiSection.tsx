@@ -104,6 +104,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
         setKpiData({
           templates: Array.isArray(data.templates) ? data.templates : [],
           progress: Array.isArray(data.progress) ? data.progress : [],
+          adminStats: data.adminStats || {},
         });
       }
     } catch (error) {
