@@ -140,15 +140,17 @@ interface RecordingDetail {
 async function queryRecordings(
   meetingCode?: string,
   startTime?: number,
-  endTime?: number
+  endTime?: number,
+  operatorId?: string
 ): Promise<RecordMeeting[]> {
   const now = Math.floor(Date.now() / 1000);
   const start = startTime || now - 31 * 24 * 3600; // 默认近31天
   const end = endTime || now;
+  const effectiveOperatorId = operatorId || OPERATOR_ID;
 
   // 先查全部录制列表（不按会议号过滤），避免 meeting_code 参数不匹配
   // 直接拼接查询参数（避免 URLSearchParams 编码导致签名不一致）
-  const uri = `/v1/records?operator_id=${OPERATOR_ID}&operator_id_type=1&start_time=${start}&end_time=${end}&page_size=20&page=1`;
+  const uri = `/v1/records?operator_id=${effectiveOperatorId}&operator_id_type=1&start_time=${start}&end_time=${end}&page_size=20&page=1`;
   const result = await apiGet(uri) as {
     total_count: number;
     record_meetings: RecordMeeting[];
@@ -168,9 +170,10 @@ async function queryRecordings(
  * 查询单个录制详情（含转写、纪要）
  * 文档: https://cloud.tencent.com/document/product/1095/51180
  */
-async function queryRecordingDetail(recordFileId: string): Promise<RecordingDetail> {
+async function queryRecordingDetail(recordFileId: string, operatorId?: string): Promise<RecordingDetail> {
+  const effectiveOperatorId = operatorId || OPERATOR_ID;
   // 直接拼接查询参数（避免 URLSearchParams 编码导致签名不一致）
-  const uri = `/v1/addresses/${recordFileId}?operator_id=${OPERATOR_ID}&operator_id_type=1`;
+  const uri = `/v1/addresses/${recordFileId}?operator_id=${effectiveOperatorId}&operator_id_type=1`;
   return apiGet(uri) as Promise<RecordingDetail>;
 }
 
@@ -298,7 +301,7 @@ function isCrmShareLink(url: string): boolean {
  * 提取会议纪要 - 主入口函数
  * 流程: URL/会议号 → 查询录制列表 → 获取录制详情 → 下载纪要内容
  */
-export async function extractMinutes(meetingUrlOrCode: string): Promise<{
+export async function extractMinutes(meetingUrlOrCode: string, operatorId?: string): Promise<{
   success: boolean;
   minutes: string;
   meetingInfo?: {
@@ -309,7 +312,9 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
   };
   error?: string;
 }> {
-  if (!isTencentMeetingConfigured()) {
+  const effectiveOperatorId = operatorId || OPERATOR_ID;
+
+  if (!isTencentMeetingConfigured() && !operatorId) {
     return {
       success: false,
       minutes: '',
@@ -328,7 +333,7 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
   // 3. 如果仍然无法解析，查询最近录制列表尝试匹配
   if (!meetingCode) {
     try {
-      const recentRecordings = await queryRecordings();
+      const recentRecordings = await queryRecordings(undefined, undefined, undefined, effectiveOperatorId);
       if (recentRecordings.length > 0) {
         // 取最近一条录制，返回提示让用户确认
         const latest = recentRecordings[0];
@@ -359,13 +364,13 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
 
   try {
     // 2. 查询录制列表
-    const recordings = await queryRecordings(meetingCode);
+    const recordings = await queryRecordings(meetingCode, undefined, undefined, effectiveOperatorId);
 
     if (!recordings || recordings.length === 0) {
       return {
         success: false,
         minutes: '',
-        error: `未找到会议号 ${meetingCode} 的录制记录。可能原因：1) 会议未开启云录制 2) 录制尚在转码中 3) 当前用户(${OPERATOR_ID})非会议创建者，需使用会议创建者的userid 4) 会议不在近31天范围内`,
+        error: `未找到会议号 ${meetingCode} 的录制记录。可能原因：1) 会议未开启云录制 2) 录制尚在转码中 3) 当前用户(${effectiveOperatorId})非会议创建者，需使用会议创建者的userid 4) 会议不在近31天范围内`,
       };
     }
 
@@ -402,7 +407,7 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
       };
     }
 
-    const detail = await queryRecordingDetail(String(recordFileId));
+    const detail = await queryRecordingDetail(String(recordFileId), effectiveOperatorId);
 
     // 5. 优先级下载纪要: DeepSeek纪要 > 主题纪要 > 章节纪要 > 发言人纪要 > 转写
     const minutesSources = [

@@ -9,6 +9,7 @@ export interface User {
   role: string;
   display_name?: string;
   employment_status?: '在职' | '离职';
+  tencent_meeting_operator_id?: string;
 }
 
 interface AuthContextType {

@@ -40,6 +40,7 @@ interface User {
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   is_active: boolean;
   employment_status?: string;
+  tencent_meeting_operator_id?: string;
   created_at: string;
 }
 
@@ -50,6 +51,7 @@ interface UserFormData {
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   is_active: boolean;
   employment_status: '在职' | '离职';
+  tencent_meeting_operator_id: string;
 }
 
 const getRoleBadge = (role: string) => {
@@ -98,6 +100,7 @@ export default function UsersPage() {
     role: '交付顾问',
     is_active: true,
     employment_status: '在职',
+    tencent_meeting_operator_id: '',
   });
 
   useEffect(() => {
@@ -216,6 +219,7 @@ export default function UsersPage() {
       role: user.role,
       is_active: user.is_active,
       employment_status: (user.employment_status as '在职' | '离职') || '在职',
+      tencent_meeting_operator_id: user.tencent_meeting_operator_id || '',
     });
     setOpenDialog(true);
   };
@@ -229,6 +233,7 @@ export default function UsersPage() {
       role: '交付顾问',
       is_active: true,
       employment_status: '在职',
+      tencent_meeting_operator_id: '',
     });
     setError('');
   };
@@ -442,6 +447,16 @@ export default function UsersPage() {
                 checked={formData.is_active}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tencent_meeting_operator_id">腾讯会议用户ID（可选）</Label>
+              <Input
+                id="tencent_meeting_operator_id"
+                value={formData.tencent_meeting_operator_id}
+                onChange={(e) => setFormData({ ...formData, tencent_meeting_operator_id: e.target.value })}
+                placeholder="用于提取会议纪要，如 admin1741951063"
+              />
+              <p className="text-xs text-muted-foreground">配置后，该用户可提取自己创建的腾讯会议纪要</p>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="ghost" onClick={() => {
