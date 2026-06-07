@@ -14,9 +14,11 @@ interface VoiceInputProps {
   className?: string;
   /** 按钮大小 */
   size?: 'sm' | 'md';
+  /** 是否禁用 */
+  disabled?: boolean;
 }
 
-export function VoiceInput({ value, onChange, className, size = 'sm' }: VoiceInputProps) {
+export function VoiceInput({ value, onChange, className, size = 'sm', disabled = false }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -58,26 +60,41 @@ export function VoiceInput({ value, onChange, className, size = 'sm' }: VoiceInp
       reader.readAsDataURL(audioBlob);
       const base64Data = await base64Promise;
 
+      // 获取认证头
+      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const sessionStr = localStorage.getItem('auth_session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          if (session.token) {
+            authHeaders['Authorization'] = `Bearer ${session.token}`;
+          }
+        }
+      } catch {}
+
       const response = await fetch('/api/voice/asr', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ base64Data }),
       });
 
       if (!response.ok) {
-        throw new Error(`ASR请求失败: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('ASR请求失败:', response.status, errorData);
+        throw new Error(errorData.error || `ASR请求失败: ${response.status}`);
       }
 
       const data = await response.json();
       if (data.text && data.text.trim()) {
         const baseText = valueRef.current;
-        const separator = baseText && !baseText.endsWith('\n') ? '' : '';
+        const separator = baseText && !baseText.endsWith('\n') && !baseText.endsWith(' ') ? ' ' : '';
         const newText = baseText + separator + data.text.trim();
         onChange(newText);
         valueRef.current = newText;
       }
     } catch (err) {
       console.error('语音识别失败:', err);
+      toast.error('语音识别失败，请重试');
     }
   }, [onChange]);
 
@@ -167,7 +184,7 @@ export function VoiceInput({ value, onChange, className, size = 'sm' }: VoiceInp
       <button
         type="button"
         onClick={toggleListening}
-        disabled={isProcessing}
+        disabled={isProcessing || disabled}
         className={cn(
           'inline-flex items-center justify-center rounded-full transition-all',
           buttonSize,
