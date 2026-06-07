@@ -815,11 +815,11 @@ function ProcessCenterContent() {
 
       {/* 查看截图弹窗 - 自适应原图大小 */}
       <Dialog open={showScreenshotDialog} onOpenChange={setShowScreenshotDialog}>
-        <DialogContent className="w-auto max-w-[95vw] max-h-[95vh] p-0 overflow-hidden" style={{ minWidth: 'auto' }}>
-          <DialogHeader className="px-4 pt-3 pb-1">
+        <DialogContent className="w-auto max-w-[95vw] p-0 gap-0" style={{ minWidth: 'auto' }}>
+          <DialogHeader className="px-4 pt-3 pb-1 shrink-0">
             <DialogTitle className="text-sm">KBC截图 {screenshotUrls.length > 1 ? `(${currentScreenshotIdx + 1}/${screenshotUrls.length})` : ''}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center overflow-auto" style={{ maxHeight: 'calc(95vh - 60px)' }}>
             {loadingScreenshot ? (
               <div className="flex items-center justify-center py-20 px-4">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -830,10 +830,10 @@ function ProcessCenterContent() {
                   src={screenshotUrls[currentScreenshotIdx]}
                   alt={`KBC截图${currentScreenshotIdx + 1}`}
                   className="block"
-                  style={{ maxWidth: '95vw', maxHeight: 'calc(95vh - 100px)', objectFit: 'contain' }}
+                  style={{ maxWidth: '95vw', objectFit: 'contain' }}
                 />
                 {screenshotUrls.length > 1 && (
-                  <div className="flex items-center gap-3 py-2 w-full justify-center">
+                  <div className="flex items-center gap-3 py-2 w-full justify-center shrink-0">
                     <Button variant="outline" size="sm" disabled={currentScreenshotIdx === 0} onClick={() => setCurrentScreenshotIdx(prev => prev - 1)}>上一张</Button>
                     <span className="text-xs text-muted-foreground">{currentScreenshotIdx + 1} / {screenshotUrls.length}</span>
                     <Button variant="outline" size="sm" disabled={currentScreenshotIdx === screenshotUrls.length - 1} onClick={() => setCurrentScreenshotIdx(prev => prev + 1)}>下一张</Button>
