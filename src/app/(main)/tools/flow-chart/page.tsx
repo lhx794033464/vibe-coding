@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { VoiceInput } from '@/components/ui/voice-input';
 import { 
   GitBranch, 
   Loader2, 
@@ -248,19 +249,28 @@ export default function FlowChartPage() {
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 流程描述
               </label>
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && !isGenerating && prompt.trim()) {
-                    e.preventDefault();
-                    handleGenerate();
-                  }
-                }}
-                placeholder="用编号描述流程，分支用&quot;如果…则…否则…&quot;，循环用&quot;返回到第N步&quot;。&#10;示例：①创建采购申请单 ②审批，如果通过则生成采购订单，否则退回 ③采购入库 ④质检，不合格则返回第③步"
-                className="h-[200px] resize-none overflow-y-auto"
-                disabled={isGenerating}
-              />
+              <div className="relative">
+                <Textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !isGenerating && prompt.trim()) {
+                      e.preventDefault();
+                      handleGenerate();
+                    }
+                  }}
+                  placeholder="用编号描述流程，分支用&quot;如果…则…否则…&quot;，循环用&quot;返回到第N步&quot;。&#10;示例：①创建采购申请单 ②审批，如果通过则生成采购订单，否则退回 ③采购入库 ④质检，不合格则返回第③步"
+                  className="h-[200px] resize-none overflow-y-auto pr-10"
+                  disabled={isGenerating}
+                />
+                <div className="absolute right-2 bottom-2">
+                  <VoiceInput
+                    value={prompt}
+                    onChange={setPrompt}
+                    size="sm"
+                  />
+                </div>
+              </div>
               
               {/* 错误提示 */}
               {error && (

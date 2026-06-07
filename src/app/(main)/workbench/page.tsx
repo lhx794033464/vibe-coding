@@ -27,7 +27,6 @@ import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, Dol
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { VoiceInput } from '@/components/ui/voice-input';
 
 interface Customer {
   id: string;
@@ -709,22 +708,12 @@ function ProcessCenterContent() {
                 {(selectedType === 'group_dismissal' || selectedType === 'schedule_coordination') && (
                   <div className="space-y-2">
                     <Label>备注</Label>
-                    <div className="relative">
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="请输入备注信息（可选）"
-                        rows={3}
-                        className="pr-10"
-                      />
-                      <div className="absolute right-1.5 bottom-1.5">
-                        <VoiceInput
-                          value={notes}
-                          onChange={setNotes}
-                          size="sm"
-                        />
-                      </div>
-                    </div>
+                    <Textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="请输入备注信息（可选）"
+                      rows={3}
+                    />
                   </div>
                 )}
 
