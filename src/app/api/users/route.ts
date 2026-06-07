@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const users = await dbGetAllUsers();
-    return NextResponse.json({ data: users, count: users.length });
+    return NextResponse.json({ success: true, data: users, count: users.length });
   } catch (error) {
     console.error('获取用户列表失败:', error);
     return NextResponse.json({ error: '获取用户列表失败' }, { status: 500 });
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const newUser = await dbCreateUser({ username, email, password, role, employment_status, is_active });
-      return NextResponse.json({ data: newUser }, { status: 201 });
+      return NextResponse.json({ success: true, data: newUser }, { status: 201 });
     } catch (err: any) {
       if (err.message?.includes('duplicate') || err.message?.includes('已存在')) {
         return NextResponse.json({ error: '用户名已存在' }, { status: 409 });

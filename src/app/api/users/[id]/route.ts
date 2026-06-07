@@ -16,7 +16,7 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
-    return NextResponse.json({ data: user });
+    return NextResponse.json({ success: true, data: user });
   } catch (error) {
     console.error('获取用户失败:', error);
     return NextResponse.json({ error: '获取用户失败' }, { status: 500 });
@@ -43,7 +43,7 @@ export async function PUT(
     }
 
     // 如果修改的是当前登录用户自己，生成新 Token 返回
-    const response: Record<string, unknown> = { data: updatedUser };
+    const response: Record<string, unknown> = { success: true, data: updatedUser };
     if (userInfo && id === userInfo.id) {
       const random = Math.random().toString(36).substring(2);
       const newToken = Buffer.from(`${updatedUser.id}:${updatedUser.username}:${updatedUser.role}:${random}`).toString('base64');

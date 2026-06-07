@@ -81,7 +81,7 @@ const getStatusBadge = (isActive: boolean) => {
 };
 
 export default function UsersPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, getAuthHeader } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
@@ -113,8 +113,8 @@ export default function UsersPage() {
       const res = await fetch('/api/users', {
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader(),
         },
-        credentials: 'include',
       });
       if (!res.ok) {
         throw new Error(`获取用户列表失败: ${res.status}`);
@@ -162,8 +162,7 @@ export default function UsersPage() {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(formData),
       });
 
@@ -196,7 +195,7 @@ export default function UsersPage() {
     try {
       const res = await fetch(`/api/users/${userToDelete.id}`, {
         method: 'DELETE',
-        credentials: 'include',
+        headers: { ...getAuthHeader() },
       });
       const data = await res.json();
       if (data.success) {
