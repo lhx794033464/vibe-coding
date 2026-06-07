@@ -836,7 +836,7 @@ export default function HomePage() {
           <form onSubmit={handleSubmit}>
             {/* 快捷提问气泡 - 仅交付助手模式显示 */}
             {chatMode === 'delivery' && (
-              <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="flex items-center justify-start gap-3 mb-3">
                 {QUICK_QUESTIONS_DELIVERY.map((q, index) => (
                   <button
                     key={index}
