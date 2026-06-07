@@ -90,10 +90,39 @@ function Link({
   );
 }
 
+/** 检测内容是否为 HTML（来自金蝶社区 AI 问答接口） */
+function isHtmlContent(content: string): boolean {
+  const stripped = content.trim();
+  return stripped.startsWith('<') && (stripped.includes('</p>') || stripped.includes('</div>') || stripped.includes('<img'));
+}
+
 // Markdown渲染组件
 export default function MessageContent({ content, isUser }: MessageContentProps) {
   if (isUser) {
     return <p className="whitespace-pre-wrap break-words">{content}</p>;
+  }
+
+  // HTML 内容直接渲染（来自金蝶社区 AI 问答接口）
+  if (isHtmlContent(content)) {
+    return (
+      <div 
+        className="prose prose-sm prose-slate max-w-none text-sm leading-relaxed
+          [&_p]:my-2 [&_p]:leading-relaxed
+          [&_strong]:text-slate-800 [&_b]:text-slate-800
+          [&_a]:text-blue-600 [&_a]:hover:text-blue-700 [&_a]:underline
+          [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3
+          [&_ol]:list-decimal [&_ol]:ml-4 [&_ol]:my-2
+          [&_ul]:list-disc [&_ul]:ml-4 [&_ul]:my-2
+          [&_li]:my-0.5
+          [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mt-4 [&_h1]:mb-2
+          [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-2
+          [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1
+          [&_blockquote]:border-l-4 [&_blockquote]:border-blue-400 [&_blockquote]:bg-blue-50 [&_blockquote]:py-2 [&_blockquote]:px-3 [&_blockquote]:rounded-r
+          [&_table]:min-w-full [&_table]:border-collapse
+          [&_hr]:my-4 [&_hr]:border-slate-200"
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    );
   }
 
   return (

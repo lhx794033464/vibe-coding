@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
         hostname: '*.coze.site',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'vip.kingdee.com',
+        pathname: '/**',
+      },
     ],
   },
   async headers() {

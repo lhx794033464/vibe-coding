@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Loader2, Search, User, Mic, MicOff, Trash2, MessageCircle } from 'lucide-react';
+import { Send, Loader2, Search, User, Mic, MicOff, Trash2, MessageCircle, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,6 +66,85 @@ export default function HomePage() {
   const greeting = getGreeting();
   const abortControllerRef = useRef<AbortController | null>(null); // 用于中断流式请求
   
+  // ===== Q&A 答疑咨询状态 =====
+  interface QAProduct { productId: number; name: string }
+  const [qaTokenValid, setQaTokenValid] = useState<boolean>(false);
+  const [qaProducts, setQaProducts] = useState<QAProduct[]>([]);
+  const [qaSelectedProductId, setQaSelectedProductId] = useState<number | null>(null);
+  const [qaSelectedProductName, setQaSelectedProductName] = useState<string>('');
+  const [qaSessionId, setQaSessionId] = useState<string>('');
+  const qaSessionIdRef = useRef<string>('');
+  
+  // 同步 qaSessionId 到 ref
+  useEffect(() => {
+    qaSessionIdRef.current = qaSessionId;
+  }, [qaSessionId]);
+  const [qaInitLoading, setQaInitLoading] = useState<boolean>(false);
+  const [qaTokenInput, setQaTokenInput] = useState<string>('');
+  const [qaTokenSaving, setQaTokenSaving] = useState<boolean>(false);
+  
+  // 初始化 Q&A（检查 Token + 获取产品列表）
+  const initQA = useCallback(async () => {
+    setQaInitLoading(true);
+    try {
+      const res = await fetch('/api/chat/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ action: 'init' }),
+      });
+      const data = await res.json();
+      if (data.token) {
+        setQaTokenValid(data.token.valid === true);
+      }
+      if (data.products) {
+        setQaProducts(data.products);
+      }
+    } catch (error) {
+      console.error('[QA] Init failed:', error);
+    } finally {
+      setQaInitLoading(false);
+    }
+  }, [getAuthHeader]);
+  
+  // 保存 Token
+  const saveQAToken = useCallback(async () => {
+    if (!qaTokenInput.trim()) return;
+    setQaTokenSaving(true);
+    try {
+      const res = await fetch('/api/chat/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ action: 'save-token', token: qaTokenInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.type === 'token_saved') {
+        setQaTokenValid(true);
+        setQaTokenInput('');
+        toast.success('Token 保存成功');
+      } else {
+        toast.error(data.error || '保存 Token 失败');
+      }
+    } catch (error) {
+      toast.error('保存 Token 失败');
+    } finally {
+      setQaTokenSaving(false);
+    }
+  }, [qaTokenInput, getAuthHeader]);
+  
+  // 选择产品
+  const selectQAProduct = useCallback((product: QAProduct) => {
+    setQaSelectedProductId(product.productId);
+    setQaSelectedProductName(product.name);
+    setQaSessionId(''); // 切换产品时重置会话
+  }, []);
+  
+  // 更换产品
+  const changeQAProduct = useCallback(() => {
+    setQaSelectedProductId(null);
+    setQaSelectedProductName('');
+    setQaSessionId('');
+  }, []);
+  
   // 清除对话（带动画）
   const handleClearChat = () => {
     if (isClearing) return;
@@ -85,6 +164,10 @@ export default function HomePage() {
       setMessages([]);
       setIsClearing(false);
       setShowWelcome(true); // 重置欢迎页动画状态
+      // Q&A 模式下重置会话 ID（但不重置产品选择）
+      if (chatMode === 'qa') {
+        setQaSessionId('');
+      }
     }, 400); // 与动画时长一致
   };
   
@@ -103,6 +186,11 @@ export default function HomePage() {
     setMessages([]);
     setShowWelcome(true);
     setLoading(false);
+    
+    // 切换到 Q&A 模式时初始化
+    if (mode === 'qa' && qaProducts.length === 0) {
+      initQA();
+    }
   };
   
   // 语音相关状态
@@ -322,6 +410,12 @@ export default function HomePage() {
     const userMessage = typeof e === 'string' ? e : input.trim();
     if (!userMessage || loading) return;
 
+    // Q&A 模式：需要 Token 和产品选择
+    if (chatMode === 'qa' && (!qaTokenValid || !qaSelectedProductId)) {
+      toast.error(!qaTokenValid ? '请先配置 PAT Token' : '请先选择产品');
+      return;
+    }
+
     if (typeof e !== 'string') {
       e.preventDefault();
     }
@@ -352,112 +446,210 @@ export default function HomePage() {
         }
       } catch {}
       
-      const apiUrl = chatMode === 'qa' ? '/api/chat/qa' : '/api/chat';
-      const requestBody = chatMode === 'qa' 
-        ? { messages: [{ role: 'user', content: userMessage }], userId }
-        : { messages: [...savedMessages, { role: 'user', content: userMessage }], enableSearch: true, userId };
+      if (chatMode === 'qa') {
+        // ===== Q&A 答疑咨询模式 =====
+        const requestBody = { 
+          action: 'ask',
+          question: userMessage,
+          productId: qaSelectedProductId,
+          sessionId: qaSessionIdRef.current || undefined,
+        };
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify(requestBody),
-        signal: abortController.signal,
-      });
+        const response = await fetch('/api/chat/qa', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify(requestBody),
+          signal: abortController.signal,
+        });
 
-      if (!response.ok) {
-        throw new Error('请求失败');
-      }
+        if (!response.ok) {
+          throw new Error('请求失败');
+        }
 
-      // 流式读取响应
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessage = '';
-      let buffer = '';
+        // 流式读取响应
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let assistantMessage = '';
+        let buffer = '';
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          
-          // 解析 SSE 数据行
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // 保留最后一个可能不完整的行
-          
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
             
-            const dataStr = trimmed.slice(6);
-            if (dataStr === '[DONE]') continue;
+            buffer += decoder.decode(value, { stream: true });
             
-            try {
-              const parsed = JSON.parse(dataStr);
-              if (parsed.error) {
-                assistantMessage += `\n\n⚠️ ${parsed.error}`;
-              } else if (parsed.status) {
-                // QA 状态提示（替换显示，不追加）
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg && lastMsg.role === 'assistant') {
-                    lastMsg.content = parsed.status;
+            // 解析 SSE 数据行
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith('data: ')) continue;
+              
+              const dataStr = trimmed.slice(6);
+              if (dataStr === '[DONE]') continue;
+              
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.error) {
+                  assistantMessage += `\n\n⚠️ ${parsed.error}`;
+                } else if (parsed.status) {
+                  // 状态提示
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMsg = newMessages[newMessages.length - 1];
+                    if (lastMsg && lastMsg.role === 'assistant') {
+                      lastMsg.content = parsed.status;
+                    }
+                    return newMessages;
+                  });
+                } else if (parsed.content) {
+                  assistantMessage += parsed.content;
+                } else if (parsed.meta) {
+                  // 保存 sessionId 用于多轮对话
+                  if (parsed.meta.sessionId) {
+                    setQaSessionId(parsed.meta.sessionId);
                   }
-                  return newMessages;
-                });
-              } else if (parsed.agentThinking && parsed.toolCall) {
-                // Agent 正在调用工具，显示思考状态
-                assistantMessage = `🔍 正在${parsed.toolCall.description || '查询数据'}...`;
-              } else if (parsed.content) {
-                assistantMessage += parsed.content;
+                }
+              } catch {
+                // 忽略无法解析的行
               }
-              if (parsed.done) {
-                // 流结束标记，忽略
-              }
-            } catch {
-              // 忽略无法解析的行
             }
+            
+            // 实时更新消息
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const lastMessage = newMessages[newMessages.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.content = assistantMessage;
+              }
+              return newMessages;
+            });
           }
           
-          // 过滤掉工具调用 JSON（不显示给用户）
-          const displayContent = assistantMessage
-            .replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[\s\S]*?\}\s*\}/g, '')
-            .trim();
-          
-          // 实时更新消息
+          // 标记流式结束
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
             if (lastMessage && lastMessage.role === 'assistant') {
-              lastMessage.content = displayContent;
+              lastMessage.content = assistantMessage;
+              lastMessage.isStreaming = false;
             }
             return newMessages;
           });
+          
+          // 保存到全局状态
+          addMessage({ role: 'user', content: userMessage });
+          addMessage({ role: 'assistant', content: assistantMessage });
         }
-        
-        // 最终内容：过滤掉工具调用 JSON
-        const finalContent = assistantMessage
-          .replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[\s\S]*?\}\s*\}/g, '')
-          .trim();
-        
-        // 标记流式结束
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage && lastMessage.role === 'assistant') {
-            lastMessage.content = finalContent;
-            lastMessage.isStreaming = false;
-          }
-          return newMessages;
+      } else {
+        // ===== 交付助手模式 =====
+        const requestBody = { messages: [...savedMessages, { role: 'user', content: userMessage }], enableSearch: true, userId };
+
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify(requestBody),
+          signal: abortController.signal,
         });
-        
-        // 保存到全局状态
-        addMessage({ role: 'user', content: userMessage });
-        addMessage({ role: 'assistant', content: finalContent });
+
+        if (!response.ok) {
+          throw new Error('请求失败');
+        }
+
+        // 流式读取响应
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let assistantMessage = '';
+        let buffer = '';
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            
+            // 解析 SSE 数据行
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith('data: ')) continue;
+              
+              const dataStr = trimmed.slice(6);
+              if (dataStr === '[DONE]') continue;
+              
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.error) {
+                  assistantMessage += `\n\n⚠️ ${parsed.error}`;
+                } else if (parsed.status) {
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMsg = newMessages[newMessages.length - 1];
+                    if (lastMsg && lastMsg.role === 'assistant') {
+                      lastMsg.content = parsed.status;
+                    }
+                    return newMessages;
+                  });
+                } else if (parsed.agentThinking && parsed.toolCall) {
+                  assistantMessage = `🔍 正在${parsed.toolCall.description || '查询数据'}...`;
+                } else if (parsed.content) {
+                  assistantMessage += parsed.content;
+                }
+                if (parsed.done) {
+                  // 流结束标记，忽略
+                }
+              } catch {
+                // 忽略无法解析的行
+              }
+            }
+            
+            // 过滤掉工具调用 JSON（不显示给用户）
+            const displayContent = assistantMessage
+              .replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[\s\S]*?\}\s*\}/g, '')
+              .trim();
+            
+            // 实时更新消息
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const lastMessage = newMessages[newMessages.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.content = displayContent;
+              }
+              return newMessages;
+            });
+          }
+          
+          // 最终内容：过滤掉工具调用 JSON
+          const finalContent = assistantMessage
+            .replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[\s\S]*?\}\s*\}/g, '')
+            .trim();
+          
+          // 标记流式结束
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage && lastMessage.role === 'assistant') {
+              lastMessage.content = finalContent;
+              lastMessage.isStreaming = false;
+            }
+            return newMessages;
+          });
+          
+          // 保存到全局状态
+          addMessage({ role: 'user', content: userMessage });
+          addMessage({ role: 'assistant', content: finalContent });
+        }
       }
     } catch (error) {
       // 如果是中断请求导致的错误，不显示错误信息
@@ -506,7 +698,11 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-slate-800">小蝶</h1>
-              <p className="text-xs text-slate-500">{chatMode === 'qa' ? '星辰产品答疑咨询' : greeting}</p>
+              <p className="text-xs text-slate-500">
+                {chatMode === 'qa' 
+                  ? (qaSelectedProductName ? `星辰答疑 · ${qaSelectedProductName}` : '星辰产品答疑咨询')
+                  : greeting}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -559,11 +755,102 @@ export default function HomePage() {
                     答疑咨询
                   </button>
                 </div>
+                
+                {/* Q&A 模式：产品选择区域 */}
+                {chatMode === 'qa' && (
+                  <div className="mt-4 max-w-md mx-auto">
+                    {qaInitLoading ? (
+                      <div className="flex items-center justify-center gap-2 text-slate-400 py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">正在初始化...</span>
+                      </div>
+                    ) : !qaTokenValid ? (
+                      /* Token 未配置 */
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
+                        <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-3">
+                          <Key className="w-4 h-4" />
+                          需要配置身份认证
+                        </div>
+                        <p className="text-xs text-amber-600 mb-3 leading-relaxed">
+                          使用金蝶产品智能问答需要先配置 PAT Token。请按以下步骤获取：
+                        </p>
+                        <ol className="text-xs text-amber-600 mb-3 space-y-1 list-decimal ml-4">
+                          <li>打开浏览器访问 vip.kingdee.com</li>
+                          <li>登录金蝶云社区账号</li>
+                          <li>点击右上角头像 → 个人主页 → 编辑资料</li>
+                          <li>找到「个人访问令牌」→ 新建令牌</li>
+                          <li>复制生成的 token 并粘贴到下方</li>
+                        </ol>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={qaTokenInput}
+                            onChange={(e) => setQaTokenInput(e.target.value)}
+                            placeholder="粘贴 kdt_... 格式的 Token"
+                            className="flex-1 px-3 py-2 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          />
+                          <Button
+                            onClick={saveQAToken}
+                            disabled={!qaTokenInput.trim() || qaTokenSaving}
+                            size="sm"
+                            className="bg-amber-500 hover:bg-amber-600 text-white text-xs"
+                          >
+                            {qaTokenSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : !qaSelectedProductId ? (
+                      /* 产品选择 */
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 text-left">
+                        <p className="text-sm font-medium text-slate-700 mb-3">请选择您要咨询的产品：</p>
+                        <div className="grid grid-cols-1 gap-1.5 max-h-64 overflow-y-auto">
+                          {qaProducts.map((product) => (
+                            <button
+                              key={product.productId}
+                              onClick={() => selectQAProduct(product)}
+                              className="text-left px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                            >
+                              {product.productId}. {product.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      /* 已选产品，可以提问 */
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
+                          <span>当前产品：</span>
+                          <span className="font-medium text-blue-600">{qaSelectedProductName}</span>
+                          <button
+                            onClick={changeQAProduct}
+                            className="text-xs text-blue-500 hover:text-blue-700 underline"
+                          >
+                            更换
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-400">输入您的问题开始咨询</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
             </div>
           ) : (
             <div className={`space-y-6 ${isClearing ? 'message-fade-out' : ''}`}>
+              {/* Q&A 模式下显示当前产品 */}
+              {chatMode === 'qa' && qaSelectedProductName && (
+                <div className="flex items-center gap-2 text-xs text-slate-400 pb-2 border-b border-slate-100">
+                  <span>当前产品：</span>
+                  <span className="text-blue-600 font-medium">{qaSelectedProductName}</span>
+                  <button
+                    onClick={changeQAProduct}
+                    className="text-blue-500 hover:text-blue-700 underline"
+                  >
+                    更换
+                  </button>
+                </div>
+              )}
               {messages.map((message, index) => (
                 <div
                   key={index}
@@ -653,7 +940,11 @@ export default function HomePage() {
                   }
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={chatMode === 'qa' ? "输入星辰产品使用问题..." : (input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送...")}
+                placeholder={chatMode === 'qa' 
+                  ? (!qaTokenValid ? "请先配置 Token..." 
+                    : !qaSelectedProductId ? "请先选择产品..." 
+                    : "输入星辰产品使用问题...") 
+                  : (input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送...")}
                 rows={1}
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
@@ -683,7 +974,7 @@ export default function HomePage() {
               {/* 发送按钮 */}
               <Button
                 type="submit"
-                disabled={!input.trim() || loading}
+                disabled={!input.trim() || loading || (chatMode === 'qa' && (!qaTokenValid || !qaSelectedProductId))}
                 className="rounded-xl h-10 w-10 p-0 flex-shrink-0 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300"
               >
                 {loading ? (
