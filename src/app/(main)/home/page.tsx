@@ -698,19 +698,22 @@ export default function HomePage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6 h-full">
           {messages.length === 0 ? (
-            <div className={`flex flex-col items-center justify-center h-full ${showWelcome ? 'welcome-fade-in' : ''}`}>
-              {/* 欢迎信息 */}
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
-                  <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
+            <div className={`relative flex flex-col items-center justify-center h-full ${showWelcome ? 'welcome-fade-in' : ''}`}>
+              {/* 欢迎信息 - 悬浮样式，固定居中 */}
+              <div className="text-center absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                {/* 头像悬浮 */}
+                <div className="inline-block bg-white/90 backdrop-blur-sm border border-white/50 rounded-2xl px-6 py-4 shadow-lg shadow-black/5">
+                  <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
+                    <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
+                  </div>
                 </div>
-                {/* 模式切换 - 胶囊按钮 */}
-                <div className="flex items-center bg-slate-100 rounded-full p-1 mt-2">
+                {/* 模式切换 - 悬浮胶囊 */}
+                <div className="flex items-center bg-white/90 backdrop-blur-sm border border-white/50 rounded-full p-1 mt-3 shadow-lg shadow-black/5">
                   <button
                     onClick={() => handleModeChange('delivery')}
                     className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
                       chatMode === 'delivery'
-                        ? 'bg-white text-blue-600 shadow-sm'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
@@ -720,7 +723,7 @@ export default function HomePage() {
                     onClick={() => handleModeChange('qa')}
                     className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
                       chatMode === 'qa'
-                        ? 'bg-white text-blue-600 shadow-sm'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
@@ -728,46 +731,46 @@ export default function HomePage() {
                     答疑咨询
                   </button>
                 </div>
-                
-                {/* Q&A 模式：Token 配置区域（仅在 Token 无效时显示） */}
-                {chatMode === 'qa' && qaTokenValid === false && (
-                  <div className="mt-4 max-w-md mx-auto">
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
-                      <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-3">
-                        <Key className="w-4 h-4" />
-                        需要配置身份认证
-                      </div>
-                      <p className="text-xs text-amber-600 mb-3 leading-relaxed">
-                        使用金蝶产品智能问答需要先配置 PAT Token。请按以下步骤获取：
-                      </p>
-                      <ol className="text-xs text-amber-600 mb-3 space-y-1 list-decimal ml-4">
-                        <li>打开浏览器访问 vip.kingdee.com</li>
-                        <li>登录金蝶云社区账号</li>
-                        <li>点击右上角头像 → 个人主页 → 编辑资料</li>
-                        <li>找到「个人访问令牌」→ 新建令牌</li>
-                        <li>复制生成的 token 并粘贴到下方</li>
-                      </ol>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={qaTokenInput}
-                          onChange={(e) => setQaTokenInput(e.target.value)}
-                          placeholder="粘贴 kdt_... 格式的 Token"
-                          className="flex-1 px-3 py-2 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                        />
-                        <Button
-                          onClick={saveQAToken}
-                          disabled={!qaTokenInput.trim() || qaTokenSaving}
-                          size="sm"
-                          className="bg-amber-500 hover:bg-amber-600 text-white text-xs"
-                        >
-                          {qaTokenSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
-                        </Button>
-                      </div>
+              </div>
+
+              {/* Q&A 模式：Token 配置区域（绝对定位在模式切换下方，不影响上方布局） */}
+              {chatMode === 'qa' && qaTokenValid === false && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 mt-32 max-w-md w-full px-4">
+                  <div className="bg-amber-50/90 backdrop-blur-sm border border-amber-200 rounded-xl p-4 text-left shadow-lg shadow-black/5">
+                    <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-3">
+                      <Key className="w-4 h-4" />
+                      需要配置身份认证
+                    </div>
+                    <p className="text-xs text-amber-600 mb-3 leading-relaxed">
+                      使用金蝶产品智能问答需要先配置 PAT Token。请按以下步骤获取：
+                    </p>
+                    <ol className="text-xs text-amber-600 mb-3 space-y-1 list-decimal ml-4">
+                      <li>打开浏览器访问 vip.kingdee.com</li>
+                      <li>登录金蝶云社区账号</li>
+                      <li>点击右上角头像 → 个人主页 → 编辑资料</li>
+                      <li>找到「个人访问令牌」→ 新建令牌</li>
+                      <li>复制生成的 token 并粘贴到下方</li>
+                    </ol>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={qaTokenInput}
+                        onChange={(e) => setQaTokenInput(e.target.value)}
+                        placeholder="粘贴 kdt_... 格式的 Token"
+                        className="flex-1 px-3 py-2 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                      <Button
+                        onClick={saveQAToken}
+                        disabled={!qaTokenInput.trim() || qaTokenSaving}
+                        size="sm"
+                        className="bg-amber-500 hover:bg-amber-600 text-white text-xs"
+                      >
+                        {qaTokenSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
+                      </Button>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
             </div>
           ) : (
