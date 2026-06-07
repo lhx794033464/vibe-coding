@@ -301,6 +301,17 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // admin 用户排到第一行
+    consultantRanking.unshift({
+      name: 'admin',
+      projectCount: 0,
+      onlineRate: 0,
+      oneMonthOnlineRate: 0,
+      fourMonthsOnlineRate: 0,
+      acceptanceRate: 0,
+      kpiRate: 0,
+    });
+
     return NextResponse.json({
       totalCustomers,
       onlineCustomers,

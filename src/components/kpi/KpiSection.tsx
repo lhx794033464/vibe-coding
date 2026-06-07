@@ -328,6 +328,9 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
   // 判断当前用户是否有权编辑
   const canEdit = user && (isAdmin || user.role === '交付顾问' || user.role === '答疑顾问');
 
+  // 角色为"其他"的用户不展示KPI完成率
+  if (user && user.role === '其他') return null;
+
   return (
     <Card className="mt-6">
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
