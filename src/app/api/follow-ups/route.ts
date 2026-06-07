@@ -29,21 +29,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customer_id, content, contact_name, contact_phone, follow_up_date } = body;
+    const { customer_id, content, follow_up_at } = body;
 
     if (!customer_id || !content) {
       return NextResponse.json({ error: '客户ID和跟进内容不能为空' }, { status: 400 });
     }
 
     const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo?.id) {
+      return NextResponse.json({ error: '未认证' }, { status: 401 });
+    }
 
     const data = await dbCreateFollowUp({
       customer_id,
       content,
-      contact_name: contact_name || null,
-      contact_phone: contact_phone || null,
-      follow_up_date: follow_up_date || new Date().toISOString().split('T')[0],
-      user_id: userInfo?.id || null,
+      follow_up_at: follow_up_at || new Date().toISOString(),
+      user_id: userInfo.id,
     });
 
     return NextResponse.json({ data });
