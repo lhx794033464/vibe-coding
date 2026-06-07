@@ -417,7 +417,7 @@ export default function CustomersPage() {
                     const modules = customer.modules ? (Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean) : [];
                     return (
                       <TableRow key={customer.id} className="hover:bg-gray-50/50">
-                        <TableCell>
+                        <TableCell className="w-[200px]">
                           <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`} />
                             <Link
@@ -428,12 +428,12 @@ export default function CustomersPage() {
                             </Link>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[100px]">
                           <Badge className={`text-xs ${customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                             {customer.status === 'online' ? '已上线' : '未上线'}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[100px]">
                           <Badge className={`text-xs ${customer.acceptance_status === 'accepted' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
                             {customer.acceptance_status === 'accepted' ? '已验收' : '未验收'}
                           </Badge>
@@ -450,17 +450,17 @@ export default function CustomersPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-blue-600">
+                        <TableCell className="w-[120px] text-sm text-blue-600">
                           {(customer as any).delivery_consultant || '-'}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-500">
+                        <TableCell className="w-[140px] text-sm text-gray-500">
                           <span className="whitespace-nowrap">
                             总{formatDays(customer.implementation_days)} /
                             耗{formatDays(customer.consumed_days)} /
                             余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell className="w-[120px] text-sm">
                           {deadlineDate ? (
                             <span className={isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}>
                               {deadlineDate.getFullYear()}-{String(deadlineDate.getMonth() + 1).padStart(2, '0')}-{String(deadlineDate.getDate()).padStart(2, '0')}
@@ -468,7 +468,7 @@ export default function CustomersPage() {
                             </span>
                           ) : '-'}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[120px]">
                           <Link href={`/customers/${customer.id}`}>
                             <Button variant="ghost" size="sm" className="h-7 px-2">查看</Button>
                           </Link>
