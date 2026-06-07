@@ -5,7 +5,6 @@ export interface UserInfo {
   id: string;
   username: string;
   role: string;
-  tencent_meeting_operator_id?: string | null;
 }
 
 /**
@@ -41,7 +40,7 @@ export async function getCurrentUserInfo(request: Request): Promise<UserInfo | n
     const supabase = getSupabaseClient();
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, username, role, is_active, tencent_meeting_operator_id')
+      .select('id, username, role, is_active')
       .eq('id', decoded.id)
       .single();
 
@@ -53,7 +52,6 @@ export async function getCurrentUserInfo(request: Request): Promise<UserInfo | n
       id: user.id,
       username: user.username,
       role: user.role,
-      tencent_meeting_operator_id: user.tencent_meeting_operator_id,
     };
   } catch (error) {
     console.error('[serverAuth] Token验证失败:', error);

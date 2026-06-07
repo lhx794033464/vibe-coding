@@ -19,7 +19,6 @@ export interface DbUser {
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   employment_status: '在职' | '离职';
   is_active: boolean;
-  tencent_meeting_operator_id: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -117,7 +116,7 @@ export async function dbGetAllUsers(): Promise<DbUser[]> {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('users')
-    .select('id, username, email, role, employment_status, is_active, tencent_meeting_operator_id, created_at, updated_at')
+    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
     .order('created_at', { ascending: true });
   if (error) throw new Error(`获取用户列表失败: ${error.message}`);
   return (data as DbUser[]) || [];
@@ -127,7 +126,7 @@ export async function dbGetUserById(id: string): Promise<DbUser | null> {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('users')
-    .select('id, username, email, role, employment_status, is_active, tencent_meeting_operator_id, created_at, updated_at')
+    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`获取用户失败: ${error.message}`);
@@ -152,7 +151,6 @@ export async function dbCreateUser(userData: {
   role?: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   employment_status?: '在职' | '离职';
   is_active?: boolean;
-  tencent_meeting_operator_id?: string;
 }): Promise<DbUser> {
   const client = getSupabaseClient();
   const { data, error } = await client
@@ -164,9 +162,8 @@ export async function dbCreateUser(userData: {
       role: userData.role || '交付顾问',
       employment_status: userData.employment_status || '在职',
       is_active: userData.is_active !== undefined ? userData.is_active : true,
-      tencent_meeting_operator_id: userData.tencent_meeting_operator_id || null,
     })
-    .select('id, username, email, role, employment_status, is_active, tencent_meeting_operator_id, created_at, updated_at')
+    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
     .single();
   if (error) throw new Error(`创建用户失败: ${error.message}`);
   return data as DbUser;
@@ -179,7 +176,6 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   employment_status: '在职' | '离职';
   is_active: boolean;
-  tencent_meeting_operator_id: string;
 }>): Promise<DbUser | null> {
   const client = getSupabaseClient();
   const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
@@ -189,13 +185,12 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   if (updates.role !== undefined) updateData.role = updates.role;
   if (updates.employment_status !== undefined) updateData.employment_status = updates.employment_status;
   if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
-  if (updates.tencent_meeting_operator_id !== undefined) updateData.tencent_meeting_operator_id = updates.tencent_meeting_operator_id;
 
   const { data, error } = await client
     .from('users')
     .update(updateData)
     .eq('id', id)
-    .select('id, username, email, role, employment_status, is_active, tencent_meeting_operator_id, created_at, updated_at')
+    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
     .maybeSingle();
   if (error) throw new Error(`更新用户失败: ${error.message}`);
   return data as DbUser | null;
