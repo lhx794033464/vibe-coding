@@ -35,6 +35,31 @@ interface KpiData {
   progress: KpiProgress[];
 }
 
+interface FormRow {
+  indicator: string;
+  weight: string;
+  target: string;
+  targetRole: string;
+}
+
+const DEFAULT_ROLES: Record<string, string> = {
+  online_rate: '交付顾问',
+  completion_rate: '交付顾问',
+  knowledge_count: '答疑顾问',
+  customer_satisfaction: '答疑顾问',
+};
+
+const INDICATOR_ORDER = ['online_rate', 'completion_rate', 'knowledge_count', 'customer_satisfaction'];
+
+function getDefaultFormRows(): FormRow[] {
+  return INDICATOR_ORDER.map(indicator => ({
+    indicator,
+    weight: '25',
+    target: '',
+    targetRole: DEFAULT_ROLES[indicator],
+  }));
+}
+
 const INDICATOR_LABELS: Record<string, string> = {
   online_rate: '上线率',
   completion_rate: '完成率',
@@ -58,10 +83,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
   // 管理员：新增/编辑模板
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<KpiTemplate | null>(null);
-  const [formIndicator, setFormIndicator] = useState('online_rate');
-  const [formWeight, setFormWeight] = useState('30');
-  const [formTarget, setFormTarget] = useState('');
-  const [formTargetRole, setFormTargetRole] = useState('交付顾问');
+  const [formRows, setFormRows] = useState<FormRow[]>(getDefaultFormRows());
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // 顾问：编辑进度
@@ -113,59 +135,77 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
   const openNewTemplate = () => {
     setEditingTemplate(null);
-    setFormIndicator('online_rate');
-    setFormWeight('30');
-    setFormTarget('');
-    setFormTargetRole('交付顾问');
+    setFormRows(getDefaultFormRows());
     setTemplateDialogOpen(true);
   };
 
   const openEditTemplate = (tmpl: KpiTemplate) => {
     setEditingTemplate(tmpl);
-    setFormIndicator(tmpl.indicator);
-    setFormWeight(tmpl.weight);
-    setFormTarget(tmpl.target_value || '');
-    setFormTargetRole(tmpl.target_role || '交付顾问');
+    setFormRows([{
+      indicator: tmpl.indicator,
+      weight: tmpl.weight,
+      target: tmpl.target_value || '',
+      targetRole: tmpl.target_role || '交付顾问',
+    }]);
     setTemplateDialogOpen(true);
   };
 
   const saveTemplate = async () => {
-    if (!formWeight) {
-      toast.error('请填写权重');
-      return;
+    // 验证
+    for (const row of formRows) {
+      if (!row.weight || parseFloat(row.weight) <= 0) {
+        toast.error(`"${INDICATOR_LABELS[row.indicator]}"的权重不能为空`);
+        return;
+      }
     }
     setSavingTemplate(true);
     try {
-      const payload = {
-        year,
-        content: INDICATOR_LABELS[formIndicator] || formIndicator,
-        indicator: formIndicator,
-        weight: parseFloat(formWeight),
-        target_value: formTarget ? parseFloat(formTarget) : null,
-        target_role: formTargetRole,
-      };
-
-      let res;
       if (editingTemplate) {
-        res = await fetch(`/api/kpi/templates/${editingTemplate.id}`, {
+        // 编辑单条
+        const row = formRows[0];
+        const res = await fetch(`/api/kpi/templates/${editingTemplate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            year,
+            content: INDICATOR_LABELS[row.indicator] || row.indicator,
+            indicator: row.indicator,
+            weight: parseFloat(row.weight),
+            target_value: row.target ? parseFloat(row.target) : null,
+            target_role: row.targetRole,
+          }),
         });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error);
+        }
+        toast.success('KPI已更新');
       } else {
-        res = await fetch('/api/kpi/templates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-          body: JSON.stringify(payload),
-        });
+        // 批量新增
+        const results = await Promise.all(
+          formRows.map(row =>
+            fetch('/api/kpi/templates', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+              body: JSON.stringify({
+                year,
+                content: INDICATOR_LABELS[row.indicator] || row.indicator,
+                indicator: row.indicator,
+                weight: parseFloat(row.weight),
+                target_value: row.target ? parseFloat(row.target) : null,
+                target_role: row.targetRole,
+              }),
+            })
+          )
+        );
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+          const errs = await Promise.all(failed.map(r => r.json()));
+          throw new Error(errs[0]?.error || '部分保存失败');
+        }
+        toast.success(`已添加${formRows.length}项KPI`);
       }
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
-      }
-
-      toast.success(editingTemplate ? 'KPI已更新' : 'KPI已添加');
       setTemplateDialogOpen(false);
       fetchKpiData();
     } catch (error: any) {
@@ -487,68 +527,78 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核对象</th>
-                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核内容</th>
-                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核指标</th>
-                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核权重</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核对象</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核内容</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核指标</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核权重</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b">
-                  <td className="px-3 py-2">
-                    <Select value={formTargetRole} onValueChange={setFormTargetRole}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" side="bottom">
-                        <SelectItem value="交付顾问">交付顾问</SelectItem>
-                        <SelectItem value="答疑顾问">答疑顾问</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={cn('text-xs font-medium px-2 py-1 rounded-full border', INDICATOR_COLORS[formIndicator] || 'bg-gray-100')}>
-                      {INDICATOR_LABELS[formIndicator] || formIndicator}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Select value={formIndicator} onValueChange={setFormIndicator}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" side="bottom">
-                        <SelectItem value="online_rate">上线率</SelectItem>
-                        <SelectItem value="completion_rate">完成率</SelectItem>
-                        <SelectItem value="knowledge_count">知识沉淀数量</SelectItem>
-                        <SelectItem value="customer_satisfaction">客户满意度</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        className="w-20 h-8 text-xs"
-                        value={formWeight}
-                        onChange={(e) => setFormWeight(e.target.value)}
-                        min={0}
-                        max={100}
-                      />
-                      <span className="text-xs text-gray-400">%</span>
-                    </div>
-                  </td>
-                </tr>
-                {formTarget && (
-                  <tr className="border-b">
-                    <td colSpan={4} className="px-3 py-1.5">
-                      <p className="text-xs text-gray-400">
-                        目标值：{formTarget}{['knowledge_count'].includes(formIndicator) ? '篇' : '%'}
-                        {formIndicator === 'knowledge_count' && <span className="ml-2 text-gray-300">（知识沉淀数量由顾问编辑）</span>}
-                        {formIndicator === 'customer_satisfaction' && <span className="ml-2 text-gray-300">（客户满意度由管理员编辑，默认100%）</span>}
-                      </p>
+                {formRows.map((row, index) => (
+                  <tr key={index} className="border-b last:border-b-0">
+                    <td className="px-3 py-2">
+                      <Select
+                        value={row.targetRole}
+                        onValueChange={(v) => {
+                          const newRows = [...formRows];
+                          newRows[index] = { ...newRows[index], targetRole: v };
+                          setFormRows(newRows);
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-28">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" side="bottom">
+                          <SelectItem value="交付顾问">交付顾问</SelectItem>
+                          <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={cn('text-xs font-medium px-2 py-1 rounded-full border inline-block', INDICATOR_COLORS[row.indicator] || 'bg-gray-100')}>
+                        {INDICATOR_LABELS[row.indicator] || row.indicator}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Select
+                        value={row.indicator}
+                        onValueChange={(v) => {
+                          const newRows = [...formRows];
+                          newRows[index] = { ...newRows[index], indicator: v };
+                          setFormRows(newRows);
+                        }}
+                        disabled={!!editingTemplate}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" side="bottom">
+                          <SelectItem value="online_rate">上线率</SelectItem>
+                          <SelectItem value="completion_rate">完成率</SelectItem>
+                          <SelectItem value="knowledge_count">知识沉淀数量</SelectItem>
+                          <SelectItem value="customer_satisfaction">客户满意度</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          className="w-20 h-8 text-xs"
+                          value={row.weight}
+                          onChange={(e) => {
+                            const newRows = [...formRows];
+                            newRows[index] = { ...newRows[index], weight: e.target.value };
+                            setFormRows(newRows);
+                          }}
+                          min={0}
+                          max={100}
+                        />
+                        <span className="text-xs text-gray-400">%</span>
+                      </div>
                     </td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
@@ -558,7 +608,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
             </DialogClose>
             <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={saveTemplate} disabled={savingTemplate}>
               {savingTemplate && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              {editingTemplate ? '保存修改' : '添加'}
+              {editingTemplate ? '保存修改' : `添加${formRows.length}项`}
             </Button>
           </div>
         </DialogContent>
