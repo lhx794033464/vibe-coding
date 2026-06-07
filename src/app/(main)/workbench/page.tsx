@@ -4,9 +4,16 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -376,96 +383,6 @@ function ProcessCenterContent() {
     return [];
   };
 
-  // 渲染流程卡片
-  const renderAppCard = (app: ProcessApplication) => {
-    const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
-    const screenshotKeys = getAppScreenshotKeys(app);
-    const customerNames = getAppCustomerNames(app);
-    return (
-      <Card key={app.id} className="hover:shadow-md transition-shadow">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3 flex-1">
-              <div className={`p-2 rounded-lg ${getTypeColor(app.type)}`}>
-                <TypeIcon className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-foreground">{getTypeLabel(app.type)}</span>
-                  <Badge variant="outline" className={getStatusColor(app.status)}>
-                    {getStatusLabel(app.status)}
-                  </Badge>
-                </div>
-                <div className="text-sm text-muted-foreground space-y-0.5">
-                  {customerNames.length > 0 && (
-                    <p>客户：{customerNames.join('、')}</p>
-                  )}
-                  {app.expected_date && (
-                    <p>期望日期：{app.expected_date}</p>
-                  )}
-                  {app.notes && (
-                    <p>备注：{app.notes}</p>
-                  )}
-                  {app.reject_reason && (
-                    <p className="text-destructive">驳回原因：{app.reject_reason}</p>
-                  )}
-                  <p>申请人：{app.applicant_name || '未知'}</p>
-                  <p>申请时间：{formatDate(app.created_at)}</p>
-                  {app.reviewed_at && (
-                    <p>审批时间：{formatDate(app.reviewed_at)}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 ml-2">
-              {/* 查看KBC截图 */}
-              {screenshotKeys.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleViewScreenshots(screenshotKeys)}
-                >
-                  <Eye className="h-4 w-4 mr-1" />
-                  截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
-                </Button>
-              )}
-              {/* 群聊解散：去解散按钮 */}
-              {app.type === 'group_dismissal' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const names = getAppCustomerNames(app);
-                    navigator.clipboard.writeText(names.join('、'));
-                    toast.success(`已复制客户名称：${names.join('、')}`, { duration: 2000 });
-                    // 尝试拉起企业微信
-                    window.open('wxwork://', '_blank');
-                  }}
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  去解散
-                </Button>
-              )}
-              {/* 管理员审批按钮 */}
-              {isAdmin && app.status === 'pending' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setReviewingApp(app);
-                    setShowReviewDialog(true);
-                  }}
-                >
-                  审批
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
   return (
     <div className="p-4 md:p-6">
       {/* Header */}
@@ -524,7 +441,96 @@ function ProcessCenterContent() {
                 {searchQuery ? '未找到匹配的流程' : (activeTab === 'pending' ? '暂无待办流程' : '暂无已办流程')}
               </div>
             ) : (
-              filteredApplications.map((app) => renderAppCard(app))
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="text-left">申请类型</TableHead>
+                    <TableHead className="text-left">客户</TableHead>
+                    <TableHead className="text-left">期望排期</TableHead>
+                    <TableHead className="text-left">申请人</TableHead>
+                    <TableHead className="text-left">申请时间</TableHead>
+                    <TableHead className="text-left">备注</TableHead>
+                    <TableHead className="text-left">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredApplications.map((app) => {
+                    const TypeIcon = TYPE_CONFIG[app.type]?.icon || FileText;
+                    const screenshotKeys = getAppScreenshotKeys(app);
+                    const customerNames = getAppCustomerNames(app);
+                    return (
+                      <TableRow key={app.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-md ${getTypeColor(app.type)}`}>
+                              <TypeIcon className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium text-sm">{getTypeLabel(app.type)}</span>
+                              <Badge variant="outline" className={`${getStatusColor(app.status)} text-[10px] px-1.5 py-0 h-4`}>
+                                {getStatusLabel(app.status)}
+                              </Badge>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">{customerNames.join('、') || '-'}</TableCell>
+                        <TableCell className="text-sm">{app.expected_date || '-'}</TableCell>
+                        <TableCell className="text-sm">{app.applicant_name || '未知'}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{formatDate(app.created_at)}</TableCell>
+                        <TableCell className="text-sm max-w-[160px] truncate" title={app.notes || ''}>{app.notes || '-'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {/* 查看KBC截图 */}
+                            {screenshotKeys.length > 0 && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => handleViewScreenshots(screenshotKeys)}>
+                                <Eye className="h-3 w-3 mr-0.5" />
+                                截图
+                              </Button>
+                            )}
+                            {/* 群聊解散：去解散按钮 */}
+                            {app.type === 'group_dismissal' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs px-2"
+                                onClick={() => {
+                                  const names = getAppCustomerNames(app);
+                                  navigator.clipboard.writeText(names.join('、'));
+                                  toast.success(`已复制客户名称：${names.join('、')}`, { duration: 2000 });
+                                  window.open('wxwork://', '_blank');
+                                }}
+                              >
+                                <Copy className="h-3 w-3 mr-0.5" />
+                                去解散
+                              </Button>
+                            )}
+                            {/* 管理员审批按钮 */}
+                            {isAdmin && app.status === 'pending' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs px-2"
+                                onClick={() => {
+                                  setReviewingApp(app);
+                                  setShowReviewDialog(true);
+                                }}
+                              >
+                                审批
+                              </Button>
+                            )}
+                            {/* 驳回原因展示 */}
+                            {app.reject_reason && (
+                              <span className="text-xs text-destructive" title={app.reject_reason}>
+                                已驳回
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </div>
         </div>
