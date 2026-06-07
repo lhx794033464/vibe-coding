@@ -23,7 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Loader2, Search, X } from 'lucide-react';
+import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Copy, Loader2, Search, X } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -427,6 +427,23 @@ function ProcessCenterContent() {
                 >
                   <Eye className="h-4 w-4 mr-1" />
                   截图{screenshotKeys.length > 1 ? `(${screenshotKeys.length})` : ''}
+                </Button>
+              )}
+              {/* 群聊解散：去解散按钮 */}
+              {app.type === 'group_dismissal' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const names = getAppCustomerNames(app);
+                    navigator.clipboard.writeText(names.join('、'));
+                    toast.success(`已复制客户名称：${names.join('、')}`, { duration: 2000 });
+                    // 尝试拉起企业微信
+                    window.open('wxwork://', '_blank');
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  去解散
                 </Button>
               )}
               {/* 管理员审批按钮 */}
