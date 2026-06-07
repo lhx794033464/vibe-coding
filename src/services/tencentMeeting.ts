@@ -135,6 +135,7 @@ interface RecordingDetail {
 /**
  * 查询会议录制列表
  * 文档: https://cloud.tencent.com/document/product/1095/51189
+ * 注意: 仅会议创建者或有企业录制管理权限的用户可查询
  */
 async function queryRecordings(
   meetingCode?: string,
@@ -145,17 +146,22 @@ async function queryRecordings(
   const start = startTime || now - 31 * 24 * 3600; // 默认近31天
   const end = endTime || now;
 
+  // 先查全部录制列表（不按会议号过滤），避免 meeting_code 参数不匹配
   // 直接拼接查询参数（避免 URLSearchParams 编码导致签名不一致）
-  let uri = `/v1/records?operator_id=${OPERATOR_ID}&operator_id_type=1&start_time=${start}&end_time=${end}&page_size=20&page=1`;
-  if (meetingCode) {
-    uri += `&meeting_code=${meetingCode}`;
-  }
+  const uri = `/v1/records?operator_id=${OPERATOR_ID}&operator_id_type=1&start_time=${start}&end_time=${end}&page_size=20&page=1`;
   const result = await apiGet(uri) as {
     total_count: number;
     record_meetings: RecordMeeting[];
   };
 
-  return result.record_meetings || [];
+  let recordings = result.record_meetings || [];
+
+  // 如果指定了会议号，在结果中过滤匹配
+  if (meetingCode && recordings.length > 0) {
+    recordings = recordings.filter(r => r.meeting_code === meetingCode);
+  }
+
+  return recordings;
 }
 
 /**
@@ -359,7 +365,7 @@ export async function extractMinutes(meetingUrlOrCode: string): Promise<{
       return {
         success: false,
         minutes: '',
-        error: `未找到会议号 ${meetingCode} 的录制记录。请确认：1) 会议已结束并生成了云录制 2) 您是会议创建者或企业管理员`,
+        error: `未找到会议号 ${meetingCode} 的录制记录。可能原因：1) 会议未开启云录制 2) 录制尚在转码中 3) 当前用户(${OPERATOR_ID})非会议创建者，需使用会议创建者的userid 4) 会议不在近31天范围内`,
       };
     }
 
