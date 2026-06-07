@@ -389,14 +389,14 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
-                  <TableHead className="w-[200px]">客户名称</TableHead>
-                  <TableHead className="w-[100px]">上线状态</TableHead>
-                  <TableHead className="w-[100px]">验收状态</TableHead>
-                  <TableHead>购买模块</TableHead>
-                  <TableHead className="w-[120px]">交付顾问</TableHead>
-                  <TableHead className="w-[140px]">人天</TableHead>
-                  <TableHead className="w-[120px]">截止日</TableHead>
-                  <TableHead className="w-[120px] text-right">操作</TableHead>
+                  <TableHead className="w-[200px] text-center">客户名称</TableHead>
+                  <TableHead className="w-[100px] text-center">上线状态</TableHead>
+                  <TableHead className="w-[100px] text-center">验收状态</TableHead>
+                  <TableHead className="text-center">购买模块</TableHead>
+                  <TableHead className="w-[120px] text-center">交付顾问</TableHead>
+                  <TableHead className="w-[140px] text-center">人天</TableHead>
+                  <TableHead className="w-[120px] text-center">截止日</TableHead>
+                  <TableHead className="w-[120px] text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -468,7 +468,7 @@ export default function CustomersPage() {
                             </span>
                           ) : '-'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell>
                           <Link href={`/customers/${customer.id}`}>
                             <Button variant="ghost" size="sm" className="h-7 px-2">查看</Button>
                           </Link>
