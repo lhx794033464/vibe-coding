@@ -54,7 +54,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isClearing, setIsClearing] = useState(false); // 清除动画状态
-  const [showWelcome, setShowWelcome] = useState(true); // 是否显示欢迎页动画
   const [chatMode, setChatMode] = useState<ChatMode>('delivery'); // 对话模式
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -136,7 +135,7 @@ export default function HomePage() {
       clearMessages();
       setMessages([]);
       setIsClearing(false);
-      setShowWelcome(true); // 重置欢迎页动画状态
+      // 重置欢迎页动画状态
       // Q&A 模式下重置会话 ID（但不重置产品选择）
       if (chatMode === 'qa') {
         setQaSessionId('');
@@ -157,7 +156,7 @@ export default function HomePage() {
     setChatMode(mode);
     clearMessages();
     setMessages([]);
-    setShowWelcome(true);
+    // 重置欢迎页动画状态
     setLoading(false);
     
     // 切换到 Q&A 模式时初始化（检查 Token）
@@ -307,7 +306,7 @@ export default function HomePage() {
   // 处理语音
   const processVoice = async (audioBlob: Blob) => {
     setIsProcessing(true);
-    setShowWelcome(false); // 发送消息时关闭欢迎页动画
+    // 发送消息
     
     try {
       // 将音频转为base64
@@ -394,7 +393,7 @@ export default function HomePage() {
     }
     
     setInput('');
-    setShowWelcome(false); // 发送消息时关闭欢迎页动画
+    // 发送消息
     
     // 添加用户消息
     const newUserMessage: Message = { role: 'user', content: userMessage };
@@ -695,11 +694,11 @@ export default function HomePage() {
       </div>
 
       {/* 对话区域 */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto relative">
         <div className="max-w-3xl mx-auto px-6 py-6 h-full">
-          {messages.length === 0 ? (
-            <div className={`flex flex-col items-center justify-center h-full ${showWelcome ? 'welcome-fade-in' : ''}`}>
-              {/* 欢迎信息 */}
+          {/* 小蝶头像和模式切换 - 居中绝对定位，有消息时隐藏 */}
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full">
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
                   <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
@@ -768,9 +767,11 @@ export default function HomePage() {
                   </div>
                 )}
               </div>
-
             </div>
-          ) : (
+          )}
+
+          {/* 消息列表 */}
+          {messages.length > 0 && (
             <div className={`space-y-6 ${isClearing ? 'message-fade-out' : ''}`}>
               {messages.map((message, index) => (
                 <div
