@@ -241,7 +241,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
       case 'knowledge_count':
         return progress?.manual_value ? parseFloat(progress.manual_value) : null;
       case 'customer_satisfaction':
-        return progress?.manual_value ? parseFloat(progress.manual_value) : null;
+        return progress?.manual_value ? parseFloat(progress.manual_value) : 100;
       default:
         return null;
     }
@@ -413,7 +413,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                 const actual = getActualValue(tmpl, myProgress);
                 const completion = getCompletionRate(tmpl, myProgress);
                 const isAutoCalculated = tmpl.indicator === 'online_rate' || tmpl.indicator === 'completion_rate';
-                const isEditable = tmpl.indicator === 'knowledge_count' || (tmpl.indicator === 'customer_satisfaction' && isAdmin);
+                const isEditable = tmpl.indicator === 'knowledge_count' || tmpl.indicator === 'customer_satisfaction';
 
                 return (
                   <div key={tmpl.id} className="flex items-center gap-2 p-3 rounded-lg border hover:bg-gray-50/50 transition-colors">

@@ -71,10 +71,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'KPI模板不存在' }, { status: 404 });
     }
 
-    // customer_satisfaction 仅管理员可编辑
-    if (template.indicator === 'customer_satisfaction' && user.role !== 'admin') {
-      return NextResponse.json({ error: '仅管理员可编辑客户满意度' }, { status: 403 });
-    }
+    // 客户满意度默认100%，顾问可编辑
 
     const targetUserId = user.role === 'admin' ? (body.user_id || user.id) : user.id;
 
