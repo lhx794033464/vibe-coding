@@ -493,7 +493,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                               className="h-1.5 rounded-full transition-all duration-500"
                               style={{
                                 width: `${completion.rate}%`,
-                                backgroundColor: completion.rate >= 80 ? '#22c55e' : completion.rate >= 60 ? '#eab308' : '#ef4444',
+                                backgroundColor: completion.rate >= 100 ? '#22c55e' : '#ef4444',
                               }}
                             />
                           ) : (
@@ -502,7 +502,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                         </div>
                         <span className={cn(
                           'text-xs font-medium w-9 text-right',
-                          completion ? (completion.rate >= 80 ? 'text-green-600' : completion.rate >= 60 ? 'text-yellow-600' : 'text-red-600') : 'text-gray-400'
+                          completion ? (completion.rate >= 100 ? 'text-green-600' : 'text-red-600') : 'text-gray-400'
                         )}>
                           {completion?.label || '-'}
                         </span>
