@@ -24,8 +24,7 @@ import {
   Trash2,
   FileDown,
   Eye,
-  Upload,
-  Loader2
+  Upload
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,7 +46,6 @@ interface ImplementationLog {
   log_date: string;
   consumed_days: string;
   summary: string;
-  meeting_link: string | null;
   created_at: string;
 }
 
@@ -85,7 +83,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
     log_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     consumed_days: '',
     summary: '',
-    meeting_link: '',
   });
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   
@@ -93,90 +90,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     log_date: '',
     consumed_days: '',
     summary: '',
-    meeting_link: '',
   });
-  const [extractingMinutes, setExtractingMinutes] = useState(false);
-  const [minutesError, setMinutesError] = useState('');
-
-  const handleExtractMinutes = async () => {
-    if (!editLogForm.meeting_link.trim()) {
-      setMinutesError('请先填写会议链接');
-      return;
-    }
-    setExtractingMinutes(true);
-    setMinutesError('');
-    try {
-      const session = localStorage.getItem('auth_session');
-      const token = session ? JSON.parse(session).token : '';
-      const res = await fetch('/api/meetings/minutes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ url: editLogForm.meeting_link.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMinutesError(data.error || '提取纪要失败');
-        return;
-      }
-      if (data.minutes) {
-        const existing = editLogForm.summary.trim();
-        setEditLogForm({
-          ...editLogForm,
-          summary: existing ? `${existing}\n\n--- 会议纪要 ---\n${data.minutes}` : `--- 会议纪要 ---\n${data.minutes}`,
-        });
-      } else {
-        setMinutesError('未找到会议纪要内容');
-      }
-    } catch {
-      setMinutesError('网络错误，请稍后重试');
-    } finally {
-      setExtractingMinutes(false);
-    }
-  };
-
-  const handleExtractMinutesForNew = async () => {
-    if (!logForm.meeting_link.trim()) {
-      setMinutesError('请先填写会议链接');
-      return;
-    }
-    setExtractingMinutes(true);
-    setMinutesError('');
-    try {
-      const session = localStorage.getItem('auth_session');
-      const token = session ? JSON.parse(session).token : '';
-      const res = await fetch('/api/meetings/minutes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ url: logForm.meeting_link.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMinutesError(data.error || '提取纪要失败');
-        return;
-      }
-      if (data.minutes) {
-        const existing = logForm.summary.trim();
-        setLogForm({
-          ...logForm,
-          summary: existing ? `${existing}\n\n--- 会议纪要 ---\n${data.minutes}` : `--- 会议纪要 ---\n${data.minutes}`,
-        });
-      } else {
-        setMinutesError('未找到会议纪要内容');
-      }
-    } catch {
-      setMinutesError('网络错误，请稍后重试');
-    } finally {
-      setExtractingMinutes(false);
-    }
-  };
-
-  const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     sales_order_no: '',
@@ -198,6 +112,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const [generatingDoc, setGeneratingDoc] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState(false);
+  const [editing, setEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -371,7 +286,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
           log_date: logForm.log_date,
           consumed_days: parseFloat(logForm.consumed_days),
           summary: logForm.summary,
-          meeting_link: logForm.meeting_link || null,
         }),
       });
 
@@ -380,7 +294,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
           log_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
           consumed_days: '',
           summary: '',
-          meeting_link: '',
         });
         setShowLogForm(false);
         fetchImplementationLogs(customer.id);
@@ -416,7 +329,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
       log_date: format(new Date(log.log_date), "yyyy-MM-dd'T'HH:mm"),
       consumed_days: log.consumed_days,
       summary: log.summary,
-      meeting_link: log.meeting_link || '',
     });
   };
 
@@ -427,7 +339,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
       log_date: '',
       consumed_days: '',
       summary: '',
-      meeting_link: '',
     });
   };
 
@@ -449,7 +360,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
           log_date: editLogForm.log_date,
           consumed_days: parseFloat(editLogForm.consumed_days),
           summary: editLogForm.summary,
-          meeting_link: editLogForm.meeting_link || null,
         }),
       });
 
@@ -459,7 +369,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
           log_date: '',
           consumed_days: '',
           summary: '',
-          meeting_link: '',
         });
         fetchImplementationLogs(customer.id);
       }
@@ -1103,40 +1012,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       rows={3}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>会议链接</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={logForm.meeting_link}
-                        onChange={(e) => {
-                          setLogForm({ ...logForm, meeting_link: e.target.value });
-                          setMinutesError('');
-                        }}
-                        placeholder="粘贴腾讯会议回放链接"
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleExtractMinutesForNew}
-                        disabled={extractingMinutes}
-                        className="shrink-0 whitespace-nowrap"
-                      >
-                        {extractingMinutes ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                            提取中
-                          </>
-                        ) : (
-                          '提取纪要'
-                        )}
-                      </Button>
-                    </div>
-                    {minutesError && (
-                      <p className="text-xs text-red-500">{minutesError}</p>
-                    )}
-                  </div>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleAddImplementationLog}>保存</Button>
                     <Button size="sm" variant="outline" onClick={() => setShowLogForm(false)}>取消</Button>
@@ -1222,40 +1097,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       onChange={(e) => setEditLogForm({ ...editLogForm, summary: e.target.value })}
                       rows={5}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>会议链接</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={editLogForm.meeting_link}
-                        onChange={(e) => {
-                          setEditLogForm({ ...editLogForm, meeting_link: e.target.value });
-                          setMinutesError('');
-                        }}
-                        placeholder="粘贴腾讯会议回放链接"
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleExtractMinutes}
-                        disabled={extractingMinutes}
-                        className="shrink-0 whitespace-nowrap"
-                      >
-                        {extractingMinutes ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                            提取中
-                          </>
-                        ) : (
-                          '提取纪要'
-                        )}
-                      </Button>
-                    </div>
-                    {minutesError && (
-                      <p className="text-xs text-red-500">{minutesError}</p>
-                    )}
                   </div>
                 </div>
               )}
