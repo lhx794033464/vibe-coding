@@ -14,7 +14,6 @@ import {
   Plus, 
   CheckCircle, 
   XCircle,
-  ExternalLink,
   Calendar,
   User,
   Building,
@@ -23,9 +22,8 @@ import {
   TrendingUp,
   Trash2,
   FileDown,
-  Pencil,
-  Upload,
   Eye,
+  Upload,
   Loader2
 } from 'lucide-react';
 import {
@@ -89,7 +87,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
     meeting_link: '',
   });
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  
   const [editLogForm, setEditLogForm] = useState({
     log_date: '',
     consumed_days: '',
@@ -1099,20 +1097,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                               </Badge>
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                              >
-                                <Eye className="h-3.5 w-3.5 mr-1" />
-                                {expandedLogId === log.id ? '收起' : '查看'}
-                              </Button>
-                              <Button
-                                variant="ghost"
                                 size="icon"
                                 className="h-6 w-6 text-gray-400 hover:text-blue-500"
                                 onClick={() => handleStartEditLog(log)}
                               >
-                                <Pencil className="h-3.5 w-3.5" />
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1124,23 +1113,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                               </Button>
                             </div>
                           </div>
-                          {expandedLogId === log.id && (
-                            <div className="mt-2 space-y-2">
-                              <p className="text-sm whitespace-pre-wrap">{log.summary}</p>
-                              {log.meeting_link && (
-                                <a
-                                  href={log.meeting_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  会议链接
-                                </a>
-                              )}
-                            </div>
-                          )}
-                        </>
+                          </>
                       )}
                     </div>
                   ))}
