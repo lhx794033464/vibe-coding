@@ -67,25 +67,22 @@ export default function HomePage() {
   const abortControllerRef = useRef<AbortController | null>(null); // 用于中断流式请求
   
   // ===== Q&A 答疑咨询状态 =====
-  interface QAProduct { productId: number; name: string }
   const [qaTokenValid, setQaTokenValid] = useState<boolean>(false);
-  const [qaProducts, setQaProducts] = useState<QAProduct[]>([]);
-  const [qaSelectedProductId, setQaSelectedProductId] = useState<number | null>(null);
-  const [qaSelectedProductName, setQaSelectedProductName] = useState<string>('');
   const [qaSessionId, setQaSessionId] = useState<string>('');
   const qaSessionIdRef = useRef<string>('');
+  // 默认金蝶AI星辰 (productId=9)
+  const qaSelectedProductId = 9;
+  const qaSelectedProductName = '金蝶AI星辰';
   
   // 同步 qaSessionId 到 ref
   useEffect(() => {
     qaSessionIdRef.current = qaSessionId;
   }, [qaSessionId]);
-  const [qaInitLoading, setQaInitLoading] = useState<boolean>(false);
   const [qaTokenInput, setQaTokenInput] = useState<string>('');
   const [qaTokenSaving, setQaTokenSaving] = useState<boolean>(false);
   
   // 初始化 Q&A（检查 Token + 获取产品列表）
   const initQA = useCallback(async () => {
-    setQaInitLoading(true);
     try {
       const res = await fetch('/api/chat/qa', {
         method: 'POST',
@@ -96,13 +93,8 @@ export default function HomePage() {
       if (data.token) {
         setQaTokenValid(data.token.valid === true);
       }
-      if (data.products) {
-        setQaProducts(data.products);
-      }
     } catch (error) {
       console.error('[QA] Init failed:', error);
-    } finally {
-      setQaInitLoading(false);
     }
   }, [getAuthHeader]);
   
@@ -130,20 +122,6 @@ export default function HomePage() {
       setQaTokenSaving(false);
     }
   }, [qaTokenInput, getAuthHeader]);
-  
-  // 选择产品
-  const selectQAProduct = useCallback((product: QAProduct) => {
-    setQaSelectedProductId(product.productId);
-    setQaSelectedProductName(product.name);
-    setQaSessionId(''); // 切换产品时重置会话
-  }, []);
-  
-  // 更换产品
-  const changeQAProduct = useCallback(() => {
-    setQaSelectedProductId(null);
-    setQaSelectedProductName('');
-    setQaSessionId('');
-  }, []);
   
   // 清除对话（带动画）
   const handleClearChat = () => {
@@ -187,8 +165,8 @@ export default function HomePage() {
     setShowWelcome(true);
     setLoading(false);
     
-    // 切换到 Q&A 模式时初始化
-    if (mode === 'qa' && qaProducts.length === 0) {
+    // 切换到 Q&A 模式时初始化（检查 Token）
+    if (mode === 'qa') {
       initQA();
     }
   };
@@ -410,9 +388,9 @@ export default function HomePage() {
     const userMessage = typeof e === 'string' ? e : input.trim();
     if (!userMessage || loading) return;
 
-    // Q&A 模式：需要 Token 和产品选择
-    if (chatMode === 'qa' && (!qaTokenValid || !qaSelectedProductId)) {
-      toast.error(!qaTokenValid ? '请先配置 PAT Token' : '请先选择产品');
+    // Q&A 模式：需要 Token
+    if (chatMode === 'qa' && !qaTokenValid) {
+      toast.error('请先配置 PAT Token');
       return;
     }
 
@@ -756,81 +734,42 @@ export default function HomePage() {
                   </button>
                 </div>
                 
-                {/* Q&A 模式：产品选择区域 */}
-                {chatMode === 'qa' && (
+                {/* Q&A 模式：Token 配置区域（仅在 Token 无效时显示） */}
+                {chatMode === 'qa' && !qaTokenValid && (
                   <div className="mt-4 max-w-md mx-auto">
-                    {qaInitLoading ? (
-                      <div className="flex items-center justify-center gap-2 text-slate-400 py-4">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">正在初始化...</span>
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
+                      <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-3">
+                        <Key className="w-4 h-4" />
+                        需要配置身份认证
                       </div>
-                    ) : !qaTokenValid ? (
-                      /* Token 未配置 */
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
-                        <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-3">
-                          <Key className="w-4 h-4" />
-                          需要配置身份认证
-                        </div>
-                        <p className="text-xs text-amber-600 mb-3 leading-relaxed">
-                          使用金蝶产品智能问答需要先配置 PAT Token。请按以下步骤获取：
-                        </p>
-                        <ol className="text-xs text-amber-600 mb-3 space-y-1 list-decimal ml-4">
-                          <li>打开浏览器访问 vip.kingdee.com</li>
-                          <li>登录金蝶云社区账号</li>
-                          <li>点击右上角头像 → 个人主页 → 编辑资料</li>
-                          <li>找到「个人访问令牌」→ 新建令牌</li>
-                          <li>复制生成的 token 并粘贴到下方</li>
-                        </ol>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={qaTokenInput}
-                            onChange={(e) => setQaTokenInput(e.target.value)}
-                            placeholder="粘贴 kdt_... 格式的 Token"
-                            className="flex-1 px-3 py-2 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                          />
-                          <Button
-                            onClick={saveQAToken}
-                            disabled={!qaTokenInput.trim() || qaTokenSaving}
-                            size="sm"
-                            className="bg-amber-500 hover:bg-amber-600 text-white text-xs"
-                          >
-                            {qaTokenSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
-                          </Button>
-                        </div>
+                      <p className="text-xs text-amber-600 mb-3 leading-relaxed">
+                        使用金蝶产品智能问答需要先配置 PAT Token。请按以下步骤获取：
+                      </p>
+                      <ol className="text-xs text-amber-600 mb-3 space-y-1 list-decimal ml-4">
+                        <li>打开浏览器访问 vip.kingdee.com</li>
+                        <li>登录金蝶云社区账号</li>
+                        <li>点击右上角头像 → 个人主页 → 编辑资料</li>
+                        <li>找到「个人访问令牌」→ 新建令牌</li>
+                        <li>复制生成的 token 并粘贴到下方</li>
+                      </ol>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={qaTokenInput}
+                          onChange={(e) => setQaTokenInput(e.target.value)}
+                          placeholder="粘贴 kdt_... 格式的 Token"
+                          className="flex-1 px-3 py-2 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                        <Button
+                          onClick={saveQAToken}
+                          disabled={!qaTokenInput.trim() || qaTokenSaving}
+                          size="sm"
+                          className="bg-amber-500 hover:bg-amber-600 text-white text-xs"
+                        >
+                          {qaTokenSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
+                        </Button>
                       </div>
-                    ) : !qaSelectedProductId ? (
-                      /* 产品选择 */
-                      <div className="bg-white border border-slate-200 rounded-xl p-4 text-left">
-                        <p className="text-sm font-medium text-slate-700 mb-3">请选择您要咨询的产品：</p>
-                        <div className="grid grid-cols-1 gap-1.5 max-h-64 overflow-y-auto">
-                          {qaProducts.map((product) => (
-                            <button
-                              key={product.productId}
-                              onClick={() => selectQAProduct(product)}
-                              className="text-left px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                            >
-                              {product.productId}. {product.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      /* 已选产品，可以提问 */
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
-                          <span>当前产品：</span>
-                          <span className="font-medium text-blue-600">{qaSelectedProductName}</span>
-                          <button
-                            onClick={changeQAProduct}
-                            className="text-xs text-blue-500 hover:text-blue-700 underline"
-                          >
-                            更换
-                          </button>
-                        </div>
-                        <p className="text-xs text-slate-400">输入您的问题开始咨询</p>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -838,19 +777,6 @@ export default function HomePage() {
             </div>
           ) : (
             <div className={`space-y-6 ${isClearing ? 'message-fade-out' : ''}`}>
-              {/* Q&A 模式下显示当前产品 */}
-              {chatMode === 'qa' && qaSelectedProductName && (
-                <div className="flex items-center gap-2 text-xs text-slate-400 pb-2 border-b border-slate-100">
-                  <span>当前产品：</span>
-                  <span className="text-blue-600 font-medium">{qaSelectedProductName}</span>
-                  <button
-                    onClick={changeQAProduct}
-                    className="text-blue-500 hover:text-blue-700 underline"
-                  >
-                    更换
-                  </button>
-                </div>
-              )}
               {messages.map((message, index) => (
                 <div
                   key={index}
