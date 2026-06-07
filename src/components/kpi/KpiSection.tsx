@@ -525,12 +525,15 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
               })}
             </div>
 
-            {overall && overall.totalWeight < 100 && (
-              <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
-                <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                当前权重合计{overall.totalWeight}%，建议调整为100%
-              </div>
-            )}
+            {overall && (() => {
+              const sumAllWeights = kpiData.templates.reduce((s, t) => s + (parseFloat(t.weight) || 0), 0);
+              return sumAllWeights < 100 && (
+                <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                  <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                  当前权重合计{sumAllWeights}%，建议调整为100%
+                </div>
+              );
+            })()}
           </div>
         )}
       </CardContent>
