@@ -5,6 +5,70 @@ import { getCurrentUserInfo } from '@/lib/serverAuth';
 // 工具：search_kingdee_community（搜索社区）、get_kingdee_content_detail（获取详情）
 // 铁律：强制搜索、严格限定星辰产品范围、禁止自编、禁止短链接
 
+// ========== HTTP 请求层：状态码校验 ==========
+
+interface FetchWithCheckResult {
+  ok: boolean;
+  statusCode: number;
+  isDeadLink: boolean;       // 404/410 永久失效
+  isTemporaryError: boolean; // 其他 4xx/5xx 临时错误
+  finalUrl: string;
+  body: string | null;
+}
+
+/**
+ * 带状态码校验的 HTTP GET 请求
+ * - 200：正常，返回内容
+ * - 404/410：资源永久不存在，标记为 dead link
+ * - 其他 4xx/5xx：临时错误，可重试
+ */
+async function fetchWithCheck(url: string, timeout = 8000): Promise<FetchWithCheckResult> {
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeout),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+
+    const statusCode = res.status;
+    const finalUrl = res.url || url;
+
+    // 检查是否重定向到 /error/404 页面（金蝶社区的 SPA 404 机制）
+    if (finalUrl.includes('/error/404')) {
+      console.warn(`[QA] Dead link (redirect to 404): ${url} → ${finalUrl}`);
+      return { ok: false, statusCode: 404, isDeadLink: true, isTemporaryError: false, finalUrl, body: null };
+    }
+
+    // 404 / 410：资源永久不存在
+    if (statusCode === 404 || statusCode === 410) {
+      console.warn(`[QA] Dead link: ${url} (status ${statusCode})`);
+      return { ok: false, statusCode, isDeadLink: true, isTemporaryError: false, finalUrl, body: null };
+    }
+
+    // 200：正常
+    if (statusCode === 200) {
+      const body = await res.text();
+      // 二次校验：金蝶 SPA 可能返回 200 但页面内容是 404
+      if (body.includes('Page 404') || body.includes('return to homepage in 3 seconds')) {
+        console.warn(`[QA] Dead link (200 body contains 404): ${url}`);
+        return { ok: false, statusCode: 404, isDeadLink: true, isTemporaryError: false, finalUrl, body: null };
+      }
+      console.log(`[QA] URL OK: ${url} (status 200, body length ${body.length})`);
+      return { ok: true, statusCode: 200, isDeadLink: false, isTemporaryError: false, finalUrl, body };
+    }
+
+    // 其他 4xx/5xx：临时错误
+    console.warn(`[QA] Temporary error: ${url} (status ${statusCode})`);
+    return { ok: false, statusCode, isDeadLink: false, isTemporaryError: true, finalUrl, body: null };
+  } catch (error: any) {
+    console.error(`[QA] Request failed: ${url} (${error.message})`);
+    return { ok: false, statusCode: 0, isDeadLink: false, isTemporaryError: true, finalUrl: url, body: null };
+  }
+}
+
 // ========== 工具定义 ==========
 
 interface ToolDefinition {
@@ -27,7 +91,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'get_kingdee_content_detail',
-    description: '获取金蝶云社区文章/问答的详细内容。当搜索结果的摘要不足以完整回答问题时调用。优先获取 Knowledge 类型，其次是 Question 和 Article。',
+    description: '获取金蝶云社区文章/问答的详细内容。当搜索结果的摘要不足以完整回答问题时调用。优先获取 Knowledge 类型，其次是 Question 和 Article。已内置链接存活性校验，失效链接不会返回内容。',
     parameters: {
       url: {
         type: 'string',
@@ -38,47 +102,11 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
-// ========== 链接存活性验证 ==========
-
-async function verifyUrlAccessible(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: 'HEAD',
-      redirect: 'follow',
-      signal: AbortSignal.timeout(8000),
-    });
-    // 如果最终重定向到 404 页面，状态码可能是 200 但页面是 404
-    if (res.status === 404) return false;
-    // 检查是否重定向到 /error/404
-    const finalUrl = res.url || url;
-    if (finalUrl.includes('/error/404')) return false;
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function verifyUrlsAccessible(urls: string[]): Promise<Set<string>> {
-  const validUrls = new Set<string>();
-  const results = await Promise.allSettled(
-    urls.map(async (url) => {
-      const accessible = await verifyUrlAccessible(url);
-      return { url, accessible };
-    })
-  );
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value.accessible) {
-      validUrls.add(result.value.url);
-    }
-  }
-  return validUrls;
-}
-
 // ========== 工具实现 ==========
 
 async function searchKingdeeCommunity(query: string): Promise<string> {
   try {
-    const { SearchClient, Config, HeaderUtils } = await import('coze-coding-dev-sdk');
+    const { SearchClient, Config } = await import('coze-coding-dev-sdk');
     const config = new Config();
     const searchClient = new SearchClient(config);
 
@@ -103,11 +131,17 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
         else if (url.includes('/questions/')) type = 'Question';
         else if (url.includes('/article/')) type = 'Article';
 
-        // 过滤短链接
-        if (url.includes('/link/s/')) continue;
+        // 过滤短链接（铁律：禁止 /link/s/ 格式）
+        if (url.includes('/link/s/')) {
+          console.log(`[QA] Filtered short link: ${url}`);
+          continue;
+        }
 
         // 只保留金蝶社区链接
-        if (!url.includes('vip.kingdee.com')) continue;
+        if (!url.includes('vip.kingdee.com')) {
+          console.log(`[QA] Filtered non-kingdee link: ${url}`);
+          continue;
+        }
 
         // 为标题为空的结果补充摘要
         const displayTitle = title || `[${type}] ${snippet.slice(0, 60)}...`;
@@ -120,15 +154,36 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
       return '搜索未找到相关结果。请尝试更换关键词。';
     }
 
-    // 并行验证所有链接的存活性，过滤掉 404 的帖子
-    const urls = items.map((item) => item.url);
-    const validUrls = await verifyUrlsAccessible(urls);
+    // 并行验证所有链接的存活性（HTTP 状态码校验）
+    console.log(`[QA] Verifying ${items.length} URLs...`);
+    const checkResults = await Promise.allSettled(
+      items.map(async (item) => {
+        const check = await fetchWithCheck(item.url);
+        return { item, check };
+      })
+    );
 
-    const validItems = items.filter((item) => validUrls.has(item.url));
+    const validItems = checkResults
+      .filter((r): r is PromiseFulfilledResult<{ item: typeof items[0]; check: FetchWithCheckResult }> =>
+        r.status === 'fulfilled' && r.value.check.ok
+      )
+      .map((r) => r.value.item);
+
+    // 记录被过滤的死链
+    const deadLinks = checkResults
+      .filter((r): r is PromiseFulfilledResult<{ item: typeof items[0]; check: FetchWithCheckResult }> =>
+        r.status === 'fulfilled' && r.value.check.isDeadLink
+      )
+      .map((r) => `${r.value.item.url} (${r.value.item.title})`);
+    if (deadLinks.length > 0) {
+      console.warn(`[QA] Filtered ${deadLinks.length} dead links: ${deadLinks.join(', ')}`);
+    }
 
     if (validItems.length === 0) {
       return '搜索结果中的链接均不可访问（可能是已删除或404页面）。请尝试更换关键词。';
     }
+
+    console.log(`[QA] Valid results: ${validItems.length}/${items.length}`);
 
     return validItems.map((item, i) =>
       `[${i + 1}] 标题: ${item.title}\n    类型: ${item.type}\n    链接: ${item.url}\n    摘要: ${item.snippet}`
@@ -141,12 +196,20 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
 
 async function getKingdeeContentDetail(url: string): Promise<string> {
   try {
-    // 先验证链接是否可访问
-    const accessible = await verifyUrlAccessible(url);
-    if (!accessible) {
-      return '该链接已失效（404），无法获取内容。请基于其他搜索结果回答。';
+    // 第一步：HTTP 请求层直接校验状态码
+    const check = await fetchWithCheck(url);
+
+    if (check.isDeadLink) {
+      // 404/410：资源永久不存在，直接丢弃
+      return `该链接已失效（HTTP ${check.statusCode}），资源不存在，无法获取内容。请基于其他搜索结果回答，不要再尝试此链接。`;
     }
 
+    if (check.isTemporaryError) {
+      // 其他 4xx/5xx：临时错误
+      return `该链接暂时不可访问（HTTP ${check.statusCode}），请基于其他搜索结果回答或稍后重试。`;
+    }
+
+    // 第二步：用 FetchClient 解析页面结构化内容
     const { FetchClient } = await import('coze-coding-dev-sdk');
     const fetchClient = new FetchClient();
     const fetchResult = await fetchClient.fetch(url);
@@ -161,7 +224,7 @@ async function getKingdeeContentDetail(url: string): Promise<string> {
     }
 
     if (!content) {
-      return '无法获取该页面的详细内容。';
+      return '无法获取该页面的详细内容（页面可能为空或需要登录）。';
     }
 
     // 限制内容长度
