@@ -390,8 +390,8 @@ export default function CustomersPage() {
               <TableHeader>
                 <TableRow className="bg-gray-50">
                   <TableHead className="w-[200px]">客户名称</TableHead>
-                  <TableHead className="w-[100px]">状态</TableHead>
-                  <TableHead className="w-[80px]">版本</TableHead>
+                  <TableHead className="w-[100px]">上线状态</TableHead>
+                  <TableHead className="w-[100px]">验收状态</TableHead>
                   <TableHead>购买模块</TableHead>
                   <TableHead className="w-[120px]">交付顾问</TableHead>
                   <TableHead className="w-[140px]">人天</TableHead>
@@ -429,24 +429,14 @@ export default function CustomersPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            <Badge className={`text-xs ${customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                              {customer.status === 'online' ? '已上线' : '未上线'}
-                            </Badge>
-                            {customer.acceptance_status === 'accepted' && (
-                              <Badge className="text-xs bg-purple-100 text-purple-700">已验收</Badge>
-                            )}
-                            {customer.dismissed && (
-                              <Badge className="text-xs bg-gray-100 text-gray-500">已解散</Badge>
-                            )}
-                          </div>
+                          <Badge className={`text-xs ${customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                            {customer.status === 'online' ? '已上线' : '未上线'}
+                          </Badge>
                         </TableCell>
                         <TableCell>
-                          {customer.version && (
-                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs" variant="outline">
-                              {customer.version}
-                            </Badge>
-                          )}
+                          <Badge className={`text-xs ${customer.acceptance_status === 'accepted' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {customer.acceptance_status === 'accepted' ? '已验收' : '未验收'}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
