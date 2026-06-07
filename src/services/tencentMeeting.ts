@@ -73,8 +73,8 @@ function buildHeaders(httpMethod: string, requestUri: string, requestBody: strin
 }
 
 /** 发起 GET 请求 */
-async function apiGet(uri: string): Promise<unknown> {
-  const headers = buildHeaders('GET', uri, '');
+async function apiGet(uri: string, extraHeaders?: Record<string, string>): Promise<unknown> {
+  const headers = { ...buildHeaders('GET', uri, ''), ...extraHeaders };
   const url = `${BASE_URL}${uri}`;
 
   const response = await fetch(url, {
@@ -88,6 +88,75 @@ async function apiGet(uri: string): Promise<unknown> {
   }
 
   return response.json();
+}
+
+/** STS-Token 内存缓存 */
+let cachedStsToken: string | null = null;
+let stsTokenExpiry = 0;
+
+/** 获取 STS-Token（优先使用缓存，过期则重新生成） */
+/** 仅查询缓存的 STS-Token（不触发生成） */
+export function getCachedStsToken(): string | null {
+  if (cachedStsToken && stsTokenExpiry > Date.now()) {
+    return cachedStsToken;
+  }
+  return null;
+}
+
+/** 触发 STS-Token 生成并等待 Webhook 回调返回 */
+export async function getStsToken(operatorId?: string): Promise<string | null> {
+  // 先检查缓存
+  const cached = getCachedStsToken();
+  if (cached) return cached;
+
+  const effectiveOperatorId = operatorId || OPERATOR_ID;
+  const domain = process.env.COZE_PROJECT_DOMAIN_DEFAULT || 'localhost:5000';
+  const webhookUrl = domain.startsWith('http') ? `${domain}/api/meetings/webhook` : `https://${domain}/api/meetings/webhook`;
+
+  // 触发 STS-Token 生成
+  const uri = '/v1/app/sts-token';
+  const body = JSON.stringify({
+    operator_id: effectiveOperatorId,
+    operator_id_type: 1,
+    valid_time: 6,
+  });
+
+  const headers = buildHeaders('POST', uri, body);
+  const url = `${BASE_URL}${uri}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[TencentMeeting] 生成STS-Token失败:', errorText);
+    return null;
+  }
+
+  // STS-Token 通过 Webhook 回调异步返回，这里等待回调结果
+  // 最多等待15秒
+  const maxWait = 15000;
+  const interval = 1000;
+  const start = Date.now();
+
+  while (Date.now() - start < maxWait) {
+    if (cachedStsToken && stsTokenExpiry > Date.now()) {
+      return cachedStsToken;
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+
+  console.error('[TencentMeeting] 等待STS-Token超时');
+  return null;
+}
+
+/** 保存 Webhook 回调接收到的 STS-Token（供 webhook route 调用） */
+export function setStsToken(token: string, expiresInMs: number): void {
+  cachedStsToken = token;
+  stsTokenExpiry = Date.now() + expiresInMs;
 }
 
 /** 录制文件信息 */
@@ -174,7 +243,27 @@ async function queryRecordingDetail(recordFileId: string, operatorId?: string): 
   const effectiveOperatorId = operatorId || OPERATOR_ID;
   // 直接拼接查询参数（避免 URLSearchParams 编码导致签名不一致）
   const uri = `/v1/addresses/${recordFileId}?operator_id=${effectiveOperatorId}&operator_id_type=1`;
-  return apiGet(uri) as Promise<RecordingDetail>;
+
+  // 先尝试不带 STS-Token
+  try {
+    return await apiGet(uri) as Promise<RecordingDetail>;
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    // 如果是因为缺少 STS-Token 导致的失败，尝试获取后重试
+    if (errMsg.includes('500125') || errMsg.includes('STS-Token') || errMsg.includes('sts_token')) {
+      console.log('[TencentMeeting] 需要STS-Token，正在获取...');
+      try {
+        const stsToken = await getStsToken(effectiveOperatorId);
+        if (stsToken) {
+          return await apiGet(uri, { 'STS-Token': stsToken }) as Promise<RecordingDetail>;
+        }
+      } catch (stsErr: unknown) {
+        const stsErrMsg = stsErr instanceof Error ? stsErr.message : String(stsErr);
+        console.error('[TencentMeeting] STS-Token获取失败:', stsErrMsg);
+      }
+    }
+    throw err;
+  }
 }
 
 /** 下载纪要文件内容 */
