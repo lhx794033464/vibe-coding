@@ -510,30 +510,6 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* 模式切换 */}
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-              <button
-                onClick={() => handleModeChange('delivery')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  chatMode === 'delivery'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                交付助手
-              </button>
-              <button
-                onClick={() => handleModeChange('qa')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
-                  chatMode === 'qa'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <MessageCircle className="w-3 h-3" />
-                答疑咨询
-              </button>
-            </div>
             {/* 清除对话按钮 */}
             {messages.length > 0 && (
               <button
@@ -559,29 +535,31 @@ export default function HomePage() {
                 <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
                   <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-800">
-                    {chatMode === 'qa' ? '星辰产品答疑' : '你好，我是小蝶'}
-                  </h2>
-                  {chatMode === 'qa' && (
-                    <p className="text-sm text-slate-500 mt-1">为您解答星辰产品使用问题</p>
-                  )}
+                {/* 模式切换 - 胶囊按钮 */}
+                <div className="flex items-center bg-slate-100 rounded-full p-1 mt-2">
+                  <button
+                    onClick={() => handleModeChange('delivery')}
+                    className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+                      chatMode === 'delivery'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    交付助手
+                  </button>
+                  <button
+                    onClick={() => handleModeChange('qa')}
+                    className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                      chatMode === 'qa'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    答疑咨询
+                  </button>
                 </div>
               </div>
-
-              {/* 语音提示 */}
-              {chatMode === 'delivery' && (
-                <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
-                  <Mic className="w-4 h-4" />
-                  <span>空格长按语音输入，可以说"创建待办"、"预约会议"等</span>
-                </div>
-              )}
-              {chatMode === 'qa' && (
-                <div className="flex items-center justify-center gap-2 text-sm text-slate-400 mt-8">
-                  <MessageCircle className="w-4 h-4" />
-                  <span>咨询星辰产品使用问题，如账套管理、凭证处理、报表导出等</span>
-                </div>
-              )}
 
             </div>
           ) : (
