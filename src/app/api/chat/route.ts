@@ -1,248 +1,436 @@
 import { NextRequest } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { LLMClient, Config } from 'coze-coding-dev-sdk';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
-import { dbGetCustomers, dbGetSchedules, dbGetTodos, dbCreateTodo } from '@/services/dbService';
+import {
+  dbGetCustomers,
+  dbGetSchedules,
+  dbGetTodos,
+  dbCreateTodo,
+  dbGetFollowUps,
+  dbGetImplementationLogs,
+  dbGetCommissionRecords,
+} from '@/services/dbService';
 
-// 获取今天日期（UTC+8）
+// ============ 工具函数 ============
+
 function getTodayStr(): string {
   const now = new Date();
   const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   return utc8.toISOString().slice(0, 10);
 }
 
-// 格式化待办列表
-function formatTodoList(todos: any[]): string {
-  if (!todos || todos.length === 0) return '暂无待办事项';
-  return todos.map((t, i) => {
-    const status = t.completed ? '✅已完成' : (t.due_date && t.due_date < getTodayStr() ? '⚠️已逾期' : '⏳待办');
-    const customer = t.customer_name ? ` [关联客户: ${t.customer_name}]` : '';
-    const priority = t.priority === 'high' ? '🔴高' : t.priority === 'medium' ? '🟡中' : '🟢低';
-    const dueDate = t.due_date ? String(t.due_date).slice(0, 10) : '无';
-    return `${i + 1}. ${priority} ${t.content}${customer} | 截止: ${dueDate} | ${status}`;
-  }).join('\n');
+// ============ Agent 工具定义 ============
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description: string; required?: boolean }>;
 }
 
-// 构建系统提示词
-async function buildSystemPrompt(userId: string, username: string | undefined, isAdmin: boolean, request: NextRequest): Promise<string> {
-  const today = getTodayStr();
-  
-  // 从数据看板API获取统计数据
-  let customersData = '';
-  let schedulesData = '';
-  let todosData = '';
-  
-  try {
-    const dashboardRes = await fetch(`http://localhost:${process.env.DEPLOY_RUN_PORT || 5000}/api/dashboard?timeRange=all`, {
-      headers: { Authorization: request.headers.get('Authorization') || '' }
-    });
-    if (dashboardRes.ok) {
-      const dashboard = await dashboardRes.json();
-      const d = dashboard.data || dashboard;
-      customersData = `\n\n【客户统计】共${d.totalCustomers || 0}个客户（一对一交付）\n` +
-        `上线状态分布: 已上线${d.onlineCustomers || 0}个, 未上线${(d.totalCustomers || 0) - (d.onlineCustomers || 0)}个\n` +
-        `验收状态分布: 已验收${d.acceptedCustomers || 0}个, 未验收${(d.totalCustomers || 0) - (d.acceptedCustomers || 0)}个\n` +
-        `上线率: ${(d.onlineRate || 0).toFixed(1)}% | 验收率: ${(d.acceptanceRate || 0).toFixed(1)}%\n` +
-        `1个月上线率: ${(d.oneMonthOnlineRate || 0).toFixed(1)}% | 4个月上线率: ${(d.fourMonthsOnlineRate || 0).toFixed(1)}%`;
+const TOOLS: ToolDefinition[] = [
+  {
+    name: 'get_dashboard',
+    description: '获取数据看板统计信息，包括客户总数、上线率、验收率、1个月上线率、4个月上线率等关键业务指标',
+    parameters: {},
+  },
+  {
+    name: 'get_customers',
+    description: '获取客户列表，可按名称搜索或查看全部客户',
+    parameters: {
+      search: { type: 'string', description: '搜索关键词（可选），按客户名称模糊搜索' },
+    },
+  },
+  {
+    name: 'get_todos',
+    description: '获取待办事项列表，可按状态筛选',
+    parameters: {
+      status: { type: 'string', description: '筛选状态（可选）：pending（待办）、completed（已完成）、all（全部），默认pending' },
+    },
+  },
+  {
+    name: 'get_schedules',
+    description: '获取日程排期列表，可按日期筛选',
+    parameters: {
+      date: { type: 'string', description: '日期（可选），格式YYYY-MM-DD，筛选指定日期的日程' },
+    },
+  },
+  {
+    name: 'get_follow_ups',
+    description: '获取跟进记录列表',
+    parameters: {
+      customer_name: { type: 'string', description: '客户名称（可选），筛选指定客户的跟进记录' },
+    },
+  },
+  {
+    name: 'get_implementation_logs',
+    description: '获取实施日志列表，包含人天消耗记录',
+    parameters: {
+      customer_name: { type: 'string', description: '客户名称（可选），筛选指定客户的实施日志' },
+    },
+  },
+  {
+    name: 'get_commission_records',
+    description: '获取提成记录列表',
+    parameters: {
+      customer_name: { type: 'string', description: '客户名称（可选），筛选指定客户的提成记录' },
+    },
+  },
+  {
+    name: 'create_todo',
+    description: '创建新的待办事项。当用户说"提醒我"、"帮我记一下"、"创建待办"、"添加任务"时使用此工具',
+    parameters: {
+      content: { type: 'string', description: '待办内容', required: true },
+      due_date: { type: 'string', description: '截止日期，格式YYYY-MM-DD，默认今天' },
+      priority: { type: 'string', description: '优先级：high/medium/low，默认medium' },
+      customer_name: { type: 'string', description: '关联客户名称（可选），从客户列表中匹配' },
+    },
+  },
+];
+
+// ============ 工具执行器 ============
+
+async function executeTool(
+  toolName: string,
+  params: Record<string, any>,
+  context: AgentContext
+): Promise<string> {
+  const { userId, username, isAdmin, request } = context;
+
+  switch (toolName) {
+    case 'get_dashboard': {
+      try {
+        const dashboardRes = await fetch(
+          `http://localhost:${process.env.DEPLOY_RUN_PORT || 5000}/api/dashboard?timeRange=all`,
+          { headers: { Authorization: request.headers.get('Authorization') || '' } }
+        );
+        if (!dashboardRes.ok) return '获取看板数据失败';
+        const dashboard = await dashboardRes.json();
+        const d = dashboard.data || dashboard;
+        return JSON.stringify({
+          totalCustomers: d.totalCustomers || 0,
+          onlineCustomers: d.onlineCustomers || 0,
+          notOnlineCustomers: (d.totalCustomers || 0) - (d.onlineCustomers || 0),
+          acceptedCustomers: d.acceptedCustomers || 0,
+          notAcceptedCustomers: (d.totalCustomers || 0) - (d.acceptedCustomers || 0),
+          onlineRate: `${(d.onlineRate || 0).toFixed(1)}%`,
+          acceptanceRate: `${(d.acceptanceRate || 0).toFixed(1)}%`,
+          oneMonthOnlineRate: `${(d.oneMonthOnlineRate || 0).toFixed(1)}%`,
+          fourMonthsOnlineRate: `${(d.fourMonthsOnlineRate || 0).toFixed(1)}%`,
+        });
+      } catch (e) {
+        return '获取看板数据失败';
+      }
     }
-  } catch (e) {
-    console.error('[chat] 获取看板数据失败:', e);
-  }
 
-  try {
-    const schedules = await dbGetSchedules({ userId, isAdmin });
-    const upcoming = schedules.filter(s => s.schedule_date >= today).slice(0, 10);
-    if (upcoming.length > 0) {
-      schedulesData = `\n\n【近期日程】(共${upcoming.length}个)\n` + 
-        upcoming.map(s => `- ${s.schedule_date} | ${s.customer_name || '无客户'} | ${s.notes || ''}`).join('\n');
+    case 'get_customers': {
+      const customers = await dbGetCustomers({ userId, username, isAdmin });
+      const search = params.search?.toLowerCase();
+      const filtered = search
+        ? customers.filter((c: any) => c.name?.toLowerCase().includes(search))
+        : customers;
+      const summary = filtered.map((c: any) => ({
+        name: c.name,
+        status: c.status || 'not_online',
+        acceptance_status: c.acceptance_status || 'not_accepted',
+        version: c.version || '',
+        modules: c.modules || '',
+        consultant: c.consultant || '',
+        consumed_days: c.consumed_days || 0,
+        created_at: c.created_at ? String(c.created_at).slice(0, 10) : '',
+      }));
+      return JSON.stringify({ count: summary.length, customers: summary });
     }
-  } catch (e) {
-    console.error('[chat] 获取日程数据失败:', e);
-  }
 
-  try {
-    const allTodos = await dbGetTodos({ userId });
-    const pending = allTodos.filter(t => !t.completed);
-    const completed = allTodos.filter(t => t.completed).slice(0, 5);
-    const overdue = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) < getTodayStr());
-    const todayTodo = pending.filter(t => t.due_date && String(t.due_date).slice(0, 10) === getTodayStr());
-    todosData = `\n\n【待办事项】今日待办共${pending.length}个(其中${overdue.length}个已逾期):\n${formatTodoList(pending)}\n\n最近已完成:\n${formatTodoList(completed)}`;
-  } catch (e) {
-    console.error('[chat] 获取待办数据失败:', e);
-  }
+    case 'get_todos': {
+      const todos = await dbGetTodos({ userId });
+      const status = params.status || 'pending';
+      let filtered = todos;
+      if (status === 'pending') filtered = todos.filter((t: any) => !t.completed);
+      else if (status === 'completed') filtered = todos.filter((t: any) => t.completed);
+      const summary = filtered.map((t: any) => ({
+        content: t.content,
+        priority: t.priority || 'medium',
+        due_date: t.due_date ? String(t.due_date).slice(0, 10) : '',
+        completed: t.completed,
+        customer_name: t.customer_name || '',
+      }));
+      return JSON.stringify({ count: summary.length, todos: summary });
+    }
 
-  return `你是"小蝶"，金蝶云星辰交付集成平台的智能助手。今天是${today}。
+    case 'get_schedules': {
+      const schedules = await dbGetSchedules({ userId, isAdmin });
+      const date = params.date;
+      const filtered = date
+        ? schedules.filter((s: any) => {
+            const d = s.schedule_date || s.start_time;
+            return d && String(d).startsWith(date);
+          })
+        : schedules;
+      const summary = filtered.map((s: any) => ({
+        customer_name: s.customer_name || '',
+        schedule_date: s.schedule_date ? String(s.schedule_date).slice(0, 10) : '',
+        notes: s.notes || '',
+      }));
+      return JSON.stringify({ count: summary.length, schedules: summary });
+    }
 
-【重要规则】当用户询问任何业务指标（上线率、验收率、1个月上线率、4个月上线率等），你必须直接从下方【统计数据】中读取并回答，严禁说"需要查询"或"无法获取"。
+    case 'get_follow_ups': {
+      const followUps = await dbGetFollowUps({ userId, isAdmin });
+      const customerName = params.customer_name?.toLowerCase();
+      const filtered = customerName
+        ? followUps.filter((f: any) => f.customer_name?.toLowerCase().includes(customerName))
+        : followUps;
+      const summary = filtered.slice(0, 20).map((f: any) => ({
+        customer_name: f.customer_name || '',
+        content: f.content || '',
+        follow_date: f.follow_date ? String(f.follow_date).slice(0, 10) : '',
+      }));
+      return JSON.stringify({ count: summary.length, follow_ups: summary });
+    }
 
-${customersData}${schedulesData}${todosData}
+    case 'get_implementation_logs': {
+      const logs = await dbGetImplementationLogs({ userId, isAdmin });
+      const customerName = params.customer_name?.toLowerCase();
+      const filtered = customerName
+        ? logs.filter((l: any) => l.customer_name?.toLowerCase().includes(customerName))
+        : logs;
+      const summary = filtered.slice(0, 20).map((l: any) => ({
+        customer_name: l.customer_name || '',
+        content: l.content || '',
+        consumed_days: l.consumed_days || 0,
+        log_date: l.log_date ? String(l.log_date).slice(0, 10) : '',
+      }));
+      return JSON.stringify({ count: summary.length, logs: summary });
+    }
 
-## 业务指标计算口径（回答指标问题时必须参考）
+    case 'get_commission_records': {
+      const records = await dbGetCommissionRecords({ userId, isAdmin });
+      const customerName = params.customer_name?.toLowerCase();
+      const filtered = customerName
+        ? records.filter((r: any) => r.customer_name?.toLowerCase().includes(customerName))
+        : records;
+      const summary = filtered.slice(0, 20).map((r: any) => ({
+        customer_name: r.customer_name || '',
+        amount: r.amount || 0,
+        status: r.status || 'pending',
+        created_at: r.created_at ? String(r.created_at).slice(0, 10) : '',
+      }));
+      return JSON.stringify({ count: summary.length, records: summary });
+    }
 
-- **上线率** = 已上线客户数 / 总客户数 × 100%（status="online"）
-- **验收率** = 已验收客户数 / 总客户数 × 100%（acceptance_status="accepted"）
-- **1个月上线率** = 开通超30天客户中已上线的比例（衡量短期交付效率）
-- **4个月上线率** = 开通超120天客户中已上线的比例（衡量中长期交付质量）
-- 上线率和1个月上线率是不同指标：上线率是所有客户，1个月上线率排除刚开通的客户
-- 验收状态和上线状态独立：已验收≠已上线
+    case 'create_todo': {
+      const { content, due_date, priority = 'medium', customer_name } = params;
+      if (!content) return '错误：缺少待办内容';
 
-## 平台功能概览
-
-本平台是"金蝶云星辰交付集成平台"，用于全生命周期管理客户实施进度，主要功能模块：
-
-1. **数据看板**：展示关键业务指标，包括客户总数、上线率、验收率、1个月上线率、4个月上线率等
-2. **客户管理**：管理客户档案，每个客户有两个独立状态：
-   - **上线状态**(status)：online(已上线) / not_online(未上线) / 延期上线
-   - **验收状态**(acceptance_status)：accepted(已验收) / not_accepted(未验收)
-3. **跟进记录**：记录客户每次跟进的详细内容
-4. **日程排期**：管理培训排期，日历视图展示，法定节假日自动标红
-5. **提成管理**：只有验收状态为"已验收"的客户才可计提提成，支持申报→审核流程
-6. **待办事项**：个人工作任务管理，支持优先级、截止日期、关联客户
-7. **交付工具**：腾讯文档集成、用户管理等
-8. **智能助手**：即本助手
-
-## 提成规则
-- 只有验收状态为"已验收"(accepted)的客户才可计提提成
-- 上线状态不影响提成，关键是验收状态
-
-## 核心概念区分
-
-### 待办事项 vs 日程
-- **待办事项**：个人工作任务、待处理事项。当用户说"提醒我"、"帮我记一下"、"创建待办"、"今日待办"等，一律创建待办。
-- **日程**：仅用于培训排期。只有明确提到"培训排期"、"安排培训"时才涉及日程。
-
-### 关联客户
-如果用户在待办中提到了某个公司或客户名称，应在创建待办时关联该客户。
-
-## 待办事项操作能力
-
-### 创建待办
-当用户要求创建待办时，在回复末尾输出操作指令，格式：
-\`\`\`
-TODO_CREATE|内容|截止日期(YYYY-MM-DD)|优先级(high/medium/low)|关联客户名称(可选)
-\`\`\`
-示例：\`TODO_CREATE|完成客户上线培训|2026-06-01|high|自贡中铁二局地产新城投资有限公司\`
-
-### 查询待办
-直接根据系统提供的待办数据回答即可，无需输出操作指令。
-
-**重要规则**：
-1. 创建指令必须放在回复的最后一行，用 \`\`\` 包裹
-2. 一条回复只能包含一个操作指令
-3. 如果用户要求删除、修改、延期等操作，告知用户请到待办事项页面操作
-4. 绝不能将待办事项创建为日程`;
-}
-
-// 解析并执行待办操作
-async function executeTodoAction(action: string, userId: string, username: string | undefined, isAdmin: boolean = false): Promise<string> {
-  const parts = action.split('|');
-  const type = parts[0];
-
-  try {
-    if (type === 'TODO_CREATE') {
-      const content = parts[1];
-      const dueDate = parts[2] || getTodayStr();
-      const priority = parts[3] || 'medium';
-      const customerName = parts[4] || '';
-
-      if (!content) return '创建失败：缺少待办内容';
-
-      // 查找关联客户
       let customerId: string | undefined;
-      if (customerName) {
+      if (customer_name) {
         const customerList = await dbGetCustomers({ userId, username, isAdmin });
-        const matched = customerList.find(c => c.name === customerName || c.name.includes(customerName));
+        const matched = customerList.find(
+          (c: any) => c.name === customer_name || c.name?.includes(customer_name)
+        );
         if (matched) customerId = matched.id;
       }
 
-      await dbCreateTodo({
+      const todo = await dbCreateTodo({
         content,
-        due_date: dueDate,
+        due_date: due_date || getTodayStr(),
         priority,
-        customer_id: customerId,
+        customer_id: customerId || null,
         user_id: userId,
         completed: false,
       });
 
-      return `✅ 待办已创建：${content} | 截止: ${dueDate} | 优先级: ${priority}${customerName ? ` | 关联客户: ${customerName}` : ''}`;
+      return `待办已创建成功：${content} | 截止：${due_date || getTodayStr()} | 优先级：${priority}${customer_name ? ` | 关联客户：${customer_name}` : ''}`;
     }
 
-    return `不支持的操作: ${type}`;
-  } catch (error: any) {
-    return `操作失败: ${error.message}`;
+    default:
+      return `未知工具：${toolName}`;
   }
 }
 
+// ============ Agent 上下文 ============
+
+interface AgentContext {
+  userId: string;
+  username: string | undefined;
+  isAdmin: boolean;
+  request: NextRequest;
+}
+
+// ============ 构建工具描述（给 LLM 看） ============
+
+function buildToolsPrompt(): string {
+  return TOOLS.map(t => {
+    const params = Object.entries(t.parameters)
+      .map(([k, v]) => `    - ${k}(${v.type}${v.required ? ', 必填' : ''}): ${v.description}`)
+      .join('\n');
+    return `### ${t.name}\n描述：${t.description}\n参数：\n${params || '    无参数'}`;
+  }).join('\n\n');
+}
+
+// ============ Agent 系统提示词 ============
+
+function buildAgentSystemPrompt(context: AgentContext): string {
+  const today = getTodayStr();
+  const { username, isAdmin } = context;
+
+  return `你是"小蝶"，金蝶云星辰交付集成平台的智能助手。今天是${today}。
+你的用户是"${username || '未知'}"，角色是${isAdmin ? '管理员' : '普通用户'}。
+
+## 你的工作方式（重要！）
+
+你是一个具备工具调用能力的 Agent。当用户提问时：
+1. 如果问题需要查询数据（如看板指标、客户信息、待办事项等），**必须调用工具获取实时数据**
+2. 调用工具时，只输出一个 JSON 对象，格式：{"tool": "工具名", "params": {...}}
+3. 工具执行结果会返回给你，你再根据结果回答用户
+4. 如果不需要工具就能回答（如闲聊），直接回答即可
+5. **每次只能调用一个工具**，等拿到结果后再决定下一步
+
+## 可用工具
+
+${buildToolsPrompt()}
+
+## 平台功能概览
+
+本平台是"金蝶云星辰交付集成平台"，用于全生命周期管理客户实施进度：
+1. **数据看板**：关键业务指标（客户总数、上线率、验收率、1/4个月上线率）
+2. **客户管理**：客户档案，上线状态(online/not_online)、验收状态(accepted/not_accepted)
+3. **跟进记录**：客户每次跟进的详细内容
+4. **日程排期**：培训排期管理
+5. **提成管理**：已验收客户可计提提成，支持申报→审核
+6. **待办事项**：个人工作任务管理
+7. **实施日志**：人天消耗记录
+
+## 业务指标说明
+- 上线率 = 已上线 / 总数 × 100%
+- 验收率 = 已验收 / 总数 × 100%
+- 1个月上线率 = 开通超30天客户中已上线比例
+- 4个月上线率 = 开通超120天客户中已上线比例
+- 上线状态和验收状态相互独立
+
+## 重要规则
+- 用户说"提醒我"、"帮我记一下"、"创建待办" → 调用 create_todo
+- 用户问指标/数据 → 先调用对应工具获取实时数据，再回答
+- 不要编造数据，一切以工具返回为准
+- 回复要友好、简洁、专业`;
+}
+
+// ============ 主处理函数 ============
+
 export async function POST(request: NextRequest) {
   try {
-    // 从 Token 获取用户信息，不信任请求体中的 userId
     const userInfo = await getCurrentUserInfo(request);
     if (!userInfo) {
       return new Response(JSON.stringify({ error: '未认证' }), { status: 401 });
     }
-    const userId = userInfo.id;
-    const username = userInfo.username;
-    const isAdmin = userInfo.role === 'admin';
+
+    const context: AgentContext = {
+      userId: userInfo.id,
+      username: userInfo.username,
+      isAdmin: userInfo.role === 'admin',
+      request,
+    };
 
     const body = await request.json();
     const messages = body.messages || [];
 
-    // 构建系统提示词
-    const systemPrompt = await buildSystemPrompt(userId, userInfo?.username, isAdmin, request);
-
     // 构建 LLM 消息
-    const llmMessages: any[] = [
+    const systemPrompt = buildAgentSystemPrompt(context);
+    const llmMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },
     ];
 
-    // 添加历史消息（最多保留最近8条，避免超出上下文窗口）
-    const recentMessages = messages.slice(-8);
+    const recentMessages = messages.slice(-10);
     for (const msg of recentMessages) {
       if (msg.role === 'user' || msg.role === 'assistant') {
         llmMessages.push({ role: msg.role, content: msg.content });
       }
     }
 
-    // 调用 LLM
-    const client = new LLMClient(new Config());
-    const stream = client.stream(llmMessages);
-
-    // 创建 ReadableStream 收集完整响应
     const encoder = new TextEncoder();
-    let fullContent = '';
+    const client = new LLMClient(new Config());
+    const MAX_ITERATIONS = 5;
 
     const readableStream = new ReadableStream({
       async start(controller) {
+        const send = (data: Record<string, any>) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        };
+
         try {
-          for await (const chunk of stream) {
-            const text = chunk.content || '';
-            if (text) {
-              fullContent += text;
-              // SSE 格式输出
-              const data = JSON.stringify({ content: text });
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          let currentMessages = [...llmMessages];
+          let iteration = 0;
+
+          while (iteration < MAX_ITERATIONS) {
+            iteration++;
+
+            // 流式调用 LLM
+            const stream = client.stream(currentMessages, { model: 'deepseek-v3-2-251201' });
+            let fullResponse = '';
+
+            for await (const chunk of stream) {
+              const text = chunk.content || '';
+              if (text) {
+                fullResponse += text;
+              }
             }
+
+            if (!fullResponse.trim()) {
+              send({ content: '抱歉，我暂时无法回答这个问题，请稍后再试。' });
+              break;
+            }
+
+            // 尝试解析工具调用
+            const toolMatch = fullResponse.match(/\{\s*"tool"\s*:\s*"(\w+)"\s*,\s*"params"\s*:\s*(\{[\s\S]*?\})\s*\}/);
+
+            if (toolMatch) {
+              const toolName = toolMatch[1];
+              let params: Record<string, any> = {};
+
+              try {
+                params = JSON.parse(toolMatch[2]);
+              } catch {
+                send({ content: '工具参数解析失败，请重试。', agentThinking: true });
+                break;
+              }
+
+              // 通知前端正在执行工具
+              const toolDef = TOOLS.find(t => t.name === toolName);
+              send({
+                content: '',
+                agentThinking: true,
+                toolCall: { name: toolName, description: toolDef?.description || '' },
+              });
+
+              // 执行工具
+              const toolResult = await executeTool(toolName, params, context);
+
+              // 将工具调用和结果加入对话历史
+              currentMessages.push({ role: 'assistant', content: fullResponse });
+              currentMessages.push({
+                role: 'user',
+                content: `工具 ${toolName} 的执行结果：\n${toolResult}\n\n请根据以上结果回答用户的问题。如果还需要其他数据，继续调用工具；否则直接给出最终答案。`,
+              });
+
+              continue; // 继续循环
+            }
+
+            // 没有工具调用，输出最终回复
+            // 流式输出最终回复
+            send({ content: fullResponse });
+            break;
           }
 
-          // 流结束后，检查是否有待办操作指令
-          const actionMatch = fullContent.match(/```\s*(TODO_\w+\|[\s\S]+?)```/);
-          if (actionMatch) {
-            const actionStr = actionMatch[1].trim().replace(/\n/g, '');
-            const result = await executeTodoAction(actionStr, userId, username, isAdmin);
-            // 发送操作结果
-            const resultData = JSON.stringify({ 
-              content: `\n\n---\n${result}`,
-              todoAction: true,
-              actionResult: result 
-            });
-            controller.enqueue(encoder.encode(`data: ${resultData}\n\n`));
+          if (iteration >= MAX_ITERATIONS) {
+            send({ content: '处理超时，请简化您的问题后重试。' });
           }
 
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          send({ content: '', done: true });
           controller.close();
         } catch (error: any) {
-          console.error('Chat stream error:', error);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error.message })}\n\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          console.error('[Agent] Chat error:', error);
+          send({ content: '', error: error.message || '处理请求时出错' });
+          send({ content: '', done: true });
           controller.close();
         }
       },
@@ -256,7 +444,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Chat API error:', error);
+    console.error('[Agent] API error:', error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }

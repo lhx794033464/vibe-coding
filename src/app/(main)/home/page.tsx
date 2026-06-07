@@ -375,7 +375,6 @@ export default function HomePage() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
-      let todoActionResult = '';
       let buffer = '';
 
       if (reader) {
@@ -400,20 +399,23 @@ export default function HomePage() {
               const parsed = JSON.parse(dataStr);
               if (parsed.error) {
                 assistantMessage += `\n\n⚠️ ${parsed.error}`;
+              } else if (parsed.agentThinking && parsed.toolCall) {
+                // Agent 正在调用工具，显示思考状态
+                assistantMessage = `🔍 正在${parsed.toolCall.description || '查询数据'}...`;
               } else if (parsed.content) {
                 assistantMessage += parsed.content;
               }
-              if (parsed.todoAction && parsed.actionResult) {
-                todoActionResult = parsed.actionResult;
+              if (parsed.done) {
+                // 流结束标记，忽略
               }
             } catch {
               // 忽略无法解析的行
             }
           }
           
-          // 过滤掉操作指令代码块（不显示给用户）
+          // 过滤掉工具调用 JSON（不显示给用户）
           const displayContent = assistantMessage
-            .replace(/```\s*TODO_\w+\|[\s\S]*?```/g, '')
+            .replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[\s\S]*?\}\s*\}/g, '')
             .trim();
           
           // 实时更新消息
@@ -427,13 +429,10 @@ export default function HomePage() {
           });
         }
         
-        // 最终内容：如果有待办操作结果，追加到消息中
-        let finalContent = assistantMessage
-          .replace(/```\s*TODO_\w+\|[\s\S]*?```/g, '')
+        // 最终内容：过滤掉工具调用 JSON
+        const finalContent = assistantMessage
+          .replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[\s\S]*?\}\s*\}/g, '')
           .trim();
-        if (todoActionResult) {
-          finalContent += `\n\n> ${todoActionResult}`;
-        }
         
         // 标记流式结束
         setMessages(prev => {
