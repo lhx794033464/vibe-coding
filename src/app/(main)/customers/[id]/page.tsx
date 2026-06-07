@@ -14,6 +14,7 @@ import {
   Plus, 
   CheckCircle, 
   XCircle,
+  ExternalLink,
   Calendar,
   User,
   Building,
@@ -87,6 +88,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
     meeting_link: '',
   });
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   
   const [editLogForm, setEditLogForm] = useState({
     log_date: '',
@@ -1098,8 +1101,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-gray-400 hover:text-blue-500"
-                                onClick={() => handleStartEditLog(log)}
+                                className={`h-6 w-6 ${expandedLogId === log.id ? 'text-blue-500' : 'text-gray-400 hover:text-blue-500'}`}
+                                onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
@@ -1113,6 +1116,28 @@ export default function CustomerDetailPage({ params }: PageProps) {
                               </Button>
                             </div>
                           </div>
+                          {expandedLogId === log.id && (
+                            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-2">
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{log.summary}</p>
+                              {log.meeting_link && (
+                                <a href={log.meeting_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700">
+                                  <ExternalLink className="h-3 w-3" />
+                                  会议链接
+                                </a>
+                              )}
+                              <div className="flex justify-end pt-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs text-gray-500 hover:text-blue-500"
+                                  onClick={() => handleStartEditLog(log)}
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  编辑
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                           </>
                       )}
                     </div>
