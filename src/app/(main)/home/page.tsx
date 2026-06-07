@@ -834,15 +834,15 @@ export default function HomePage() {
       <div className="flex-shrink-0 bg-transparent">
         <div className="max-w-3xl mx-auto px-4 pb-4">
           <form onSubmit={handleSubmit}>
-            {/* 快捷提问胶囊 - 仅交付助手模式显示 */}
+            {/* 快捷提问气泡 - 仅交付助手模式显示 */}
             {chatMode === 'delivery' && (
-              <div className="flex items-center justify-start gap-2 mb-2">
+              <div className="flex items-center justify-center gap-3 mb-3">
                 {QUICK_QUESTIONS_DELIVERY.map((q, index) => (
                   <button
                     key={index}
                     type="button"
                     onClick={() => handleQuickQuestion(q.text)}
-                    className="px-4 py-1.5 bg-white border border-slate-200 rounded-full text-sm text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                    className="px-5 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-full text-sm text-slate-700 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/10 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                   >
                     {q.text}
                   </button>
