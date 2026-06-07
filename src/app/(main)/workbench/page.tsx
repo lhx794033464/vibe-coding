@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 interface Customer {
   id: string;
   name: string;
+  dismissed?: boolean;
 }
 
 interface ProcessApplication {
@@ -149,7 +150,7 @@ function ProcessCenterContent() {
       });
       const data = await res.json();
       if (res.ok) {
-        setCustomers((data.customers || []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
+        setCustomers((data.customers || []).map((c: { id: string; name: string; dismissed: boolean }) => ({ id: c.id, name: c.name, dismissed: c.dismissed })));
       }
     } catch (error) {
       console.error('获取客户列表失败:', error);
@@ -208,6 +209,18 @@ function ProcessCenterContent() {
     if (selectedCustomerIds.length === 0) {
       toast.warning('请选择客户');
       return;
+    }
+
+    // 群聊解散校验：已解散的客户不可申请
+    if (selectedType === 'group_dismissal') {
+      const dismissedNames = selectedCustomerIds
+        .map(id => customers.find(c => c.id === id))
+        .filter(c => c?.dismissed)
+        .map(c => c!.name);
+      if (dismissedNames.length > 0) {
+        toast.error(`${dismissedNames.join('、')} 已解散，无需申请`);
+        return;
+      }
     }
 
     if (selectedType === 'group_dismissal' && screenshotFiles.length === 0) {

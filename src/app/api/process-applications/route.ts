@@ -55,6 +55,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '缺少KBC截图或客户' }, { status: 400 });
       }
 
+      // 校验客户是否已解散
+      const { data: dismissedCustomers } = await supabase
+        .from('customers')
+        .select('id, name')
+        .in('id', customerIds)
+        .eq('dismissed', true);
+
+      if (dismissedCustomers && dismissedCustomers.length > 0) {
+        const names = dismissedCustomers.map(c => c.name).join('、');
+        return NextResponse.json({ error: `${names} 已解散，无需申请` }, { status: 400 });
+      }
+
       // 验证文件并上传
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       for (const file of files) {
