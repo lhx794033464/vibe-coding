@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Mic, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -16,186 +16,169 @@ interface VoiceInputProps {
   size?: 'sm' | 'md';
 }
 
-// 浏览器 SpeechRecognition 类型声明
-interface SpeechRecognitionResult {
-  readonly isFinal: boolean;
-  readonly length: number;
-  item(index: number): SpeechRecognitionAlternative;
-  [index: number]: SpeechRecognitionAlternative;
-}
-
-interface SpeechRecognitionAlternative {
-  readonly transcript: string;
-  readonly confidence: number;
-}
-
-interface SpeechRecognitionResultList {
-  readonly length: number;
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
-}
-
-interface SpeechRecognitionEvent {
-  readonly resultIndex: number;
-  readonly results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionErrorEvent {
-  readonly error: string;
-  readonly message: string;
-}
-
-interface SpeechRecognitionInstance {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-  abort(): void;
-}
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
-
-function getSpeechRecognition(): SpeechRecognitionConstructor | null {
-  if (typeof window === 'undefined') return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const w = window as any;
-  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
-}
-
 export function VoiceInput({ value, onChange, className, size = 'sm' }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
-  const [interimText, setInterimText] = useState('');
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const valueRef = useRef(value);
+  const isStoppingRef = useRef(false);
 
   // 保持 valueRef 同步
-  useEffect(() => {
-    valueRef.current = value;
-  }, [value]);
+  valueRef.current = value;
 
-  // 组件卸载时停止录音
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-        recognitionRef.current = null;
-      }
-    };
+  const stopRecording = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsListening(false);
   }, []);
 
-  const startListening = useCallback(() => {
-    const SpeechRecognition = getSpeechRecognition();
-    if (!SpeechRecognition) {
-      toast.error('当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
-      return;
-    }
+  const sendChunkForASR = useCallback(async (audioBlob: Blob) => {
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          // 去掉 data:audio/webm;base64, 前缀
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+      });
+      reader.readAsDataURL(audioBlob);
+      const base64Data = await base64Promise;
 
-    // 如果正在录音，先停止
-    if (recognitionRef.current) {
-      recognitionRef.current.abort();
-    }
+      const response = await fetch('/api/voice/asr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Data }),
+      });
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'zh-CN';
-
-    let finalTranscript = '';
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interim += transcript;
-        }
+      if (!response.ok) {
+        throw new Error(`ASR请求失败: ${response.status}`);
       }
 
-      if (finalTranscript) {
-        // 将最终结果追加到文本框
+      const data = await response.json();
+      if (data.text && data.text.trim()) {
         const baseText = valueRef.current;
-        const separator = baseText && !baseText.endsWith('\n') && !baseText.endsWith('') ? ' ' : '';
-        const newText = baseText + separator + finalTranscript;
+        const separator = baseText && !baseText.endsWith('\n') ? '' : '';
+        const newText = baseText + separator + data.text.trim();
         onChange(newText);
         valueRef.current = newText;
-        finalTranscript = '';
       }
-
-      setInterimText(interim);
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('语音识别错误:', event.error);
-      if (event.error === 'not-allowed') {
-        toast.error('麦克风权限被拒绝，请在浏览器设置中允许麦克风访问');
-      } else if (event.error === 'no-speech') {
-        // 静音超时，不需要提示
-      } else if (event.error !== 'aborted') {
-        toast.error('语音识别出错，请重试');
-      }
-      setIsListening(false);
-      setInterimText('');
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      setInterimText('');
-    };
-
-    recognitionRef.current = recognition;
-
-    try {
-      recognition.start();
-      setIsListening(true);
-      setInterimText('');
-    } catch {
-      toast.error('启动语音识别失败');
+    } catch (err) {
+      console.error('语音识别失败:', err);
     }
   }, [onChange]);
 
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+  const startListening = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      isStoppingRef.current = false;
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+      });
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      // 每3秒发送一次音频片段进行识别（流式效果）
+      mediaRecorder.start(1000); // 每秒收集一次数据
+
+      // 每3秒合并并发送
+      timerRef.current = setInterval(() => {
+        if (isStoppingRef.current) return;
+        if (chunksRef.current.length > 0) {
+          const audioChunks = [...chunksRef.current];
+          chunksRef.current = [];
+          const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+          sendChunkForASR(blob);
+        }
+      }, 3000);
+
+      setIsListening(true);
+    } catch (err: unknown) {
+      console.error('启动录音失败:', err);
+      const error = err as DOMException;
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        toast.error('麦克风权限被拒绝，请在浏览器地址栏左侧点击图标允许麦克风访问');
+      } else if (error.name === 'NotFoundError') {
+        toast.error('未检测到麦克风设备');
+      } else {
+        toast.error('启动语音识别失败，请检查麦克风权限');
+      }
+      setIsListening(false);
     }
-    setIsListening(false);
-    setInterimText('');
-  }, []);
+  }, [sendChunkForASR]);
+
+  const handleStop = useCallback(() => {
+    isStoppingRef.current = true;
+    stopRecording();
+    setIsProcessing(true);
+
+    // 发送剩余的音频数据
+    if (chunksRef.current.length > 0) {
+      const audioChunks = [...chunksRef.current];
+      chunksRef.current = [];
+      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+      const blob = new Blob(audioChunks, { type: mimeType });
+      sendChunkForASR(blob).finally(() => {
+        setIsProcessing(false);
+        mediaRecorderRef.current = null;
+      });
+    } else {
+      setIsProcessing(false);
+      mediaRecorderRef.current = null;
+    }
+  }, [stopRecording, sendChunkForASR]);
 
   const toggleListening = useCallback(() => {
     if (isListening) {
-      stopListening();
+      handleStop();
     } else {
       startListening();
     }
-  }, [isListening, startListening, stopListening]);
+  }, [isListening, startListening, handleStop]);
 
-  const isSupported = typeof window !== 'undefined' && !!getSpeechRecognition();
-
-  const iconSize = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
-  const buttonSize = size === 'sm' ? 'h-7 w-7' : 'h-8 w-8';
+  const iconSize = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
+  const buttonSize = size === 'sm' ? 'h-10 w-10' : 'h-12 w-12';
 
   return (
     <div className={cn('relative', className)}>
       <button
         type="button"
         onClick={toggleListening}
-        disabled={!isSupported}
+        disabled={isProcessing}
         className={cn(
-          'inline-flex items-center justify-center rounded-md transition-all',
+          'inline-flex items-center justify-center rounded-full transition-all',
           buttonSize,
           isListening
             ? 'bg-red-100 text-red-600 hover:bg-red-200 animate-pulse'
+            : isProcessing
+            ? 'bg-amber-100 text-amber-600 cursor-wait'
             : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-          !isSupported && 'opacity-40 cursor-not-allowed'
+          isProcessing && 'animate-pulse'
         )}
-        title={isListening ? '停止语音录入' : '语音录入'}
+        title={isListening ? '停止语音录入' : isProcessing ? '识别中...' : '语音录入'}
       >
         {isListening ? (
           <MicOff className={iconSize} />
@@ -203,11 +186,17 @@ export function VoiceInput({ value, onChange, className, size = 'sm' }: VoiceInp
           <Mic className={iconSize} />
         )}
       </button>
-      {/* 流式识别中的临时文字 */}
-      {isListening && interimText && (
-        <div className="absolute bottom-full right-0 mb-1 max-w-[240px] rounded-md bg-foreground/90 px-2 py-1 text-xs text-background shadow-lg whitespace-pre-wrap break-all z-50">
-          {interimText}
-          <span className="inline-block w-1 h-3 bg-background/70 ml-0.5 animate-pulse" />
+      {/* 录音状态提示 */}
+      {isListening && (
+        <div className="absolute bottom-full right-0 mb-2 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs text-white shadow-lg whitespace-nowrap z-50">
+          <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
+          录音中，点击停止
+        </div>
+      )}
+      {isProcessing && (
+        <div className="absolute bottom-full right-0 mb-2 flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-xs text-white shadow-lg whitespace-nowrap z-50">
+          <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
+          识别中...
         </div>
       )}
     </div>
