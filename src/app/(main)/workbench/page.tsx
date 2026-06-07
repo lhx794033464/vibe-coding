@@ -5,6 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -505,6 +513,78 @@ function ProcessCenterContent() {
             ) : filteredApplications.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 {searchQuery ? '未找到匹配的流程' : (activeTab === 'pending' ? '暂无待办流程' : '暂无已办流程')}
+              </div>
+            ) : isAdmin ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>申请类型</TableHead>
+                      <TableHead>客户</TableHead>
+                      <TableHead>期望排期</TableHead>
+                      <TableHead>申请人</TableHead>
+                      <TableHead>申请时间</TableHead>
+                      <TableHead>备注</TableHead>
+                      <TableHead>操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredApplications.map((app) => {
+                      const screenshotKeys = getAppScreenshotKeys(app);
+                      const customerNames = getAppCustomerNames(app);
+                      return (
+                        <TableRow key={app.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className={`p-1.5 rounded-md ${getTypeColor(app.type)}`}>
+                                {app.type === 'group_dismissal' && <Users className="h-3.5 w-3.5" />}
+                                {app.type === 'schedule_coordination' && <CalendarDays className="h-3.5 w-3.5" />}
+                                {app.type === 'commission_claim' && <DollarSign className="h-3.5 w-3.5" />}
+                              </div>
+                              <span className="text-sm">{getTypeLabel(app.type)}</span>
+                              <Badge variant="outline" className={getStatusColor(app.status)}>
+                                {getStatusLabel(app.status)}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate">
+                            {customerNames.join('、') || '-'}
+                          </TableCell>
+                          <TableCell>{app.expected_date || '-'}</TableCell>
+                          <TableCell>{app.applicant_name || '未知'}</TableCell>
+                          <TableCell>{formatDate(app.created_at)}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{app.notes || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              {screenshotKeys.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewScreenshots(screenshotKeys)}
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  截图
+                                </Button>
+                              )}
+                              {app.status === 'pending' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setReviewingApp(app);
+                                    setShowReviewDialog(true);
+                                  }}
+                                >
+                                  审批
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             ) : (
               filteredApplications.map((app) => renderAppCard(app))
