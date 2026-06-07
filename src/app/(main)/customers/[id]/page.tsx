@@ -95,6 +95,87 @@ export default function CustomerDetailPage({ params }: PageProps) {
     summary: '',
     meeting_link: '',
   });
+  const [extractingMinutes, setExtractingMinutes] = useState(false);
+  const [minutesError, setMinutesError] = useState('');
+
+  const handleExtractMinutes = async () => {
+    if (!editLogForm.meeting_link.trim()) {
+      setMinutesError('请先填写会议链接');
+      return;
+    }
+    setExtractingMinutes(true);
+    setMinutesError('');
+    try {
+      const session = localStorage.getItem('auth_session');
+      const token = session ? JSON.parse(session).token : '';
+      const res = await fetch('/api/meetings/minutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ url: editLogForm.meeting_link.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMinutesError(data.error || '提取纪要失败');
+        return;
+      }
+      if (data.minutes) {
+        const existing = editLogForm.summary.trim();
+        setEditLogForm({
+          ...editLogForm,
+          summary: existing ? `${existing}\n\n--- 会议纪要 ---\n${data.minutes}` : `--- 会议纪要 ---\n${data.minutes}`,
+        });
+      } else {
+        setMinutesError('未找到会议纪要内容');
+      }
+    } catch {
+      setMinutesError('网络错误，请稍后重试');
+    } finally {
+      setExtractingMinutes(false);
+    }
+  };
+
+  const handleExtractMinutesForNew = async () => {
+    if (!logForm.meeting_link.trim()) {
+      setMinutesError('请先填写会议链接');
+      return;
+    }
+    setExtractingMinutes(true);
+    setMinutesError('');
+    try {
+      const session = localStorage.getItem('auth_session');
+      const token = session ? JSON.parse(session).token : '';
+      const res = await fetch('/api/meetings/minutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ url: logForm.meeting_link.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMinutesError(data.error || '提取纪要失败');
+        return;
+      }
+      if (data.minutes) {
+        const existing = logForm.summary.trim();
+        setLogForm({
+          ...logForm,
+          summary: existing ? `${existing}\n\n--- 会议纪要 ---\n${data.minutes}` : `--- 会议纪要 ---\n${data.minutes}`,
+        });
+      } else {
+        setMinutesError('未找到会议纪要内容');
+      }
+    } catch {
+      setMinutesError('网络错误，请稍后重试');
+    } finally {
+      setExtractingMinutes(false);
+    }
+  };
+
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -1024,11 +1105,37 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>会议链接</Label>
-                    <Input
-                      value={logForm.meeting_link}
-                      onChange={(e) => setLogForm({ ...logForm, meeting_link: e.target.value })}
-                      placeholder="可选"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        value={logForm.meeting_link}
+                        onChange={(e) => {
+                          setLogForm({ ...logForm, meeting_link: e.target.value });
+                          setMinutesError('');
+                        }}
+                        placeholder="粘贴腾讯会议回放链接"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleExtractMinutesForNew}
+                        disabled={extractingMinutes}
+                        className="shrink-0 whitespace-nowrap"
+                      >
+                        {extractingMinutes ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            提取中
+                          </>
+                        ) : (
+                          '提取纪要'
+                        )}
+                      </Button>
+                    </div>
+                    {minutesError && (
+                      <p className="text-xs text-red-500">{minutesError}</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleAddImplementationLog}>保存</Button>
@@ -1118,11 +1225,37 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>会议链接</Label>
-                    <Input
-                      value={editLogForm.meeting_link}
-                      onChange={(e) => setEditLogForm({ ...editLogForm, meeting_link: e.target.value })}
-                      placeholder="可选"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        value={editLogForm.meeting_link}
+                        onChange={(e) => {
+                          setEditLogForm({ ...editLogForm, meeting_link: e.target.value });
+                          setMinutesError('');
+                        }}
+                        placeholder="粘贴腾讯会议回放链接"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleExtractMinutes}
+                        disabled={extractingMinutes}
+                        className="shrink-0 whitespace-nowrap"
+                      >
+                        {extractingMinutes ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            提取中
+                          </>
+                        ) : (
+                          '提取纪要'
+                        )}
+                      </Button>
+                    </div>
+                    {minutesError && (
+                      <p className="text-xs text-red-500">{minutesError}</p>
+                    )}
                   </div>
                 </div>
               )}
