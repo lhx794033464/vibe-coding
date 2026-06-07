@@ -14,12 +14,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
     const body = await request.json();
-    const { content, indicator, weight, target_role } = body;
+    const { content, indicator, weight, target_role, target_value } = body;
 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('kpi_templates')
-      .update({ content, indicator, weight, target_role, updated_at: new Date().toISOString() })
+      .update({ content, indicator, weight, target_role, target_value, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
