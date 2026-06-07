@@ -119,11 +119,6 @@ function ProcessCenterContent() {
   const [rejectReason, setRejectReason] = useState('');
   const [reviewing, setReviewing] = useState(false);
 
-  // 查看截图
-  const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
-  const [currentScreenshotIdx, setCurrentScreenshotIdx] = useState(0);
-  const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
-  const [loadingScreenshot, setLoadingScreenshot] = useState(false);
 
   const fetchApplications = useCallback(async () => {
     try {
@@ -305,26 +300,19 @@ function ProcessCenterContent() {
 
   const handleViewScreenshots = async (keys: string[]) => {
     try {
-      setLoadingScreenshot(true);
-      setShowScreenshotDialog(true);
-      setCurrentScreenshotIdx(0);
-      const urls: string[] = [];
       for (const key of keys) {
         const res = await fetch(`/api/process-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
           headers: { ...getAuthHeader() },
         });
         const data = await res.json();
         if (res.ok && data.url) {
-          urls.push(data.url);
+          window.open(data.url, '_blank');
+        } else {
+          toast.error('加载截图失败');
         }
       }
-      setScreenshotUrls(urls);
-    } catch (error) {
-      console.error('获取截图失败:', error);
-      toast.error('获取截图失败');
-      setShowScreenshotDialog(false);
-    } finally {
-      setLoadingScreenshot(false);
+    } catch {
+      toast.error('加载截图失败');
     }
   };
 
@@ -813,39 +801,6 @@ function ProcessCenterContent() {
         </DialogContent>
       </Dialog>
 
-      {/* 查看截图弹窗 - 自适应原图大小 */}
-      <Dialog open={showScreenshotDialog} onOpenChange={setShowScreenshotDialog}>
-        <DialogContent className="w-auto max-w-[95vw] p-0 gap-0" style={{ minWidth: 'auto' }}>
-          <DialogHeader className="px-4 pt-3 pb-1 shrink-0">
-            <DialogTitle className="text-sm">KBC截图 {screenshotUrls.length > 1 ? `(${currentScreenshotIdx + 1}/${screenshotUrls.length})` : ''}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center overflow-auto" style={{ maxHeight: 'calc(95vh - 60px)' }}>
-            {loadingScreenshot ? (
-              <div className="flex items-center justify-center py-20 px-4">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : screenshotUrls.length > 0 ? (
-              <>
-                <img
-                  src={screenshotUrls[currentScreenshotIdx]}
-                  alt={`KBC截图${currentScreenshotIdx + 1}`}
-                  className="block"
-                  style={{ maxWidth: '95vw', objectFit: 'contain' }}
-                />
-                {screenshotUrls.length > 1 && (
-                  <div className="flex items-center gap-3 py-2 w-full justify-center shrink-0">
-                    <Button variant="outline" size="sm" disabled={currentScreenshotIdx === 0} onClick={() => setCurrentScreenshotIdx(prev => prev - 1)}>上一张</Button>
-                    <span className="text-xs text-muted-foreground">{currentScreenshotIdx + 1} / {screenshotUrls.length}</span>
-                    <Button variant="outline" size="sm" disabled={currentScreenshotIdx === screenshotUrls.length - 1} onClick={() => setCurrentScreenshotIdx(prev => prev + 1)}>下一张</Button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-muted-foreground py-20">加载失败</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
