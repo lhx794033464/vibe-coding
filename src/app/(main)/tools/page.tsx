@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, ArrowLeftRight, Headphones } from 'lucide-react';
+import { GitBranch, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 
@@ -33,15 +33,6 @@ const tools = [
     href: '/tools/data-transfer-xk',
     color: 'bg-amber-50 text-amber-600',
     iconBg: 'bg-amber-100',
-  },
-  {
-    id: 'meeting-minutes',
-    title: '会议纪要提取',
-    description: '输入腾讯会议回放链接，AI 自动提取转写文字和智能纪要',
-    icon: Headphones,
-    href: '/tools/meeting-minutes',
-    color: 'bg-purple-50 text-purple-600',
-    iconBg: 'bg-purple-100',
   },
 ];
 
