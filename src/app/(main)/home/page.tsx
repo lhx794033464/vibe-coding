@@ -35,6 +35,10 @@ const QUICK_QUESTIONS_DELIVERY = [
   { text: '今日待办' },
 ];
 
+const QUICK_QUESTIONS_QA = [
+  { text: '供应商返利如何操作' },
+];
+
 
 type ChatMode = 'delivery' | 'qa';
 
@@ -701,11 +705,9 @@ export default function HomePage() {
             <div className={`relative flex flex-col items-center justify-center h-full ${showWelcome ? 'welcome-fade-in' : ''}`}>
               {/* 欢迎信息 - 悬浮样式，固定居中 */}
               <div className="text-center absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                {/* 头像悬浮 */}
-                <div className="inline-block bg-white/90 backdrop-blur-sm border border-white/50 rounded-2xl px-6 py-4 shadow-lg shadow-black/5">
-                  <div className="w-16 h-16 rounded-full overflow-hidden mx-auto shadow-xl shadow-blue-500/20 bg-white">
-                    <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
-                  </div>
+                {/* 头像 */}
+                <div className="w-16 h-16 rounded-full overflow-hidden mx-auto bg-white">
+                  <img src="/assistant-avatar.png" alt="小蝶" className="w-full h-full object-contain" />
                 </div>
                 {/* 模式切换 - 悬浮胶囊 */}
                 <div className="flex items-center bg-white/90 backdrop-blur-sm border border-white/50 rounded-full p-1 mt-3 shadow-lg shadow-black/5">
@@ -837,10 +839,24 @@ export default function HomePage() {
       <div className="flex-shrink-0 bg-transparent">
         <div className="max-w-3xl mx-auto px-4 pb-4">
           <form onSubmit={handleSubmit}>
-            {/* 快捷提问气泡 - 仅交付助手模式显示 */}
+            {/* 快捷提问气泡 */}
             {chatMode === 'delivery' && (
               <div className="flex items-center justify-start gap-3 mb-3">
                 {QUICK_QUESTIONS_DELIVERY.map((q, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleQuickQuestion(q.text)}
+                    className="px-5 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-full text-sm text-slate-700 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/10 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                  >
+                    {q.text}
+                  </button>
+                ))}
+              </div>
+            )}
+            {chatMode === 'qa' && qaTokenValid === true && (
+              <div className="flex items-center justify-start gap-3 mb-3">
+                {QUICK_QUESTIONS_QA.map((q, index) => (
                   <button
                     key={index}
                     type="button"
