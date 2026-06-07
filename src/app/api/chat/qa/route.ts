@@ -38,6 +38,67 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
+// ========== 星辰产品线过滤 ==========
+
+// 非星辰产品线关键词（出现在内容中则判定为非星辰）
+const NON_XINGCHEN_KEYWORDS = [
+  '金蝶云星空', '云星空', '星空',
+  '金蝶云苍穹', '云苍穹', '苍穹',
+  'K/3 Cloud', 'K/3', 'K3 Cloud', 'K3',
+  '金蝶KIS', 'KIS',
+  '金蝶精斗云', '精斗云',
+  '金蝶EAS', 'EAS',
+  'Cosmic', 'cosmic',
+];
+
+// 星辰产品线关键词（出现则增强为星辰内容的置信度）
+const XINGCHEN_KEYWORDS = [
+  '金蝶云星辰', '金蝶AI星辰', '云星辰', '星辰',
+  '金蝶星辰',
+];
+
+/**
+ * 验证内容是否属于星辰产品线
+ * 返回: { isXingchen: boolean, reason: string }
+ */
+function verifyXingchenContent(title: string, snippet: string, fullContent: string): { isXingchen: boolean; reason: string } {
+  const combined = `${title} ${snippet} ${fullContent}`;
+
+  // 检查非星辰产品线关键词
+  const matchedNonXingchen: string[] = [];
+  for (const keyword of NON_XINGCHEN_KEYWORDS) {
+    if (combined.includes(keyword)) {
+      matchedNonXingchen.push(keyword);
+    }
+  }
+
+  // 检查星辰关键词
+  const matchedXingchen: string[] = [];
+  for (const keyword of XINGCHEN_KEYWORDS) {
+    if (combined.includes(keyword)) {
+      matchedXingchen.push(keyword);
+    }
+  }
+
+  // 如果包含非星辰关键词且不包含星辰关键词，判定为非星辰
+  if (matchedNonXingchen.length > 0 && matchedXingchen.length === 0) {
+    return { isXingchen: false, reason: `包含非星辰产品线关键词: ${matchedNonXingchen.join(', ')}` };
+  }
+
+  // 如果同时包含星辰和非星辰关键词，需要进一步判断
+  // 优先以标题和摘要中的关键词为准
+  const titleSnippet = `${title} ${snippet}`;
+  const titleNonXingchen = NON_XINGCHEN_KEYWORDS.filter(k => titleSnippet.includes(k));
+  const titleXingchen = XINGCHEN_KEYWORDS.filter(k => titleSnippet.includes(k));
+
+  if (titleNonXingchen.length > 0 && titleXingchen.length === 0) {
+    return { isXingchen: false, reason: `标题/摘要包含非星辰关键词: ${titleNonXingchen.join(', ')}` };
+  }
+
+  // 星辰关键词存在或无冲突，视为星辰内容
+  return { isXingchen: true, reason: '' };
+}
+
 // ========== 链接存活性验证 ==========
 
 async function verifyUrlAccessible(url: string): Promise<boolean> {
@@ -47,9 +108,7 @@ async function verifyUrlAccessible(url: string): Promise<boolean> {
       redirect: 'follow',
       signal: AbortSignal.timeout(8000),
     });
-    // 如果最终重定向到 404 页面，状态码可能是 200 但页面是 404
     if (res.status === 404) return false;
-    // 检查是否重定向到 /error/404
     const finalUrl = res.url || url;
     if (finalUrl.includes('/error/404')) return false;
     return res.ok;
@@ -58,27 +117,34 @@ async function verifyUrlAccessible(url: string): Promise<boolean> {
   }
 }
 
-async function verifyUrlsAccessible(urls: string[]): Promise<Set<string>> {
-  const validUrls = new Set<string>();
-  const results = await Promise.allSettled(
-    urls.map(async (url) => {
-      const accessible = await verifyUrlAccessible(url);
-      return { url, accessible };
-    })
-  );
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value.accessible) {
-      validUrls.add(result.value.url);
+/**
+ * 抓取页面内容片段，用于验证产品线归属
+ */
+async function fetchContentSnippet(url: string, maxLength: number = 2000): Promise<string> {
+  try {
+    const { FetchClient } = await import('coze-coding-dev-sdk');
+    const fetchClient = new FetchClient();
+    const fetchResult = await fetchClient.fetch(url);
+
+    let content = '';
+    if (fetchResult.content) {
+      for (const item of fetchResult.content) {
+        if (item.text) {
+          content += item.text + '\n';
+        }
+      }
     }
+    return content.slice(0, maxLength);
+  } catch {
+    return '';
   }
-  return validUrls;
 }
 
 // ========== 工具实现 ==========
 
 async function searchKingdeeCommunity(query: string): Promise<string> {
   try {
-    const { SearchClient, Config, HeaderUtils } = await import('coze-coding-dev-sdk');
+    const { SearchClient, Config } = await import('coze-coding-dev-sdk');
     const config = new Config();
     const searchClient = new SearchClient(config);
 
@@ -120,19 +186,68 @@ async function searchKingdeeCommunity(query: string): Promise<string> {
       return '搜索未找到相关结果。请尝试更换关键词。';
     }
 
-    // 并行验证所有链接的存活性，过滤掉 404 的帖子
+    // 第一步：并行验证链接存活性
     const urls = items.map((item) => item.url);
-    const validUrls = await verifyUrlsAccessible(urls);
+    const validUrlSet = await Promise.allSettled(
+      urls.map(async (url) => {
+        const accessible = await verifyUrlAccessible(url);
+        return { url, accessible };
+      })
+    );
+    const accessibleUrls = new Set<string>();
+    for (const result of validUrlSet) {
+      if (result.status === 'fulfilled' && result.value.accessible) {
+        accessibleUrls.add(result.value.url);
+      }
+    }
 
-    const validItems = items.filter((item) => validUrls.has(item.url));
+    const accessibleItems = items.filter((item) => accessibleUrls.has(item.url));
 
-    if (validItems.length === 0) {
+    if (accessibleItems.length === 0) {
       return '搜索结果中的链接均不可访问（可能是已删除或404页面）。请尝试更换关键词。';
     }
 
-    return validItems.map((item, i) =>
-      `[${i + 1}] 标题: ${item.title}\n    类型: ${item.type}\n    链接: ${item.url}\n    摘要: ${item.snippet}`
-    ).join('\n\n');
+    // 第二步：并行抓取内容片段，验证是否属于星辰产品线
+    const contentVerificationResults = await Promise.allSettled(
+      accessibleItems.map(async (item) => {
+        const snippet = await fetchContentSnippet(item.url, 2000);
+        const verification = verifyXingchenContent(item.title, item.snippet, snippet);
+        return {
+          item,
+          snippet,
+          isXingchen: verification.isXingchen,
+          reason: verification.reason,
+        };
+      })
+    );
+
+    const verifiedItems: Array<{
+      title: string; url: string; snippet: string; type: string;
+      contentSnippet: string; isXingchen: boolean;
+    }> = [];
+
+    for (const result of contentVerificationResults) {
+      if (result.status !== 'fulfilled') continue;
+      const { item, snippet: contentSnippet, isXingchen, reason } = result.value;
+
+      if (!isXingchen) {
+        console.log(`[QA] 过滤非星辰内容: ${item.title} | 原因: ${reason}`);
+        continue;
+      }
+
+      verifiedItems.push({ ...item, contentSnippet, isXingchen: true });
+    }
+
+    if (verifiedItems.length === 0) {
+      return '搜索结果均为其他金蝶产品线内容（如星空、苍穹等），未找到金蝶AI星辰相关内容。请尝试更换关键词。';
+    }
+
+    // 返回结果，包含内容片段以便 LLM 更准确回答
+    return verifiedItems.map((item, i) => {
+      // 截取内容片段（前500字）作为参考
+      const snippetPreview = item.contentSnippet.slice(0, 500).replace(/\n+/g, ' ').trim();
+      return `[${i + 1}] 标题: ${item.title}\n    类型: ${item.type}\n    链接: ${item.url}\n    摘要: ${item.snippet}\n    内容片段: ${snippetPreview || '无'}`;
+    }).join('\n\n');
   } catch (error: any) {
     console.error('[QA] search_kingdee_community error:', error.message);
     return '搜索工具暂时不可用，请稍后重试。';
@@ -147,25 +262,19 @@ async function getKingdeeContentDetail(url: string): Promise<string> {
       return '该链接已失效（404），无法获取内容。请基于其他搜索结果回答。';
     }
 
-    const { FetchClient } = await import('coze-coding-dev-sdk');
-    const fetchClient = new FetchClient();
-    const fetchResult = await fetchClient.fetch(url);
-
-    let content = '';
-    if (fetchResult.content) {
-      for (const item of fetchResult.content) {
-        if (item.text) {
-          content += item.text + '\n';
-        }
-      }
-    }
+    const content = await fetchContentSnippet(url, 8000);
 
     if (!content) {
       return '无法获取该页面的详细内容。';
     }
 
-    // 限制内容长度
-    return content.slice(0, 5000);
+    // 验证内容是否属于星辰产品线
+    const verification = verifyXingchenContent('', '', content);
+    if (!verification.isXingchen) {
+      return `该文章内容不属于金蝶AI星辰产品线（${verification.reason}），请勿使用该内容回答。请基于其他搜索结果回答。`;
+    }
+
+    return content;
   } catch (error: any) {
     console.error('[QA] get_kingdee_content_detail error:', error.message);
     return '获取详情失败，请稍后重试。';
@@ -314,7 +423,7 @@ ${toolDesc}
             { role: 'user', content: userMessage },
           ];
 
-          const MAX_ITERATIONS = 6; // 防止死循环
+          const MAX_ITERATIONS = 6;
           let iteration = 0;
           let finalAnswerStarted = false;
 
@@ -342,14 +451,12 @@ ${toolDesc}
 
               // 如果正在收集工具调用，不直接输出到前端
               if (collectingToolCall) {
-                // 检查工具调用是否完整（包含闭合括号）
                 const callMatch = assistantResponse.match(/\[CALL:(\w+)\(([^)]*)\)\]/);
                 if (callMatch) {
                   toolCallParsed = {
                     name: callMatch[1],
                     args: {},
                   };
-                  // 解析参数
                   const argsStr = callMatch[2];
                   for (const pair of argsStr.split(',')) {
                     const [key, ...valueParts] = pair.split('=');
@@ -357,9 +464,8 @@ ${toolDesc}
                       toolCallParsed.args[key.trim()] = valueParts.join('=').trim();
                     }
                   }
-                  break; // 工具调用已完整，停止当前流
+                  break;
                 }
-                // 工具调用还未完整，继续收集
                 continue;
               }
 
@@ -375,7 +481,6 @@ ${toolDesc}
               const toolName = toolCallParsed.name;
               const toolArgs = toolCallParsed.args;
 
-              // 添加助手回复到历史（包含工具调用）
               conversationHistory.push({ role: 'assistant', content: assistantResponse });
 
               let toolResult = '';
@@ -396,22 +501,17 @@ ${toolDesc}
                 toolResult = `错误：未知工具 ${toolName}`;
               }
 
-              // 将工具结果作为用户消息反馈给 LLM
               conversationHistory.push({
                 role: 'user',
                 content: `[工具 ${toolName} 返回结果]\n${toolResult}\n\n请根据以上结果继续回答用户的问题。如果需要更多信息，可以再次调用工具。如果信息已足够，请直接输出最终回答。`,
               });
 
-              // 继续循环，让 LLM 基于工具结果继续回答
               continue;
             }
 
-            // 没有工具调用，LLM 已经给出最终回答
-            // 流式内容已在前面的循环中输出
             break;
           }
 
-          // 如果从未输出任何内容，给一个兜底
           if (!finalAnswerStarted && !closed) {
             sendContent('抱歉，暂时无法获取相关信息，请稍后重试或直接访问 [金蝶云社区](https://vip.kingdee.com) 搜索。');
           }
