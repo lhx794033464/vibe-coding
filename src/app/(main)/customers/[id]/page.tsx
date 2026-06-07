@@ -78,7 +78,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const logFormRef = useRef<HTMLDivElement>(null);
   const followUpFormRef = useRef<HTMLDivElement>(null);
   const [followUpForm, setFollowUpForm] = useState({
-    follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    follow_up_at: format(new Date(), "yyyy-MM-dd"),
     content: '',
   });
   const [logForm, setLogForm] = useState({
@@ -261,7 +261,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
       if (response.ok) {
         setFollowUpForm({
-          follow_up_at: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+          follow_up_at: format(new Date(), "yyyy-MM-dd"),
           content: '',
         });
         setShowFollowUpForm(false);
@@ -1152,7 +1152,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   <div className="space-y-2">
                     <Label>跟进时间</Label>
                     <Input
-                      type="datetime-local"
+                      type="date"
                       value={followUpForm.follow_up_at}
                       onChange={(e) => setFollowUpForm({ ...followUpForm, follow_up_at: e.target.value })}
                     />
@@ -1181,7 +1181,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <div key={record.id} className="p-3 border rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">
-                          {format(new Date(record.follow_up_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                          {format(new Date(record.follow_up_at), 'yyyy-MM-dd', { locale: zhCN })}
                         </span>
                         {record.is_accepted && (
                           <Badge className="bg-green-100 text-green-700">已验收</Badge>
