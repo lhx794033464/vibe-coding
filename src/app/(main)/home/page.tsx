@@ -854,7 +854,7 @@ export default function HomePage() {
                 ))}
               </div>
             )}
-            {chatMode === 'qa' && qaTokenValid === true && (
+            {chatMode === 'qa' && qaTokenValid !== false && (
               <div className="flex items-center justify-start gap-3 mb-3">
                 {QUICK_QUESTIONS_QA.map((q, index) => (
                   <button
