@@ -183,7 +183,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
       } else {
         // 批量新增
         const results = await Promise.all(
-          formRows.map(row =>
+          formRows.map((row, idx) =>
             fetch('/api/kpi/templates', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -194,6 +194,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                 weight: parseFloat(row.weight),
                 target_value: row.target ? parseFloat(row.target) : null,
                 target_role: row.targetRole,
+                sort_order: idx,
               }),
             })
           )

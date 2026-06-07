@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       .from('kpi_templates')
       .select('*')
       .eq('year', year)
-      .order('created_at', { ascending: true });
+      .order('sort_order', { ascending: true });
 
     if (tmplError) throw tmplError;
 
