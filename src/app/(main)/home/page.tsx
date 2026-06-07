@@ -67,7 +67,7 @@ export default function HomePage() {
   const abortControllerRef = useRef<AbortController | null>(null); // 用于中断流式请求
   
   // ===== Q&A 答疑咨询状态 =====
-  const [qaTokenValid, setQaTokenValid] = useState<boolean>(false);
+  const [qaTokenValid, setQaTokenValid] = useState<boolean | null>(null);
   const [qaSessionId, setQaSessionId] = useState<string>('');
   const qaSessionIdRef = useRef<string>('');
   // 默认金蝶AI星辰 (productId=9)
@@ -389,7 +389,7 @@ export default function HomePage() {
     if (!userMessage || loading) return;
 
     // Q&A 模式：需要 Token
-    if (chatMode === 'qa' && !qaTokenValid) {
+    if (chatMode === 'qa' && qaTokenValid === false) {
       toast.error('请先配置 PAT Token');
       return;
     }
@@ -735,7 +735,7 @@ export default function HomePage() {
                 </div>
                 
                 {/* Q&A 模式：Token 配置区域（仅在 Token 无效时显示） */}
-                {chatMode === 'qa' && !qaTokenValid && (
+                {chatMode === 'qa' && qaTokenValid === false && (
                   <div className="mt-4 max-w-md mx-auto">
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
                       <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-3">
@@ -840,18 +840,20 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto p-4">
           <form onSubmit={handleSubmit}>
             {/* 快捷提问胶囊 */}
-            <div className="flex items-center justify-start gap-2 mb-2">
-              {(chatMode === 'qa' ? QUICK_QUESTIONS_QA : QUICK_QUESTIONS_DELIVERY).map((q, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => handleQuickQuestion(q.text)}
-                  className="px-4 py-1.5 bg-white border border-slate-200 rounded-full text-sm text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all"
-                >
-                  {q.text}
-                </button>
-              ))}
-            </div>
+            {!(chatMode === 'qa' && qaTokenValid === null) && (
+              <div className="flex items-center justify-start gap-2 mb-2">
+                {(chatMode === 'qa' ? QUICK_QUESTIONS_QA : QUICK_QUESTIONS_DELIVERY).map((q, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleQuickQuestion(q.text)}
+                    className="px-4 py-1.5 bg-white border border-slate-200 rounded-full text-sm text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                  >
+                    {q.text}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-2 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all">
               <textarea
                 ref={inputRef}
@@ -867,7 +869,7 @@ export default function HomePage() {
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder={chatMode === 'qa' 
-                  ? (!qaTokenValid ? "请先配置 Token..." 
+                  ? (qaTokenValid === false ? "请先配置 Token..." : qaTokenValid === null ? "正在检查连接..." 
                     : !qaSelectedProductId ? "请先选择产品..." 
                     : "输入星辰产品使用问题...") 
                   : (input.trim() ? "问小蝶任何问题..." : "空格长按语音输入，Enter发送...")}
@@ -900,7 +902,7 @@ export default function HomePage() {
               {/* 发送按钮 */}
               <Button
                 type="submit"
-                disabled={!input.trim() || loading || (chatMode === 'qa' && (!qaTokenValid || !qaSelectedProductId))}
+                disabled={!input.trim() || loading || (chatMode === 'qa' && qaTokenValid !== true)}
                 className="rounded-xl h-10 w-10 p-0 flex-shrink-0 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300"
               >
                 {loading ? (
