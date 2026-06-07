@@ -439,13 +439,10 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                       {tmpl.weight}%
                     </div>
 
-                    {/* 考核指标 */}
+                    {/* 考核指标（目标值） */}
                     <div className="flex-1 min-w-[80px]">
-                      <span className="text-xs text-gray-600">
-                        {tmpl.indicator === 'online_rate' ? '上线占比' :
-                         tmpl.indicator === 'completion_rate' ? '验收占比' :
-                         tmpl.indicator === 'knowledge_count' ? '知识沉淀篇数' :
-                         tmpl.indicator === 'customer_satisfaction' ? '满意度评分' : ''}
+                      <span className="text-sm font-semibold text-gray-800">
+                        {tmpl.target_value !== null && tmpl.target_value !== undefined ? `${tmpl.target_value}${tmpl.indicator === 'knowledge_count' ? '篇' : '%'}` : '-'}
                       </span>
                     </div>
 
@@ -540,7 +537,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
       {/* 设置/编辑KPI弹窗 */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[760px]">
           <DialogHeader>
             <DialogTitle>{editingTemplate ? '编辑考核项' : '新增考核项'}</DialogTitle>
           </DialogHeader>
@@ -550,7 +547,8 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                 <tr className="border-b bg-gray-50">
                   <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核对象</th>
                   <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核内容</th>
-                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核指标</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">指标类型</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">目标值</th>
                   <th className="text-left px-3 py-2.5 font-medium text-gray-700 text-xs">考核权重</th>
                 </tr>
               </thead>
@@ -600,6 +598,24 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                           <SelectItem value="customer_satisfaction">客户满意度</SelectItem>
                         </SelectContent>
                       </Select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          className="w-20 h-8 text-xs"
+                          value={row.target}
+                          onChange={(e) => {
+                            const newRows = [...formRows];
+                            newRows[index] = { ...newRows[index], target: e.target.value };
+                            setFormRows(newRows);
+                          }}
+                          placeholder="目标值"
+                          min={0}
+                          max={100}
+                        />
+                        <span className="text-xs text-gray-400">{row.indicator === 'knowledge_count' ? '篇' : '%'}</span>
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
