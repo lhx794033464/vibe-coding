@@ -389,14 +389,14 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
-                  <TableHead className="w-[200px] text-center">客户名称</TableHead>
-                  <TableHead className="w-[100px] text-center">上线状态</TableHead>
-                  <TableHead className="w-[100px] text-center">验收状态</TableHead>
-                  <TableHead className="text-center">购买模块</TableHead>
-                  <TableHead className="w-[120px] text-center">交付顾问</TableHead>
-                  <TableHead className="w-[140px] text-center">人天</TableHead>
-                  <TableHead className="w-[120px] text-center">截止日</TableHead>
-                  <TableHead className="w-[120px] text-center">操作</TableHead>
+                  <TableHead className="w-[200px] text-left">客户名称</TableHead>
+                  <TableHead className="w-[100px] text-left">上线状态</TableHead>
+                  <TableHead className="w-[100px] text-left">验收状态</TableHead>
+                  <TableHead className="text-left">购买模块</TableHead>
+                  <TableHead className="w-[120px] text-left">交付顾问</TableHead>
+                  <TableHead className="w-[140px] text-left">人天</TableHead>
+                  <TableHead className="w-[120px] text-left">截止日</TableHead>
+                  <TableHead className="w-[120px] text-left">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -485,7 +485,7 @@ export default function CustomersPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredCustomers.length === 0 ? (
               <Card>
-                <CardContent className="py-12 text-center text-gray-500">
+                <CardContent className="py-12 text-left text-gray-500">
                   暂无客户数据，点击"添加客户"开始创建
                 </CardContent>
               </Card>
