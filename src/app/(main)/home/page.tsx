@@ -399,6 +399,16 @@ export default function HomePage() {
               const parsed = JSON.parse(dataStr);
               if (parsed.error) {
                 assistantMessage += `\n\n⚠️ ${parsed.error}`;
+              } else if (parsed.status) {
+                // QA 状态提示（替换显示，不追加）
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg && lastMsg.role === 'assistant') {
+                    lastMsg.content = parsed.status;
+                  }
+                  return newMessages;
+                });
               } else if (parsed.agentThinking && parsed.toolCall) {
                 // Agent 正在调用工具，显示思考状态
                 assistantMessage = `🔍 正在${parsed.toolCall.description || '查询数据'}...`;
