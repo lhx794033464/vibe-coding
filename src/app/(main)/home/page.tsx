@@ -35,11 +35,6 @@ const QUICK_QUESTIONS_DELIVERY = [
   { text: '今日待办' },
 ];
 
-const QUICK_QUESTIONS_QA = [
-  { text: '星辰如何创建账套' },
-  { text: '凭证怎么审核' },
-  { text: '报表怎么导出' },
-];
 
 type ChatMode = 'delivery' | 'qa';
 
@@ -839,10 +834,10 @@ export default function HomePage() {
       <div className="flex-shrink-0 border-t border-slate-100 bg-white/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
           <form onSubmit={handleSubmit}>
-            {/* 快捷提问胶囊 */}
-            {!(chatMode === 'qa' && qaTokenValid === null) && (
+            {/* 快捷提问胶囊 - 仅交付助手模式显示 */}
+            {chatMode === 'delivery' && (
               <div className="flex items-center justify-start gap-2 mb-2">
-                {(chatMode === 'qa' ? QUICK_QUESTIONS_QA : QUICK_QUESTIONS_DELIVERY).map((q, index) => (
+                {QUICK_QUESTIONS_DELIVERY.map((q, index) => (
                   <button
                     key={index}
                     type="button"
@@ -877,8 +872,7 @@ export default function HomePage() {
                 className="flex-1 resize-none border-none outline-none bg-transparent px-3 py-2 text-slate-700 placeholder:text-slate-400 text-sm leading-relaxed"
                 style={{ maxHeight: '120px' }}
               />
-              {/* 语音按钮 - 仅交付助手模式显示 */}
-              {chatMode === 'delivery' && (
+              {/* 语音按钮 */}
               <Button
                 type="button"
                 onClick={isRecording ? stopRecording : startRecording}
@@ -898,7 +892,6 @@ export default function HomePage() {
                   <Mic className="w-5 h-5" />
                 )}
               </Button>
-              )}
               {/* 发送按钮 */}
               <Button
                 type="submit"
