@@ -97,11 +97,42 @@ export default function LoginPage() {
             >
               {isLoggingIn ? '登录中...' : '登录'}
             </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-slate-400">或</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-slate-200 text-slate-600 hover:bg-slate-50"
+              disabled={isLoggingIn}
+              onClick={async () => {
+                setIsLoggingIn(true);
+                setError('');
+                try {
+                  const result = await login('user', '123456');
+                  if (result.success) {
+                    router.push('/home');
+                  } else {
+                    setError(result.error || '游客登录失败');
+                  }
+                } catch {
+                  setError('游客登录失败，请稍后重试');
+                } finally {
+                  setIsLoggingIn(false);
+                }
+              }}
+            >
+              游客登录
+            </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm text-slate-500">
-            <p>测试账号：user / 123456</p>
-          </div>
         </CardContent>
       </Card>
     </div>
