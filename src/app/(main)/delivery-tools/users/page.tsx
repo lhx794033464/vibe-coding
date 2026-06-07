@@ -1,288 +1,359 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit2, Trash2, Loader2, ShieldCheck, UserPlus, Search } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { DbUser } from '@/services/dbService';
-import { useRouter } from 'next/navigation';
+import { Loader2, Plus, Search, LayoutList, LayoutGrid, Edit2, Trash2 } from 'lucide-react';
 
-interface UserFormData {
+interface User {
+  id: string;
   username: string;
   email?: string;
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
-  employment_status: '在职' | '离职';
   is_active: boolean;
-  password?: string;
+  employment_status?: string;
+  created_at: string;
 }
 
-export default function UsersManagementPage() {
-  const router = useRouter();
-  const [users, setUsers] = useState<DbUser[]>([]);
+interface UserFormData {
+  username: string;
+  email: string;
+  password: string;
+  role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
+  is_active: boolean;
+  employment_status: '在职' | '离职';
+}
+
+const getRoleBadge = (role: string) => {
+  const styles: Record<string, string> = {
+    admin: 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+    '交付顾问': 'bg-green-50 text-green-700 hover:bg-green-100',
+    '答疑顾问': 'bg-purple-50 text-purple-700 hover:bg-purple-100',
+    '其他': 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+  };
+  const labels: Record<string, string> = {
+    admin: '管理员',
+    '交付顾问': '交付顾问',
+    '答疑顾问': '答疑顾问',
+    '其他': '其他',
+  };
+  return (
+    <Badge className={styles[role] || styles['其他']}>
+      {labels[role] || role}
+    </Badge>
+  );
+};
+
+const getStatusBadge = (isActive: boolean) => {
+  return isActive ? (
+    <Badge className="bg-green-50 text-green-700 hover:bg-green-100">正常</Badge>
+  ) : (
+    <Badge className="bg-red-50 text-red-700 hover:bg-red-100">禁用</Badge>
+  );
+};
+
+export default function UsersPage() {
+  const { user, isAdmin } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState<DbUser | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [error, setError] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string>('');
+
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     email: '',
+    password: '',
     role: '交付顾问',
-    employment_status: '在职',
     is_active: true,
+    employment_status: '在职',
   });
-  const [searchKeyword, setSearchKeyword] = useState('');
-
-  const { isAuthenticated, isAdmin, getAuthHeader, refreshUser } = useAuth();
-  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   useEffect(() => {
-    // 检查是否是管理员
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
+    if (isAdmin) {
+      loadUsers();
     }
-    if (!isAdmin) {
-      router.push('/unauthorized');
-      return;
-    }
-    loadUsers();
-  }, [router, isAuthenticated, isAdmin]);
+  }, [isAdmin]);
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('/api/users', {
-        headers: getAuthHeader(),
+      setLoading(true);
+      const res = await fetch('/api/users', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
       });
-      const result = await response.json();
-      if (result.data && Array.isArray(result.data)) {
-        setUsers(result.data);
+      if (!res.ok) {
+        throw new Error(`获取用户列表失败: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.success) {
+        setUsers(data.data || []);
+      } else {
+        throw new Error(data.message || '获取用户列表失败');
       }
     } catch (error) {
-      console.error('加载用户失败:', error);
+      console.error('加载用户列表失败:', error);
+      setError(error instanceof Error ? error.message : '获取用户列表失败');
     } finally {
       setLoading(false);
     }
   };
 
+  const filteredAndSortedUsers = useMemo(() => {
+    let filtered = [...users];
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+      filtered = filtered.filter(
+        (u) =>
+          u.username.toLowerCase().includes(keyword) ||
+          (u.email && u.email.toLowerCase().includes(keyword)) ||
+          (u.role && u.role.toLowerCase().includes(keyword))
+      );
+    }
+    return filtered.sort((a, b) => {
+      if (a.role === 'admin' && b.role !== 'admin') return -1;
+      if (b.role === 'admin' && a.role !== 'admin') return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [users, searchKeyword]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-    
-    console.log('提交表单数据:', formData);
-    
+
     try {
-      if (editingUser) {
-        // 更新用户
-        const response = await fetch(`/api/users/${editingUser.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-          body: JSON.stringify(formData),
-        });
-        
-        const result = await response.json();
-        console.log('更新用户响应:', result);
-        
-        if (response.ok) {
-          // 如果修改的是当前登录用户，刷新本地认证信息
-          if (result.newToken && result.data) {
-            refreshUser(result.newToken, {
-              id: result.data.id,
-              username: result.data.username,
-              email: result.data.email,
-              role: result.data.role,
-              display_name: result.data.display_name,
-            });
-          }
-          setOpenDialog(false);
-          loadUsers();
-          resetForm();
-        } else {
-          setError(result.error || '更新用户失败');
-        }
+      const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
+      const method = editingUser ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setOpenDialog(false);
+        resetForm();
+        await loadUsers();
       } else {
-        // 创建用户
-        console.log('正在创建用户...');
-        const response = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-          body: JSON.stringify(formData),
-        });
-        
-        console.log('响应状态:', response.status);
-        const result = await response.json();
-        console.log('创建用户响应:', result);
-        
-        if (response.ok) {
-          console.log('创建成功，关闭对话框');
-          setOpenDialog(false);
-          loadUsers();
-          resetForm();
-        } else {
-          console.error('创建失败:', result);
-          setError(result.error || '创建用户失败');
-        }
+        setError(data.message || '操作失败');
       }
     } catch (error) {
-      console.error('操作失败:', error);
-      setError('网络错误，请重试');
+      setError('操作失败，请重试');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleEdit = (user: DbUser) => {
+  const handleDelete = async (userToDelete: User) => {
+    const confirmed = await confirm({
+      title: '确认删除用户',
+      description: `确定要删除用户 "${userToDelete.username}" 吗？此操作不可撤销。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      variant: 'destructive',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadUsers();
+      } else {
+        setError(data.message || '删除失败');
+      }
+    } catch (error) {
+      setError('删除失败，请重试');
+    }
+  };
+
+  const handleEdit = (user: User) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
       email: user.email || '',
-      role: user.role as 'admin' | '交付顾问' | '答疑顾问' | '其他',
-      employment_status: user.employment_status || '在职',
+      password: '',
+      role: user.role,
       is_active: user.is_active,
+      employment_status: (user.employment_status as '在职' | '离职') || '在职',
     });
     setOpenDialog(true);
   };
 
-  const handleDelete = async (user: DbUser) => {
-    if (!(await confirm({ description: `确定要删除用户 "${user.username}" 吗？`, variant: 'destructive' }))) {
-      return;
-    }
-    
-    try {
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'DELETE',
-        headers: getAuthHeader(),
-      });
-      
-      if (response.ok) {
-        loadUsers();
-      }
-    } catch (error) {
-      console.error('删除用户失败:', error);
-    }
-  };
-
   const resetForm = () => {
     setEditingUser(null);
-    setError('');
     setFormData({
       username: '',
       email: '',
+      password: '',
       role: '交付顾问',
-      employment_status: '在职',
       is_active: true,
+      employment_status: '在职',
     });
+    setError('');
   };
 
-  const getRoleBadge = (role: string) => {
-    if (role === 'admin') {
-      return (
-        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 flex items-center gap-1">
-          <ShieldCheck className="w-3 h-3" />
-          管理员
-        </Badge>
-      );
-    }
-    const roleConfig: Record<string, { color: string; icon: string }> = {
-      '交付顾问': { color: 'bg-green-100 text-green-800 hover:bg-green-200', icon: '💼' },
-      '答疑顾问': { color: 'bg-purple-100 text-purple-800 hover:bg-purple-200', icon: '🎓' },
-      '其他': { color: 'bg-gray-100 text-gray-800 hover:bg-gray-200', icon: '👤' },
-    };
-    const config = roleConfig[role] || roleConfig['其他'];
+  if (!isAdmin) {
     return (
-      <Badge className={`${config.color} flex items-center gap-1`}>
-        <UserPlus className="w-3 h-3" />
-        {role}
-      </Badge>
-    );
-  };
-
-  const getStatusBadge = (is_active: boolean) => {
-    return is_active ? (
-      <Badge className="bg-green-100 text-green-800 hover:bg-green-200">启用</Badge>
-    ) : (
-      <Badge className="bg-red-100 text-red-800 hover:bg-red-200">禁用</Badge>
-    );
-  };
-
-  const rolePriority = (role: string): number => {
-    switch (role) {
-      case 'admin': return 0;
-      case '交付顾问': return 1;
-      case '答疑顾问': return 2;
-      default: return 3;
-    }
-  };
-
-  const filteredAndSortedUsers = users
-    .filter((user) => {
-      if (!searchKeyword.trim()) return true;
-      const keyword = searchKeyword.trim().toLowerCase();
-      return (
-        user.username?.toLowerCase().includes(keyword) ||
-        user.email?.toLowerCase().includes(keyword) ||
-        user.role?.toLowerCase().includes(keyword) ||
-        (user.role === 'admin' && '管理员'.includes(keyword))
-      );
-    })
-    .sort((a, b) => rolePriority(a.role) - rolePriority(b.role));
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="flex items-center justify-center h-[calc(100vh-120px)]">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-12 text-center text-gray-500">
+            <p className="text-lg font-semibold text-gray-900 mb-2">权限不足</p>
+            <p>您没有权限访问用户管理功能</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 overflow-auto">
-      <div className="space-y-6">
-        {/* 页面标题 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">用户管理</h1>
-            <p className="text-gray-500 mt-1">管理系统用户和权限</p>
-          </div>
+    <div className="max-w-6xl mx-auto space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">用户管理</h1>
+          <p className="text-sm text-muted-foreground mt-1">管理系统用户账号、权限和状态</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
+            className="gap-2"
+          >
+            {viewMode === 'table' ? <LayoutGrid className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
+            {viewMode === 'table' ? '卡片视图' : '表格视图'}
+          </Button>
           <Button onClick={() => { resetForm(); setOpenDialog(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             添加用户
           </Button>
         </div>
+      </div>
 
-        {/* 搜索框 */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="搜索用户名、邮箱或角色..."
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            className="pl-9 max-w-sm"
-          />
+      {/* 搜索栏 */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="搜索用户名、邮箱或角色..."
+          value={searchKeyword}
+          onChange={(e) => setSearchKeyword(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          {error}
         </div>
+      )}
 
       {/* 用户列表 */}
-      <div className="grid gap-4">
-        {filteredAndSortedUsers.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center text-gray-500">
-              {searchKeyword.trim() ? '未找到匹配的用户' : '暂无用户数据，点击"添加用户"开始创建'}
-            </CardContent>
-          </Card>
-        ) : (
-          filteredAndSortedUsers.map((user) => (
-            <Card key={user.id} className="hover:shadow-md transition-shadow">
+      {loading ? (
+        <div className="flex justify-center items-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <span className="ml-3 text-gray-500">加载中...</span>
+        </div>
+      ) : filteredAndSortedUsers.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-gray-500">
+            {searchKeyword.trim() ? '未找到匹配的用户' : '暂无用户数据，点击"添加用户"开始创建'}
+          </CardContent>
+        </Card>
+      ) : viewMode === 'table' ? (
+        <div className="rounded-lg border bg-white overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50 hover:bg-gray-50">
+                <TableHead className="w-48 font-semibold text-gray-900">用户名</TableHead>
+                <TableHead className="font-semibold text-gray-900">角色</TableHead>
+                <TableHead className="font-semibold text-gray-900">在职状态</TableHead>
+                <TableHead className="font-semibold text-gray-900">账号状态</TableHead>
+                <TableHead className="font-semibold text-gray-900">创建时间</TableHead>
+                <TableHead className="w-24 text-right font-semibold text-gray-900">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSortedUsers.map((user) => (
+                <TableRow key={user.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => handleEdit(user)}>
+                  <TableCell className="font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-8 rounded-full flex-shrink-0 ${user.role === 'admin' ? 'bg-blue-500' : 'bg-gray-400'}`} />
+                      {user.username}
+                    </div>
+                  </TableCell>
+                  <TableCell>{getRoleBadge(user.role)}</TableCell>
+                  <TableCell>
+                    <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
+                      {user.employment_status || '在职'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(user.is_active)}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">
+                    {new Date(user.created_at).toLocaleDateString('zh-CN')}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(user); }}>
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      {user.username !== 'admin' && (
+                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(user); }}>
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filteredAndSortedUsers.map((user) => (
+            <Card key={user.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleEdit(user)}>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1">
@@ -293,9 +364,7 @@ export default function UsersManagementPage() {
                     <div className="flex-1 min-w-0">
                       {/* 第一行：用户名 + 角色 + 状态 */}
                       <div className="flex items-start gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-900 break-words">
-                          {user.username}
-                        </span>
+                        <span className="font-semibold text-gray-900 text-base">{user.username}</span>
                         {getRoleBadge(user.role)}
                         <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
                           {user.employment_status || '在职'}
@@ -315,11 +384,11 @@ export default function UsersManagementPage() {
                   
                   {/* 操作按钮 */}
                   <div className="flex items-center gap-2 sm:flex-shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(user); }}>
                       <Edit2 className="w-4 h-4" />
                     </Button>
                     {user.username !== 'admin' && (
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(user)}>
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(user); }}>
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </Button>
                     )}
@@ -327,9 +396,9 @@ export default function UsersManagementPage() {
                 </div>
               </CardContent>
             </Card>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Dialog open={openDialog} onOpenChange={(open) => {
         if (!open) {
@@ -454,7 +523,6 @@ export default function UsersManagementPage() {
         </DialogContent>
       </Dialog>
       {ConfirmDialog}
-      </div>
     </div>
   );
 }

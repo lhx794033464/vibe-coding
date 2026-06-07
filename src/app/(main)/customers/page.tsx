@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
@@ -364,7 +365,7 @@ export default function CustomersPage() {
                 size="sm"
                 className="h-7 w-7 p-0"
                 onClick={() => setViewMode('list')}
-                title="列表视图"
+                title="表格视图"
               >
                 <LayoutList className="w-4 h-4" />
               </Button>
@@ -382,22 +383,129 @@ export default function CustomersPage() {
         </div>
 
         {/* 客户列表 */}
-        <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 'grid gap-4'}>
-          {filteredCustomers.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-gray-500">
-                暂无客户数据，点击"添加客户"开始创建
-              </CardContent>
-            </Card>
-          ) : (
-            paginatedCustomers.map((customer) => {
-              const isStale = isStaleFollowUp(customer);
-              
-              return (
-                <Card key={customer.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-3 sm:p-4">
-                    {viewMode === 'grid' ? (
-                      /* 双列视图 - 紧凑垂直布局 */
+        {viewMode === 'list' ? (
+          /* 表格视图 */
+          <div className="rounded-lg border border-border bg-white overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="w-[200px]">客户名称</TableHead>
+                  <TableHead className="w-[100px]">状态</TableHead>
+                  <TableHead className="w-[80px]">版本</TableHead>
+                  <TableHead>购买模块</TableHead>
+                  <TableHead className="w-[120px]">交付顾问</TableHead>
+                  <TableHead className="w-[140px]">人天</TableHead>
+                  <TableHead className="w-[120px]">截止日</TableHead>
+                  <TableHead className="w-[120px] text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCustomers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-12 text-gray-500">
+                      暂无客户数据，点击"添加客户"开始创建
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedCustomers.map((customer) => {
+                    const deadlineStr = typeof customer.delivery_deadline === 'string' ? customer.delivery_deadline.split('T')[0] : String(customer.delivery_deadline).split('T')[0];
+                    const deadlineDate = deadlineStr ? new Date(deadlineStr) : null;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const isOverdue = deadlineDate && deadlineDate < today && !customer.dismissed;
+                    const overdueDays = isOverdue && deadlineDate ? Math.ceil((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                    const modules = customer.modules ? (Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean) : [];
+                    return (
+                      <TableRow key={customer.id} className="hover:bg-gray-50/50">
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`} />
+                            <Link
+                              href={`/customers/${customer.id}`}
+                              className="font-medium text-gray-900 hover:text-blue-600 truncate"
+                            >
+                              {customer.name}
+                            </Link>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge className={`text-xs ${customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                              {customer.status === 'online' ? '已上线' : '未上线'}
+                            </Badge>
+                            {customer.acceptance_status === 'accepted' && (
+                              <Badge className="text-xs bg-purple-100 text-purple-700">已验收</Badge>
+                            )}
+                            {customer.dismissed && (
+                              <Badge className="text-xs bg-gray-100 text-gray-500">已解散</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {customer.version && (
+                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs" variant="outline">
+                              {customer.version}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {modules.slice(0, 3).map((module: string, idx: number) => (
+                              <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
+                                {module.trim()}
+                              </Badge>
+                            ))}
+                            {modules.length > 3 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0">+{modules.length - 3}</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-blue-600">
+                          {(customer as any).delivery_consultant || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">
+                          <span className="whitespace-nowrap">
+                            总{formatDays(customer.implementation_days)} /
+                            耗{formatDays(customer.consumed_days)} /
+                            余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {deadlineDate ? (
+                            <span className={isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}>
+                              {deadlineDate.getFullYear()}-{String(deadlineDate.getMonth() + 1).padStart(2, '0')}-{String(deadlineDate.getDate()).padStart(2, '0')}
+                              {isOverdue && <span className="ml-1 text-xs">(超{overdueDays}天)</span>}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/customers/${customer.id}`}>
+                            <Button variant="ghost" size="sm" className="h-7 px-2">查看</Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          /* 卡片视图 */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredCustomers.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-gray-500">
+                  暂无客户数据，点击"添加客户"开始创建
+                </CardContent>
+              </Card>
+            ) : (
+              paginatedCustomers.map((customer) => {
+                const isStale = isStaleFollowUp(customer);
+                
+                return (
+                  <Card key={customer.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex flex-col gap-2">
                         {/* 客户名称 + 状态 */}
                         <div className="flex items-start gap-2">
@@ -464,91 +572,15 @@ export default function CustomersPage() {
                           })()}
                         </div>
                       </div>
-                    ) : (
-                      /* 列表视图 - 原有横向布局 */
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-start gap-3 flex-1">
-                          {/* 状态标识 */}
-                          <div className={`w-2 h-12 sm:h-8 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`}></div>
-                          
-                          {/* 客户信息 */}
-                          <div className="flex-1 min-w-0">
-                            {/* 第一行：客户名称 + 上线状态 + 验收状态 */}
-                            <div className="flex items-start gap-2 flex-wrap">
-                              <Link 
-                                href={`/customers/${customer.id}`}
-                                className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors break-words"
-                              >
-                                {customer.name}
-                              </Link>
-                              <Badge className={customer.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
-                                {customer.status === 'online' ? '已上线' : '未上线'}
-                              </Badge>
-                              {customer.acceptance_status === 'accepted' && (
-                                <Badge className="bg-purple-100 text-purple-700">已验收</Badge>
-                              )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+        )}
 
-                            </div>
-                            {/* 第二行：版本 + 模块 */}
-                            {(customer.version || customer.modules) && (
-                              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                {customer.version && (
-                                  <Badge className="bg-blue-50 text-blue-700 border-blue-200" variant="outline">
-                                    {customer.version}
-                                  </Badge>
-                                )}
-                                {customer.modules && (
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    {(Array.isArray(customer.modules) ? customer.modules : String(customer.modules).split(',')).filter(Boolean).map((module: string, idx: number) => (
-                                      <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
-                                        {module.trim()}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {/* 第三行：人天 + 最近跟进 */}
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-500 mt-2">
-                              <span className="whitespace-nowrap">
-                                人天: 总{formatDays(customer.implementation_days)} / 
-                                已耗{formatDays(customer.consumed_days)} / 
-                                余<span className={customer.remaining_days < 0 ? 'text-red-600 font-medium' : ''}>{formatDays(customer.remaining_days)}</span>
-                              </span>
-                              {(customer as any).delivery_consultant && (
-                                <span className="text-xs whitespace-nowrap text-blue-600">
-                                  顾问: {(customer as any).delivery_consultant}
-                                </span>
-                              )}
-                              {customer.delivery_deadline && (() => {
-                                const deadlineStr = typeof customer.delivery_deadline === 'string' ? customer.delivery_deadline.split('T')[0] : String(customer.delivery_deadline).split('T')[0];
-                                const deadlineDate = new Date(deadlineStr);
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const isOverdue = deadlineDate < today;
-                                const overdueDays = isOverdue ? Math.ceil((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                                const formatted = `${deadlineDate.getFullYear()}年${deadlineDate.getMonth() + 1}月${deadlineDate.getDate()}日`;
-                                return (
-                                  <span className={`text-xs whitespace-nowrap ${isOverdue && !customer.dismissed ? 'text-red-600 font-medium' : ''}`}>
-                                    交付期截止日：{formatted}
-                                    {isOverdue && !customer.dismissed && <span className="ml-1">（超期{overdueDays}天）</span>}
-                                    {customer.dismissed && <span className="ml-1 text-purple-600">（已解散）</span>}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                        </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
-
-        {/* 分页控制 */}
+      {/* 分页控制 */}
         {!isShowAll && totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-4">
             <Button
