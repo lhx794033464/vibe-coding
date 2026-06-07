@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Target, Loader2, X, Check, Info } from 'lucide-react';
@@ -19,6 +18,7 @@ interface KpiTemplate {
   indicator: string;
   weight: string;
   target_value: string | null;
+  target_role: string;
   created_by: string;
 }
 
@@ -58,10 +58,10 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
   // 管理员：新增/编辑模板
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<KpiTemplate | null>(null);
-  const [formContent, setFormContent] = useState('');
   const [formIndicator, setFormIndicator] = useState('online_rate');
   const [formWeight, setFormWeight] = useState('30');
   const [formTarget, setFormTarget] = useState('');
+  const [formTargetRole, setFormTargetRole] = useState('交付顾问');
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // 顾问：编辑进度
@@ -113,35 +113,36 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
   const openNewTemplate = () => {
     setEditingTemplate(null);
-    setFormContent('');
     setFormIndicator('online_rate');
     setFormWeight('30');
     setFormTarget('');
+    setFormTargetRole('交付顾问');
     setTemplateDialogOpen(true);
   };
 
   const openEditTemplate = (tmpl: KpiTemplate) => {
     setEditingTemplate(tmpl);
-    setFormContent(tmpl.content);
     setFormIndicator(tmpl.indicator);
     setFormWeight(tmpl.weight);
     setFormTarget(tmpl.target_value || '');
+    setFormTargetRole(tmpl.target_role || '交付顾问');
     setTemplateDialogOpen(true);
   };
 
   const saveTemplate = async () => {
-    if (!formContent.trim() || !formWeight) {
-      toast.error('请填写考核内容和权重');
+    if (!formWeight) {
+      toast.error('请填写权重');
       return;
     }
     setSavingTemplate(true);
     try {
       const payload = {
         year,
-        content: formContent.trim(),
+        content: INDICATOR_LABELS[formIndicator] || formIndicator,
         indicator: formIndicator,
         weight: parseFloat(formWeight),
         target_value: formTarget ? parseFloat(formTarget) : null,
+        target_role: formTargetRole,
       };
 
       let res;
@@ -364,16 +365,21 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
                 return (
                   <div key={tmpl.id} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50/50 transition-colors">
-                    {/* 指标标签 */}
+                    {/* 考核对象 */}
+                    <span className={cn(
+                      'text-xs font-medium px-2 py-0.5 rounded-full',
+                      tmpl.target_role === '交付顾问' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
+                    )}>
+                      {tmpl.target_role || '交付顾问'}
+                    </span>
+
+                    {/* 考核内容（指标名称） */}
                     <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', INDICATOR_COLORS[tmpl.indicator] || 'bg-gray-100')}>
                       {INDICATOR_LABELS[tmpl.indicator] || tmpl.indicator}
                     </span>
 
-                    {/* 考核内容 */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{tmpl.content}</p>
-                      <p className="text-xs text-gray-400">权重: {tmpl.weight}%{tmpl.target_value ? ` | 目标: ${tmpl.target_value}${tmpl.indicator === 'knowledge_count' ? '篇' : '%'}` : ''}</p>
-                    </div>
+                    {/* 权重 */}
+                    <span className="text-xs text-gray-500">{tmpl.weight}%</span>
 
                     {/* 实际值/完成率 */}
                     <div className="text-right flex-shrink-0 min-w-[100px]">
@@ -473,71 +479,87 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
 
       {/* 设置/编辑KPI弹窗 */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{editingTemplate ? '编辑考核项' : '新增考核项'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium">考核内容</Label>
-              <Input
-                placeholder="例如：提升客户上线率"
-                value={formContent}
-                onChange={(e) => setFormContent(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium">考核指标</Label>
-              <Select value={formIndicator} onValueChange={setFormIndicator}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" side="bottom">
-                  <SelectItem value="online_rate">上线率</SelectItem>
-                  <SelectItem value="completion_rate">完成率</SelectItem>
-                  <SelectItem value="knowledge_count">知识沉淀数量</SelectItem>
-                  <SelectItem value="customer_satisfaction">客户满意度</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-sm font-medium">考核权重 (%)</Label>
-                <Input
-                  type="number"
-                  placeholder="30"
-                  value={formWeight}
-                  onChange={(e) => setFormWeight(e.target.value)}
-                  className="mt-1"
-                  min={0}
-                  max={100}
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">目标值</Label>
-                <Input
-                  type="number"
-                  placeholder={formIndicator === 'knowledge_count' ? '目标数量（篇）' : '目标百分比（如90）'}
-                  value={formTarget}
-                  onChange={(e) => setFormTarget(e.target.value)}
-                  className="mt-1"
-                  min={0}
-                />
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {formIndicator === 'knowledge_count' ? '单位：篇数' : '单位：%'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 pt-2">
-              <DialogClose asChild>
-                <Button variant="outline" className="flex-1">取消</Button>
-              </DialogClose>
-              <Button className="flex-1" onClick={saveTemplate} disabled={savingTemplate}>
-                {savingTemplate && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                {editingTemplate ? '保存修改' : '添加'}
-              </Button>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核对象</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核内容</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核指标</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-700">考核权重</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="px-3 py-2">
+                    <Select value={formTargetRole} onValueChange={setFormTargetRole}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent position="popper" side="bottom">
+                        <SelectItem value="交付顾问">交付顾问</SelectItem>
+                        <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={cn('text-xs font-medium px-2 py-1 rounded-full border', INDICATOR_COLORS[formIndicator] || 'bg-gray-100')}>
+                      {INDICATOR_LABELS[formIndicator] || formIndicator}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <Select value={formIndicator} onValueChange={setFormIndicator}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent position="popper" side="bottom">
+                        <SelectItem value="online_rate">上线率</SelectItem>
+                        <SelectItem value="completion_rate">完成率</SelectItem>
+                        <SelectItem value="knowledge_count">知识沉淀数量</SelectItem>
+                        <SelectItem value="customer_satisfaction">客户满意度</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        className="w-20 h-8 text-xs"
+                        value={formWeight}
+                        onChange={(e) => setFormWeight(e.target.value)}
+                        min={0}
+                        max={100}
+                      />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
+                  </td>
+                </tr>
+                {formTarget && (
+                  <tr className="border-b">
+                    <td colSpan={4} className="px-3 py-1.5">
+                      <p className="text-xs text-gray-400">
+                        目标值：{formTarget}{['knowledge_count'].includes(formIndicator) ? '篇' : '%'}
+                        {formIndicator === 'knowledge_count' && <span className="ml-2 text-gray-300">（知识沉淀数量由顾问编辑）</span>}
+                        {formIndicator === 'customer_satisfaction' && <span className="ml-2 text-gray-300">（客户满意度由管理员编辑，默认100%）</span>}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center gap-3 pt-2">
+            <DialogClose asChild>
+              <Button variant="outline" className="flex-1">取消</Button>
+            </DialogClose>
+            <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={saveTemplate} disabled={savingTemplate}>
+              {savingTemplate && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              {editingTemplate ? '保存修改' : '添加'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

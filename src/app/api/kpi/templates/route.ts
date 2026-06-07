@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { year, content, indicator, weight } = body;
+    const { year, content, indicator, weight, target_role } = body;
 
     if (!year || !content || !indicator || weight === undefined) {
       return NextResponse.json({ error: '缺少必填字段' }, { status: 400 });
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('kpi_templates')
-      .insert({ year, content, indicator, weight, created_by: user.id })
+      .insert({ year, content, indicator, weight, target_role: target_role || '交付顾问', created_by: user.id })
       .select()
       .single();
 

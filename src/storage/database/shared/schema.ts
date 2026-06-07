@@ -158,6 +158,7 @@ export const kpiTemplates = pgTable("kpi_templates", {
   indicator: varchar({ length: 50 }).notNull(),
   weight: numeric({ precision: 5, scale: 2 }).notNull().default('0'),
   targetValue: numeric("target_value", { precision: 10, scale: 2 }),
+  targetRole: varchar("target_role", { length: 20 }).default('交付顾问'),
   createdBy: varchar("created_by", { length: 36 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
