@@ -813,24 +813,27 @@ function ProcessCenterContent() {
         </DialogContent>
       </Dialog>
 
-      {/* 查看截图弹窗（支持多张轮播） */}
+      {/* 查看截图弹窗 - 原图展示 */}
       <Dialog open={showScreenshotDialog} onOpenChange={setShowScreenshotDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-4 pb-2">
             <DialogTitle>KBC截图 {screenshotUrls.length > 1 ? `(${currentScreenshotIdx + 1}/${screenshotUrls.length})` : ''}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center overflow-auto" style={{ maxHeight: 'calc(95vh - 80px)' }}>
             {loadingScreenshot ? (
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
             ) : screenshotUrls.length > 0 ? (
               <>
                 <img
                   src={screenshotUrls[currentScreenshotIdx]}
                   alt={`KBC截图${currentScreenshotIdx + 1}`}
-                  className="max-w-full max-h-[60vh] rounded-lg"
+                  className="block"
+                  style={{ maxWidth: 'none', maxHeight: 'none' }}
                 />
                 {screenshotUrls.length > 1 && (
-                  <div className="flex items-center gap-3">
+                  <div className="sticky bottom-0 flex items-center gap-3 py-3 bg-background/80 backdrop-blur-sm w-full justify-center">
                     <Button
                       variant="outline"
                       size="sm"
@@ -852,7 +855,7 @@ function ProcessCenterContent() {
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground">加载失败</p>
+              <p className="text-muted-foreground py-20">加载失败</p>
             )}
           </div>
         </DialogContent>
