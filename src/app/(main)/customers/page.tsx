@@ -396,13 +396,12 @@ export default function CustomersPage() {
                   <TableHead className="w-[120px] text-left">交付顾问</TableHead>
                   <TableHead className="w-[140px] text-left">人天</TableHead>
                   <TableHead className="w-[120px] text-left">截止日</TableHead>
-                  <TableHead className="w-[120px] text-left">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredCustomers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-12 text-gray-500">
                       暂无客户数据，点击"添加客户"开始创建
                     </TableCell>
                   </TableRow>
@@ -467,11 +466,6 @@ export default function CustomersPage() {
                               {isOverdue && <span className="ml-1 text-xs">(超{overdueDays}天)</span>}
                             </span>
                           ) : '-'}
-                        </TableCell>
-                        <TableCell className="w-[120px]">
-                          <Link href={`/customers/${customer.id}`}>
-                            <Button variant="ghost" size="sm" className="h-7 px-2">查看</Button>
-                          </Link>
                         </TableCell>
                       </TableRow>
                     );
