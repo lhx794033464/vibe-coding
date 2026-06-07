@@ -8,13 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, 
   Plus, 
   CheckCircle, 
   XCircle,
-  ExternalLink,
   Calendar,
   User,
   Building,
@@ -88,8 +88,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
     meeting_link: '',
   });
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   
   const [editLogForm, setEditLogForm] = useState({
     log_date: '',
@@ -1045,50 +1043,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 <div className="space-y-3">
                   {implementationLogs.map((log) => (
                     <div key={log.id} className="p-3 border rounded-lg">
-                      {editingLogId === log.id ? (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-2">
-                              <Label>实施时间</Label>
-                              <Input
-                                type="datetime-local"
-                                value={editLogForm.log_date}
-                                onChange={(e) => setEditLogForm({ ...editLogForm, log_date: e.target.value })}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>消耗人天</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editLogForm.consumed_days}
-                                onChange={(e) => setEditLogForm({ ...editLogForm, consumed_days: e.target.value })}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>实施纪要</Label>
-                            <Textarea
-                              value={editLogForm.summary}
-                              onChange={(e) => setEditLogForm({ ...editLogForm, summary: e.target.value })}
-                              rows={3}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>会议链接</Label>
-                            <Input
-                              value={editLogForm.meeting_link}
-                              onChange={(e) => setEditLogForm({ ...editLogForm, meeting_link: e.target.value })}
-                              placeholder="可选"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button size="sm" onClick={handleUpdateImplementationLog}>保存</Button>
-                            <Button size="sm" variant="outline" onClick={handleCancelEditLog}>取消</Button>
-                          </div>
-                        </div>
-                      ) : (
                         <>
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-500">
@@ -1101,8 +1055,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className={`h-6 w-6 ${expandedLogId === log.id ? 'text-blue-500' : 'text-gray-400 hover:text-blue-500'}`}
-                                onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                                className="h-6 w-6 text-gray-400 hover:text-blue-500"
+                                onClick={() => {
+                                  handleStartEditLog(log);
+                                }}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
@@ -1116,36 +1072,66 @@ export default function CustomerDetailPage({ params }: PageProps) {
                               </Button>
                             </div>
                           </div>
-                          {expandedLogId === log.id && (
-                            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-2">
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{log.summary}</p>
-                              {log.meeting_link && (
-                                <a href={log.meeting_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700">
-                                  <ExternalLink className="h-3 w-3" />
-                                  会议链接
-                                </a>
-                              )}
-                              <div className="flex justify-end pt-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-xs text-gray-500 hover:text-blue-500"
-                                  onClick={() => handleStartEditLog(log)}
-                                >
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  编辑
-                                </Button>
-                              </div>
-                            </div>
-                          )}
                           </>
-                      )}
                     </div>
                   ))}
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* 编辑实施日志弹窗 */}
+          <Dialog open={editingLogId !== null} onOpenChange={(open) => !open && handleCancelEditLog()}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>编辑实施日志</DialogTitle>
+              </DialogHeader>
+              {editingLogId !== null && (
+                <div className="space-y-4 py-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>实施时间</Label>
+                      <Input
+                        type="datetime-local"
+                        value={editLogForm.log_date}
+                        onChange={(e) => setEditLogForm({ ...editLogForm, log_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>消耗人天</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editLogForm.consumed_days}
+                        onChange={(e) => setEditLogForm({ ...editLogForm, consumed_days: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>实施纪要</Label>
+                    <Textarea
+                      value={editLogForm.summary}
+                      onChange={(e) => setEditLogForm({ ...editLogForm, summary: e.target.value })}
+                      rows={5}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>会议链接</Label>
+                    <Input
+                      value={editLogForm.meeting_link}
+                      onChange={(e) => setEditLogForm({ ...editLogForm, meeting_link: e.target.value })}
+                      placeholder="可选"
+                    />
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={handleCancelEditLog}>取消</Button>
+                <Button onClick={handleUpdateImplementationLog}>保存</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* 跟进记录 */}
         <div className="space-y-4">
