@@ -9,7 +9,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, Loader2, RefreshCw, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown } from 'lucide-react';
+import { Search, Plus, AlertCircle, Loader2, RefreshCw, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -386,7 +386,7 @@ export default function CustomersPage() {
                     return (
                       <TableRow key={customer.id} className="hover:bg-gray-50/50">
                         <TableCell className="w-[200px]">
-                          <div className="flex items-center gap-2">
+                          <div className="group/copy flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`} />
                             <Link
                               href={`/customers/${customer.id}`}
@@ -394,6 +394,16 @@ export default function CustomersPage() {
                             >
                               {customer.name}
                             </Link>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navigator.clipboard.writeText(customer.name);
+                                toast.success('已复制: ' + customer.name);
+                              }}
+                              className="opacity-0 group-hover/copy:opacity-100 transition-opacity shrink-0 text-gray-400 hover:text-gray-600 ml-auto"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </TableCell>
                         <TableCell className="w-[100px]">
