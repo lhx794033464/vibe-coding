@@ -62,7 +62,7 @@ function getDefaultFormRows(): FormRow[] {
 
 const INDICATOR_LABELS: Record<string, string> = {
   online_rate: '上线率',
-  completion_rate: '完成率',
+  completion_rate: '验收率',
   knowledge_count: '知识沉淀数量',
   customer_satisfaction: '客户满意度',
 };
@@ -574,7 +574,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
                         </SelectTrigger>
                         <SelectContent position="popper" side="bottom">
                           <SelectItem value="online_rate">上线率</SelectItem>
-                          <SelectItem value="completion_rate">完成率</SelectItem>
+                          <SelectItem value="completion_rate">验收率</SelectItem>
                           <SelectItem value="knowledge_count">知识沉淀数量</SelectItem>
                           <SelectItem value="customer_satisfaction">客户满意度</SelectItem>
                         </SelectContent>
