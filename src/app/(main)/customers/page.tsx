@@ -9,7 +9,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, AlertCircle, RefreshCw, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown } from 'lucide-react';
+import { Search, Plus, AlertCircle, Loader2, RefreshCw, Check, X, LayoutList, LayoutGrid, Filter, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -42,7 +42,6 @@ export default function CustomersPage() {
   // 同步相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0);
   const [syncResult, setSyncResult] = useState<{ imported: number; updated: number; reassigned: number; skipped: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -150,30 +149,20 @@ export default function CustomersPage() {
   const paginatedCustomers = isShowAll ? filteredCustomers : filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const totalPages = isShowAll ? 1 : Math.ceil(filteredCustomers.length / pageSize);
 
-  // 同步客户信息（一键同步所有客户，不展示明细，显示百分比进度）
+  // 同步客户信息（一键同步所有客户，不展示明细）
   const handleSyncAll = async () => {
     setSyncing(true);
-    setSyncProgress(0);
     setSyncResult(null);
     setShowFetchDialog(true);
-
-    // 模拟进度动画（获取阶段 5%~45%）
-    const fetchProgressTimer = setInterval(() => {
-      setSyncProgress((prev) => Math.min(prev + Math.random() * 4, 45));
-    }, 400);
-
     try {
       // 1. 获取腾讯文档数据
       const fetchRes = await fetch('/api/tencent-docs/fetch-customers', {
         headers: { ...getAuthHeader() },
       });
       const fetchData = await fetchRes.json();
-      clearInterval(fetchProgressTimer);
-
       if (!fetchData.success) {
         toast.error(fetchData.error || '获取失败');
         setSyncing(false);
-        setSyncProgress(0);
         return;
       }
 
@@ -181,16 +170,8 @@ export default function CustomersPage() {
       if (customers.length === 0) {
         toast.error('未获取到客户信息');
         setSyncing(false);
-        setSyncProgress(0);
         return;
       }
-
-      setSyncProgress(55);
-
-      // 模拟进度动画（导入阶段 55%~90%）
-      const importProgressTimer = setInterval(() => {
-        setSyncProgress((prev) => Math.min(prev + Math.random() * 3, 90));
-      }, 400);
 
       // 2. 直接全部导入
       const importRes = await fetch('/api/tencent-docs/fetch-customers', {
@@ -199,31 +180,22 @@ export default function CustomersPage() {
         body: JSON.stringify({ customers }),
       });
       const importData = await importRes.json();
-      clearInterval(importProgressTimer);
-
       if (importData.success) {
-        setSyncProgress(100);
-        // 延迟一下让用户看到100%
-        setTimeout(() => {
-          setSyncResult({
-            imported: importData.imported,
-            updated: importData.updated,
-            reassigned: importData.reassigned || 0,
-            skipped: importData.skipped || 0,
-          });
-        }, 500);
+        setSyncResult({
+          imported: importData.imported,
+          updated: importData.updated,
+          reassigned: importData.reassigned || 0,
+          skipped: importData.skipped || 0,
+        });
         fetchCustomers();
       } else {
         toast.error(importData.error || '导入失败');
-        setSyncing(false);
-        setSyncProgress(0);
       }
     } catch (error) {
-      clearInterval(fetchProgressTimer);
       console.error('同步客户信息失败:', error);
       toast.error('同步失败，请检查网络连接');
+    } finally {
       setSyncing(false);
-      setSyncProgress(0);
     }
   };
 
@@ -623,32 +595,7 @@ export default function CustomersPage() {
             <div className="p-8">
               {syncing ? (
                 <div className="flex flex-col items-center justify-center py-6">
-                  {/* 环形进度条 */}
-                  <div className="relative w-20 h-20 mb-4">
-                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                      {/* 背景圆环 */}
-                      <circle
-                        cx="40" cy="40" r="34"
-                        fill="none"
-                        stroke="#e5e7eb"
-                        strokeWidth="6"
-                      />
-                      {/* 进度圆环 */}
-                      <circle
-                        cx="40" cy="40" r="34"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="6"
-                        strokeLinecap="round"
-                        strokeDasharray={`${2 * Math.PI * 34}`}
-                        strokeDashoffset={`${2 * Math.PI * 34 * (1 - syncProgress / 100)}`}
-                        className="text-primary transition-all duration-300"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-gray-700">
-                      {Math.round(syncProgress)}%
-                    </span>
-                  </div>
+                  <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
                   <p className="text-gray-600 font-medium">正在同步客户数据...</p>
                   <p className="text-gray-400 text-sm mt-1">请稍候，正在从腾讯文档获取并导入</p>
                 </div>
