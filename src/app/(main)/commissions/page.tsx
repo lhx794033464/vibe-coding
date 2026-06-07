@@ -262,29 +262,6 @@ export default function CommissionsPage() {
     }
   };
 
-  const handleMarkCommissioned = async (commission: CommissionCalculation) => {
-    if (!(await confirm({ description: `确认将「${commission.customerName}」标记为已计提？标记后将从提成管理中隐藏。` }))) return;
-    try {
-      const response = await fetch('/api/commissions/mark-commissioned', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ customerIds: [commission.customerId] }),
-      });
-      const data = await response.json();
-      if (data.error) {
-        toast.error(data.error);
-        return;
-      }
-      fetchCommissions();
-    } catch (error) {
-      console.error('标记已计提失败:', error);
-      toast.error('标记已计提失败');
-    }
-  };
-
   const handleReview = async () => {
     if (!reviewingReport) return;
 
@@ -1171,9 +1148,6 @@ export default function CommissionsPage() {
                       {/* 计提/修改按钮 */}
                       <div className="ml-4 flex flex-col items-end gap-2">
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="icon" title="标记已计提" className="text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleMarkCommissioned(commission)}>
-                            <CheckCircle className="w-4 h-4" />
-                          </Button>
                           {hasRemainingCommission(commission) && (
                             <Button variant="outline" size="icon" title="设置下次计提时间" onClick={() => openScheduleDialog(commission)}>
                               <Bell className="w-4 h-4" />
