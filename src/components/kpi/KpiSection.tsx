@@ -332,7 +332,7 @@ export default function KpiSection({ currentYear = new Date().getFullYear() }: {
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Target className="h-5 w-5 text-gray-400" />
-          KPI 完成率
+          {isAdmin ? 'KPI 完成率（人均）' : '我的 KPI 完成率'}
         </CardTitle>
         <div className="flex items-center gap-2">
           <Select
