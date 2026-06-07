@@ -16,6 +16,9 @@ import {
   Trophy,
   ChevronDown
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const KpiSection = dynamic(() => import('@/components/kpi/KpiSection'), { ssr: false });
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -744,6 +747,9 @@ export default function DashboardPage() {
         </div>
       </div>
       )}
+
+      {/* KPI 完成率 - 向交付顾问、答疑顾问、管理员开放 */}
+      <KpiSection />
     </div>
   );
 }

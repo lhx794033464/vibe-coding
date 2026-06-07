@@ -150,3 +150,29 @@ export const implementationLogs = pgTable("implementation_logs", {
 	index("implementation_logs_log_date_idx").using("btree", table.logDate.asc().nullsLast().op("timestamptz_ops")),
 	index("implementation_logs_user_id_idx").using("btree", table.userId.asc().nullsLast().op("text_ops")),
 ]);
+
+export const kpiTemplates = pgTable("kpi_templates", {
+  id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+  year: integer().notNull(),
+  content: text().notNull(),
+  indicator: varchar({ length: 50 }).notNull(),
+  weight: numeric({ precision: 5, scale: 2 }).notNull().default('0'),
+  targetValue: numeric("target_value", { precision: 10, scale: 2 }),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
+}, (table) => [
+  index("kpi_templates_year_idx").using("btree", table.year.asc().nullsLast().op("int4_ops")),
+]);
+
+export const kpiProgress = pgTable("kpi_progress", {
+  id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+  templateId: varchar("template_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  year: integer().notNull(),
+  manualValue: numeric("manual_value", { precision: 10, scale: 2 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("kpi_progress_template_user_year_idx").on(table.templateId, table.userId, table.year),
+  index("kpi_progress_user_year_idx").using("btree", table.userId.asc().nullsLast().op("text_ops"), table.year.asc().nullsLast().op("int4_ops")),
+]);
