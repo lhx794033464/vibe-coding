@@ -192,11 +192,18 @@ export default function HomePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ===== 主动提醒：进入首页时自动推送待办和截止日提醒 =====
+  // ===== 主动提醒：进入首页时自动推送待办和截止日提醒（仅初次提醒） =====
   const reminderShownRef = useRef(false);
   useEffect(() => {
-    // 每次进入首页重置标志，确保能检查推送
-    reminderShownRef.current = false;
+    // 检查今天是否已提醒过
+    const today = new Date().toISOString().split('T')[0];
+    const lastReminderDate = localStorage.getItem('lastReminderDate');
+    
+    // 如果今天已提醒过，不再推送
+    if (lastReminderDate === today) {
+      reminderShownRef.current = true;
+      return;
+    }
 
     const fetchAndPushReminders = async () => {
       if (reminderShownRef.current) return;
@@ -267,6 +274,10 @@ export default function HomePage() {
           setMessages([{ role: 'assistant', content: reminderMsg }]);
           addMessage({ role: 'assistant', content: reminderMsg });
           setShowWelcome(false);
+          
+          // 标记今天已提醒过
+          const today = new Date().toISOString().split('T')[0];
+          localStorage.setItem('lastReminderDate', today);
         }
       } catch (error) {
         // 静默失败，不影响主流程
