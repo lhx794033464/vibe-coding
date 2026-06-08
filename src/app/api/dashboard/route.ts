@@ -222,6 +222,14 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // 交付顾问分布数据（用于柱状图+折线图），按加权比例（人均人天=总人天/项目数）从高到低排序
+    const consultantDistribution = Object.entries(consultantStats).map(([name, s]) => ({
+      name,
+      projectCount: s.projectCount,
+      totalDays: Math.round(s.totalDays * 10) / 10,
+      weightedScore: s.projectCount > 0 ? Math.round((s.totalDays / s.projectCount) * 100) / 100 : 0,
+    })).sort((a, b) => b.weightedScore - a.weightedScore);
+
     // 交付顾问排行数据（用于排行表）
     // 同时计算每位顾问的KPI完成率
     const assessmentYear = now.getFullYear();
@@ -293,57 +301,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 月度趋势数据（管理员）
-    let monthlyTrend: Array<{ month: string; projectCount: number; mandays: number; loadRate: number }> = [];
-    if (isAdmin) {
-      // 获取所有在职交付顾问（用于计算每月在职顾问数）
-      const { data: activeConsultants } = await client
-        .from('users')
-        .select('id, hire_date, role_type')
-        .eq('role_type', '交付顾问')
-        .eq('employment_status', '在职');
-
-      // 获取所有客户的开通日期和人天数
-      const { data: allCustomersForTrend } = await client
-        .from('customers')
-        .select('opened_at, implementation_days, delivery_consultant, user_id');
-
-      // 生成最近12个月的月度数据
-      const months: string[] = [];
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      }
-
-      monthlyTrend = months.map(month => {
-        const [year, mon] = month.split('-').map(Number);
-        const monthStart = new Date(year, mon - 1, 1);
-        const monthEnd = new Date(year, mon, 1);
-
-        // 该月新增的客户
-        const monthCustomers = (allCustomersForTrend || []).filter((c: any) => {
-          if (!c.opened_at) return false;
-          const openedDate = new Date(c.opened_at);
-          return openedDate >= monthStart && openedDate < monthEnd;
-        });
-
-        const projectCount = monthCustomers.length;
-        const mandays = monthCustomers.reduce((sum: number, c: any) => {
-          return sum + (parseFloat(c.implementation_days) || 0);
-        }, 0);
-
-        // 该月在职的交付顾问数（入职日期在月末之前的算在职）
-        const monthEndConsultants = (activeConsultants || []).filter((u: any) => {
-          if (!u.hire_date) return true; // 没有入职日期的算一直在职
-          return new Date(u.hire_date) <= monthEnd;
-        });
-        const consultantCount = monthEndConsultants.length || 1;
-        const loadRate = Math.round(mandays / consultantCount / 22 * 1000) / 10;
-
-        return { month, projectCount, mandays, loadRate };
-      });
-    }
-
     return NextResponse.json({
       totalCustomers,
       onlineCustomers,
@@ -360,8 +317,8 @@ export async function GET(request: NextRequest) {
       acceptanceRateChange: Math.round(acceptanceRateChange * 10) / 10,
       statusDistribution,
       acceptanceDistribution,
+      consultantDistribution,
       consultantRanking,
-      monthlyTrend,
     });
   } catch (error) {
     console.error('获取看板数据失败:', error);
