@@ -576,6 +576,21 @@ function ProcessCenterContent() {
                                   截图
                                 </Button>
                               )}
+                              {app.type === 'group_dismissal' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const names = getAppCustomerNames(app);
+                                    navigator.clipboard.writeText(names.join('、'));
+                                    toast.success('已复制客户名');
+                                    window.open('https://work.weixin.qq.com/', '_blank');
+                                  }}
+                                >
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  去解散
+                                </Button>
+                              )}
                               {app.status === 'pending' && (
                                 <Button
                                   variant="outline"
