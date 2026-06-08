@@ -274,7 +274,7 @@ export default function UsersPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
-          placeholder="搜索用户名、邮箱或角色..."
+          placeholder="搜索用户名或角色..."
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}
           className="pl-10"
@@ -382,15 +382,6 @@ export default function UsersPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">邮箱（可选）</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
             {!editingUser && (
               <div className="space-y-2">
                 <Label htmlFor="password">初始密码</Label>
@@ -415,41 +406,43 @@ export default function UsersPage() {
                 />
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="role">角色</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value: 'admin' | '交付顾问' | '答疑顾问' | '其他') => setFormData({ ...formData, role: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" side="bottom">
-                  <SelectItem value="admin">管理员</SelectItem>
-                  <SelectItem value="交付顾问">交付顾问</SelectItem>
-                  <SelectItem value="答疑顾问">答疑顾问</SelectItem>
-                  <SelectItem value="其他">其他</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {formData.role === '交付顾问' && (
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="role_level">顾问等级</Label>
+                <Label htmlFor="role">角色</Label>
                 <Select
-                  value={formData.role_level || ''}
-                  onValueChange={(value) => setFormData({ ...formData, role_level: value as '初级顾问' | '中级顾问' | '高级顾问' })}
+                  value={formData.role}
+                  onValueChange={(value: 'admin' | '交付顾问' | '答疑顾问' | '其他') => setFormData({ ...formData, role: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="选择等级" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent position="popper" side="bottom">
-                    <SelectItem value="初级顾问">初级顾问</SelectItem>
-                    <SelectItem value="中级顾问">中级顾问</SelectItem>
-                    <SelectItem value="高级顾问">高级顾问</SelectItem>
+                    <SelectItem value="admin">管理员</SelectItem>
+                    <SelectItem value="交付顾问">交付顾问</SelectItem>
+                    <SelectItem value="答疑顾问">答疑顾问</SelectItem>
+                    <SelectItem value="其他">其他</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
+              {formData.role === '交付顾问' && (
+                <div className="space-y-2">
+                  <Label htmlFor="role_level">顾问等级</Label>
+                  <Select
+                    value={formData.role_level || ''}
+                    onValueChange={(value) => setFormData({ ...formData, role_level: value as '初级顾问' | '中级顾问' | '高级顾问' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择等级" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom">
+                      <SelectItem value="初级顾问">初级顾问</SelectItem>
+                      <SelectItem value="中级顾问">中级顾问</SelectItem>
+                      <SelectItem value="高级顾问">高级顾问</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="hire_date">入职日期</Label>
               <Input
