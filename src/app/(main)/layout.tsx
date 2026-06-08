@@ -7,7 +7,6 @@ import { FlowChartProvider } from '@/contexts/FlowChartContext';
 import { HolidayProvider } from '@/contexts/HolidayContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from '@/components/sidebar';
-import { ProactiveReminder } from '@/components/ProactiveReminder';
 import { Loader2 } from 'lucide-react';
 
 /** 预加载隐藏 iframe：登录后立即在后台加载导账工具星空转星辰，用户首次点击时无需等待 */
@@ -88,7 +87,6 @@ export default function MainLayout({
             </div>
           </div>
           <IframePreloader />
-          <ProactiveReminder />
         </HolidayProvider>
       </FlowChartProvider>
     </ChatProvider>

@@ -46,7 +46,6 @@ export function FloatingNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   // 待处理流程数量（仅管理员显示气泡）
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
-  const [reminderCount, setReminderCount] = useState(0);
   const effectivePendingCount = user?.role === 'admin' ? pendingProcessCount : 0;
 
   useEffect(() => {
@@ -66,26 +65,6 @@ export function FloatingNav() {
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
   }, [getAuthHeader, user?.role]);
-
-  // 获取提醒数量（待办 + 交付截止日）
-  useEffect(() => {
-    const fetchReminderCount = async () => {
-      try {
-        const headers = getAuthHeader();
-        if (!headers.Authorization) return;
-        const res = await fetch('/api/reminders', { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const todoCount = data.todoReminders?.length || 0;
-          const deadlineCount = data.deadlineReminders?.length || 0;
-          setReminderCount(todoCount + deadlineCount);
-        }
-      } catch {}
-    };
-    fetchReminderCount();
-    const interval = setInterval(fetchReminderCount, 60000);
-    return () => clearInterval(interval);
-  }, [getAuthHeader]);
 
   // 悬浮按钮位置
   const [fabPos, setFabPos] = useState({ x: 16, y: 0 });
@@ -331,11 +310,6 @@ export function FloatingNav() {
                   {item.href === '/workbench' && effectivePendingCount > 0 && (
                     <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
                       {effectivePendingCount > 99 ? '99+' : effectivePendingCount}
-                    </span>
-                  )}
-                  {item.href === '/todos' && reminderCount > 0 && (
-                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                      {reminderCount > 99 ? '99+' : reminderCount}
                     </span>
                   )}
                 </button>
