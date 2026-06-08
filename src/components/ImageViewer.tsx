@@ -59,7 +59,7 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="flex flex-col p-0 gap-0 border-none bg-black/90 shadow-2xl overflow-hidden"
+        className="flex flex-col p-0 gap-0 border-border shadow-2xl overflow-hidden bg-background"
         style={{
           maxWidth: 'min(1500px, 95vw)',
           maxHeight: '1100px',
@@ -67,16 +67,14 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
           height: 'auto',
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2 bg-black/60 text-white shrink-0">
-          <DialogTitle className="text-sm font-medium truncate">
-            {currentImage.title || `图片 ${currentIndex + 1} / ${images.length}`}
-          </DialogTitle>
+        {/* Header - tools only, no image name */}
+        <div className="flex items-center justify-end px-4 py-2 border-b shrink-0">
+          <DialogTitle className="sr-only">图片预览</DialogTitle>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-white hover:bg-white/20"
+              className="h-7 w-7 hover:bg-muted"
               onClick={() => setZoom((z) => Math.min(z + 0.25, 3))}
             >
               <ZoomIn className="h-4 w-4" />
@@ -84,7 +82,7 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-white hover:bg-white/20"
+              className="h-7 w-7 hover:bg-muted"
               onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}
             >
               <ZoomOut className="h-4 w-4" />
@@ -92,26 +90,26 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-white hover:bg-white/20"
+              className="h-7 w-7 hover:bg-muted"
               onClick={() => setRotation((r) => (r + 90) % 360)}
             >
               <RotateCw className="h-4 w-4" />
             </Button>
-            <span className="text-xs text-white/60 mx-2">{Math.round(zoom * 100)}%</span>
+            <span className="text-xs text-muted-foreground mx-2">{Math.round(zoom * 100)}%</span>
           </div>
         </div>
 
         {/* Image area */}
-        <div className="flex-1 flex items-center justify-center overflow-auto relative min-h-0" style={{ maxHeight: 'calc(1100px - 48px)' }}>
+        <div className="flex-1 flex items-center justify-center overflow-auto relative min-h-0 bg-muted/30" style={{ maxHeight: 'calc(1100px - 48px)' }}>
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
             </div>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentImage.url}
-            alt={currentImage.title || '预览图片'}
+            alt="预览图片"
             className="max-w-full max-h-full object-contain transition-transform duration-200"
             style={{
               transform: `scale(${zoom}) rotate(${rotation}deg)`,
@@ -127,7 +125,7 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 text-white hover:bg-black/60"
+                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 border border-border hover:bg-muted"
                 onClick={handlePrev}
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -135,7 +133,7 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 text-white hover:bg-black/60"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 border border-border hover:bg-muted"
                 onClick={handleNext}
               >
                 <ChevronRight className="h-6 w-6" />
