@@ -539,9 +539,9 @@ export default function DashboardPage() {
       {isAdmin && (
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
         {/* 左列：项目人天分布 + 未上线项目分布 */}
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6 h-full">
           {/* 项目人天分布表 */}
-          <Card>
+          <Card className="flex-shrink-0">
             <CardHeader className="space-y-0 pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-gray-400" />
@@ -575,7 +575,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* 未上线项目分布 */}
-          <Card>
+          <Card className="flex-1 flex flex-col">
             <CardHeader className="space-y-0 pb-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -646,7 +646,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               {unlaunchedData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsBarChart data={unlaunchedData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
