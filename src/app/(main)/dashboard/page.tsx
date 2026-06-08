@@ -537,7 +537,7 @@ export default function DashboardPage() {
 
       {/* 项目人天分布 & 顾问排行 - 仅管理员可见 */}
       {isAdmin && (
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mt-6 items-start">
         {/* 左列：项目人天分布 + 未上线项目分布 */}
         <div className="space-y-6">
           {/* 项目人天分布表 */}
@@ -548,7 +548,7 @@ export default function DashboardPage() {
                 项目人天分布
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-[310px]">
               {distData && distData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={distData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -646,7 +646,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-[310px]">
               {unlaunchedData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsBarChart data={unlaunchedData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -697,9 +697,9 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-[310px] flex flex-col">
               {rankingData && rankingData.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1">
                   {sortedRanking.map((consultant, index) => {
                       const rate = consultant[rankingDimension] ?? 0;
                       const dimensionLabel: Record<string, string> = {
