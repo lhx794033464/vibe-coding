@@ -541,16 +541,17 @@ export default function DashboardPage() {
         {/* 左列：项目人天分布 + 未上线项目分布 */}
         <div className="space-y-6">
           {/* 项目人天分布表 */}
-          <Card>
-            <CardHeader className="space-y-0 pb-2">
+          <Card className="flex flex-col" style={{ height: '400px' }}>
+            <CardHeader className="space-y-0 pb-2 flex-shrink-0">
               <CardTitle className="text-base flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-gray-400" />
                 项目人天分布
               </CardTitle>
             </CardHeader>
-            <CardContent className="min-h-[310px]">
-              {distData && distData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <div className="h-full p-6">
+                {distData && distData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={distData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
@@ -571,12 +572,13 @@ export default function DashboardPage() {
               ) : (
                 <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
               )}
+              </div>
             </CardContent>
           </Card>
 
           {/* 未上线项目分布 */}
-          <Card>
-            <CardHeader className="space-y-0 pb-2">
+          <Card className="flex flex-col" style={{ height: '400px' }}>
+            <CardHeader className="space-y-0 pb-2 flex-shrink-0">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <BarChart3 className="h-5 w-5 text-gray-400" />
@@ -646,9 +648,10 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="min-h-[310px]">
-              {unlaunchedData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <div className="h-full p-6">
+                {unlaunchedData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={unlaunchedData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
@@ -665,14 +668,15 @@ export default function DashboardPage() {
               ) : (
                 <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
               )}
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* 右列：顾问排行表 */}
         <div>
-          <Card>
-            <CardHeader className="space-y-0">
+          <Card className="flex flex-col" style={{ height: '400px' }}>
+            <CardHeader className="space-y-0 flex-shrink-0">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-gray-400" />
@@ -697,9 +701,10 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="min-h-[310px] flex flex-col">
-              {rankingData && rankingData.length > 0 ? (
-                <div className="space-y-3 flex-1">
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <div className="h-full p-6 flex flex-col">
+                {rankingData && rankingData.length > 0 ? (
+                  <div className="space-y-3 flex-1 overflow-y-auto">
                   {sortedRanking.map((consultant, index) => {
                       const rate = consultant[rankingDimension] ?? 0;
                       const dimensionLabel: Record<string, string> = {
@@ -747,10 +752,11 @@ export default function DashboardPage() {
                         </div>
                       );
                     })}
-                </div>
+                  </div>
               ) : (
                 <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
               )}
+              </div>
             </CardContent>
           </Card>
         </div>
