@@ -431,27 +431,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // === 批量删除（先批量删关联，再批量删客户）===
+    // === 批量删除（先批量删关联，再批量删客户，分批避免URI过长）===
     let deleted = 0;
     if (toDeleteIds.length > 0) {
       try {
-        // 并行批量删除所有关联表
-        await Promise.all([
-          supabase.from('follow_up_records').delete().in('customer_id', toDeleteIds),
-          supabase.from('implementation_logs').delete().in('customer_id', toDeleteIds),
-          supabase.from('commission_records').delete().in('customer_id', toDeleteIds),
-          supabase.from('schedules').delete().in('customer_id', toDeleteIds),
-          supabase.from('todos').delete().in('customer_id', toDeleteIds),
-        ]);
-        // 批量删除客户
-        const { error: deleteError } = await supabase
-          .from('customers')
-          .delete()
-          .in('id', toDeleteIds);
-        if (deleteError) {
-          errors.push(`批量删除失败: ${deleteError.message}`);
-        } else {
-          deleted = toDeleteIds.length;
+        // 分批删除关联表和客户，每批最多100个ID
+        const DELETE_BATCH = 100;
+        for (let i = 0; i < toDeleteIds.length; i += DELETE_BATCH) {
+          const idBatch = toDeleteIds.slice(i, i + DELETE_BATCH);
+          // 并行批量删除所有关联表
+          await Promise.all([
+            supabase.from('follow_up_records').delete().in('customer_id', idBatch),
+            supabase.from('implementation_logs').delete().in('customer_id', idBatch),
+            supabase.from('commission_records').delete().in('customer_id', idBatch),
+            supabase.from('schedules').delete().in('customer_id', idBatch),
+            supabase.from('todos').delete().in('customer_id', idBatch),
+          ]);
+          // 批量删除客户
+          const { error: deleteError } = await supabase
+            .from('customers')
+            .delete()
+            .in('id', idBatch);
+          if (deleteError) {
+            errors.push(`批量删除失败(第${i + 1}-${i + idBatch.length}条): ${deleteError.message}`);
+          } else {
+            deleted += idBatch.length;
+          }
         }
       } catch (e) {
         errors.push(`批量删除异常: ${e instanceof Error ? e.message : '未知错误'}`);
