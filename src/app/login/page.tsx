@@ -116,7 +116,7 @@ export default function LoginPage() {
                 setIsLoggingIn(true);
                 setError('');
                 try {
-                  const result = await login('user', '123456');
+                  const result = await login('user', '888888');
                   if (result.success) {
                     router.push('/home');
                   } else {
