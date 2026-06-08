@@ -68,6 +68,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [reminderCount, setReminderCount] = useState(0);
 
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
@@ -130,6 +131,25 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     const interval = setInterval(fetchPendingCount, 30000);
     return () => clearInterval(interval);
   }, [getAuthHeader, isAdmin]);
+
+  // 获取待办提醒数量
+  useEffect(() => {
+    const fetchReminderCount = async () => {
+      try {
+        const headers = getAuthHeader();
+        if (!headers.Authorization) return;
+        const res = await fetch('/api/reminders', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const total = (data.todos?.length || 0) + (data.customers?.length || 0);
+          setReminderCount(total);
+        }
+      } catch {}
+    };
+    fetchReminderCount();
+    const interval = setInterval(fetchReminderCount, 60000);
+    return () => clearInterval(interval);
+  }, [getAuthHeader]);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -213,7 +233,19 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                     } ${collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}`}
                     title={collapsed ? item.label : undefined}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="relative">
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      {/* 侧边栏收起时的小圆点提醒 */}
+                      {item.href === '/todos' && reminderCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-red-500 to-rose-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
+                          {reminderCount > 9 ? (
+                            <span className="text-[8px] text-white font-bold">N</span>
+                          ) : (
+                            <span className="text-[9px] text-white font-bold">{reminderCount}</span>
+                          )}
+                        </span>
+                      )}
+                    </span>
                     {!collapsed && (
                       <span className="overflow-hidden whitespace-nowrap flex items-center gap-1">
                         {item.label}
@@ -227,7 +259,15 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                             {effectivePendingCount > 99 ? '99+' : effectivePendingCount}
                           </span>
                         )}
-
+                        {/* 待办事项 NEW 标志 - 有设计感的红色徽章 */}
+                        {item.href === '/todos' && reminderCount > 0 && (
+                          <span className="ml-2 inline-flex items-center justify-center px-2.5 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-500 rounded-full shadow-md shadow-red-200 uppercase tracking-wider animate-pulse">
+                            NEW
+                            {reminderCount > 1 && (
+                              <span className="ml-1 bg-white/20 px-1 rounded-full">{reminderCount}</span>
+                            )}
+                          </span>
+                        )}
                       </span>
                     )}
                   </Link>
