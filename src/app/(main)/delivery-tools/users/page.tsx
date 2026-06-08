@@ -38,6 +38,7 @@ interface User {
   username: string;
   email?: string;
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
+  role_level?: '初级顾问' | '中级顾问' | '高级顾问' | '';
   is_active: boolean;
   employment_status?: string;
   created_at: string;
@@ -48,6 +49,7 @@ interface UserFormData {
   email: string;
   password: string;
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
+  role_level?: '初级顾问' | '中级顾问' | '高级顾问' | '';
   is_active: boolean;
   employment_status: '在职' | '离职';
 }
@@ -214,6 +216,7 @@ export default function UsersPage() {
       email: user.email || '',
       password: '',
       role: user.role,
+      role_level: (user as any).role_level || '',
       is_active: user.is_active,
       employment_status: (user.employment_status as '在职' | '离职') || '在职',
     });
@@ -227,6 +230,7 @@ export default function UsersPage() {
       email: '',
       password: '',
       role: '交付顾问',
+      role_level: '',
       is_active: true,
       employment_status: '在职',
     });
@@ -298,6 +302,7 @@ export default function UsersPage() {
               <TableRow className="bg-gray-50 hover:bg-gray-50">
                 <TableHead className="w-48 font-semibold text-gray-900">用户名</TableHead>
                 <TableHead className="font-semibold text-gray-900">角色</TableHead>
+                <TableHead className="font-semibold text-gray-900">顾问等级</TableHead>
                 <TableHead className="font-semibold text-gray-900">在职状态</TableHead>
                 <TableHead className="font-semibold text-gray-900">账号状态</TableHead>
                 <TableHead className="font-semibold text-gray-900">创建时间</TableHead>
@@ -314,6 +319,7 @@ export default function UsersPage() {
                     </div>
                   </TableCell>
                   <TableCell>{getRoleBadge(user.role)}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">{user.role === '交付顾问' ? (user.role_level || '-') : '-'}</TableCell>
                   <TableCell>
                     <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
                       {user.employment_status || '在职'}
@@ -420,6 +426,24 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {formData.role === '交付顾问' && (
+              <div className="space-y-2">
+                <Label htmlFor="role_level">顾问等级</Label>
+                <Select
+                  value={formData.role_level || ''}
+                  onValueChange={(value) => setFormData({ ...formData, role_level: value as '初级顾问' | '中级顾问' | '高级顾问' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择等级" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom">
+                    <SelectItem value="初级顾问">初级顾问</SelectItem>
+                    <SelectItem value="中级顾问">中级顾问</SelectItem>
+                    <SelectItem value="高级顾问">高级顾问</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="employment_status">在职状态</Label>
               <Select

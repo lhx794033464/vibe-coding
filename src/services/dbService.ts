@@ -29,6 +29,7 @@ export interface DbUser {
   username: string;
   email: string | null;
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
+  role_level: '初级顾问' | '中级顾问' | '高级顾问' | null;
   employment_status: '在职' | '离职';
   is_active: boolean;
   created_at: string;
@@ -161,6 +162,7 @@ export async function dbCreateUser(userData: {
   email?: string;
   password: string;
   role?: 'admin' | '交付顾问' | '答疑顾问' | '其他';
+  role_level?: string | null;
   employment_status?: '在职' | '离职';
   is_active?: boolean;
 }): Promise<DbUser> {
@@ -172,10 +174,11 @@ export async function dbCreateUser(userData: {
       email: userData.email || null,
       password_hash: await hashPassword(userData.password),
       role: userData.role || '交付顾问',
+      role_level: userData.role_level || null,
       employment_status: userData.employment_status || '在职',
       is_active: userData.is_active !== undefined ? userData.is_active : true,
     })
-    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
+    .select('id, username, email, role, role_level, employment_status, is_active, created_at, updated_at')
     .single();
   if (error) throw new Error(`创建用户失败: ${error.message}`);
   return data as DbUser;
@@ -186,6 +189,7 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   email: string;
   password: string;
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
+  role_level: string;
   employment_status: '在职' | '离职';
   is_active: boolean;
 }>): Promise<DbUser | null> {
@@ -195,6 +199,7 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   if (updates.email !== undefined) updateData.email = updates.email;
   if (updates.password !== undefined) updateData.password_hash = await hashPassword(updates.password);
   if (updates.role !== undefined) updateData.role = updates.role;
+  if (updates.role_level !== undefined) updateData.role_level = updates.role_level;
   if (updates.employment_status !== undefined) updateData.employment_status = updates.employment_status;
   if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
 
@@ -202,7 +207,7 @@ export async function dbUpdateUser(id: string, updates: Partial<{
     .from('users')
     .update(updateData)
     .eq('id', id)
-    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
+    .select('id, username, email, role, role_level, employment_status, is_active, created_at, updated_at')
     .maybeSingle();
   if (error) throw new Error(`更新用户失败: ${error.message}`);
   return data as DbUser | null;
