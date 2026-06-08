@@ -7,13 +7,22 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
+let _jwtSecret: string | null = null;
+
+function getJwtSecret(): string {
+  if (_jwtSecret) return _jwtSecret;
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret) {
+    _jwtSecret = envSecret;
+    return _jwtSecret;
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error('[FATAL] JWT_SECRET environment variable must be set in production');
   }
   console.warn('[WARN] JWT_SECRET not set, using development default. Do NOT use in production.');
-  return 'kingdee-xingchen-dev-secret-key';
-})();
+  _jwtSecret = 'kingdee-xingchen-dev-secret-key';
+  return _jwtSecret;
+}
 const JWT_EXPIRES_IN = '24h';
 
 // ==================== 认证服务 ====================
@@ -50,14 +59,14 @@ export const verifyPassword = async (password: string, hash: string): Promise<bo
 
 // JWT Token 生成与验证
 export const generateToken = (user: { id: string; username: string; role: string }): string => {
-  return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, {
+  return jwt.sign({ id: user.id, username: user.username, role: user.role }, getJwtSecret(), {
     expiresIn: JWT_EXPIRES_IN,
   });
 };
 
 export const verifyToken = (token: string): { id: string; username: string; role: string } | null => {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: string; username: string; role: string };
+    return jwt.verify(token, getJwtSecret()) as { id: string; username: string; role: string };
   } catch {
     return null;
   }
