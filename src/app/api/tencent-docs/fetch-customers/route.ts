@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { TencentDocsClient } from '@/lib/tencentDocsClient';
-import { dbGetCustomers, dbCreateCustomer, dbUpdateCustomer } from '@/services/dbService';
+import { dbGetCustomers, dbCreateCustomer, dbUpdateCustomer, dbDeleteCustomer } from '@/services/dbService';
 import { getTencentDocsToken } from '@/lib/tencentDocsConfig';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
@@ -356,11 +356,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // === 增删改同步：删除文档中已不存在的客户 ===
+    // 收集文档中所有客户名+交付人组合
+    const docCustomerKeys = new Set<string>();
+    for (const customer of customers) {
+      const customerName = customer.customerName || '';
+      const delivererName = customer.deliverer || customer.delivery_consultant || '';
+      if (customerName) {
+        docCustomerKeys.add(`${customerName}|||${delivererName}`);
+      }
+    }
+
+    let deleted = 0;
+    // 找出数据库中存在但文档中已不存在的客户
+    for (const c of existingCustomers) {
+      const dbKey = `${c.name}|||${c.delivery_consultant || ''}`;
+      if (!docCustomerKeys.has(dbKey)) {
+        // 已计提或部分计提的客户不删除，避免财务数据丢失
+        if (c.commission_status === '已计提' || c.commission_status === '部分计提') {
+          continue;
+        }
+        // 普通用户同步：只删除自己的客户
+        if (!isAdmin && c.user_id !== userId) {
+          continue;
+        }
+        try {
+          await dbDeleteCustomer(c.id);
+          deleted++;
+        } catch (e) {
+          errors.push(`删除客户 ${c.name} 失败: ${e instanceof Error ? e.message : '未知错误'}`);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       imported,
       updated,
       skipped,
+      deleted,
       errors,
     });
   } catch (error) {

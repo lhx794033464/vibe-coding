@@ -56,7 +56,7 @@ export default function CustomersPage() {
   // 同步相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ imported: number; updated: number; reassigned: number; skipped: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ imported: number; updated: number; skipped: number; deleted: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -199,8 +199,8 @@ export default function CustomersPage() {
         setSyncResult({
           imported: importData.imported,
           updated: importData.updated,
-          reassigned: importData.reassigned || 0,
           skipped: importData.skipped || 0,
+          deleted: importData.deleted || 0,
         });
         fetchCustomers();
       } else {
@@ -630,9 +630,9 @@ export default function CustomersPage() {
                   <Check className="w-12 h-12 text-green-500 mb-3" />
                   <p className="text-lg font-medium">同步完成</p>
                   <p className="text-gray-500 mt-2 text-center">
-                    新增 {syncResult.imported} 个客户，更新 {syncResult.updated} 个客户
-                    {syncResult.reassigned > 0 && `，重新分配 ${syncResult.reassigned} 个客户`}
-                    {syncResult.skipped > 0 && `，跳过 ${syncResult.skipped} 个已验收客户`}
+                    新增 {syncResult.imported} 个，更新 {syncResult.updated} 个
+                    {syncResult.deleted > 0 && `，删除 ${syncResult.deleted} 个`}
+                    {syncResult.skipped > 0 && `，跳过 ${syncResult.skipped} 个`}
                   </p>
                   <Button className="mt-4" onClick={() => setShowFetchDialog(false)}>
                     完成
