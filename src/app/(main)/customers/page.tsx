@@ -22,6 +22,20 @@ interface CustomerWithDays extends Customer {
   remaining_days: number;
 }
 
+// 从各种日期格式中提取纯日期部分 (YYYY-MM-DD)
+// 兼容: ISO格式 "2026-06-05T10:00:00Z", UTC格式 "2026-06-05 00:00:00 +0000 UTC", 纯日期 "2026-06-05"
+function extractDateString(value: unknown): string | null {
+  if (!value) return null;
+  const str = typeof value === 'string' ? value : String(value);
+  // 先尝试按 T 分割 (ISO格式)
+  let datePart = str.split('T')[0];
+  // 如果结果包含空格 (如 "2026-06-05 00:00:00 +0000 UTC")，再按空格分割
+  if (datePart.includes(' ')) {
+    datePart = datePart.split(' ')[0];
+  }
+  return datePart || null;
+}
+
 export default function CustomersPage() {
   const { getAuthHeader } = useAuth();
   const router = useRouter();
@@ -134,10 +148,11 @@ export default function CustomersPage() {
       if (c.dismissed) return overdueFilter === 'not_overdue';
       const deadline = c.delivery_deadline;
       if (!deadline) return false;
-      const deadlineDate = new Date(typeof deadline === 'string' ? deadline.split('T')[0] : String(deadline).split('T')[0]);
+      const deadlineDateStr = extractDateString(deadline);
+      const deadlineDate = deadlineDateStr ? new Date(deadlineDateStr) : null;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const isOverdue = deadlineDate < today;
+      const isOverdue = deadlineDate ? deadlineDate < today : false;
       return overdueFilter === 'overdue' ? isOverdue : !isOverdue;
     })();
     
@@ -376,8 +391,8 @@ export default function CustomersPage() {
                   </TableRow>
                 ) : (
                   paginatedCustomers.map((customer) => {
-                    const deadlineStr = typeof customer.delivery_deadline === 'string' ? customer.delivery_deadline.split('T')[0] : String(customer.delivery_deadline).split('T')[0];
-                    const deadlineDate = deadlineStr ? new Date(deadlineStr) : null;
+                    const deadlineDateStr = extractDateString(customer.delivery_deadline);
+                    const deadlineDate = deadlineDateStr ? new Date(deadlineDateStr) : null;
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const isOverdue = deadlineDate && deadlineDate < today && !customer.dismissed;
@@ -518,8 +533,9 @@ export default function CustomersPage() {
                             <span className="text-blue-600">顾问: {(customer as any).delivery_consultant}</span>
                           )}
                           {customer.delivery_deadline && (() => {
-                            const deadlineStr = typeof customer.delivery_deadline === 'string' ? customer.delivery_deadline.split('T')[0] : String(customer.delivery_deadline).split('T')[0];
-                            const deadlineDate = new Date(deadlineStr);
+                            const deadlineDateStr = extractDateString(customer.delivery_deadline);
+                            const deadlineDate = deadlineDateStr ? new Date(deadlineDateStr) : null;
+                            if (!deadlineDate) return null;
                             const today = new Date();
                             today.setHours(0, 0, 0, 0);
                             const isOverdue = deadlineDate < today;

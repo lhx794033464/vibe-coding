@@ -57,7 +57,15 @@ interface PageProps {
 // 默认：开通日期 + 120天；已验收且有剩余人天：延长 remainingDays * 120 天
 function computeDeliveryDeadline(openedAt: string | null, extraDays: number = 0) {
   if (!openedAt) return null;
-  const base = new Date(openedAt);
+  // 兼容 "2026/2/5" 斜杠格式，转换为标准格式
+  let normalized = openedAt;
+  if (normalized.includes('/')) {
+    const parts = normalized.split('/');
+    if (parts.length === 3) {
+      normalized = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+  }
+  const base = new Date(normalized);
   if (isNaN(base.getTime())) return null;
   base.setDate(base.getDate() + 120 + extraDays);
   return base.toISOString().split('T')[0];
@@ -144,7 +152,22 @@ export default function CustomerDetailPage({ params }: PageProps) {
           implementation_order_no: data.data.implementation_order_no || '',
           implementation_fee: data.data.implementation_fee || '',
           implementation_days: data.data.implementation_days || '',
-          opened_at: data.data.opened_at ? data.data.opened_at.split('T')[0] : '',
+          opened_at: (() => {
+            const raw = data.data.opened_at;
+            if (!raw) return '';
+            const str = typeof raw === 'string' ? raw : String(raw);
+            // 处理 "2026/2/5" 格式 -> "2026-02-05"
+            if (str.includes('/')) {
+              const parts = str.split('/');
+              if (parts.length === 3) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              }
+            }
+            // 处理 ISO/UTC 格式
+            let datePart = str.split('T')[0];
+            if (datePart.includes(' ')) datePart = datePart.split(' ')[0];
+            return datePart || '';
+          })(),
           version: data.data.version || '',
           modules: Array.isArray(data.data.modules) ? data.data.modules.join(', ') : (data.data.modules || ''),
           industry: data.data.industry || '',
@@ -154,9 +177,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
           acceptance_status: data.data.acceptance_status || '',
           salesperson: data.data.salesperson || '',
           implementation_type: data.data.implementation_type || '',
-          delivery_deadline: data.data.delivery_deadline
-            ? (typeof data.data.delivery_deadline === 'string' ? data.data.delivery_deadline.split('T')[0] : String(data.data.delivery_deadline).split('T')[0])
-            : '',
+          delivery_deadline: (() => {
+            const raw = data.data.delivery_deadline;
+            if (!raw) return '';
+            const str = typeof raw === 'string' ? raw : String(raw);
+            let datePart = str.split('T')[0];
+            if (datePart.includes(' ')) datePart = datePart.split(' ')[0];
+            return datePart || '';
+          })(),
         });
 
       }
@@ -623,9 +651,16 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const baseDeadline = computeDeliveryDeadline(customer.opened_at, 0);
   const deliveryDeadlineRaw = customer.delivery_deadline;
-  const deliveryDeadlineStored = deliveryDeadlineRaw
-    ? (typeof deliveryDeadlineRaw === 'string' ? deliveryDeadlineRaw.split('T')[0] : String(deliveryDeadlineRaw).split('T')[0])
-    : null;
+  // 兼容多种日期格式: ISO "2026-06-05T10:00:00Z", UTC "2026-06-05 00:00:00 +0000 UTC", 纯日期 "2026-06-05"
+  let deliveryDeadlineStored: string | null = null;
+  if (deliveryDeadlineRaw) {
+    const str = typeof deliveryDeadlineRaw === 'string' ? deliveryDeadlineRaw : String(deliveryDeadlineRaw);
+    let datePart = str.split('T')[0];
+    if (datePart.includes(' ')) {
+      datePart = datePart.split(' ')[0];
+    }
+    deliveryDeadlineStored = datePart || null;
+  }
   const deliveryDeadline = deliveryDeadlineStored || baseDeadline;
 
   return (
