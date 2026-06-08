@@ -263,6 +263,35 @@ export default function CustomerDetailPage({ params }: PageProps) {
     }
   };
 
+  const handleDeleteCustomer = async () => {
+    if (!customer) return;
+    const ok = await confirm({
+      title: '删除客户',
+      description: `确定要删除客户「${customer.name}」吗？删除后该客户的所有跟进记录和实施日志也将被删除，此操作不可撤销。`,
+      confirmText: '确认删除',
+      cancelText: '取消',
+    });
+    if (!ok) return;
+    try {
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+      if (response.ok) {
+        toast.success('客户已删除');
+        router.push('/customers');
+      } else {
+        const data = await response.json();
+        toast.error(data.error || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除客户失败:', error);
+      toast.error('删除失败，请稍后重试');
+    }
+  };
+
   const handleAddFollowUp = async () => {
     if (!customer || !followUpForm.content) {
       toast.warning('请填写跟进内容');
@@ -732,6 +761,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 解散
               </Button>
             )}
+            {/* 删除按钮 */}
+            <Button variant="outline" onClick={handleDeleteCustomer} className="text-red-600 border-red-300 hover:bg-red-50">
+              <Trash2 className="w-4 h-4 mr-2" />
+              删除
+            </Button>
           </div>
       </div>
 

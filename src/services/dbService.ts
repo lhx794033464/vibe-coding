@@ -378,6 +378,13 @@ export async function dbUpdateCustomer(id: string, updates: Record<string, any>)
 
 export async function dbDeleteCustomer(id: string): Promise<boolean> {
   const client = getSupabaseClient();
+  // 级联删除关联数据（跟进记录、实施日志、提成记录、日程）
+  await client.from('follow_up_records').delete().eq('customer_id', id);
+  await client.from('implementation_logs').delete().eq('customer_id', id);
+  await client.from('commission_records').delete().eq('customer_id', id);
+  await client.from('schedules').delete().eq('customer_id', id);
+  await client.from('todos').delete().eq('customer_id', id);
+  // 最后删除客户本身
   const { error } = await client.from('customers').delete().eq('id', id);
   if (error) throw new Error(`删除客户失败: ${error.message}`);
   return true;
