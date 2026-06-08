@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Loader2, Search, User, Mic, MicOff, Trash2, MessageCircle, Key } from 'lucide-react';
+import { Send, Loader2, Search, User, Mic, MicOff, Trash2, MessageCircle, Key, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -191,6 +191,90 @@ export default function HomePage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // ===== 主动提醒：进入首页时自动推送待办和截止日提醒 =====
+  const reminderShownRef = useRef(false);
+  useEffect(() => {
+    if (reminderShownRef.current || savedMessages.length > 0) return;
+    reminderShownRef.current = true;
+
+    const fetchAndPushReminders = async () => {
+      try {
+        const res = await fetch('/api/reminders', {
+          headers: { ...getAuthHeader() },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const todoCount = data.todoReminders?.length || 0;
+        const deadlineCount = data.deadlineReminders?.length || 0;
+        if (todoCount === 0 && deadlineCount === 0) return;
+
+        // 构造提醒消息
+        const parts: string[] = [];
+
+        if (todoCount > 0) {
+          const highTodos = data.todoReminders.filter((t: any) => t.priority === 'high');
+          if (highTodos.length > 0) {
+            parts.push(`🔴 **${highTodos.length} 项紧急待办**需尽快处理：`);
+            highTodos.slice(0, 3).forEach((t: any) => {
+              const customer = t.customer_name ? `（${t.customer_name}）` : '';
+              parts.push(`  - ${t.content}${customer}`);
+            });
+            if (highTodos.length > 3) {
+              parts.push(`  - ...还有 ${highTodos.length - 3} 项`);
+            }
+          }
+          const normalTodos = data.todoReminders.filter((t: any) => t.priority !== 'high');
+          if (normalTodos.length > 0) {
+            parts.push(`📋 **${normalTodos.length} 项待办**已到期：`);
+            normalTodos.slice(0, 3).forEach((t: any) => {
+              const customer = t.customer_name ? `（${t.customer_name}）` : '';
+              parts.push(`  - ${t.content}${customer}`);
+            });
+            if (normalTodos.length > 3) {
+              parts.push(`  - ...还有 ${normalTodos.length - 3} 项`);
+            }
+          }
+        }
+
+        if (deadlineCount > 0) {
+          const urgent = data.deadlineReminders.filter((c: any) => c.days_remaining <= 1);
+          const near = data.deadlineReminders.filter((c: any) => c.days_remaining > 1);
+          if (urgent.length > 0) {
+            parts.push(`⚠️ **${urgent.length} 个客户交付已到期/明天到期**：`);
+            urgent.forEach((c: any) => {
+              const label = c.days_remaining <= 0 ? '已到期' : '明天到期';
+              parts.push(`  - ${c.name}（${label}）`);
+            });
+          }
+          if (near.length > 0) {
+            parts.push(`⏰ **${near.length} 个客户交付截止日临近**：`);
+            near.slice(0, 3).forEach((c: any) => {
+              parts.push(`  - ${c.name}（${c.days_remaining}天后到期）`);
+            });
+            if (near.length > 3) {
+              parts.push(`  - ...还有 ${near.length - 3} 个`);
+            }
+          }
+        }
+
+        if (parts.length > 0) {
+          const reminderMsg = `🔔 **提醒事项**\n\n${parts.join('\n')}\n\n需要我帮你查看详情吗？`;
+          setMessages([{ role: 'assistant', content: reminderMsg }]);
+          addMessage({ role: 'assistant', content: reminderMsg });
+          setShowWelcome(false);
+        }
+      } catch (error) {
+        // 静默失败，不影响主流程
+        console.error('获取提醒数据失败:', error);
+      }
+    };
+
+    // 延迟2秒后推送，避免页面加载时太突兀
+    const timer = setTimeout(fetchAndPushReminders, 2000);
+    return () => clearTimeout(timer);
+  }, []); // 仅首次加载时执行
 
   // 自动调整输入框高度
   useEffect(() => {

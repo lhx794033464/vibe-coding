@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, ArrowLeftRight } from 'lucide-react';
+import { GitBranch, ArrowLeftRight, MessageSquareText } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 
@@ -33,6 +33,15 @@ const tools = [
     href: '/tools/data-transfer-xk',
     color: 'bg-amber-50 text-amber-600',
     iconBg: 'bg-amber-100',
+  },
+  {
+    id: 'scripts',
+    title: '常用话术',
+    description: '在线交付部标准话术，支持分类浏览与搜索',
+    icon: MessageSquareText,
+    href: '/tools/scripts',
+    color: 'bg-violet-50 text-violet-600',
+    iconBg: 'bg-violet-100',
   },
 ];
 

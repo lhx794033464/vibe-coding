@@ -295,10 +295,10 @@ export class TencentDocsClient {
     endCol: number;
     batchSize?: number;
     maxRows?: number;
-  }): Promise<string[]> {
+  }): Promise<string[][]> {
     const batchSize = args.batchSize || 500;
     const maxRows = args.maxRows || 10000;
-    const allRows: string[] = [];
+    const allRows: string[][] = [];
     let startRow = 0;
 
     while (startRow < maxRows) {
@@ -322,7 +322,28 @@ export class TencentDocsClient {
       const dataRows = startRow === 0 ? rows : rows.slice(1);
       if (dataRows.length === 0) break;
 
-      allRows.push(...dataRows);
+      // 将 CSV 行解析为字符串数组
+      const parsedRows = dataRows.map((line: string) => {
+        // 简单 CSV 解析：按逗号分割，处理引号内的逗号
+        const cells: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            inQuotes = !inQuotes;
+          } else if (ch === ',' && !inQuotes) {
+            cells.push(current);
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+        cells.push(current);
+        return cells;
+      });
+
+      allRows.push(...parsedRows);
 
       // 如果返回行数少于请求数，说明已到末尾
       if (rows.length < batchSize) break;
@@ -331,6 +352,39 @@ export class TencentDocsClient {
     }
 
     return allRows;
+  }
+
+  /**
+   * 获取电子表格的所有工作表列表
+   */
+  async listSheets(fileId: string): Promise<{ id: string; title: string; index: number }[]> {
+    const response = await this.sendRequest('tools/call', {
+      name: 'get_sheet_properties',
+      arguments: { file_id: fileId },
+    });
+
+    if (response.error) {
+      throw new Error(`listSheets failed: ${response.error.message}`);
+    }
+
+    const sheetsData = (response.result?.content as Array<{ text: string }>)?.[0]?.text;
+    if (!sheetsData) {
+      throw new Error('listSheets failed: no data returned');
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(sheetsData);
+    } catch {
+      throw new Error('listSheets failed: unable to parse response');
+    }
+
+    const sheetsArray = (parsed as Record<string, unknown>)?.sheets || (Array.isArray(parsed) ? parsed : []);
+    return (sheetsArray as Array<Record<string, unknown>>).map((s, idx) => ({
+      id: (s.sheet_id || s.id || '') as string,
+      title: (s.title || '') as string,
+      index: (s.index ?? idx) as number,
+    }));
   }
 
   /**

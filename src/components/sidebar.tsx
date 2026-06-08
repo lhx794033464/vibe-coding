@@ -19,6 +19,7 @@ import {
   User,
   CheckSquare,
   ClipboardList,
+  Bell,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 import { toast } from 'sonner';
@@ -61,6 +62,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const [showToggleButton, setShowToggleButton] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
+  const [reminderCount, setReminderCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -111,6 +113,26 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
 
   // 仅管理员显示气泡，待办数量>0时持续显示
   const effectivePendingCount = isAdmin ? pendingProcessCount : 0;
+
+  // 获取提醒数量（待办 + 交付截止日）
+  useEffect(() => {
+    const fetchReminderCount = async () => {
+      try {
+        const headers = getAuthHeader();
+        if (!headers.Authorization) return;
+        const res = await fetch('/api/reminders', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const todoCount = data.todoReminders?.length || 0;
+          const deadlineCount = data.deadlineReminders?.length || 0;
+          setReminderCount(todoCount + deadlineCount);
+        }
+      } catch {}
+    };
+    fetchReminderCount();
+    const interval = setInterval(fetchReminderCount, 60000);
+    return () => clearInterval(interval);
+  }, [getAuthHeader]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -224,6 +246,12 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                         {item.href === '/workbench' && effectivePendingCount > 0 && (
                           <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full leading-none">
                             {effectivePendingCount > 99 ? '99+' : effectivePendingCount}
+                          </span>
+                        )}
+                        {/* 待办事项提醒红点 */}
+                        {item.href === '/todos' && reminderCount > 0 && (
+                          <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full leading-none">
+                            {reminderCount > 99 ? '99+' : reminderCount}
                           </span>
                         )}
                       </span>
