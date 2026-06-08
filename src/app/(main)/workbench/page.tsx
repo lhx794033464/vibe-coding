@@ -35,6 +35,7 @@ import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, Dol
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { ImageViewer } from '@/components/ImageViewer';
 
 interface Customer {
   id: string;
@@ -127,6 +128,8 @@ function ProcessCenterContent() {
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageViewerImages, setImageViewerImages] = useState<{ url: string; title?: string }[]>([]);
 
 
   const fetchApplications = useCallback(async () => {
@@ -309,16 +312,23 @@ function ProcessCenterContent() {
 
   const handleViewScreenshots = async (keys: string[]) => {
     try {
-      for (const key of keys) {
+      const imagePromises = keys.map(async (key) => {
         const res = await fetch(`/api/process-applications/kbc-screenshot?key=${encodeURIComponent(key)}`, {
           headers: { ...getAuthHeader() },
         });
         const data = await res.json();
         if (res.ok && data.url) {
-          window.open(data.url, '_blank');
-        } else {
-          toast.error('加载截图失败');
+          return { url: data.url, title: key.split('/').pop() || '截图' };
         }
+        return null;
+      });
+      const results = await Promise.all(imagePromises);
+      const validImages = results.filter((r): r is { url: string; title: string } => r !== null);
+      if (validImages.length > 0) {
+        setImageViewerImages(validImages);
+        setImageViewerOpen(true);
+      } else {
+        toast.error('加载截图失败');
       }
     } catch {
       toast.error('加载截图失败');
@@ -905,6 +915,13 @@ function ProcessCenterContent() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 图片预览弹窗 */}
+      <ImageViewer
+        open={imageViewerOpen}
+        onClose={() => setImageViewerOpen(false)}
+        images={imageViewerImages}
+      />
 
     </div>
   );

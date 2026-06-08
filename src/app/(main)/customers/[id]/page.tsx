@@ -38,6 +38,7 @@ import { zhCN } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ImageViewer } from '@/components/ImageViewer';
 
 // 实施日志类型
 interface ImplementationLog {
@@ -120,6 +121,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const [generatingDoc, setGeneratingDoc] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageViewerImages, setImageViewerImages] = useState<{ url: string; title?: string }[]>([]);
   const [editing, setEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -528,8 +531,19 @@ export default function CustomerDetailPage({ params }: PageProps) {
         throw new Error(data.error || '获取验收单失败');
       }
 
-      // 在新标签页打开签名URL
-      window.open(data.url, '_blank');
+      // 判断是否为图片格式
+      const fileKey = data.file_key || '';
+      const ext = fileKey.split('.').pop()?.toLowerCase() || '';
+      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+
+      if (imageExts.includes(ext)) {
+        // 图片格式：弹窗预览
+        setImageViewerImages([{ url: data.url, title: `${customer.name} - 验收单` }]);
+        setImageViewerOpen(true);
+      } else {
+        // 非图片格式（如docx）：浏览器新标签页打开
+        window.open(data.url, '_blank');
+      }
     } catch (error: any) {
       console.error('查看验收单失败:', error);
       toast.error(error.message || '查看验收单失败，请重试');
@@ -1242,6 +1256,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
       </div>
       </div>
       {ConfirmDialog}
+
+      {/* 图片预览弹窗 */}
+      <ImageViewer
+        open={imageViewerOpen}
+        onClose={() => setImageViewerOpen(false)}
+        images={imageViewerImages}
+      />
 
     </div>
   );
