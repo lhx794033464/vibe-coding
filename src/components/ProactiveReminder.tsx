@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCircle2, AlertTriangle, Clock, X, ChevronRight, Megaphone } from 'lucide-react';
+import { Bell, CheckCircle2, AlertTriangle, Clock, X, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -25,17 +25,9 @@ interface DeadlineReminder {
   implementation_type: string | null;
 }
 
-interface MorningShareReminder {
-  id: string;
-  share_date: string;
-  user_name: string;
-  topic: string | null;
-}
-
 interface ReminderData {
   todoReminders: TodoReminder[];
   deadlineReminders: DeadlineReminder[];
-  morningShareReminders: MorningShareReminder[];
 }
 
 // ========== 工具函数 ==========
@@ -98,7 +90,7 @@ export function ProactiveReminder() {
       });
       if (res.ok) {
         const data: ReminderData = await res.json();
-        const hasReminders = data.todoReminders.length > 0 || data.deadlineReminders.length > 0 || (data.morningShareReminders || []).length > 0;
+        const hasReminders = data.todoReminders.length > 0 || data.deadlineReminders.length > 0;
         setReminders(data);
         fetchCountRef.current += 1;
 
@@ -198,7 +190,7 @@ export function ProactiveReminder() {
   }, [fetchReminders]);
 
   // 无提醒不渲染
-  if (!reminders || (reminders.todoReminders.length === 0 && reminders.deadlineReminders.length === 0 && (reminders.morningShareReminders || []).length === 0)) {
+  if (!reminders || (reminders.todoReminders.length === 0 && reminders.deadlineReminders.length === 0)) {
     return null;
   }
 
@@ -206,8 +198,7 @@ export function ProactiveReminder() {
 
   const totalTodoCount = reminders.todoReminders.length;
   const totalDeadlineCount = reminders.deadlineReminders.length;
-  const totalShareCount = (reminders.morningShareReminders || []).length;
-  const totalCount = totalTodoCount + totalDeadlineCount + totalShareCount;
+  const totalCount = totalTodoCount + totalDeadlineCount;
 
   // ========== 最小化状态：浮动小图标 ==========
   if (minimized) {
@@ -358,52 +349,7 @@ export function ProactiveReminder() {
             </div>
           )}
 
-          {/* 晨会分享提醒 */}
-          {totalShareCount > 0 && (
-            <div className="px-4 py-3 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Megaphone className="w-3.5 h-3.5 text-rose-500" />
-                  <span className="text-xs font-medium text-slate-700">
-                    晨会分享 · 明天 {totalShareCount} 人
-                  </span>
-                </div>
-                <button
-                  onClick={() => router.push('/tools/morning-sharing')}
-                  className="text-xs text-blue-500 hover:text-blue-600 font-medium"
-                >
-                  查看排期
-                </button>
-              </div>
-              <div className="space-y-2">
-                {reminders.morningShareReminders!.map((share) => (
-                  <div
-                    key={share.id}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-rose-50 hover:bg-rose-100/70 transition-colors cursor-pointer"
-                    onClick={() => router.push('/tools/morning-sharing')}
-                  >
-                    <div className="w-6 h-6 rounded-full bg-rose-200 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-rose-700">
-                        {share.user_name.charAt(0)}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-700">
-                        <span className="font-medium">{share.user_name}</span>
-                        <span className="text-slate-500"> 明天晨会分享</span>
-                      </p>
-                      {share.topic && (
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                          主题：{share.topic}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
 
         {/* 底部操作栏 */}
         <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">

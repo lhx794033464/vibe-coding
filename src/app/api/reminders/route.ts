@@ -20,17 +20,9 @@ interface DeadlineReminder {
   implementation_type: string | null;
 }
 
-interface MorningShareReminder {
-  id: string;
-  share_date: string;
-  user_name: string;
-  topic: string | null;
-}
-
 interface ReminderData {
   todoReminders: TodoReminder[];
   deadlineReminders: DeadlineReminder[];
-  morningShareReminders: MorningShareReminder[];
 }
 
 export async function GET(request: NextRequest) {
@@ -136,48 +128,9 @@ export async function GET(request: NextRequest) {
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
     todoRemindersWithNames.sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2));
 
-    // ========== 3. 晨会分享提醒：明天有晨会分享的用户 ==========
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-    const { data: tomorrowShares, error: shareError } = await client
-      .from('morning_meeting_shares')
-      .select('id, share_date, user_name, topic')
-      .eq('share_date', tomorrowStr);
-
-    if (shareError) {
-      console.error('获取晨会分享提醒失败:', shareError.message);
-    }
-
-    // 只给当天有分享的用户推送提醒
-    let morningShareReminders: MorningShareReminder[] = [];
-    if (tomorrowShares && tomorrowShares.length > 0) {
-      if (isAdmin) {
-        // 管理员看到所有明天的分享
-        morningShareReminders = tomorrowShares.map((s: Record<string, unknown>) => ({
-          id: s.id as string,
-          share_date: s.share_date as string,
-          user_name: s.user_name as string,
-          topic: s.topic as string | null,
-        }));
-      } else {
-        // 普通用户只看到自己的分享提醒
-        morningShareReminders = (tomorrowShares as Record<string, unknown>[])
-          .filter((s: Record<string, unknown>) => s.user_name === userInfo.username)
-          .map((s: Record<string, unknown>) => ({
-            id: s.id as string,
-            share_date: s.share_date as string,
-            user_name: s.user_name as string,
-            topic: s.topic as string | null,
-          }));
-      }
-    }
-
     const result: ReminderData = {
       todoReminders: todoRemindersWithNames,
       deadlineReminders,
-      morningShareReminders,
     };
 
     return NextResponse.json(result);
