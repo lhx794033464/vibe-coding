@@ -31,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Copy, Loader2, Search, X } from 'lucide-react';
+import { Upload, Plus, Clock, CheckCircle2, XCircle, FileText, CalendarDays, DollarSign, Users, Eye, Copy, Loader2, Search, X, Pencil, RotateCcw, Send } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -131,11 +131,28 @@ function ProcessCenterContent() {
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [imageViewerImages, setImageViewerImages] = useState<{ url: string; title?: string }[]>([]);
 
+  // 编辑申请弹窗
+  const [editingApp, setEditingApp] = useState<ProcessApplication | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [editExpectedDate, setEditExpectedDate] = useState('');
+  const [editCalendarOpen, setEditCalendarOpen] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
 
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
-      const status = activeTab === 'pending' ? 'pending' : 'approved,rejected';
+      // 普通用户待办包含pending和rejected（被驳回可修改重提），已办只有approved
+      // 管理员待办只有pending，已办包含approved和rejected
+      let status: string;
+      if (activeTab === 'done') {
+        status = isAdmin ? 'approved,rejected' : 'approved';
+      } else if (isAdmin) {
+        status = 'pending';
+      } else {
+        status = 'pending,rejected';
+      }
       const res = await fetch(`/api/process-applications?status=${status}`, {
         headers: { ...getAuthHeader() },
       });
@@ -335,6 +352,83 @@ function ProcessCenterContent() {
     }
   };
 
+  // 撤回申请（删除）
+  const handleWithdraw = async (appId: string) => {
+    if (!confirm('确定要撤回该申请吗？撤回后不可恢复。')) return;
+    try {
+      const res = await fetch(`/api/process-applications/${appId}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('已撤回');
+        fetchApplications();
+      } else {
+        toast.error(data.error || '撤回失败');
+      }
+    } catch {
+      toast.error('撤回失败');
+    }
+  };
+
+  // 重新提交（将已驳回的申请状态改为pending）
+  const handleResubmit = async (appId: string) => {
+    try {
+      const res = await fetch(`/api/process-applications/${appId}/resubmit`, {
+        method: 'POST',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('已重新提交');
+        fetchApplications();
+      } else {
+        toast.error(data.error || '提交失败');
+      }
+    } catch {
+      toast.error('提交失败');
+    }
+  };
+
+  // 打开编辑弹窗
+  const handleOpenEdit = (app: ProcessApplication) => {
+    setEditingApp(app);
+    setEditNotes(app.notes || '');
+    setEditExpectedDate(app.expected_date || '');
+    setShowEditDialog(true);
+  };
+
+  // 保存编辑并提交
+  const handleSaveEdit = async () => {
+    if (!editingApp) return;
+    try {
+      setEditSubmitting(true);
+      const res = await fetch(`/api/process-applications/${editingApp.id}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: editNotes,
+          expected_date: editExpectedDate,
+          status: 'pending',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('修改已提交');
+        setShowEditDialog(false);
+        setEditingApp(null);
+        fetchApplications();
+      } else {
+        toast.error(data.error || '修改失败');
+      }
+    } catch {
+      toast.error('修改失败');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const resetForm = () => {
     setSelectedType('');
     setSelectedCustomerIds([]);
@@ -435,7 +529,7 @@ function ProcessCenterContent() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 ml-2">
+            <div className="flex items-center gap-2 ml-2 flex-shrink-0">
               {/* 查看KBC截图 */}
               {screenshotKeys.length > 0 && (
                 <Button
@@ -458,6 +552,46 @@ function ProcessCenterContent() {
                   }}
                 >
                   审批
+                </Button>
+              )}
+              {/* 普通员工：被驳回时的操作按钮 */}
+              {!isAdmin && app.status === 'rejected' && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenEdit(app)}
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    修改
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleWithdraw(app.id)}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    撤回
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleResubmit(app.id)}
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    提交
+                  </Button>
+                </>
+              )}
+              {/* 普通员工：已办中的撤回按钮 */}
+              {!isAdmin && app.status === 'approved' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleWithdraw(app.id)}
+                >
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  撤回
                 </Button>
               )}
             </div>
@@ -937,6 +1071,67 @@ function ProcessCenterContent() {
         onClose={() => setImageViewerOpen(false)}
         images={imageViewerImages}
       />
+
+      {/* 编辑申请弹窗 */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>修改申请</DialogTitle>
+          </DialogHeader>
+          {editingApp && (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>申请类型：{getTypeLabel(editingApp.type)}</p>
+                <p>客户：{getAppCustomerNames(editingApp).join('、')}</p>
+                {editingApp.reject_reason && (
+                  <p className="text-destructive">驳回原因：{editingApp.reject_reason}</p>
+                )}
+              </div>
+              {editingApp.type === 'schedule_coordination' && (
+                <div className="space-y-2">
+                  <Label>期望日期</Label>
+                  <Popover open={editCalendarOpen} onOpenChange={setEditCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {editExpectedDate || '选择日期'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={editExpectedDate ? new Date(editExpectedDate) : undefined}
+                        onSelect={(date) => {
+                          setEditExpectedDate(date ? date.toISOString().split('T')[0] : '');
+                          setEditCalendarOpen(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>备注</Label>
+                <Textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="请输入备注信息"
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                  取消
+                </Button>
+                <Button onClick={handleSaveEdit} disabled={editSubmitting}>
+                  {editSubmitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  保存并提交
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
