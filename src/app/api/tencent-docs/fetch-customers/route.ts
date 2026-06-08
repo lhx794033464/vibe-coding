@@ -156,13 +156,13 @@ export async function GET(request: NextRequest) {
       const deliverer = cols[COL_DELIVERER] || '';
       const customerName = cols[COL_CUSTOMER] || '';
 
-      // 跳过交付人在用户管理中不存在的客户
-      if (deliverer && !activeUsernameSet.has(deliverer)) continue;
+      // 普通用户：跳过交付人不在用户管理中的客户、离职人员的客户
+      if (!isAdmin) {
+        if (deliverer && !activeUsernameSet.has(deliverer)) continue;
+        if (deliverer && activeEmploymentMap[deliverer] === '离职') continue;
+      }
 
-      // 跳过离职人员的客户
-      if (deliverer && activeEmploymentMap[deliverer] === '离职') continue;
-
-      // 管理员获取所有在职交付顾问的行，普通用户仅获取自己的
+      // 管理员获取所有客户（含离职交付顾问的），普通用户仅获取自己的
       if (customerName && (isAdmin || deliverer === username)) {
         myRecords.push(extractCustomerFromRow(cols));
       }
