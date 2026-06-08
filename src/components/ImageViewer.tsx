@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 
 interface ImageViewerProps {
   open: boolean;
@@ -59,7 +59,7 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="flex flex-col p-0 gap-0 border-border shadow-2xl overflow-hidden bg-background"
+        className="flex flex-col p-0 gap-0 border-none shadow-none bg-background/95 backdrop-blur-sm overflow-hidden"
         style={{
           maxWidth: 'min(1500px, 95vw)',
           maxHeight: '1100px',
@@ -67,40 +67,10 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
           height: 'auto',
         }}
       >
-        {/* Header - tools only, no image name */}
-        <div className="flex items-center justify-end px-4 py-2 border-b shrink-0">
-          <DialogTitle className="sr-only">图片预览</DialogTitle>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 hover:bg-muted"
-              onClick={() => setZoom((z) => Math.min(z + 0.25, 3))}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 hover:bg-muted"
-              onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 hover:bg-muted"
-              onClick={() => setRotation((r) => (r + 90) % 360)}
-            >
-              <RotateCw className="h-4 w-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground mx-2">{Math.round(zoom * 100)}%</span>
-          </div>
-        </div>
+        <DialogTitle className="sr-only">图片预览</DialogTitle>
 
         {/* Image area */}
-        <div className="flex-1 flex items-center justify-center overflow-auto relative min-h-0 bg-muted/30" style={{ maxHeight: 'calc(1100px - 48px)' }}>
+        <div className="flex-1 flex items-center justify-center overflow-auto relative min-h-0" style={{ maxHeight: '1100px' }}>
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
@@ -119,13 +89,42 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
             onError={() => setLoading(false)}
           />
 
+          {/* Floating toolbar - bottom center */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background/70 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-sm">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-muted rounded-full"
+              onClick={() => setZoom((z) => Math.min(z + 0.25, 3))}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-muted rounded-full"
+              onClick={() => setZoom((z) => Math.max(z - 0.25, 0.5))}
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-muted rounded-full"
+              onClick={() => setRotation((r) => (r + 90) % 360)}
+            >
+              <RotateCw className="h-4 w-4" />
+            </Button>
+            <span className="text-xs text-muted-foreground ml-1">{Math.round(zoom * 100)}%</span>
+          </div>
+
           {/* Navigation arrows */}
           {images.length > 1 && (
             <>
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 border border-border hover:bg-muted"
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/50 backdrop-blur-sm hover:bg-background/70"
                 onClick={handlePrev}
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -133,7 +132,7 @@ export function ImageViewer({ open, onClose, images, startIndex = 0 }: ImageView
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 border border-border hover:bg-muted"
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/50 backdrop-blur-sm hover:bg-background/70"
                 onClick={handleNext}
               >
                 <ChevronRight className="h-6 w-6" />
