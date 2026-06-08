@@ -13,8 +13,7 @@ import {
   BarChart3,
   Loader2,
   Calendar,
-  Trophy,
-  ChevronDown
+  Trophy
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -22,7 +21,7 @@ const KpiSection = dynamic(() => import('@/components/kpi/KpiSection'), { ssr: f
 import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart as RechartsBarChart } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -42,7 +41,7 @@ interface DashboardStats {
   acceptanceRateChange: number;
   statusDistribution: Record<string, number>;
   acceptanceDistribution: Record<string, number>;
-  consultantDistribution: { name: string; projectCount: number; totalDays: number }[];
+  monthlyTrend: { month: string; label: string; customerCount: number; totalDays: number; avgLoadRate: number }[];
   consultantRanking: { name: string; projectCount: number; onlineRate: number; oneMonthOnlineRate: number; fourMonthsOnlineRate: number; acceptanceRate: number; kpiRate: number }[];
 }
 
@@ -73,7 +72,7 @@ const initialStats: DashboardStats = {
     '未上线未验收': 0,
     '已上线未验收': 0,
   },
-  consultantDistribution: [],
+  monthlyTrend: [],
   consultantRanking: [],
 };
 
@@ -99,9 +98,7 @@ export default function DashboardPage() {
   const [rankingDimension, setRankingDimension] = useState<'onlineRate' | 'oneMonthOnlineRate' | 'fourMonthsOnlineRate' | 'acceptanceRate' | 'kpiRate'>('onlineRate');
   const [distData, setDistData] = useState<{name:string,projectCount:number,totalDays:number}[]>([]);
   const [rankingData, setRankingData] = useState<{name:string,projectCount:number,onlineRate:number,oneMonthOnlineRate:number,fourMonthsOnlineRate:number,acceptanceRate:number,kpiRate:number}[]>([]);
-  const [unlaunchedData, setUnlaunchedData] = useState<{name:string,oneMonthNotOnline:number,fourMonthsNotOnline:number}[]>([]);
-  const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
-  const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
+  const [monthlyTrend, setMonthlyTrend] = useState<{month:string,label:string,customerCount:number,totalDays:number,avgLoadRate:number}[]>([]);
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
@@ -153,16 +150,15 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchUnlaunched = async () => {
+  const fetchMonthlyTrend = async () => {
     try {
-      let url = `/api/dashboard/unlaunched-distribution?roleType=${encodeURIComponent(unlaunchedRoleType)}&implType=${encodeURIComponent(unlaunchedImplType)}`;
-      const response = await fetch(url, { headers: { ...getAuthHeader() } });
+      const response = await fetch('/api/dashboard/monthly-trend', { headers: { ...getAuthHeader() } });
       const data = await response.json();
       if (response.ok && data.data) {
-        setUnlaunchedData(data.data);
+        setMonthlyTrend(data.data);
       }
     } catch (error) {
-      console.error('获取未上线项目分布失败:', error);
+      console.error('获取月度趋势失败:', error);
     }
   };
 
@@ -175,8 +171,8 @@ export default function DashboardPage() {
   }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
 
   useEffect(() => {
-    if (isAdmin) fetchUnlaunched();
-  }, [isAdmin, unlaunchedRoleType, unlaunchedImplType]);
+    if (isAdmin) fetchMonthlyTrend();
+  }, [isAdmin]);
 
   useEffect(() => {
     fetchStats();
@@ -574,93 +570,36 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* 未上线项目分布 */}
+          {/* 月度趋势图 */}
           <Card>
             <CardHeader className="space-y-0 pb-2">
-              <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <BarChart3 className="h-5 w-5 text-gray-400" />
-                  未上线项目分布
+                  月度趋势
                 </CardTitle>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const el = document.getElementById('unlaunched-impl-dropdown');
-                        if (el) el.classList.toggle('hidden');
-                        const el2 = document.getElementById('unlaunched-role-dropdown');
-                        if (el2) el2.classList.add('hidden');
-                      }}
-                      className="text-xs h-7"
-                    >
-                      {unlaunchedImplType === '一对一交付' ? '一对一交付' : unlaunchedImplType === '其他' ? '其他' : '全部类型'}
-                      <ChevronDown className="ml-1 h-3 w-3" />
-                    </Button>
-                    <div id="unlaunched-impl-dropdown" className="hidden absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[120px]">
-                      {['全部类型', '一对一交付', '其他'].map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => {
-                            setUnlaunchedImplType(type === '全部类型' ? '' : type);
-                            document.getElementById('unlaunched-impl-dropdown')?.classList.add('hidden');
-                          }}
-                          className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-accent ${(type === '全部类型' && !unlaunchedImplType) || type === unlaunchedImplType ? 'font-medium text-primary' : ''}`}
-                        >
-                          {type === '其他' ? '其他' : type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const el = document.getElementById('unlaunched-role-dropdown');
-                        if (el) el.classList.toggle('hidden');
-                        const el2 = document.getElementById('unlaunched-impl-dropdown');
-                        if (el2) el2.classList.add('hidden');
-                      }}
-                      className="text-xs h-7"
-                    >
-                      {unlaunchedRoleType || '全部顾问'}
-                      <ChevronDown className="ml-1 h-3 w-3" />
-                    </Button>
-                    <div id="unlaunched-role-dropdown" className="hidden absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[120px]">
-                      {['交付顾问', '答疑顾问'].map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => {
-                            setUnlaunchedRoleType(type);
-                            document.getElementById('unlaunched-role-dropdown')?.classList.add('hidden');
-                          }}
-                          className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-accent ${type === unlaunchedRoleType ? 'font-medium text-primary' : ''}`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </div>
             </CardHeader>
             <CardContent>
-              {unlaunchedData.length > 0 ? (
+              {monthlyTrend.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <RechartsBarChart data={unlaunchedData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <ComposedChart data={monthlyTrend} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
-                    <YAxis label={{ value: '项目数', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <YAxis yAxisId="left" label={{ value: '数量', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} />
+                    <YAxis yAxisId="right" orientation="right" label={{ value: '负载率', angle: 90, position: 'insideRight', style: { fontSize: 12 } }} tick={{ fontSize: 12 }} domain={[0, 'auto']} />
                     <Tooltip
                       contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '13px' }}
-                      formatter={(value: number, name: string) => [`${value} 个`, name]}
+                      formatter={(value: number, name: string) => {
+                        if (name === '人均负载率') return [`${value.toFixed(1)}%`, name];
+                        return [`${value}`, name];
+                      }}
                     />
                     <Legend />
-                    <Bar dataKey="oneMonthNotOnline" name="1个月未上线" stackId="a" fill="#fb923c" radius={[0, 0, 0, 0]} barSize={40} />
-                    <Bar dataKey="fourMonthsNotOnline" name="4个月未上线" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40} />
-                  </RechartsBarChart>
+                    <Bar yAxisId="left" dataKey="customerCount" name="项目数量" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} barSize={24} />
+                    <Bar yAxisId="left" dataKey="totalDays" name="人天数" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} barSize={24} />
+                    <Line yAxisId="right" type="monotone" dataKey="avgLoadRate" name="人均负载率" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ r: 4 }} />
+                  </ComposedChart>
                 </ResponsiveContainer>
               ) : (
                 <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
