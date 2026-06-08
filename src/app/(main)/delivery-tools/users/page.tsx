@@ -41,6 +41,7 @@ interface User {
   role_level?: '初级顾问' | '中级顾问' | '高级顾问' | '';
   is_active: boolean;
   employment_status?: string;
+  hire_date?: string | null;
   created_at: string;
 }
 
@@ -52,6 +53,7 @@ interface UserFormData {
   role_level?: '初级顾问' | '中级顾问' | '高级顾问' | '';
   is_active: boolean;
   employment_status: '在职' | '离职';
+  hire_date?: string;
 }
 
 const getRoleBadge = (role: string) => {
@@ -219,6 +221,7 @@ export default function UsersPage() {
       role_level: (user as any).role_level || '',
       is_active: user.is_active,
       employment_status: (user.employment_status as '在职' | '离职') || '在职',
+      hire_date: (user as any).hire_date || '',
     });
     setOpenDialog(true);
   };
@@ -233,6 +236,7 @@ export default function UsersPage() {
       role_level: '',
       is_active: true,
       employment_status: '在职',
+      hire_date: '',
     });
     setError('');
   };
@@ -303,6 +307,7 @@ export default function UsersPage() {
                 <TableHead className="w-48 font-semibold text-gray-900">用户名</TableHead>
                 <TableHead className="font-semibold text-gray-900">角色</TableHead>
                 <TableHead className="font-semibold text-gray-900">顾问等级</TableHead>
+                <TableHead className="font-semibold text-gray-900">入职日期</TableHead>
                 <TableHead className="font-semibold text-gray-900">在职状态</TableHead>
                 <TableHead className="font-semibold text-gray-900">账号状态</TableHead>
                 <TableHead className="font-semibold text-gray-900">创建时间</TableHead>
@@ -320,6 +325,7 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell>{getRoleBadge(user.role)}</TableCell>
                   <TableCell className="text-gray-500 text-sm">{user.role === '交付顾问' ? (user.role_level || '-') : '-'}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">{user.hire_date ? new Date(user.hire_date).toLocaleDateString('zh-CN') : '-'}</TableCell>
                   <TableCell>
                     <Badge className={user.employment_status === '在职' ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}>
                       {user.employment_status || '在职'}
@@ -444,6 +450,15 @@ export default function UsersPage() {
                 </Select>
               </div>
             )}
+            <div className="space-y-2">
+              <Label htmlFor="hire_date">入职日期</Label>
+              <Input
+                id="hire_date"
+                type="date"
+                value={formData.hire_date || ''}
+                onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="employment_status">在职状态</Label>
               <Select

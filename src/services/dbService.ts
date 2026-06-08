@@ -31,6 +31,7 @@ export interface DbUser {
   role: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   role_level: '初级顾问' | '中级顾问' | '高级顾问' | null;
   employment_status: '在职' | '离职';
+  hire_date: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string | null;
@@ -129,7 +130,7 @@ export async function dbGetAllUsers(): Promise<DbUser[]> {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('users')
-    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
+    .select('id, username, email, role, role_level, employment_status, hire_date, is_active, created_at, updated_at')
     .order('created_at', { ascending: true });
   if (error) throw new Error(`获取用户列表失败: ${error.message}`);
   return (data as DbUser[]) || [];
@@ -139,7 +140,7 @@ export async function dbGetUserById(id: string): Promise<DbUser | null> {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('users')
-    .select('id, username, email, role, employment_status, is_active, created_at, updated_at')
+    .select('id, username, email, role, role_level, employment_status, hire_date, is_active, created_at, updated_at')
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`获取用户失败: ${error.message}`);
@@ -164,6 +165,7 @@ export async function dbCreateUser(userData: {
   role?: 'admin' | '交付顾问' | '答疑顾问' | '其他';
   role_level?: string | null;
   employment_status?: '在职' | '离职';
+  hire_date?: string | null;
   is_active?: boolean;
 }): Promise<DbUser> {
   const client = getSupabaseClient();
@@ -176,9 +178,10 @@ export async function dbCreateUser(userData: {
       role: userData.role || '交付顾问',
       role_level: userData.role_level || null,
       employment_status: userData.employment_status || '在职',
+      hire_date: userData.hire_date || null,
       is_active: userData.is_active !== undefined ? userData.is_active : true,
     })
-    .select('id, username, email, role, role_level, employment_status, is_active, created_at, updated_at')
+    .select('id, username, email, role, role_level, employment_status, hire_date, is_active, created_at, updated_at')
     .single();
   if (error) throw new Error(`创建用户失败: ${error.message}`);
   return data as DbUser;
@@ -192,6 +195,7 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   role_level: string;
   employment_status: '在职' | '离职';
   is_active: boolean;
+  hire_date?: string | null;
 }>): Promise<DbUser | null> {
   const client = getSupabaseClient();
   const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
@@ -201,13 +205,14 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   if (updates.role !== undefined) updateData.role = updates.role;
   if (updates.role_level !== undefined) updateData.role_level = updates.role_level;
   if (updates.employment_status !== undefined) updateData.employment_status = updates.employment_status;
+  if (updates.hire_date !== undefined) updateData.hire_date = updates.hire_date;
   if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
 
   const { data, error } = await client
     .from('users')
     .update(updateData)
     .eq('id', id)
-    .select('id, username, email, role, role_level, employment_status, is_active, created_at, updated_at')
+    .select('id, username, email, role, role_level, employment_status, hire_date, is_active, created_at, updated_at')
     .maybeSingle();
   if (error) throw new Error(`更新用户失败: ${error.message}`);
   return data as DbUser | null;
