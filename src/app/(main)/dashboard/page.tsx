@@ -670,8 +670,8 @@ export default function DashboardPage() {
         </div>
 
         {/* 右列：顾问排行表 */}
-        <div>
-          <Card>
+        <div className="flex flex-col h-full">
+          <Card className="flex flex-col flex-1">
             <CardHeader className="space-y-0">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -697,9 +697,9 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col">
               {rankingData && rankingData.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1">
                   {sortedRanking.map((consultant, index) => {
                       const rate = consultant[rankingDimension] ?? 0;
                       const dimensionLabel: Record<string, string> = {
