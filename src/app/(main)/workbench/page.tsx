@@ -584,7 +584,7 @@ function ProcessCenterContent() {
                                     const names = getAppCustomerNames(app);
                                     navigator.clipboard.writeText(names.join('、'));
                                     toast.success('已复制客户名');
-                                    window.open('https://work.weixin.qq.com/', '_blank');
+                                    window.location.href = 'wxwork://';
                                   }}
                                 >
                                   <Copy className="h-3 w-3 mr-1" />
