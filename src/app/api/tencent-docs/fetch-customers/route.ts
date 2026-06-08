@@ -171,6 +171,7 @@ export async function GET(request: NextRequest) {
     // 去重：同一客户名+同一交付人只保留一条（合并购买模块）
     // 不同交付人的同名客户各自独立保留（同一客户可能由不同交付人负责不同模块）
     const customerMap = new Map<string, ReturnType<typeof extractCustomerFromRow> & { modulesList: string[] }>();
+    const mergedDetails: { key: string; keptModules: string; droppedModules: string }[] = [];
     for (const r of myRecords) {
       const dedupKey = `${r.customerName}|||${r.deliverer}`;
       if (customerMap.has(dedupKey)) {
@@ -178,6 +179,7 @@ export async function GET(request: NextRequest) {
         if (r.modules && !existing.modulesList.includes(r.modules)) {
           existing.modulesList.push(r.modules);
         }
+        mergedDetails.push({ key: dedupKey, keptModules: existing.modulesList.join('、'), droppedModules: r.modules || '(空)' });
       } else {
         customerMap.set(dedupKey, { ...r, modulesList: r.modules ? [r.modules] : [] });
       }
@@ -188,6 +190,8 @@ export async function GET(request: NextRequest) {
       total: allRows.length - 1,
       myCount: myRecords.length,
       uniqueCount: customerMap.size,
+      mergedCount: mergedDetails.length,
+      mergedDetails,
       data: Array.from(customerMap.values()).map(r => ({
         customerName: r.customerName,
         status: r.status,                              // 是否上线 → 客户状态
@@ -308,18 +312,24 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 管理员同步时：计算该客户应归属的 user_id
-        const delivererName = customer.deliverer || customer.delivery_consultant;
+        // 在已有客户中查找匹配记录：按 客户名+交付人 精确匹配
+        const delivererName = customer.deliverer || customer.delivery_consultant || '';
         const targetUserId = getDelivererUserId(delivererName);
-
-        // 在已有客户中查找匹配记录
         const candidates = existingByName.get(customerName);
         let existing: typeof existingCustomers[0] | undefined;
         if (candidates && candidates.length > 0) {
-          if (isAdmin && targetUserId) {
-            existing = candidates.find(c => c.user_id === targetUserId);
+          if (isAdmin) {
+            // 管理员：优先按交付顾问的 user_id 精确匹配
+            if (targetUserId) {
+              existing = candidates.find(c => c.user_id === targetUserId);
+            }
+            // 退化：如果找不到对应顾问的记录，尝试按交付人名称匹配
+            if (!existing && delivererName) {
+              existing = candidates.find(c => c.delivery_consultant === delivererName);
+            }
           } else {
-            existing = candidates[0];
+            // 普通用户：只匹配自己名下的客户（user_id 一致）
+            existing = candidates.find(c => c.user_id === userId);
           }
         }
 
