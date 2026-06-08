@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
 import { TencentDocsClient } from '@/lib/tencentDocsClient';
-import { dbGetCustomers, dbCreateCustomer, dbUpdateCustomer, dbDeleteCustomer } from '@/services/dbService';
+import { dbGetCustomers } from '@/services/dbService';
 import { getTencentDocsToken } from '@/lib/tencentDocsConfig';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
@@ -266,6 +266,11 @@ export async function POST(request: NextRequest) {
     let skipped = 0;
     const errors: string[] = [];
 
+    // 分类：新增 / 更新 / 跳过
+    const toInsert: Record<string, any>[] = [];
+    const toUpdate: { id: string; data: Record<string, any> }[] = [];
+    const toDeleteIds: string[] = [];
+
     for (const customer of customers) {
       try {
         const customerName = customer.customerName || '';
@@ -308,16 +313,12 @@ export async function POST(request: NextRequest) {
         const targetUserId = getDelivererUserId(delivererName);
 
         // 在已有客户中查找匹配记录
-        // 管理员同步：必须精确匹配同名+同顾问，不跨顾问复用记录
-        // 普通用户同步：同名即可匹配（因为只有自己的客户）
         const candidates = existingByName.get(customerName);
         let existing: typeof existingCustomers[0] | undefined;
         if (candidates && candidates.length > 0) {
           if (isAdmin && targetUserId) {
-            // 管理员同步：精确匹配同名+同顾问的记录
             existing = candidates.find(c => c.user_id === targetUserId);
           } else {
-            // 普通用户同步：取同名第一条
             existing = candidates[0];
           }
         }
@@ -327,12 +328,12 @@ export async function POST(request: NextRequest) {
           if (existing.acceptance_source === 'app' && existing.acceptance_status === 'accepted') {
             delete customerData.acceptance_status;
           }
-          // 已计提或部分计提的客户不同步，仅同步未计提的客户
+          // 已计提或部分计提的客户不同步
           if (existing.commission_status === '已计提' || existing.commission_status === '部分计提') {
+            skipped++;
             continue;
           }
-          await dbUpdateCustomer(existing.id, customerData);
-          updated++;
+          toUpdate.push({ id: existing.id, data: customerData });
         } else {
           // 新建客户：自动计算交付期截止日 = 开通日期 + 120天
           if (customerData.opened_at) {
@@ -348,16 +349,55 @@ export async function POST(request: NextRequest) {
           } else {
             customerData.user_id = userId;
           }
-          await dbCreateCustomer(customerData);
-          imported++;
+          toInsert.push(customerData);
         }
       } catch (e) {
-        errors.push(`导入 ${customer.customerName} 失败: ${e instanceof Error ? e.message : '未知错误'}`);
+        errors.push(`处理 ${customer.customerName} 失败: ${e instanceof Error ? e.message : '未知错误'}`);
       }
     }
 
+    // === 批量插入（分批，每批100条）===
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+      const batch = toInsert.slice(i, i + BATCH_SIZE);
+      try {
+        const { error: insertError } = await supabase
+          .from('customers')
+          .insert(batch);
+        if (insertError) {
+          errors.push(`批量插入失败(第${i + 1}-${i + batch.length}条): ${insertError.message}`);
+        } else {
+          imported += batch.length;
+        }
+      } catch (e) {
+        errors.push(`批量插入异常(第${i + 1}条起): ${e instanceof Error ? e.message : '未知错误'}`);
+      }
+    }
+
+    // === 批量更新（分批，每批50条并行）===
+    const updatePromises: Promise<void>[] = [];
+    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+      const batch = toUpdate.slice(i, i + BATCH_SIZE);
+      updatePromises.push((async () => {
+        // 逐条更新（Supabase不支持带不同ID的批量update），但并行执行
+        const results = await Promise.allSettled(
+          batch.map(item =>
+            supabase
+              .from('customers')
+              .update({ ...item.data, updated_at: new Date().toISOString() })
+              .eq('id', item.id)
+          )
+        );
+        for (const r of results) {
+          if (r.status === 'fulfilled' && !r.value.error) {
+            updated++;
+          }
+        }
+      })());
+    }
+    await Promise.all(updatePromises);
+
     // === 增删改同步：删除文档中已不存在的客户 ===
-    // 收集文档中所有客户名+交付人组合
     const docCustomerKeys = new Set<string>();
     for (const customer of customers) {
       const customerName = customer.customerName || '';
@@ -367,25 +407,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let deleted = 0;
     // 找出数据库中存在但文档中已不存在的客户
     for (const c of existingCustomers) {
       const dbKey = `${c.name}|||${c.delivery_consultant || ''}`;
       if (!docCustomerKeys.has(dbKey)) {
-        // 已计提或部分计提的客户不删除，避免财务数据丢失
         if (c.commission_status === '已计提' || c.commission_status === '部分计提') {
           continue;
         }
-        // 普通用户同步：只删除自己的客户
         if (!isAdmin && c.user_id !== userId) {
           continue;
         }
-        try {
-          await dbDeleteCustomer(c.id);
-          deleted++;
-        } catch (e) {
-          errors.push(`删除客户 ${c.name} 失败: ${e instanceof Error ? e.message : '未知错误'}`);
+        toDeleteIds.push(c.id);
+      }
+    }
+
+    // === 批量删除（先批量删关联，再批量删客户）===
+    let deleted = 0;
+    if (toDeleteIds.length > 0) {
+      try {
+        // 并行批量删除所有关联表
+        await Promise.all([
+          supabase.from('follow_up_records').delete().in('customer_id', toDeleteIds),
+          supabase.from('implementation_logs').delete().in('customer_id', toDeleteIds),
+          supabase.from('commission_records').delete().in('customer_id', toDeleteIds),
+          supabase.from('schedules').delete().in('customer_id', toDeleteIds),
+          supabase.from('todos').delete().in('customer_id', toDeleteIds),
+        ]);
+        // 批量删除客户
+        const { error: deleteError } = await supabase
+          .from('customers')
+          .delete()
+          .in('id', toDeleteIds);
+        if (deleteError) {
+          errors.push(`批量删除失败: ${deleteError.message}`);
+        } else {
+          deleted = toDeleteIds.length;
         }
+      } catch (e) {
+        errors.push(`批量删除异常: ${e instanceof Error ? e.message : '未知错误'}`);
       }
     }
 
