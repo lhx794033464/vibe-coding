@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Copy,
@@ -20,10 +21,12 @@ import {
   MessageSquareText,
   ChevronRight,
   X,
+  ArrowLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ScriptsPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedScript, setSelectedScript] = useState<ScriptItem | null>(null);
@@ -90,8 +93,13 @@ export default function ScriptsPage() {
       <div className="p-4 sm:p-6">
         {/* 页面标题 */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">常用话术</h1>
-          <p className="text-slate-500 mt-1">在线交付部标准话术，支持分类浏览与搜索</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={() => router.push('/tools')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold text-slate-800">常用话术</h1>
+          </div>
+          <p className="text-slate-500 mt-1 ml-6">在线交付部标准话术，支持分类浏览与搜索</p>
         </div>
 
         {/* 搜索栏 */}

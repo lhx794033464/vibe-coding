@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import {
   ChevronRight,
   CalendarDays,
   User,
+  ArrowLeft,
   Megaphone,
 } from 'lucide-react';
 
@@ -43,6 +45,7 @@ interface ShareRecord {
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export default function MorningSharingPage() {
+  const router = useRouter();
   const { getAuthHeader } = useAuth();
 
   // 当前显示的月份
@@ -244,8 +247,13 @@ export default function MorningSharingPage() {
       <div className="p-4 sm:p-6">
         {/* 页面标题 */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">晨会分享</h1>
-          <p className="text-slate-500 mt-1">管理晨会分享排期，交付助手将在分享前一天推送提醒</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={() => router.push('/tools')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold text-slate-800">晨会分享</h1>
+          </div>
+          <p className="text-slate-500 mt-1 ml-6">管理晨会分享排期，交付助手将在分享前一天推送提醒</p>
         </div>
 
         {/* 月份切换 */}
