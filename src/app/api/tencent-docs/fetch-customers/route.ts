@@ -168,16 +168,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 去重：同一客户名只保留一条（合并购买模块）
+    // 去重：同一客户名+同一交付人只保留一条（合并购买模块）
+    // 不同交付人的同名客户各自独立保留（同一客户可能由不同交付人负责不同模块）
     const customerMap = new Map<string, ReturnType<typeof extractCustomerFromRow> & { modulesList: string[] }>();
     for (const r of myRecords) {
-      if (customerMap.has(r.customerName)) {
-        const existing = customerMap.get(r.customerName)!;
+      const dedupKey = `${r.customerName}|||${r.deliverer}`;
+      if (customerMap.has(dedupKey)) {
+        const existing = customerMap.get(dedupKey)!;
         if (r.modules && !existing.modulesList.includes(r.modules)) {
           existing.modulesList.push(r.modules);
         }
       } else {
-        customerMap.set(r.customerName, { ...r, modulesList: r.modules ? [r.modules] : [] });
+        customerMap.set(dedupKey, { ...r, modulesList: r.modules ? [r.modules] : [] });
       }
     }
 
@@ -261,7 +263,6 @@ export async function POST(request: NextRequest) {
 
     let imported = 0;
     let updated = 0;
-    let reassigned = 0;
     let skipped = 0;
     const errors: string[] = [];
 
@@ -307,16 +308,16 @@ export async function POST(request: NextRequest) {
         const targetUserId = getDelivererUserId(delivererName);
 
         // 在已有客户中查找匹配记录
-        // 优先匹配：同名 + 对应顾问的 user_id；其次匹配：同名任意记录
+        // 管理员同步：必须精确匹配同名+同顾问，不跨顾问复用记录
+        // 普通用户同步：同名即可匹配（因为只有自己的客户）
         const candidates = existingByName.get(customerName);
         let existing: typeof existingCustomers[0] | undefined;
         if (candidates && candidates.length > 0) {
-          // 优先找属于目标顾问的记录
-          if (targetUserId) {
+          if (isAdmin && targetUserId) {
+            // 管理员同步：精确匹配同名+同顾问的记录
             existing = candidates.find(c => c.user_id === targetUserId);
-          }
-          // 没找到则取第一条（兼容普通用户同步）
-          if (!existing) {
+          } else {
+            // 普通用户同步：取同名第一条
             existing = candidates[0];
           }
         }
@@ -329,11 +330,6 @@ export async function POST(request: NextRequest) {
           // 已计提或部分计提的客户不同步，仅同步未计提的客户
           if (existing.commission_status === '已计提' || existing.commission_status === '部分计提') {
             continue;
-          }
-          // 管理员同步时，如果交付顾问变更，需将客户重新分配到新顾问账号下
-          if (isAdmin && targetUserId && existing.user_id !== targetUserId) {
-            customerData.user_id = targetUserId;
-            reassigned++;
           }
           await dbUpdateCustomer(existing.id, customerData);
           updated++;
@@ -364,7 +360,6 @@ export async function POST(request: NextRequest) {
       success: true,
       imported,
       updated,
-      reassigned,
       skipped,
       errors,
     });
