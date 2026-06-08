@@ -40,6 +40,9 @@ export async function POST(request: NextRequest) {
     }
 
     const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return NextResponse.json({ error: '未授权' }, { status: 401 });
+    }
 
     const data = await dbCreateImplementationLog({
       customer_id,
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
       summary: summary || '',
       consumed_days: consumed_days || '0',
       meeting_link: meeting_link || null,
-      user_id: userInfo?.id || null,
+      user_id: userInfo.id,
     });
 
     return NextResponse.json({ data });

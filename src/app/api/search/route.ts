@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { getCurrentUserInfo } from '@/lib/serverAuth';
 
 export const runtime = 'nodejs';
 
@@ -9,6 +10,11 @@ export const runtime = 'nodejs';
  */
 export async function POST(request: NextRequest) {
   try {
+    const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return NextResponse.json({ error: '未登录或登录已过期' }, { status: 401 });
+    }
+
     const { query, count = 5 } = await request.json();
 
     if (!query || typeof query !== 'string') {

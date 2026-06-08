@@ -29,8 +29,7 @@ const mapUserFromDb = (item: any): User => ({
 });
 
 // 生成唯一ID
-export const generateId = () => 
-  Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+export const generateId = () => crypto.randomUUID();
 
 import bcrypt from 'bcryptjs';
 

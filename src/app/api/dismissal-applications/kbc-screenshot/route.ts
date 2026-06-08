@@ -4,8 +4,8 @@ import { S3Storage } from 'coze-coding-dev-sdk';
 
 const storage = new S3Storage({
   endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: '',
-  secretKey: '',
+  accessKey: process.env.COZE_BUCKET_ACCESS_KEY || '',
+  secretKey: process.env.COZE_BUCKET_SECRET_KEY || '',
   bucketName: process.env.COZE_BUCKET_NAME,
   region: 'cn-beijing',
 });
@@ -23,6 +23,16 @@ export async function GET(request: NextRequest) {
 
     if (!key) {
       return NextResponse.json({ error: '缺少文件key' }, { status: 400 });
+    }
+
+    // 权限隔离：仅管理员或申请人可访问截图
+    const isAdmin = userInfo.role === 'admin';
+    if (!isAdmin) {
+      // 非管理员只能访问自己上传的截图（key中包含用户ID）
+      const keyUserId = key.split('/')[1]; // 格式: kbc-screenshots/{userId}/...
+      if (keyUserId && keyUserId !== userInfo.id && keyUserId !== userInfo.username) {
+        return NextResponse.json({ error: '无权访问此截图' }, { status: 403 });
+      }
     }
 
     const url = await storage.generatePresignedUrl({

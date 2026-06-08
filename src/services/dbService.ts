@@ -7,7 +7,13 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'kingdee-xingchen-delivery-platform-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[FATAL] JWT_SECRET environment variable must be set in production');
+  }
+  console.warn('[WARN] JWT_SECRET not set, using development default. Do NOT use in production.');
+  return 'kingdee-xingchen-dev-secret-key';
+})();
 const JWT_EXPIRES_IN = '24h';
 
 // ==================== 认证服务 ====================

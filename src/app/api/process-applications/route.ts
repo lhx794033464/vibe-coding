@@ -5,8 +5,8 @@ import { S3Storage } from 'coze-coding-dev-sdk';
 
 const storage = new S3Storage({
   endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: '',
-  secretKey: '',
+  accessKey: process.env.COZE_BUCKET_ACCESS_KEY || '',
+  secretKey: process.env.COZE_BUCKET_SECRET_KEY || '',
   bucketName: process.env.COZE_BUCKET_NAME,
   region: 'cn-beijing',
 });
@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         const ext = file.name.split('.').pop() || 'png';
         const timestamp = Date.now();
-        const randomStr = Math.random().toString(36).substring(2, 10);
-        const fileName = `kbc-screenshots/${timestamp}_${randomStr}.${ext}`;
+        const uniqueId = crypto.randomUUID().substring(0, 8);
+        const fileName = `kbc-screenshots/${timestamp}_${uniqueId}.${ext}`;
 
         const fileKey = await storage.uploadFile({
           fileContent: buffer,

@@ -121,6 +121,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '未授权' }, { status: 401 });
   }
 
+  if (userInfo.role !== 'admin') {
+    return NextResponse.json({ error: '仅管理员可删除配置' }, { status: 403 });
+  }
+
   // 检查环境变量
   const envToken = process.env[ENV_KEY];
   const envConfigured = !!envToken;

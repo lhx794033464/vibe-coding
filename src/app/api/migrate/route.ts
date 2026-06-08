@@ -17,6 +17,9 @@ import { getCurrentUserInfo } from '@/lib/serverAuth';
 export async function POST(request: NextRequest) {
   try {
     const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return NextResponse.json({ error: '未登录或登录已过期' }, { status: 401 });
+    }
 
     const body = await request.json();
     const {

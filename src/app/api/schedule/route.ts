@@ -102,12 +102,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const userInfo = await getCurrentUserInfo(request);
+    if (!userInfo) {
+      return NextResponse.json({ error: '未授权' }, { status: 401 });
+    }
 
     const schedule = await dbCreateSchedule({
       customer_id: body.customerId || body.customer_id || null,
       schedule_date: body.scheduleDate || body.schedule_date || new Date().toISOString(),
       notes: body.notes || '',
-      user_id: userInfo?.id || null,
+      user_id: userInfo.id,
     });
 
     return NextResponse.json({ schedule });
