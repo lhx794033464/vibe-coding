@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { GitBranch, ArrowLeftRight, MessageSquareText } from 'lucide-react';
+import { GitBranch, ArrowLeftRight, MessageSquareText, Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import { useFlowChart } from '@/contexts/FlowChartContext';
 
@@ -42,6 +42,15 @@ const tools = [
     href: '/tools/scripts',
     color: 'bg-violet-50 text-violet-600',
     iconBg: 'bg-violet-100',
+  },
+  {
+    id: 'morning-sharing',
+    title: '晨会分享',
+    description: '管理晨会分享排期，前一天自动推送提醒',
+    icon: Megaphone,
+    href: '/tools/morning-sharing',
+    color: 'bg-rose-50 text-rose-600',
+    iconBg: 'bg-rose-100',
   },
 ];
 
