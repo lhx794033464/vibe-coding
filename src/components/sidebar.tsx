@@ -21,8 +21,13 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { useFlowChart } from '@/contexts/FlowChartContext';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { FloatingNav } from '@/components/floating-nav';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -57,6 +62,49 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingProcessCount, setPendingProcessCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast.error('请填写所有密码字段');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('新密码与确认密码不一致');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('新密码长度不能少于6位');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const headers = getAuthHeader();
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('密码修改成功');
+        setShowChangePassword(false);
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        toast.error(data.error || '密码修改失败');
+      }
+    } catch {
+      toast.error('密码修改失败');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   // 组合导航项
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems.filter(item => !item.adminOnly);
@@ -244,7 +292,7 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                 </div>
               )}
               <button
-                onClick={() => { setShowUserMenu(false); }}
+                onClick={() => { setShowUserMenu(false); setShowChangePassword(true); setOldPassword(''); setNewPassword(''); setConfirmPassword(''); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <User className="w-4 h-4 text-gray-400" />
@@ -261,6 +309,96 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
           )}
         </div>
       </aside>
+
+      {/* 修改密码弹窗 */}
+      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>修改密码</DialogTitle>
+            <DialogDescription>请输入当前密码和新密码</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="old-password">当前密码</Label>
+              <Input
+                id="old-password"
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                placeholder="请输入当前密码"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">新密码</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="请输入新密码"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">确认新密码</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="请再次输入新密码"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangePassword(false)}>取消</Button>
+            <Button
+              onClick={async () => {
+                if (!oldPassword || !newPassword || !confirmPassword) {
+                  toast.error('请填写所有密码字段');
+                  return;
+                }
+                if (newPassword !== confirmPassword) {
+                  toast.error('两次输入的新密码不一致');
+                  return;
+                }
+                if (newPassword.length < 6) {
+                  toast.error('新密码长度不能少于6位');
+                  return;
+                }
+                setChangingPassword(true);
+                try {
+                  const token = localStorage.getItem('auth_token');
+                  const res = await fetch('/api/auth/change-password', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ oldPassword, newPassword }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    toast.success('密码修改成功');
+                    setShowChangePassword(false);
+                    setOldPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  } else {
+                    toast.error(data.error || '密码修改失败');
+                  }
+                } catch {
+                  toast.error('密码修改失败，请稍后重试');
+                } finally {
+                  setChangingPassword(false);
+                }
+              }}
+              disabled={changingPassword}
+            >
+              {changingPassword ? '修改中...' : '确认修改'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 移动端使用悬浮导航 */}
       <div className="sm:hidden">
