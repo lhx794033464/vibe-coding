@@ -195,10 +195,13 @@ export default function HomePage() {
   // ===== 主动提醒：进入首页时自动推送待办和截止日提醒 =====
   const reminderShownRef = useRef(false);
   useEffect(() => {
-    if (reminderShownRef.current || savedMessages.length > 0) return;
-    reminderShownRef.current = true;
+    // 每次进入首页重置标志，确保能检查推送
+    reminderShownRef.current = false;
 
     const fetchAndPushReminders = async () => {
+      if (reminderShownRef.current) return;
+      reminderShownRef.current = true;
+
       try {
         const res = await fetch('/api/reminders', {
           headers: { ...getAuthHeader() },
@@ -274,7 +277,7 @@ export default function HomePage() {
     // 延迟2秒后推送，避免页面加载时太突兀
     const timer = setTimeout(fetchAndPushReminders, 2000);
     return () => clearTimeout(timer);
-  }, []); // 仅首次加载时执行
+  }, []);
 
   // 自动调整输入框高度
   useEffect(() => {
