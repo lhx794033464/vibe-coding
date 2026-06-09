@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,22 +36,39 @@ function extractDateString(value: unknown): string | null {
   return datePart || null;
 }
 
+const STORAGE_KEY = 'customer_list_filters';
+
+function loadFilters() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveFilters(filters: Record<string, unknown>) {
+  if (typeof window === 'undefined') return;
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
+}
+
 export default function CustomersPage() {
   const { getAuthHeader } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const _saved = useMemo(() => loadFilters(), []);
   const [customers, setCustomers] = useState<CustomerWithDays[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [consultantFilter, setFilterConsultant] = useState<string>('all');
-  const [implTypeFilter, setFilterImplType] = useState<string>('all');
-  const [onlineStatusFilter, setFilterOnlineStatus] = useState<string>('all');
-  const [acceptanceStatusFilter, setFilterAcceptanceStatus] = useState<string>('all');
-  const [overdueFilter, setFilterOverdue] = useState<string>('all');
-  const [openedStartFilter, setFilterOpenDateStart] = useState<string>('');
-  const [openedEndFilter, setFilterOpenDateEnd] = useState<string>('');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [pageSize, setPageSize] = useState<number>(50);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch] = useState<string>(_saved?.search ?? '');
+  const [consultantFilter, setFilterConsultant] = useState<string>(_saved?.consultantFilter ?? 'all');
+  const [implTypeFilter, setFilterImplType] = useState<string>(_saved?.implTypeFilter ?? 'all');
+  const [onlineStatusFilter, setFilterOnlineStatus] = useState<string>(_saved?.onlineStatusFilter ?? 'all');
+  const [acceptanceStatusFilter, setFilterAcceptanceStatus] = useState<string>(_saved?.acceptanceStatusFilter ?? 'all');
+  const [overdueFilter, setFilterOverdue] = useState<string>(_saved?.overdueFilter ?? 'all');
+  const [openedStartFilter, setFilterOpenDateStart] = useState<string>(_saved?.openedStartFilter ?? '');
+  const [openedEndFilter, setFilterOpenDateEnd] = useState<string>(_saved?.openedEndFilter ?? '');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(_saved?.viewMode ?? 'list');
+  const [pageSize, setPageSize] = useState<number>(_saved?.pageSize ?? 50);
+  const [currentPage, setCurrentPage] = useState<number>(_saved?.currentPage ?? 1);
 
   // 同步相关状态
   const [showFetchDialog, setShowFetchDialog] = useState(false);
@@ -59,9 +76,35 @@ export default function CustomersPage() {
   const [syncResult, setSyncResult] = useState<{ imported: number; updated: number; skipped: number; deleted: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // 持久化筛选状态到 sessionStorage
+  const persistFilters = useCallback(() => {
+    saveFilters({
+      search, consultantFilter, implTypeFilter, onlineStatusFilter,
+      acceptanceStatusFilter, overdueFilter, openedStartFilter,
+      openedEndFilter, viewMode, pageSize, currentPage,
+    });
+  }, [search, consultantFilter, implTypeFilter, onlineStatusFilter, acceptanceStatusFilter, overdueFilter, openedStartFilter, openedEndFilter, viewMode, pageSize, currentPage]);
+
+  useEffect(() => { persistFilters(); }, [persistFilters]);
+
+  // 清除筛选状态（仅在从非客户详情页进入时）
+  useEffect(() => {
+    const isBackFromDetail = sessionStorage.getItem('customer_detail_return');
+    if (isBackFromDetail) {
+      sessionStorage.removeItem('customer_detail_return');
+    }
+    // 首次直接进入客户列表页（非从详情返回），不需要特殊处理，因为 useState 已从 sessionStorage 初始化
+  }, []);
+
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  const navigateToDetail = (customerId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    sessionStorage.setItem('customer_detail_return', '1');
+    router.push(`/customers/${customerId}`);
+  };
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -405,6 +448,7 @@ export default function CustomersPage() {
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${customer.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`} />
                             <Link
                               href={`/customers/${customer.id}`}
+                              onClick={(e) => navigateToDetail(customer.id, e)}
                               className="font-medium text-gray-900 hover:text-blue-600 truncate"
                             >
                               {customer.name}
@@ -491,6 +535,7 @@ export default function CustomersPage() {
                           <div className="flex-1 min-w-0">
                             <Link 
                               href={`/customers/${customer.id}`}
+                              onClick={(e) => navigateToDetail(customer.id, e)}
                               className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors truncate block"
                             >
                               {customer.name}
