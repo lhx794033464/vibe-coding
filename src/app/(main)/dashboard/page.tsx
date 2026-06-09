@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -107,6 +107,8 @@ export default function DashboardPage() {
   const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
   const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
   const [implTypes, setImplTypes] = useState<string[]>(() => getStoredDates()?.implTypes ?? ['一对一交付']);
+  const [showImplTypeDropdown, setShowImplTypeDropdown] = useState(false);
+  const implTypeDropdownRef = useRef<HTMLDivElement>(null);
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
@@ -188,17 +190,13 @@ export default function DashboardPage() {
 
   // 点击外部关闭实施类型下拉
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const dropdown = document.getElementById('impl-types-dropdown');
-      if (dropdown && !dropdown.classList.contains('hidden')) {
-        const target = e.target as HTMLElement;
-        if (!dropdown.contains(target) && !target.closest('[onclick]')) {
-          dropdown.classList.add('hidden');
-        }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (implTypeDropdownRef.current && !implTypeDropdownRef.current.contains(e.target as Node)) {
+        setShowImplTypeDropdown(false);
       }
     };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -302,20 +300,18 @@ export default function DashboardPage() {
             <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
           {/* 实施类型多选筛选 */}
-          <div className="relative">
+          <div className="relative" ref={implTypeDropdownRef}>
             <Button
               variant="outline"
               size="sm"
               className="h-8 text-xs gap-1"
-              onClick={() => {
-                const el = document.getElementById('impl-types-dropdown');
-                if (el) el.classList.toggle('hidden');
-              }}
+              onClick={() => setShowImplTypeDropdown(!showImplTypeDropdown)}
             >
               实施类型{implTypes.length > 0 && implTypes.length < IMPL_TYPE_OPTIONS.length ? `(${implTypes.length})` : ''}
               <ChevronDown className="h-3 w-3" />
             </Button>
-            <div id="impl-types-dropdown" className="hidden absolute left-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[160px] p-2">
+            {showImplTypeDropdown && (
+            <div className="absolute left-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[160px] p-2">
               {IMPL_TYPE_OPTIONS.map((type) => (
                 <label
                   key={type}
@@ -347,6 +343,7 @@ export default function DashboardPage() {
                 >清空</button>
               </div>
             </div>
+            )}
           </div>
           <Select
             value={roleType}
