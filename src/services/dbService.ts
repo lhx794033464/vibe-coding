@@ -124,6 +124,46 @@ export async function ensureAdminUser(): Promise<void> {
   }
 }
 
+export async function ensureGuestUser(): Promise<void> {
+  try {
+    const existing = await dbGetUserByUsername('user');
+    if (!existing) {
+      const client = getSupabaseClient();
+      const { error } = await client
+        .from('users')
+        .insert({
+          id: 'guest_default',
+          username: 'user',
+          email: 'guest@company.com',
+          password_hash: await hashPassword('888888'),
+          role: '交付顾问',
+          is_active: true,
+        });
+      if (error) {
+        console.error('创建游客账号失败:', error.message);
+      } else {
+        console.log('游客账号已创建 (user/888888)');
+      }
+    } else {
+      const isOldHash = !existing.password_hash?.startsWith('$2');
+      if (isOldHash) {
+        const client = getSupabaseClient();
+        const { error } = await client
+          .from('users')
+          .update({ password_hash: await hashPassword('888888') })
+          .eq('username', 'user');
+        if (error) {
+          console.error('升级游客密码哈希失败:', error.message);
+        } else {
+          console.log('游客密码已从 Base64 升级为 bcrypt');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('确保游客账号失败:', err);
+  }
+}
+
 // ==================== 用户操作 ====================
 
 export async function dbGetAllUsers(): Promise<DbUser[]> {

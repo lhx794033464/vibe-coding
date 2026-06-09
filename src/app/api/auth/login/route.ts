@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbAuthenticateUser, ensureAdminUser } from '@/services/dbService';
+import { dbAuthenticateUser, ensureAdminUser, ensureGuestUser } from '@/services/dbService';
 
 /**
  * 登录认证 API
@@ -7,8 +7,9 @@ import { dbAuthenticateUser, ensureAdminUser } from '@/services/dbService';
  */
 export async function POST(request: NextRequest) {
   try {
-    // 确保默认管理员账号存在（首次启动时自动创建）
+    // 确保默认管理员和游客账号存在（首次启动时自动创建）
     await ensureAdminUser();
+    await ensureGuestUser();
 
     const body = await request.json();
     const { username, password } = body;
