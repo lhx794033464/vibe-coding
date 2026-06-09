@@ -71,6 +71,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 获取所有实施类型（在时间筛选前提取，保证完整）
+    const availableImplTypes = [...new Set(customers.map((c: any) => c.implementation_type).filter(Boolean))].sort();
+
     // 根据开通时间筛选客户
     let filteredCustomers = customers.filter((c: any) => c.opened_at);
 
@@ -324,6 +327,7 @@ export async function GET(request: NextRequest) {
       acceptanceDistribution,
       consultantDistribution,
       consultantRanking,
+      availableImplTypes,
     });
   } catch (error) {
     console.error('获取看板数据失败:', error);

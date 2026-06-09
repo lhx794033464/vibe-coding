@@ -25,8 +25,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart as RechartsBarChart } from 'recharts';
 
-// 数据库中所有实施类型选项
-const IMPL_TYPE_OPTIONS = ['一对一交付', '快速一对一交付', '星辰批量交付', '精斗云批量交付'];
+// 实施类型选项从API动态获取，默认仅一对一交付
 
 interface DashboardStats {
   totalCustomers: number;
@@ -107,6 +106,7 @@ export default function DashboardPage() {
   const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
   const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
   const [implTypes, setImplTypes] = useState<string[]>(() => getStoredDates()?.implTypes ?? ['一对一交付']);
+  const [availableImplTypes, setAvailableImplTypes] = useState<string[]>(['一对一交付']);
   const [showImplTypeDropdown, setShowImplTypeDropdown] = useState(false);
   const implTypeDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -231,6 +231,9 @@ export default function DashboardPage() {
       const data = await response.json();
       if (response.ok) {
         setStats(data);
+        if (data.availableImplTypes) {
+          setAvailableImplTypes(data.availableImplTypes);
+        }
       }
     } catch (error) {
       console.error('获取统计数据失败:', error);
@@ -304,18 +307,18 @@ export default function DashboardPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-xs gap-1"
+              className="h-9 text-sm gap-1 font-normal"
               onClick={() => setShowImplTypeDropdown(!showImplTypeDropdown)}
             >
-              实施类型{implTypes.length > 0 && implTypes.length < IMPL_TYPE_OPTIONS.length ? `(${implTypes.length})` : ''}
-              <ChevronDown className="h-3 w-3" />
+              实施类型{implTypes.length > 0 && implTypes.length < availableImplTypes.length ? `(${implTypes.length})` : ''}
+              <ChevronDown className="h-4 w-4" />
             </Button>
             {showImplTypeDropdown && (
             <div className="absolute left-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[160px] p-2">
-              {IMPL_TYPE_OPTIONS.map((type) => (
+              {availableImplTypes.map((type) => (
                 <label
                   key={type}
-                  className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent rounded cursor-pointer"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent rounded cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -334,7 +337,7 @@ export default function DashboardPage() {
               ))}
               <div className="border-t mt-1 pt-1 flex gap-2">
                 <button
-                  onClick={() => setImplTypes([...IMPL_TYPE_OPTIONS])}
+                  onClick={() => setImplTypes([...availableImplTypes])}
                   className="text-xs text-primary hover:underline"
                 >全选</button>
                 <button
