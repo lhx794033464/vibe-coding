@@ -132,8 +132,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     return () => clearInterval(interval);
   }, [getAuthHeader, isAdmin]);
 
-  // 获取待办提醒数量
+  // 获取待办提醒数量（管理员不需要提醒）
   useEffect(() => {
+    if (isAdmin) return;
     const fetchReminderCount = async () => {
       try {
         const headers = getAuthHeader();

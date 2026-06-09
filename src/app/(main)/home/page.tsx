@@ -53,7 +53,7 @@ interface Message {
 export default function HomePage() {
   const router = useRouter();
   const { messages: savedMessages, addMessage, clearMessages } = useChat();
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, isAdmin } = useAuth();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -192,9 +192,12 @@ export default function HomePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ===== 主动提醒：进入首页时自动推送待办和截止日提醒（仅初次提醒） =====
+  // ===== 主动提醒：进入首页时自动推送待办和截止日提醒（仅初次提醒，仅普通用户） =====
   const reminderShownRef = useRef(false);
   useEffect(() => {
+    // 管理员不推送提醒
+    if (isAdmin) return;
+
     // 检查今天是否已提醒过
     const today = new Date().toISOString().split('T')[0];
     const lastReminderDate = localStorage.getItem('lastReminderDate');
@@ -226,7 +229,8 @@ export default function HomePage() {
         if (todoCount > 0) {
           const highTodos = data.todoReminders.filter((t: any) => t.priority === 'high');
           if (highTodos.length > 0) {
-            parts.push(`🔴 **${highTodos.length} 项紧急待办**需尽快处理：`);
+            parts.push(`🔴 **${highTodos.length} 项紧急待办需尽快处理**`);
+            parts.push('');
             highTodos.slice(0, 3).forEach((t: any) => {
               const customer = t.customer_name ? `（${t.customer_name}）` : '';
               parts.push(`  - ${t.content}${customer}`);
@@ -237,7 +241,8 @@ export default function HomePage() {
           }
           const normalTodos = data.todoReminders.filter((t: any) => t.priority !== 'high');
           if (normalTodos.length > 0) {
-            parts.push(`📋 **${normalTodos.length} 项待办**已到期：`);
+            parts.push(`📋 **${normalTodos.length} 项待办已到期**`);
+            parts.push('');
             normalTodos.slice(0, 3).forEach((t: any) => {
               const customer = t.customer_name ? `（${t.customer_name}）` : '';
               parts.push(`  - ${t.content}${customer}`);
@@ -252,14 +257,16 @@ export default function HomePage() {
           const urgent = data.deadlineReminders.filter((c: any) => c.days_remaining <= 1);
           const near = data.deadlineReminders.filter((c: any) => c.days_remaining > 1);
           if (urgent.length > 0) {
-            parts.push(`⚠️ **${urgent.length} 个客户交付已到期/明天到期**：`);
+            parts.push(`⚠️ **${urgent.length} 个客户交付已到期/明天到期**`);
+            parts.push('');
             urgent.forEach((c: any) => {
               const label = c.days_remaining <= 0 ? '已到期' : '明天到期';
               parts.push(`  - ${c.name}（${label}）`);
             });
           }
           if (near.length > 0) {
-            parts.push(`⏰ **${near.length} 个客户交付截止日临近**：`);
+            parts.push(`⏰ **${near.length} 个客户交付截止日临近**`);
+            parts.push('');
             near.slice(0, 3).forEach((c: any) => {
               parts.push(`  - ${c.name}（${c.days_remaining}天后到期）`);
             });
