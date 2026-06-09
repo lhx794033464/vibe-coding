@@ -14,7 +14,8 @@ import {
   Loader2,
   Calendar,
   Trophy,
-  ChevronDown
+  ChevronDown,
+  X
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -23,6 +24,9 @@ import { TimeRange } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart as RechartsBarChart } from 'recharts';
+
+// 数据库中所有实施类型选项
+const IMPL_TYPE_OPTIONS = ['一对一交付', '快速一对一交付', '星辰批量交付', '精斗云批量交付'];
 
 interface DashboardStats {
   totalCustomers: number;
@@ -102,15 +106,16 @@ export default function DashboardPage() {
   const [unlaunchedData, setUnlaunchedData] = useState<{name:string,oneMonthNotOnline:number,fourMonthsNotOnline:number}[]>([]);
   const [unlaunchedRoleType, setUnlaunchedRoleType] = useState<string>('交付顾问');
   const [unlaunchedImplType, setUnlaunchedImplType] = useState<string>('一对一交付');
+  const [implTypes, setImplTypes] = useState<string[]>(() => getStoredDates()?.implTypes ?? ['一对一交付']);
 
   // 日期记忆：任一日期相关状态变化时保存到 localStorage
   useEffect(() => {
     try {
       localStorage.setItem('dashboard_date_memory', JSON.stringify({
-        timeRange, customStartDate, customEndDate, roleType,
+        timeRange, customStartDate, customEndDate, roleType, implTypes,
       }));
     } catch { /* ignore */ }
-  }, [timeRange, customStartDate, customEndDate, roleType]);
+  }, [timeRange, customStartDate, customEndDate, roleType, implTypes]);
 
   const fetchDistribution = async () => {
     try {
@@ -121,8 +126,8 @@ export default function DashboardPage() {
       if (roleType) {
         url += `&roleType=${encodeURIComponent(roleType)}`;
       }
-      if (roleType) {
-        url += `&roleType=${encodeURIComponent(roleType)}`;
+      if (implTypes.length > 0) {
+        url += `&implTypes=${encodeURIComponent(implTypes.join(','))}`;
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
@@ -142,6 +147,9 @@ export default function DashboardPage() {
       }
       if (roleType) {
         url += `&roleType=${encodeURIComponent(roleType)}`;
+      }
+      if (implTypes.length > 0) {
+        url += `&implTypes=${encodeURIComponent(implTypes.join(','))}`;
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
@@ -168,15 +176,30 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (isAdmin) fetchDistribution();
-  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
+  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType, implTypes]);
 
   useEffect(() => {
     if (isAdmin) fetchRanking();
-  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType]);
+  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType, implTypes]);
 
   useEffect(() => {
     if (isAdmin) fetchUnlaunched();
   }, [isAdmin, unlaunchedRoleType, unlaunchedImplType]);
+
+  // 点击外部关闭实施类型下拉
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const dropdown = document.getElementById('impl-types-dropdown');
+      if (dropdown && !dropdown.classList.contains('hidden')) {
+        const target = e.target as HTMLElement;
+        if (!dropdown.contains(target) && !target.closest('[onclick]')) {
+          dropdown.classList.add('hidden');
+        }
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
 
   useEffect(() => {
     fetchStats();
@@ -186,7 +209,7 @@ export default function DashboardPage() {
     if (!isInitialLoading) {
       fetchStats();
     }
-  }, [timeRange, customStartDate, customEndDate]);
+  }, [timeRange, customStartDate, customEndDate, implTypes]);
 
   const fetchStats = async () => {
     // 首次加载显示全屏loading，后续只显示更新状态
@@ -200,6 +223,9 @@ export default function DashboardPage() {
       let url = `/api/dashboard?timeRange=${timeRange}`;
       if (timeRange === 'custom' && customStartDate && customEndDate) {
         url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      if (implTypes.length > 0) {
+        url += `&implTypes=${encodeURIComponent(implTypes.join(','))}`;
       }
       const response = await fetch(url, {
         headers: { ...getAuthHeader() },
@@ -275,6 +301,53 @@ export default function DashboardPage() {
           {isUpdating && (
             <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
+          {/* 实施类型多选筛选 */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1"
+              onClick={() => {
+                const el = document.getElementById('impl-types-dropdown');
+                if (el) el.classList.toggle('hidden');
+              }}
+            >
+              实施类型{implTypes.length > 0 && implTypes.length < IMPL_TYPE_OPTIONS.length ? `(${implTypes.length})` : ''}
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+            <div id="impl-types-dropdown" className="hidden absolute left-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg min-w-[160px] p-2">
+              {IMPL_TYPE_OPTIONS.map((type) => (
+                <label
+                  key={type}
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={implTypes.includes(type)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setImplTypes([...implTypes, type]);
+                      } else {
+                        setImplTypes(implTypes.filter(t => t !== type));
+                      }
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  {type}
+                </label>
+              ))}
+              <div className="border-t mt-1 pt-1 flex gap-2">
+                <button
+                  onClick={() => setImplTypes([...IMPL_TYPE_OPTIONS])}
+                  className="text-xs text-primary hover:underline"
+                >全选</button>
+                <button
+                  onClick={() => setImplTypes([])}
+                  className="text-xs text-muted-foreground hover:underline"
+                >清空</button>
+              </div>
+            </div>
+          </div>
           <Select
             value={roleType}
             onValueChange={setRoleType}

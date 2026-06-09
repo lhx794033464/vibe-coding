@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     const customStartDate = searchParams.get('startDate');
     const customEndDate = searchParams.get('endDate');
     const roleType = searchParams.get('roleType') || ''; // 交付顾问/答疑顾问/空=全部
+    const implTypesParam = searchParams.get('implTypes') || ''; // 逗号分隔的实施类型，空=默认一对一交付
 
     // 计算时间范围
     const now = new Date();
@@ -80,8 +81,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 只统计实施类型为"一对一交付"的项目
-    filteredCustomers = filteredCustomers.filter((c: any) => c.implementation_type === '一对一交付');
+    // 根据实施类型筛选客户
+    // 如果前端传了 implTypes 参数，按传入的类型筛选；否则默认只统计"一对一交付"
+    const implTypes = implTypesParam ? implTypesParam.split(',').filter(Boolean) : ['一对一交付'];
+    if (implTypes.length > 0) {
+      filteredCustomers = filteredCustomers.filter((c: any) => implTypes.includes(c.implementation_type));
+    }
 
     const totalCustomers = filteredCustomers.length;
 
