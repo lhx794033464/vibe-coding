@@ -245,7 +245,7 @@ export async function dbUpdateUser(id: string, updates: Partial<{
   if (updates.role !== undefined) updateData.role = updates.role;
   if (updates.role_level !== undefined) updateData.role_level = updates.role_level;
   if (updates.employment_status !== undefined) updateData.employment_status = updates.employment_status;
-  if (updates.hire_date !== undefined) updateData.hire_date = updates.hire_date;
+  if (updates.hire_date !== undefined) updateData.hire_date = updates.hire_date === '' ? null : updates.hire_date;
   if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
 
   const { data, error } = await client

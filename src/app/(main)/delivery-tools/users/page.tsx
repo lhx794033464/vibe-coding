@@ -175,7 +175,7 @@ export default function UsersPage() {
         resetForm();
         await loadUsers();
       } else {
-        setError(data.message || '操作失败');
+        setError(data.message || data.error || '操作失败');
       }
     } catch (error) {
       setError('操作失败，请重试');
@@ -204,7 +204,7 @@ export default function UsersPage() {
       if (data.success) {
         await loadUsers();
       } else {
-        setError(data.message || '删除失败');
+        setError(data.message || data.error || '删除失败');
       }
     } catch (error) {
       setError('删除失败，请重试');
