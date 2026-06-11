@@ -224,58 +224,66 @@ export default function HomePage() {
         // 构造提醒消息
         const parts: string[] = [];
 
+        const sections: string[] = [];
+
         if (todoCount > 0) {
+          const todoLines: string[] = [];
           const highTodos = (data.todos as any[]).filter((t: any) => t.priority === 'high');
           if (highTodos.length > 0) {
-            parts.push(`🔴 **${highTodos.length} 项紧急待办需尽快处理**`);
-            parts.push('');
+            todoLines.push(`🔴 **${highTodos.length} 项紧急待办需尽快处理**`);
+            todoLines.push('');
             highTodos.slice(0, 3).forEach((t: any) => {
               const customer = t.customer_name ? `（${t.customer_name}）` : '';
-              parts.push(`  - ${t.content}${customer}`);
+              todoLines.push(`- ${t.content}${customer}`);
             });
             if (highTodos.length > 3) {
-              parts.push(`  - ...还有 ${highTodos.length - 3} 项`);
+              todoLines.push(`- ...还有 ${highTodos.length - 3} 项`);
             }
           }
           const normalTodos = (data.todos as any[]).filter((t: any) => t.priority !== 'high');
           if (normalTodos.length > 0) {
-            parts.push(`📋 **${normalTodos.length} 项待办已到期**`);
-            parts.push('');
+            if (highTodos.length > 0) todoLines.push('');
+            todoLines.push(`📋 **${normalTodos.length} 项待办已到期**`);
+            todoLines.push('');
             normalTodos.slice(0, 3).forEach((t: any) => {
               const customer = t.customer_name ? `（${t.customer_name}）` : '';
-              parts.push(`  - ${t.content}${customer}`);
+              todoLines.push(`- ${t.content}${customer}`);
             });
             if (normalTodos.length > 3) {
-              parts.push(`  - ...还有 ${normalTodos.length - 3} 项`);
+              todoLines.push(`- ...还有 ${normalTodos.length - 3} 项`);
             }
           }
+          sections.push(todoLines.join('\n'));
         }
 
         if (deadlineCount > 0) {
+          const deadlineLines: string[] = [];
           const urgent = (data.customers as any[]).filter((c: any) => c.days_remaining <= 1);
-          const near = (data.customers as any[]).filter((c: any) => c.days_remaining > 1);
           if (urgent.length > 0) {
-            parts.push(`⚠️ **${urgent.length} 个客户交付已到期/明天到期**`);
-            parts.push('');
+            deadlineLines.push(`⚠️ **${urgent.length} 个客户交付已到期/明天到期**`);
+            deadlineLines.push('');
             urgent.forEach((c: any) => {
               const label = c.days_remaining <= 0 ? '已到期' : '明天到期';
-              parts.push(`  - ${c.name}（${label}）`);
+              deadlineLines.push(`- ${c.name}（${label}）`);
             });
           }
+          const near = (data.customers as any[]).filter((c: any) => c.days_remaining > 1);
           if (near.length > 0) {
-            parts.push(`⏰ **${near.length} 个客户交付截止日临近**`);
-            parts.push('');
+            if (urgent.length > 0) deadlineLines.push('');
+            deadlineLines.push(`⏰ **${near.length} 个客户交付截止日临近**`);
+            deadlineLines.push('');
             near.slice(0, 3).forEach((c: any) => {
-              parts.push(`  - ${c.name}（${c.days_remaining}天后到期）`);
+              deadlineLines.push(`- ${c.name}（${c.days_remaining}天后到期）`);
             });
             if (near.length > 3) {
-              parts.push(`  - ...还有 ${near.length - 3} 个`);
+              deadlineLines.push(`- ...还有 ${near.length - 3} 个`);
             }
           }
+          sections.push(deadlineLines.join('\n'));
         }
 
-        if (parts.length > 0) {
-          const reminderMsg = `🔔 **提醒事项**\n\n${parts.join('\n')}\n\n需要我帮你查看详情吗？`;
+        if (sections.length > 0) {
+          const reminderMsg = `🔔 **提醒事项**\n\n${sections.join('\n\n---\n\n')}\n\n需要我帮你查看详情吗？`;
           setMessages([{ role: 'assistant', content: reminderMsg }]);
           addMessage({ role: 'assistant', content: reminderMsg });
           setShowWelcome(false);
