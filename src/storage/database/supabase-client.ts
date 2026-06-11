@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
 import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
 let envLoaded = false;
@@ -25,6 +24,8 @@ function loadEnv(): void {
       // dotenv not available
     }
 
+    // 仅在环境变量缺失时才调用 Python 子进程（冷启动时仅执行一次）
+    const { execSync } = require('child_process');
     const pythonCode = `
 import os
 import sys
@@ -61,11 +62,11 @@ except Exception as e:
         }
       }
     }
-
-    envLoaded = true;
   } catch {
     // Silently fail
   }
+
+  envLoaded = true;
 }
 
 function getSupabaseCredentials(): SupabaseCredentials {
@@ -89,31 +90,65 @@ function getSupabaseServiceRoleKey(): string | undefined {
   return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
 }
 
+// ===== 单例缓存：避免每次 API 请求都创建新的 Supabase 客户端 =====
+let serviceClient: SupabaseClient | null = null;
+let serviceClientUrl: string | null = null;
+let serviceClientKey: string | null = null;
+
 function getSupabaseClient(token?: string): SupabaseClient {
   const { url, anonKey } = getSupabaseCredentials();
 
-  let key: string;
-  if (token) {
-    key = anonKey;
-  } else {
+  // 如果是 service_role 请求（无 token），使用单例客户端
+  if (!token) {
     const serviceRoleKey = getSupabaseServiceRoleKey();
-    key = serviceRoleKey ?? anonKey;
+    const key = serviceRoleKey ?? anonKey;
+
+    // 单例命中：URL 和 Key 不变则复用已有客户端
+    if (serviceClient && serviceClientUrl === url && serviceClientKey === key) {
+      return serviceClient;
+    }
+
+    // 创建新的 service_role 客户端并缓存
+    const globalOptions: Record<string, any> = {};
+    try {
+      const buffer = getReportBuffer();
+      if (buffer) {
+        globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
+      }
+    } catch {
+      // Silent
+    }
+
+    serviceClient = createClient(url, key, {
+      global: globalOptions,
+      db: {
+        timeout: 60000,
+      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+    serviceClientUrl = url;
+    serviceClientKey = key;
+
+    return serviceClient;
   }
 
-  const globalOptions: Record<string, any> = {};
-  if (token) {
-    globalOptions.headers = { Authorization: `Bearer ${token}` };
-  }
+  // 有 token 的请求（用户级），每次创建独立客户端（因为 headers 不同）
+  const globalOptions: Record<string, any> = {
+    headers: { Authorization: `Bearer ${token}` },
+  };
   try {
     const buffer = getReportBuffer();
     if (buffer) {
       globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
     }
   } catch {
-    // Silent — reporting setup failure should not block client creation
+    // Silent
   }
 
-  return createClient(url, key, {
+  return createClient(url, anonKey, {
     global: globalOptions,
     db: {
       timeout: 60000,

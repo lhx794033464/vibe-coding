@@ -119,7 +119,7 @@ export default function DashboardPage() {
     } catch { /* ignore */ }
   }, [timeRange, customStartDate, customEndDate, roleType, implTypes]);
 
-  const fetchDistribution = async () => {
+  const fetchDashboardData = async () => {
     try {
       let url = `/api/dashboard?timeRange=${timeRange}`;
       if (timeRange === 'custom' && customStartDate && customEndDate) {
@@ -133,33 +133,12 @@ export default function DashboardPage() {
       }
       const response = await fetch(url, { headers: { ...getAuthHeader() } });
       const data = await response.json();
-      if (response.ok && data.consultantDistribution) {
-        setDistData(data.consultantDistribution);
+      if (response.ok) {
+        if (data.consultantDistribution) setDistData(data.consultantDistribution);
+        if (data.consultantRanking) setRankingData(data.consultantRanking);
       }
     } catch (error) {
-      console.error('获取人天分布数据失败:', error);
-    }
-  };
-
-  const fetchRanking = async () => {
-    try {
-      let url = `/api/dashboard?timeRange=${timeRange}`;
-      if (timeRange === 'custom' && customStartDate && customEndDate) {
-        url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
-      }
-      if (roleType) {
-        url += `&roleType=${encodeURIComponent(roleType)}`;
-      }
-      if (implTypes.length > 0) {
-        url += `&implTypes=${encodeURIComponent(implTypes.join(','))}`;
-      }
-      const response = await fetch(url, { headers: { ...getAuthHeader() } });
-      const data = await response.json();
-      if (response.ok && data.consultantRanking) {
-        setRankingData(data.consultantRanking);
-      }
-    } catch (error) {
-      console.error('获取排行数据失败:', error);
+      console.error('获取看板数据失败:', error);
     }
   };
 
@@ -177,11 +156,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (isAdmin) fetchDistribution();
-  }, [isAdmin, timeRange, customStartDate, customEndDate, roleType, implTypes]);
-
-  useEffect(() => {
-    if (isAdmin) fetchRanking();
+    if (isAdmin) fetchDashboardData();
   }, [isAdmin, timeRange, customStartDate, customEndDate, roleType, implTypes]);
 
   useEffect(() => {

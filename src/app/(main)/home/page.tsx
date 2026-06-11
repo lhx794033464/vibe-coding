@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Loader2, Search, User, Mic, MicOff, Trash2, MessageCircle, Key, Bell } from 'lucide-react';
+import { fetchReminders } from '@/lib/reminderCache';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -213,21 +214,18 @@ export default function HomePage() {
       reminderShownRef.current = true;
 
       try {
-        const res = await fetch('/api/reminders', {
-          headers: { ...getAuthHeader() },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await fetchReminders(getAuthHeader());
+        if (!data) return;
 
-        const todoCount = data.todoReminders?.length || 0;
-        const deadlineCount = data.deadlineReminders?.length || 0;
+        const todoCount = data.todos?.length || 0;
+        const deadlineCount = data.customers?.length || 0;
         if (todoCount === 0 && deadlineCount === 0) return;
 
         // 构造提醒消息
         const parts: string[] = [];
 
         if (todoCount > 0) {
-          const highTodos = data.todoReminders.filter((t: any) => t.priority === 'high');
+          const highTodos = (data.todos as any[]).filter((t: any) => t.priority === 'high');
           if (highTodos.length > 0) {
             parts.push(`🔴 **${highTodos.length} 项紧急待办需尽快处理**`);
             parts.push('');
@@ -239,7 +237,7 @@ export default function HomePage() {
               parts.push(`  - ...还有 ${highTodos.length - 3} 项`);
             }
           }
-          const normalTodos = data.todoReminders.filter((t: any) => t.priority !== 'high');
+          const normalTodos = (data.todos as any[]).filter((t: any) => t.priority !== 'high');
           if (normalTodos.length > 0) {
             parts.push(`📋 **${normalTodos.length} 项待办已到期**`);
             parts.push('');
@@ -254,8 +252,8 @@ export default function HomePage() {
         }
 
         if (deadlineCount > 0) {
-          const urgent = data.deadlineReminders.filter((c: any) => c.days_remaining <= 1);
-          const near = data.deadlineReminders.filter((c: any) => c.days_remaining > 1);
+          const urgent = (data.customers as any[]).filter((c: any) => c.days_remaining <= 1);
+          const near = (data.customers as any[]).filter((c: any) => c.days_remaining > 1);
           if (urgent.length > 0) {
             parts.push(`⚠️ **${urgent.length} 个客户交付已到期/明天到期**`);
             parts.push('');

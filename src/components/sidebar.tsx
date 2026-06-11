@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
+import { getReminderCount } from '@/lib/reminderCache';
 import { useState, useRef, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -132,25 +133,21 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     return () => clearInterval(interval);
   }, [getAuthHeader, isAdmin]);
 
-  // 获取待办提醒数量（管理员不需要提醒）
+  // 获取待办提醒数量（管理员不需要提醒，使用共享缓存避免重复请求）
   useEffect(() => {
     if (isAdmin) return;
     const fetchReminderCount = async () => {
       try {
         const headers = getAuthHeader();
         if (!headers.Authorization) return;
-        const res = await fetch('/api/reminders', { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const total = (data.todos?.length || 0) + (data.customers?.length || 0);
-          setReminderCount(total);
-        }
+        const total = await getReminderCount(headers);
+        setReminderCount(total);
       } catch {}
     };
     fetchReminderCount();
     const interval = setInterval(fetchReminderCount, 60000);
     return () => clearInterval(interval);
-  }, [getAuthHeader]);
+  }, [getAuthHeader, isAdmin]);
 
   // 点击外部关闭菜单
   useEffect(() => {
