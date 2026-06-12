@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { fetchWithCache } from '@/lib/dataCache';
 
 interface HolidayData {
   holidays: Record<string, string>;     // 放假日 → 假日名称
@@ -46,9 +47,7 @@ export function HolidayProvider({ children }: { children: ReactNode }) {
     const fetchHolidays = async () => {
       try {
         const currentYear = new Date().getFullYear();
-        const res = await fetch(`/api/holidays?year=${currentYear - 1},${currentYear},${currentYear + 1}`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await fetchWithCache(`/api/holidays?year=${currentYear - 1},${currentYear},${currentYear + 1}`, {}, 3600000);
 
         const mergedHolidays: Record<string, string> = {};
         const mergedWorkdays: string[] = [];

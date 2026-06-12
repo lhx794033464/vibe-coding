@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { fetchWithCache } from '@/lib/dataCache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -106,16 +107,11 @@ export default function CustomersPage() {
     router.push(`/customers/${customerId}`);
   };
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/customers`, {
-        headers: { ...getAuthHeader() },
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setCustomers(data.customers || []);
-      }
+      const data = await fetchWithCache('/api/customers', { ...getAuthHeader() }, forceRefresh ? 0 : 60000);
+      setCustomers(data.customers || []);
     } catch (error) {
       console.error('获取客户列表失败:', error);
     } finally {

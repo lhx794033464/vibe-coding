@@ -164,6 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setIsAuthenticated(false);
     setIsAdmin(false);
+    // 清除全局数据缓存
+    import('@/lib/dataCache').then(({ clearAllCache }) => clearAllCache()).catch(() => {});
   };
 
   const getAuthHeader = (): Record<string, string> => {

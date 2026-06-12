@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { fetchWithCache } from '@/lib/dataCache';
 import { Plus, X, Video, Check, ChevronsUpDown, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -120,13 +121,8 @@ export default function SchedulePage() {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const response = await fetch('/api/customers', {
-          headers: { ...getAuthHeader() },
-        });
-        if (response.ok) {
-          const result = await response.json();
-          setCustomers(result.customers || []);
-        }
+        const result = await fetchWithCache('/api/customers', { ...getAuthHeader() }, 60000);
+        setCustomers(result.customers || []);
       } catch (error) {
         console.error('获取客户列表失败:', error);
       }
@@ -141,18 +137,16 @@ export default function SchedulePage() {
         const startDate = calendarDates[0];
         const endDate = calendarDates[calendarDates.length - 1];
         
-        const response = await fetch(
+        const data = await fetchWithCache(
           `/api/schedule?start=${formatDate(startDate)}&end=${formatDate(endDate)}`,
-          { headers: { ...getAuthHeader() } }
+          { ...getAuthHeader() },
+          30000
         );
         
-        if (response.ok) {
-          const data = await response.json();
-          setSchedules(data.schedules || []);
-          // 管理员汇总数据
-          if (data.dailySummary) setDailySummary(data.dailySummary);
-          if (data.activeConsultants) setActiveConsultants(data.activeConsultants);
-        }
+        setSchedules(data.schedules || []);
+        // 管理员汇总数据
+        if (data.dailySummary) setDailySummary(data.dailySummary);
+        if (data.activeConsultants) setActiveConsultants(data.activeConsultants);
       } catch (error) {
         console.error('获取日程失败:', error);
       }

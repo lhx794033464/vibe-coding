@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { fetchWithCache } from '@/lib/dataCache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -141,13 +142,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   const fetchCustomer = async (id: string) => {
     try {
-      const response = await fetch(`/api/customers/${id}`, {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
-      const data = await response.json();
-      if (response.ok) {
+      const data = await fetchWithCache(`/api/customers/${id}`, { ...getAuthHeader() }, 30000);
+      if (data && data.data) {
         setCustomer(data.data);
         setEditForm({
           name: data.data.name,

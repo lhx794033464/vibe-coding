@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { fetchWithCache } from '@/lib/dataCache';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -131,12 +132,9 @@ export default function DashboardPage() {
       if (implTypes.length > 0) {
         url += `&implTypes=${encodeURIComponent(implTypes.join(','))}`;
       }
-      const response = await fetch(url, { headers: { ...getAuthHeader() } });
-      const data = await response.json();
-      if (response.ok) {
-        if (data.consultantDistribution) setDistData(data.consultantDistribution);
-        if (data.consultantRanking) setRankingData(data.consultantRanking);
-      }
+      const data = await fetchWithCache(url, { ...getAuthHeader() }, 30000);
+      if (data.consultantDistribution) setDistData(data.consultantDistribution);
+      if (data.consultantRanking) setRankingData(data.consultantRanking);
     } catch (error) {
       console.error('获取看板数据失败:', error);
     }
@@ -145,9 +143,8 @@ export default function DashboardPage() {
   const fetchUnlaunched = async () => {
     try {
       let url = `/api/dashboard/unlaunched-distribution?roleType=${encodeURIComponent(unlaunchedRoleType)}&implType=${encodeURIComponent(unlaunchedImplType)}`;
-      const response = await fetch(url, { headers: { ...getAuthHeader() } });
-      const data = await response.json();
-      if (response.ok && data.data) {
+      const data = await fetchWithCache(url, { ...getAuthHeader() }, 30000);
+      if (data.data) {
         setUnlaunchedData(data.data);
       }
     } catch (error) {
@@ -200,15 +197,10 @@ export default function DashboardPage() {
       if (implTypes.length > 0) {
         url += `&implTypes=${encodeURIComponent(implTypes.join(','))}`;
       }
-      const response = await fetch(url, {
-        headers: { ...getAuthHeader() },
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setStats(data);
-        if (data.availableImplTypes) {
-          setAvailableImplTypes(data.availableImplTypes);
-        }
+      const data = await fetchWithCache(url, { ...getAuthHeader() }, 30000);
+      setStats(data);
+      if (data.availableImplTypes) {
+        setAvailableImplTypes(data.availableImplTypes);
       }
     } catch (error) {
       console.error('获取统计数据失败:', error);

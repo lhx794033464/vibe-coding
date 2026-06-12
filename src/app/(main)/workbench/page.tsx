@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchWithCache } from '@/lib/dataCache';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -153,13 +154,8 @@ function ProcessCenterContent() {
       } else {
         status = 'pending,rejected';
       }
-      const res = await fetch(`/api/process-applications?status=${status}`, {
-        headers: { ...getAuthHeader() },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setApplications(data.data || []);
-      }
+      const data = await fetchWithCache(`/api/process-applications?status=${status}`, { ...getAuthHeader() }, 15000);
+      setApplications(data.data || []);
     } catch (error) {
       console.error('获取流程列表失败:', error);
     } finally {
@@ -169,13 +165,8 @@ function ProcessCenterContent() {
 
   const fetchCustomers = useCallback(async () => {
     try {
-      const res = await fetch('/api/customers', {
-        headers: { ...getAuthHeader() },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCustomers((data.customers || []).map((c: { id: string; name: string; dismissed: boolean }) => ({ id: c.id, name: c.name, dismissed: c.dismissed })));
-      }
+      const data = await fetchWithCache('/api/customers', { ...getAuthHeader() }, 60000);
+      setCustomers((data.customers || []).map((c: { id: string; name: string; dismissed: boolean }) => ({ id: c.id, name: c.name, dismissed: c.dismissed })));
     } catch (error) {
       console.error('获取客户列表失败:', error);
     }
