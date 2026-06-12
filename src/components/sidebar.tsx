@@ -86,9 +86,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     try {
       const headers = getAuthHeader();
       const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ oldPassword, newPassword }),
+        body: JSON.stringify({ currentPassword: oldPassword, newPassword }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -371,17 +371,17 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                 }
                 setChangingPassword(true);
                 try {
-                  const token = localStorage.getItem('auth_token');
+                  const headers = getAuthHeader();
                   const res = await fetch('/api/auth/change-password', {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${token}`,
+                      ...headers,
                     },
-                    body: JSON.stringify({ oldPassword, newPassword }),
+                    body: JSON.stringify({ currentPassword: oldPassword, newPassword }),
                   });
                   const data = await res.json();
-                  if (data.success) {
+                  if (res.ok) {
                     toast.success('密码修改成功');
                     setShowChangePassword(false);
                     setOldPassword('');
