@@ -88,6 +88,16 @@ export async function cachedFetch<T = unknown>(
   const fetchPromise = (async () => {
     try {
       const response = await fetch(url, options);
+      if (response.status === 401) {
+        // Token 过期或无效，清除缓存并跳转登录页
+        clearAllCache();
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_session');
+          document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          window.location.href = '/login';
+        }
+        throw new Error('未授权，请重新登录');
+      }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -167,6 +177,15 @@ export async function staleWhileRevalidate<T = unknown>(
     const fetchPromise = (async () => {
       try {
         const response = await fetch(url, options);
+        if (response.status === 401) {
+          clearAllCache();
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('auth_session');
+            document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            window.location.href = '/login';
+          }
+          throw new Error('未授权，请重新登录');
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         cache.set(url, { data, timestamp: Date.now(), promise: null });
@@ -274,6 +293,15 @@ export async function fetchWithCache(
   const fetchPromise = (async () => {
     try {
       const response = await fetch(url, { headers: authHeader });
+      if (response.status === 401) {
+        cache.delete(url);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_session');
+          document.cookie = 'auth_token=; path=/; max-age=0';
+          window.location.href = '/login';
+        }
+        throw new Error('未登录或登录已过期');
+      }
       const data = await response.json();
       cache.set(url, { data, timestamp: Date.now(), promise: null });
       return data;

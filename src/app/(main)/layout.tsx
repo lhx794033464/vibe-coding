@@ -53,6 +53,25 @@ export default function MainLayout({
     }
   }, [loading, isAuthenticated, router]);
 
+  // 全局 401 拦截：任何非缓存 fetch 返回 401 时自动重定向到登录页
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async function (...args: Parameters<typeof fetch>) {
+      const response = await originalFetch.apply(this, args);
+      if (response.status === 401) {
+        // 排除登录接口本身
+        const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+        if (!url.includes('/api/auth/login') && !url.includes('/api/auth/register')) {
+          localStorage.removeItem('auth_session');
+          document.cookie = 'auth_token=; path=/; max-age=0';
+          window.location.href = '/login';
+        }
+      }
+      return response;
+    };
+    return () => { window.fetch = originalFetch; };
+  }, []);
+
   // 后台切回前台时：仅让当前页面数据过期，不立即刷新（页面自行按需加载）
   useEffect(() => {
     const handleVisibility = () => {
