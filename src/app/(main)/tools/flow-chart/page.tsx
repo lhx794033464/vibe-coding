@@ -10,8 +10,6 @@ import {
   Sparkles,
   AlertCircle,
   RotateCcw,
-  ArrowDown,
-  ArrowRight,
   ArrowLeft,
   PanelLeftClose,
   PanelLeftOpen,
@@ -215,37 +213,6 @@ export default function FlowChartPage() {
           <div className="w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out">
             {/* 输入区域 */}
             <div className="p-4 border-b border-slate-200">
-              {/* 方向选择 */}
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-slate-600 mb-2">布局方向</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setDirection('vertical')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      direction === 'vertical'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    disabled={isGenerating}
-                  >
-                    <ArrowDown className="w-3.5 h-3.5" />
-                    纵向
-                  </button>
-                  <button
-                    onClick={() => setDirection('horizontal')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      direction === 'horizontal'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    disabled={isGenerating}
-                  >
-                    <ArrowRight className="w-3.5 h-3.5" />
-                    横向
-                  </button>
-                </div>
-              </div>
-
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 流程描述
               </label>
@@ -259,8 +226,8 @@ export default function FlowChartPage() {
                       handleGenerate();
                     }
                   }}
-                  placeholder="用编号描述流程，分支用&quot;如果…则…否则…&quot;，循环用&quot;返回到第N步&quot;。&#10;示例：①创建采购申请单 ②审批，如果通过则生成采购订单，否则退回 ③采购入库 ④质检，不合格则返回第③步"
-                  className="h-[200px] resize-none overflow-y-auto"
+                  placeholder="描述业务流程，支持跨部门/跨角色的泳道流程图。&#10;&#10;示例：采购流程&#10;1. 采购员创建采购申请单&#10;2. 主管审批，通过则下一步，否则退回&#10;3. 采购员生成采购订单&#10;4. 供应商发货&#10;5. 仓库入库&#10;6. 质检员质检，不合格则退回供应商"
+                  className="h-[240px] resize-none overflow-y-auto"
                   disabled={isGenerating}
                 />
               </div>
