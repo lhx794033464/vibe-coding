@@ -228,8 +228,8 @@ function buildDrawioXml(flow: ParsedFlow): string {
   for (const n of nodes) {
     const x = nodeXMap[n.id];
     const y = nodeYMap[n.id] + 50 - 10; // 50 for title offset, adjust centering
-    const laneIdx = sortedLanes.findIndex(l => l.id === n.lane);
-    const color = LANE_COLORS[laneIdx % LANE_COLORS.length];
+    const laneIdx = Math.max(0, sortedLanes.findIndex(l => l.id === n.lane));
+    const color = LANE_COLORS[laneIdx % LANE_COLORS.length] || LANE_COLORS[0];
     let style = '';
     let geoW = NODE_WIDTH;
     let geoH = NODE_HEIGHT;
@@ -323,12 +323,27 @@ async function callLLM(prompt: string): Promise<string> {
     { role: 'user' as const, content: prompt },
   ];
 
-  const response = await client.invoke(messages, {
-    model: 'doubao-seed-2-0-lite-260215',
-    temperature: 0.3,
-  });
+  console.log('[flow-chart] 开始调用 LLM...');
 
-  const content = response?.content || '';
+  // 使用 stream 方式收集完整响应（与 chat API 一致）
+  const stream = client.stream(messages, { model: 'doubao-seed-2-0-lite-260215', temperature: 0.3 });
+  let content = '';
+  let charCount = 0;
+  const MAX_CHARS = 8000; // 防止无限输出
+
+  for await (const chunk of stream) {
+    const text = chunk.content || '';
+    if (text) {
+      content += text;
+      charCount += text.length;
+      if (charCount > MAX_CHARS) {
+        console.log('[flow-chart] 超过最大字符限制，停止收集');
+        break;
+      }
+    }
+  }
+
+  console.log('[flow-chart] LLM 返回，长度:', content.length);
 
   if (!content) {
     throw new Error('LLM 返回内容为空');
@@ -404,6 +419,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入流程图描述' }, { status: 400 });
     }
 
+    console.log('[flow-chart] 收到请求, prompt:', prompt.substring(0, 50));
+
     // 构造用户提示
     const userPrompt = direction === 'horizontal'
       ? `请为以下业务描述生成水平方向的泳道式流程图（泳道从左到右排列，流程从上到下流动）：\n\n${prompt.trim()}`
@@ -411,12 +428,15 @@ export async function POST(request: NextRequest) {
 
     // 调用 LLM
     const llmRaw = await callLLM(userPrompt);
+    console.log('[flow-chart] LLM 调用完成');
 
     // 解析 LLM 输出
     const flow = parseFlowFromLLM(llmRaw);
+    console.log('[flow-chart] 解析完成, lanes:', flow.lanes.length, 'nodes:', flow.nodes.length);
 
     // 生成 drawio XML
     const xml = buildDrawioXml(flow);
+    console.log('[flow-chart] XML 生成完成, 长度:', xml.length);
 
     return NextResponse.json({
       success: true,

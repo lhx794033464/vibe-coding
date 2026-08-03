@@ -365,7 +365,7 @@ export async function POST(request: NextRequest) {
             iteration++;
 
             // 流式调用 LLM
-            const stream = client.stream(currentMessages, { model: 'deepseek-v3-2-251201' });
+            const stream = client.stream(currentMessages, { model: 'doubao-seed-2-0-lite-260215' });
             let fullResponse = '';
 
             for await (const chunk of stream) {
