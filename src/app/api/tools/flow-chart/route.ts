@@ -178,9 +178,9 @@ function buildDrawioXml(flow: ParsedFlow): string {
     const color = LANE_COLORS[i % LANE_COLORS.length];
     const y = laneYMap[lane.id] + 44; // 44px 给标题
 
-    // 泳道头部
+    // 泳道头部 - 全高矩形，突显部门名称
     const headerId = `lane-header-${lane.id}`;
-    cells.push(`<mxCell id="${headerId}" value="${escapeXml(lane.name)}" style="shape=mxgraph.flowchart.annotation_2;rounded=1;fillColor=${color.header};strokeColor=none;fontColor=${color.headerText};fontSize=12;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+    cells.push(`<mxCell id="${headerId}" value="${escapeXml(lane.name)}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=${color.header};strokeColor=none;fontColor=${color.headerText};fontSize=13;fontStyle=1;align=center;verticalAlign=middle;arcSize=6;" vertex="1" parent="1">
       <mxGeometry x="${MARGIN_LEFT}" y="${y}" width="${LANE_HEADER_WIDTH}" height="${LANE_HEIGHT - 2}" as="geometry"/>
     </mxCell>`);
 
@@ -248,11 +248,26 @@ function buildDrawioXml(flow: ParsedFlow): string {
     const toLane = nodeLaneMap[e.to];
     const sameLane = fromLane === toLane;
 
-    let edgeStyle = 'edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;';
-    if (sameLane) {
-      edgeStyle += 'exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
+    let edgeStyle = '';
+    const isAdjacent = Math.abs(fromLvl - toLvl) <= 1;
+
+    if (isAdjacent) {
+      // 相邻节点 - 直线连接
+      if (sameLane) {
+        // 同泳道：从上到下
+        edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
+      } else {
+        // 不同泳道：从左到右
+        edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
+      }
     } else {
-      edgeStyle += 'exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
+      // 非相邻节点 - 正交线
+      edgeStyle = 'edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;';
+      if (sameLane) {
+        edgeStyle += 'exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
+      } else {
+        edgeStyle += 'exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
+      }
     }
     if (isBackEdge) {
       edgeStyle += 'dashed=1;dashPattern=5 3;strokeColor=#E53935;';
