@@ -29,16 +29,16 @@ const LANE_COLORS = [
   { bg: '#FBE9E7', header: '#BF360C', headerText: '#FFFFFF' }, // 红色系
 ];
 
-const LANE_HEADER_WIDTH = 120;
-const LANE_HEIGHT = 160;
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 50;
-const DECISION_WIDTH = 120;
-const DECISION_HEIGHT = 80;
-const START_END_R = 22;
-const H_GAP = 80;
-const V_GAP = 20;
-const MARGIN_LEFT = 40;
+const LANE_HEADER_WIDTH = 90;
+const LANE_HEIGHT = 100;
+const NODE_WIDTH = 110;
+const NODE_HEIGHT = 34;
+const DECISION_WIDTH = 80;
+const DECISION_HEIGHT = 56;
+const START_END_R = 16;
+const H_GAP = 30;
+const V_GAP = 5;
+const MARGIN_LEFT = 24;
 
 interface ParsedFlow {
   title: string;
@@ -85,30 +85,33 @@ function buildDrawioXml(flow: ParsedFlow): string {
   const startNode = nodes.find(n => n.type === 'start');
   if (!startNode) return '<mxfile><diagram name="Error"><mxCell id="0"/></diagram></mxfile>';
 
-  // BFS 分配层级（防止循环边导致无限循环）
+  // BFS 分配层级（只沿正向边推进，忽略回退边，避免层级膨胀）
   const queue: string[] = [startNode.id];
+  const visited = new Set<string>([startNode.id]);
   nodeLevel[startNode.id] = 0;
-  let bfsIter = 0;
-  const MAX_BFS_ITER = 200;
-  while (queue.length > 0 && bfsIter < MAX_BFS_ITER) {
-    bfsIter++;
+  while (queue.length > 0) {
     const cur = queue.shift()!;
     const nexts = adjForward[cur] || [];
     for (const next of nexts) {
-      const newLevel = nodeLevel[cur] + 1;
-      if (nodeLevel[next] === undefined || nodeLevel[next] < newLevel) {
-        nodeLevel[next] = newLevel;
-        if (!queue.includes(next)) {
-          queue.push(next);
-        }
+      if (!visited.has(next)) {
+        visited.add(next);
+        nodeLevel[next] = nodeLevel[cur] + 1;
+        queue.push(next);
       }
     }
   }
 
-  // 为未分配层级的节点（回退边目标）分配层级
+  // 为未分配层级的节点（仅通过回退边可达）分配层级
   for (const n of nodes) {
     if (nodeLevel[n.id] === undefined) {
-      nodeLevel[n.id] = 0;
+      const prevs = adjBackward[n.id] || [];
+      let maxPrev = -1;
+      for (const prev of prevs) {
+        if (nodeLevel[prev] !== undefined) {
+          maxPrev = Math.max(maxPrev, nodeLevel[prev]);
+        }
+      }
+      nodeLevel[n.id] = maxPrev >= 0 ? maxPrev + 1 : 0;
     }
   }
 
@@ -117,7 +120,7 @@ function buildDrawioXml(flow: ParsedFlow): string {
   const levelNodes: string[][] = [];
   for (let i = 0; i <= maxLevel; i++) {
     levelNodes[i] = nodes
-      .filter(n => nodeLevel[n.id] === i)
+      .filter(n => (nodeLevel[n.id] ?? 0) === i)
       .sort((a, b) => {
         const laneA = sortedLanes.findIndex(l => l.id === a.lane);
         const laneB = sortedLanes.findIndex(l => l.id === b.lane);
@@ -130,14 +133,29 @@ function buildDrawioXml(flow: ParsedFlow): string {
   const nodeXMap: Record<string, number> = {};
   const nodeYMap: Record<string, number> = {};
 
-  // 将同层节点在泳道内均匀分布
+  // 对于同层同泳道有多个节点的情况，垂直分散
+  const laneLevelCount: Record<string, number> = {};
+  const laneLevelIndex: Record<string, number> = {};
+  for (const n of nodes) {
+    const key = `${n.lane}_${nodeLevel[n.id] ?? 0}`;
+    laneLevelCount[key] = (laneLevelCount[key] || 0) + 1;
+  }
+
   const totalWidth = MARGIN_LEFT + (maxLevel + 1) * (NODE_WIDTH + H_GAP) + H_GAP;
   for (let lv = 0; lv <= maxLevel; lv++) {
     const x = MARGIN_LEFT + LANE_HEADER_WIDTH + lv * (NODE_WIDTH + H_GAP);
     for (const nid of levelNodes[lv]) {
       nodeXMap[nid] = x;
-      const laneIdx = sortedLanes.findIndex(l => l.id === nodeLaneMap[nid]);
-      nodeYMap[nid] = laneYMap[nodeLaneMap[nid]] + LANE_HEIGHT / 2;
+      const lane = nodeLaneMap[nid];
+      const key = `${lane}_${lv}`;
+      const count = laneLevelCount[key] || 1;
+      const idx = laneLevelIndex[key] || 0;
+      laneLevelIndex[key] = idx + 1;
+      // 在泳道内垂直居中分布
+      const laneCenter = laneYMap[lane] + LANE_HEIGHT / 2;
+      const totalNodeH = count * NODE_HEIGHT + (count - 1) * V_GAP;
+      const startY = laneCenter - totalNodeH / 2 + NODE_HEIGHT / 2;
+      nodeYMap[nid] = startY + idx * (NODE_HEIGHT + V_GAP);
     }
   }
 
@@ -150,19 +168,19 @@ function buildDrawioXml(flow: ParsedFlow): string {
   cells.push(`<mxCell id="1" parent="0"/>`);
 
   // 标题
-  cells.push(`<mxCell id="title" value="${escapeXml(title)}" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
-    <mxGeometry x="${MARGIN_LEFT}" y="10" width="${totalWidth}" height="40" as="geometry"/>
+  cells.push(`<mxCell id="title" value="${escapeXml(title)}" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=16;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+    <mxGeometry x="${MARGIN_LEFT}" y="10" width="${totalWidth}" height="34" as="geometry"/>
   </mxCell>`);
 
   // 泳道背景
   for (let i = 0; i < sortedLanes.length; i++) {
     const lane = sortedLanes[i];
     const color = LANE_COLORS[i % LANE_COLORS.length];
-    const y = laneYMap[lane.id] + 50; // 50px 给标题
+    const y = laneYMap[lane.id] + 44; // 44px 给标题
 
     // 泳道头部
     const headerId = `lane-header-${lane.id}`;
-    cells.push(`<mxCell id="${headerId}" value="${escapeXml(lane.name)}" style="shape=mxgraph.flowchart.annotation_2;rounded=1;fillColor=${color.header};strokeColor=none;fontColor=${color.headerText};fontSize=13;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+    cells.push(`<mxCell id="${headerId}" value="${escapeXml(lane.name)}" style="shape=mxgraph.flowchart.annotation_2;rounded=1;fillColor=${color.header};strokeColor=none;fontColor=${color.headerText};fontSize=12;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
       <mxGeometry x="${MARGIN_LEFT}" y="${y}" width="${LANE_HEADER_WIDTH}" height="${LANE_HEIGHT - 2}" as="geometry"/>
     </mxCell>`);
 
@@ -176,7 +194,7 @@ function buildDrawioXml(flow: ParsedFlow): string {
   // 节点
   for (const n of nodes) {
     const x = nodeXMap[n.id];
-    const y = nodeYMap[n.id] + 50 - 10; // 50 for title offset, adjust centering
+    const y = nodeYMap[n.id] + 44 - 6; // 44 for title offset, adjust centering
     const laneIdx = Math.max(0, sortedLanes.findIndex(l => l.id === n.lane));
     const color = LANE_COLORS[laneIdx % LANE_COLORS.length] || LANE_COLORS[0];
     let style = '';
@@ -187,21 +205,21 @@ function buildDrawioXml(flow: ParsedFlow): string {
 
     switch (n.type) {
       case 'start':
-        style = `ellipse;whiteSpace=wrap;html=1;fillColor=${color.header};strokeColor=${color.header};fontColor=#FFFFFF;fontSize=12;fontStyle=1;arcSize=50;`;
+        style = `ellipse;whiteSpace=wrap;html=1;fillColor=${color.header};strokeColor=${color.header};fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=50;`;
         geoW = START_END_R * 2;
         geoH = START_END_R * 2;
         geoX = x + (NODE_WIDTH - geoW) / 2;
         geoY = y - geoH / 2;
         break;
       case 'end':
-        style = `ellipse;whiteSpace=wrap;html=1;fillColor=#E53935;strokeColor=#C62828;fontColor=#FFFFFF;fontSize=12;fontStyle=1;arcSize=50;`;
+        style = `ellipse;whiteSpace=wrap;html=1;fillColor=#E53935;strokeColor=#C62828;fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=50;`;
         geoW = START_END_R * 2;
         geoH = START_END_R * 2;
         geoX = x + (NODE_WIDTH - geoW) / 2;
         geoY = y - geoH / 2;
         break;
       case 'decision':
-        style = `rhombus;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontColor=#333333;fontSize=11;fontStyle=0;rounded=0;`;
+        style = `rhombus;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontColor=#333333;fontSize=10;fontStyle=0;rounded=0;`;
         geoW = DECISION_WIDTH;
         geoH = DECISION_HEIGHT;
         geoX = x + (NODE_WIDTH - geoW) / 2;
@@ -209,7 +227,7 @@ function buildDrawioXml(flow: ParsedFlow): string {
         break;
       case 'action':
       default:
-        style = `rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=${color.header};strokeWidth=2;fontColor=#333333;fontSize=12;arcSize=20;shadow=1;`;
+        style = `rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=${color.header};strokeWidth=2;fontColor=#333333;fontSize=11;arcSize=16;shadow=1;`;
         break;
     }
 
@@ -221,19 +239,28 @@ function buildDrawioXml(flow: ParsedFlow): string {
   // 边（箭头）
   for (let i = 0; i < edges.length; i++) {
     const e = edges[i];
-    const fromType = nodeTypeMap[e.from];
-    const isBackEdge = nodeLevel[e.from] !== undefined && nodeLevel[e.to] !== undefined && nodeLevel[e.from] > nodeLevel[e.to];
+    const fromLvl = nodeLevel[e.from] ?? 0;
+    const toLvl = nodeLevel[e.to] ?? 0;
+    const isBackEdge = fromLvl > toLvl;
+
+    // 不同泳道：从右侧出、左侧入；同泳道：从底部出、顶部入
+    const fromLane = nodeLaneMap[e.from];
+    const toLane = nodeLaneMap[e.to];
+    const sameLane = fromLane === toLane;
 
     let edgeStyle = 'edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;';
+    if (sameLane) {
+      edgeStyle += 'exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
+    } else {
+      edgeStyle += 'exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
+    }
     if (isBackEdge) {
       edgeStyle += 'dashed=1;dashPattern=5 3;strokeColor=#E53935;';
     }
 
     const labelAttr = e.label ? `value="${escapeXml(e.label)}"` : '';
     cells.push(`<mxCell id="edge-${i}" ${labelAttr} style="${edgeStyle}" edge="1" source="${e.from}" target="${e.to}" parent="1">
-      <mxGeometry relative="1" position="0.5" as="geometry">
-        <Array as="points"/>
-      </mxGeometry>
+      <mxGeometry relative="1" as="geometry"/>
     </mxCell>`);
   }
 
