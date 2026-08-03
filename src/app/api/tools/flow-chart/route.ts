@@ -4,74 +4,18 @@ import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
 // ==================== 泳道式流程图方法论 ====================
 
-const SYSTEM_PROMPT = `你是一位专业的业务流程分析专家，擅长将业务描述转化为结构化的泳道式流程图。
+const SYSTEM_PROMPT = `你是泳道流程图生成专家。根据用户描述，只输出JSON，不要任何其他内容。
 
-## 核心方法论
+## 输出JSON格式
+{"title":"标题","lanes":[{"id":"l1","name":"角色名","order":1}],"nodes":[{"id":"s","type":"start","label":"开始","lane":"l1"},{"id":"e","type":"end","label":"结束","lane":"l1"},{"id":"n1","type":"action","label":"步骤","lane":"l1"},{"id":"n2","type":"decision","label":"判断","lane":"l1"}],"edges":[{"from":"s","to":"n1"},{"from":"n1","to":"n2","label":"否"},{"from":"n2","to":"e","label":"是"}]}
 
-### 1. 角色识别
-从业务描述中识别所有参与角色（部门/岗位/系统），每个角色对应一条泳道。
-角色识别原则：
-- 只提取**直接执行动作**的角色，不提取仅被提及的角色
-- 角色粒度适中：如"财务部"比"财务部-张三"更合适
-- 系统角色也算泳道：如"ERP系统"、"OA系统"
-
-### 2. 动作拆解
-将每个业务步骤拆解为：谁（角色）做什么（动作），结果是什么（输出）
-- 每个节点必须是明确的动作，不能是模糊的描述
-- 节点命名规范：动词+名词，如"审核申请"、"生成采购单"
-- 判断节点必须明确条件，如"金额>5000？"
-
-### 3. 流程类型识别
-- **顺序流程**：步骤依次执行
-- **分支流程**：根据条件走不同路径（判断节点后分叉）
-- **并行流程**：多个步骤同时执行
-- **回退流程**：审批不通过等场景需回到上游步骤
-
-### 4. 泳道布局规则
-- 水平布局：泳道从上到下排列，流程从左到右流动
-- 每个泳道高度固定，节点在对应泳道内水平排列
-- 跨泳道的箭头表示角色间的交互
-- 判断节点用菱形，动作节点用圆角矩形，开始/结束用圆形
-
-## 输出格式
-
-严格输出以下 JSON 结构，不要输出任何其他内容：
-
-\`\`\`json
-{
-  "title": "流程图标题",
-  "lanes": [
-    { "id": "lane1", "name": "角色名称", "order": 1 },
-    { "id": "lane2", "name": "角色名称", "order": 2 }
-  ],
-  "nodes": [
-    { "id": "start", "type": "start", "label": "开始", "lane": "lane1" },
-    { "id": "n1", "type": "action", "label": "动作描述", "lane": "lane1" },
-    { "id": "n2", "type": "decision", "label": "判断条件？", "lane": "lane2" },
-    { "id": "end", "type": "end", "label": "结束", "lane": "lane1" }
-  ],
-  "edges": [
-    { "from": "start", "to": "n1" },
-    { "from": "n1", "to": "n2" },
-    { "from": "n2", "to": "n1", "label": "否" },
-    { "from": "n2", "to": "end", "label": "是" }
-  ]
-}
-\`\`\`
-
-### 节点类型说明
-- \`start\`: 开始节点（圆形）
-- \`end\`: 结束节点（圆形）
-- \`action\`: 动作节点（圆角矩形）
-- \`decision\`: 判断节点（菱形）
-
-### 规则
-1. 必须有且仅有一个 start 节点和一个或多个 end 节点
-2. 每个节点必须归属于一个泳道（lane）
-3. edge 的 label 仅用于判断节点的分支标注
-4. 节点 ID 必须唯一，edge 的 from/to 必须引用有效的节点 ID
-5. 回退流程通过 edge 的 from 指向上游节点实现
-6. 并行流程通过一个节点指向多个下一节点实现`;
+## 规则
+- 节点类型: start开始 end结束 action操作 decision判断（审核/审批用decision）
+- 泳道=角色/部门，按描述中的顺序从上到下排列
+- 每个节点必须归属一个泳道
+- 有且仅有一个start，一个或多个end
+- 判断分支用edge.label标注（"是"/"否"）
+- 回退用edge指向已存在的上游节点`;
 
 // ==================== XML 生成 ====================
 
@@ -141,17 +85,22 @@ function buildDrawioXml(flow: ParsedFlow): string {
   const startNode = nodes.find(n => n.type === 'start');
   if (!startNode) return '<mxfile><diagram name="Error"><mxCell id="0"/></diagram></mxfile>';
 
-  // BFS 分配层级
+  // BFS 分配层级（防止循环边导致无限循环）
   const queue: string[] = [startNode.id];
   nodeLevel[startNode.id] = 0;
-  while (queue.length > 0) {
+  let bfsIter = 0;
+  const MAX_BFS_ITER = 200;
+  while (queue.length > 0 && bfsIter < MAX_BFS_ITER) {
+    bfsIter++;
     const cur = queue.shift()!;
     const nexts = adjForward[cur] || [];
     for (const next of nexts) {
       const newLevel = nodeLevel[cur] + 1;
       if (nodeLevel[next] === undefined || nodeLevel[next] < newLevel) {
         nodeLevel[next] = newLevel;
-        queue.push(next);
+        if (!queue.includes(next)) {
+          queue.push(next);
+        }
       }
     }
   }
@@ -326,7 +275,7 @@ async function callLLM(prompt: string): Promise<string> {
   console.log('[flow-chart] 开始调用 LLM...');
 
   // 使用 stream 方式收集完整响应（与 chat API 一致）
-  const stream = client.stream(messages, { model: 'doubao-seed-2-0-lite-260215', temperature: 0.3 });
+  const stream = client.stream(messages, { model: 'doubao-seed-2-0-mini-260215', temperature: 0.3 });
   let content = '';
   let charCount = 0;
   const MAX_CHARS = 8000; // 防止无限输出
