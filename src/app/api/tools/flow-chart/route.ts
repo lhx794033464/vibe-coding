@@ -242,26 +242,17 @@ function buildDrawioXml(flow: ParsedFlow): string {
     const fromLvl = nodeLevel[e.from] ?? 0;
     const toLvl = nodeLevel[e.to] ?? 0;
     const isBackEdge = fromLvl > toLvl;
-
-    // 不同泳道：从右侧出、左侧入；同泳道：从底部出、顶部入
-    const fromLane = nodeLaneMap[e.from];
-    const toLane = nodeLaneMap[e.to];
-    const sameLane = fromLane === toLane;
+    const isAdjacent = Math.abs(fromLvl - toLvl) <= 1 && !isBackEdge;
 
     let edgeStyle = '';
-    const isAdjacent = Math.abs(fromLvl - toLvl) <= 1;
-
     if (isAdjacent) {
-      // 相邻节点 - 直线连接
-      if (sameLane) {
-        // 同泳道：从上到下
-        edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
-      } else {
-        // 不同泳道：从左到右
-        edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
-      }
+      // 相邻节点：A右侧 → B左侧 直线
+      edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
     } else {
-      // 非相邻节点 - 正交线
+      // 非相邻/返回线：正交折线
+      const fromLane = nodeLaneMap[e.from];
+      const toLane = nodeLaneMap[e.to];
+      const sameLane = fromLane === toLane;
       edgeStyle = 'edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;';
       if (sameLane) {
         edgeStyle += 'exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
