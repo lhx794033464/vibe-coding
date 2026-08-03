@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserInfo } from '@/lib/serverAuth';
-
-// LLM API 配置
-const LLM_API_URL = process.env.COZE_API_URL || process.env.LLM_API_URL || '';
-const LLM_API_KEY = process.env.COZE_API_KEY || process.env.LLM_API_TOKEN || '';
-const LLM_MODEL = process.env.COZE_MODEL || process.env.LLM_MODEL || 'doubao-1.5-pro-32k';
+import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
 // ==================== 泳道式流程图方法论 ====================
 
@@ -319,39 +315,20 @@ function escapeXml(s: string): string {
 // ==================== API 处理 ====================
 
 async function callLLM(prompt: string): Promise<string> {
-  if (!LLM_API_URL || !LLM_API_KEY) {
-    throw new Error('LLM API 未配置');
-  }
+  const config = new Config();
+  const client = new LLMClient(config);
 
-  const response = await fetch(LLM_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${LLM_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 4096,
-    }),
+  const messages = [
+    { role: 'system' as const, content: SYSTEM_PROMPT },
+    { role: 'user' as const, content: prompt },
+  ];
+
+  const response = await client.invoke(messages, {
+    model: 'doubao-seed-2-0-lite-260215',
+    temperature: 0.3,
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`LLM API 调用失败: ${response.status} - ${errText}`);
-  }
-
-  const data = await response.json();
-  // 兼容不同 API 响应格式
-  const content = data?.choices?.[0]?.message?.content
-    || data?.output?.text
-    || data?.message?.content
-    || data?.content
-    || '';
+  const content = response?.content || '';
 
   if (!content) {
     throw new Error('LLM 返回内容为空');
