@@ -115,19 +115,8 @@ function buildDrawioXml(flow: ParsedFlow): string {
     }
   }
 
-  // 保存原始层级用于跨部门对齐和返回线检测
+  // 保存原始层级用于返回线检测
   const originalLevel = { ...nodeLevel };
-
-  // 跨部门节点对齐：将跨泳道连接的节点放到同一层级（垂直排列）
-  for (const e of flow.edges) {
-    const fromLane = nodeLaneMap[e.from];
-    const toLane = nodeLaneMap[e.to];
-    const fromLvl = originalLevel[e.from] ?? 0;
-    const toLvl = originalLevel[e.to] ?? 0;
-    if (fromLane !== toLane && toLvl > fromLvl) {
-      nodeLevel[e.to] = fromLvl;
-    }
-  }
 
   // 按层级分组，同层内按泳道排序
   const maxLevel = Math.max(...Object.values(nodeLevel), 0);
@@ -264,23 +253,10 @@ function buildDrawioXml(flow: ParsedFlow): string {
     const fromLane = nodeLaneMap[e.from];
     const toLane = nodeLaneMap[e.to];
     const sameLane = fromLane === toLane;
-    const isAdjacentSameLane = isAdjacent && sameLane;
-    const isAdjacentCrossLane = isAdjacent && !sameLane;
 
-    if (isAdjacentSameLane) {
-      // 同部门相邻节点：A右侧 → B左侧 直线
+    if (isAdjacent) {
+      // 相邻节点：A右侧 → B左侧 直线（同部门/跨部门统一水平对齐）
       edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;';
-    } else if (isAdjacentCrossLane) {
-      // 跨部门对齐节点：上下中心端点直线连接
-      const fromLaneIdx = sortedLanes.findIndex(l => l.id === fromLane);
-      const toLaneIdx = sortedLanes.findIndex(l => l.id === toLane);
-      if (fromLaneIdx < toLaneIdx) {
-        // 源在上方 → 从下侧连到目标上侧
-        edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;';
-      } else {
-        // 源在下方 → 从上侧连到目标下侧
-        edgeStyle = 'rounded=0;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;exitX=0.5;exitY=0;entryX=0.5;entryY=1;';
-      }
     } else {
       // 非相邻/返回线：正交折线
       edgeStyle = 'edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#333333;fontSize=10;';
